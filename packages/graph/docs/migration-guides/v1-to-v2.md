@@ -996,13 +996,13 @@ paints them in z-order. Compared with v1:
 Three operations stay separate: `isRenderAllowed()` stops a component's own painting; `shouldRenderChildren = false`
 (or `false` from `prepareUpdate()`) stops walking its children; in a culled layer the value `iterate()` returns does not; a batch is
 drawn by the component that owns it (`BlockConnections`), so a traversal veto does not hide batched lines.
-`afterRender` hooks of batch items run only for items in the viewport, and the label pass draws no labels while
-`BlockConnections` does not walk its children.
+`afterRender` hooks of Canvas batch items run only for items in the viewport. The Canvas compatibility label pass
+draws no labels while `BlockConnections` does not walk its children.
 
-`BlockConnection` labels are drawn in a separate pass after every connection line and arrow, so a label is never covered
-by another connection's line. `BlockConnection.afterRender` is removed: a subclass that replaced the label by overriding
-`afterRender` should override `renderLabelText()` instead; subclasses with their own `afterRender` still run after their
-chunk when Path2D draws the lines.
+A built-in connection's labels draw above its own line and arrow in the scene. Connections above it in scene order
+can cover those labels. A subclass can append scene label primitives with `appendSceneLabels()`. A subclass with
+custom Canvas hooks uses the compatibility batch, including its separate label pass. Override `renderLabelText()`
+to replace that batch's standard label, or `afterRender()` to draw after the connection's chunk.
 
 `BaseConnection.bBox` of a `BlockConnection` no longer includes the standard label; `getBBox()` still does.
 
@@ -1013,8 +1013,8 @@ for translucent colors and at anti-aliased crossings. `connection.PATH2D_CHUNK_S
 `requestRender` and the `orderedPaths` cache) are removed; use `has()` to check registration.
 
 `TGraphConnectionsContext.labels` is required: a custom parent that hosts `BlockConnection` must provide a
-`ConnectionLabelRenderer`, as `BlockConnections` does. A subclass that declared `override afterRender` and called
-`super.afterRender?.()` must drop both, because the base method no longer exists (TS4113/TS2339).
+`ConnectionLabelRenderer`, as `BlockConnections` does. Call `super.appendSceneLabels()` from an override to keep
+the inherited labels. The base `BlockConnection.afterRender` hook has no default painter.
 
 The minimap draws block bodies without names. Scene blocks are drawn from their scene elements at the minimalistic
 level without text (see [Blocks in the scene](#blocks-in-the-scene)). For a `LegacyCanvasBlock` it calls
@@ -1041,15 +1041,14 @@ without culling applies them before the walk and again right after a parent reco
 applies once per frame, and once more after each reconciliation by its parent in that frame; what it requests during
 its own update applies in the next frame.
 
-`BlockConnection` and its subclasses are retained: the `BlockConnections` batch draws their lines and arrows and its
-label pass their labels, so unchanged connections cost a frame nothing. A connection keeps its label item current from
-its own updates (state, props, geometry and the label font size), never from per-frame hooks. `BaseConnection` stays
-in the walk.
+`BlockConnection` and its subclasses are retained by default. The scene draws built-in connections. The
+`BlockConnections` batch and its label pass draw connections with custom Canvas hooks. A connection updates its
+labels when state, props, geometry or label font size change. `BaseConnection` stays in the walk.
 
 | Pattern in a `BlockConnection` subclass | v2 replacement |
 |---|---|
 | Draw in `render()`, `willRender()` or `didRender()`, or animate every frame | Declare `static override readonly mode = "immediate"`: the class is walked and culled again, and only it pays for that. Or extend `BaseConnection`. |
-| Draw extra content | Labels and badges: prepare their bounds in `updateLabelGeometry()` and draw in `renderLabelText()`, which the label pass calls for labels in the viewport. Other content: `afterRender(ctx)`, which the Path2D batch runs after the connection's chunk for connections in the viewport, with its bounds from `getAfterRenderBounds()`. |
+| Draw extra content | Prepare label bounds in `updateLabelGeometry()` and add scene primitives in `appendSceneLabels()`. For a custom Canvas label, override `renderLabelText()`. For other Canvas decoration, implement `afterRender(ctx)` and include its bounds in `getAfterRenderBounds()`. |
 | Read external state in `willIterate()` every frame | Subscribe to it and call `setState()`, or `updateGeometry()` for geometry inputs. |
 | Hide an overlay in `viewportChanged()` | Not called for retained components: check `isInViewport()` where you draw, or declare `static override readonly mode = "immediate"`. |
 | Read `connectionPoints`, `getBBox()` or `getGeometry()` right after moving a block or port | Endpoint moves are applied once per frame, before painting: read after the next frame, or call `updateGeometry()` first. The connection's hit box follows its geometry from the next frame too. |
@@ -1074,7 +1073,7 @@ mode, and `static override detached` no longer compiles (TS4113).
 
 `CanvasBlock` (`Block`) and `Anchor` are scene components: `graph.scene` draws them on its canvas, with Canvas 2D or
 WebGL, from level methods that return primitives, and tags and rules style them. `GraphLayer` stays their parent and
-keeps events, hit-testing, drags and the camera; connections still draw on its canvas, under the scene canvas. See
+keeps events, hit-testing, drags and the camera. Built-in connections share the scene canvas. See
 [Block component](../components/block-component.md), [Anchors](../components/anchors.md), [Scene](../system/scene.md)
 and [Tags and styles](../system/tags-and-styles.md).
 
@@ -1114,10 +1113,10 @@ To keep a v1 block's imperative look for one release, switch the base class and 
   }
 ```
 
-`LegacyCanvasBlock` is deprecated. It is walked and draws on the `GraphLayer` canvas, under every scene block, and never in
-WebGL. Its element takes tags and styles (bucket, hit order, and the dim and opacity its anchors inherit), but its
-imperative body drawing ignores scene styles. It is hit in scene order, so where it overlaps scene blocks the picture
-and the hit order can disagree. Its anchors draw in the scene. In development builds a `CanvasBlock` subclass that still defines one of the
+`LegacyCanvasBlock` is deprecated. It draws on `GraphLayer` below the scene canvas, including its blocks and
+built-in connections. Its element takes tags and styles (bucket, hit order, and the dim and opacity its anchors
+inherit). The body uses imperative drawing. It is hit in scene order, so its visual stacking and hit order can
+differ where a scene primitive covers it. Its anchors draw in the scene. In development builds a `CanvasBlock` subclass that still defines one of the
 removed render members logs one warning per class. A block whose children draw in `render()` must extend
 `LegacyCanvasBlock` too: children of a retained component must be retained, or mounting them throws.
 
@@ -1677,8 +1676,11 @@ pre-releases:
 
 `BlockConnection` has no renderer methods. The look of a connection moves to a line class (`static line`), its shape
 to a geometry function (`static geometry`); the component keeps data, state, interaction, the z-level and the label.
-The line class also picks the renderer of the whole graph: `Path2DLine` (the default) draws with Canvas2D,
-`WebGLLine` with WebGL2. See [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md) for the API.
+Set `renderer: "webgl"` to switch the whole scene to WebGL. `WebGLLine` configures the stroke and effects.
+The built-in lines, arrows and labels share scene order. A custom Canvas painter still uses the GraphLayer canvas.
+Read `graph.scene.$renderer` for renderer state. The experimental `getWebGLConnectionsStats()` and
+`resetWebGLConnectionsStats()` exports were retired with the separate connection renderer.
+See [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md) for the API.
 
 | Before | After |
 |---|---|
@@ -1809,14 +1811,13 @@ line with an effect gets its own color back there and the effect shows the selec
 ### Multipoint connections
 
 `MultipointConnection` and `BezierMultipointConnection` are `BlockConnection` subclasses with
-`static geometry = multipointGeometry` and `bezierMultipointGeometry`; a custom class sets the same static. Their
-behavior differs from v1 in three ways:
+`static geometry = multipointGeometry` and `bezierMultipointGeometry`. A custom class can set the same static.
 
 - A multipoint connection whose ports are not resolved has no geometry: it is neither drawn nor hit. In v1 it was
   drawn from `points` alone.
 - The default `Path2DLine` strokes the closed triangle at the end with the line's width (v1 used width 1).
-- Their `labels` are still drawn by `afterRender()`, which only the Path2D batch calls: with a WebGL line class they
-  are not drawn (the WebGL fallback draws them).
+- The built-in `labels` use the scene's `label` and `labelBackground` parts with both renderers. Connections that
+  use the Canvas compatibility batch draw those labels through `afterRender()`.
 
 ### Bounds and hit testing
 
@@ -1874,4 +1875,4 @@ name). The protected `geometry` field (`{ x1, y1, x2, y2 }`) is gone, and `this.
 `geometry` is the static geometry function now): read `this.connectionPoints` or `this.getGeometry()`.
 
 `static override readonly mode = "immediate"` with a custom `render()` stays possible: the class is walked again and draws on the graph
-layer's canvas every frame it is rendered, above the lines of either renderer.
+layer's canvas every frame it is rendered, above its line in the Canvas compatibility batch.

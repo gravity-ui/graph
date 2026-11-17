@@ -203,7 +203,7 @@ describe("Resolved graph configuration", () => {
     graph.setConstants({ camera: { SPEED: undefined, PAN_SPEED: 2 } });
     expect(graph.graphConstants.selectionLayer.SELECTABLE_ENTITY_TYPES).toEqual([]);
     expect(graph.graphConstants.connection.LABEL.INNER_PADDINGS).toEqual([1, 2, 3, 4]);
-    expect(graph.graphConstants.connection.DEFAULT_Z_INDEX).toBe(0);
+    expect(graph.graphConstants.connection.DEFAULT_Z_INDEX).toBe(100);
     expect(graph.graphConstants.camera.SPEED).toBe(0);
     expect(graph.graphConstants.camera.PAN_SPEED).toBe(2);
   });

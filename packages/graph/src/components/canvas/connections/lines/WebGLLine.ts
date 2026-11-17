@@ -2,7 +2,7 @@ import type { TConnection } from "../../../../store/connection/ConnectionState";
 import type { TBaseConnectionState } from "../BaseConnection";
 import type { Path2DRenderStyleResult } from "../BatchPath2D";
 import type { BlockConnection, TConnectionProps } from "../BlockConnection";
-import { ConnectionEffect, toConnectionEffect } from "../effects/ConnectionEffect";
+import { toConnectionEffect } from "../effects/ConnectionEffect";
 import type { TConnectionEffectUse } from "../effects/types";
 import { createArrowPath, createSegmentsPath, lineSegment } from "../geometry";
 import type { TConnectionArrow, TConnectionGeometry } from "../geometry";
@@ -37,9 +37,9 @@ function readInteraction(connection: BlockConnection<TConnection>, state: TBaseC
 }
 
 /** The arrow's outline as straight cubics; a closed arrow adds the closing side. */
-function arrowSegments(arrow: TConnectionArrow): Float32Array {
+export function arrowSegments(arrow: TConnectionArrow): Float32Array {
   const { points, closed } = arrow;
-  const count = points.length / 2;
+  const count = Math.floor(points.length / 2);
   const sides = Math.max(0, closed ? count : count - 1);
   const out = new Float32Array(sides * 8);
   for (let i = 0; i < sides; i++) {
@@ -67,8 +67,6 @@ export class WebGLLine<
     interaction: TLineInteraction;
     shape: TWebGLShape;
   };
-
-  private arrowShape?: { geometry: TConnectionGeometry; stroke: TLineStroke; shape: TWebGLShape };
 
   private fallback?: { stroke: TLineStroke; fallbackStroke: TLineStroke };
 
@@ -141,27 +139,6 @@ export class WebGLLine<
     }
     if (shown) shape.effectShowsSelection = true;
     this.lineShape = { geometry, stroke, interaction, shape };
-    return shape;
-  }
-
-  /** @internal */
-  public override getWebGLEffect(): TWebGLShape["effect"] {
-    const effect = (this.getCurrentStroke() as TWebGLStroke).effect?.effect;
-    // Another object throws when the line's chunk is built (see getWebGLShape()).
-    return effect instanceof ConnectionEffect ? effect : undefined;
-  }
-
-  /** @internal */
-  public override getArrowWebGLShape(): TWebGLShape | undefined {
-    const geometry = this.connection.getGeometry();
-    const arrow = geometry?.arrow;
-    if (!geometry || !arrow) return undefined;
-    const stroke = this.getCurrentArrowStroke();
-    const cached = this.arrowShape;
-    if (cached && cached.geometry === geometry && cached.stroke === stroke) return cached.shape;
-    const shape: TWebGLShape = { segments: arrowSegments(arrow), stroke };
-    if (arrow.closed) shape.fill = arrow.points;
-    this.arrowShape = { geometry, stroke, shape };
     return shape;
   }
 

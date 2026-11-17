@@ -1,8 +1,8 @@
 # Connection Lines, Geometry and WebGL
 
 How a `BlockConnection` draws its line: a geometry function describes the shape, a line class describes the look and
-picks the renderer (Canvas2D `Path2D` or WebGL2), and WebGL lines can carry shader effects. This page covers choosing
-a renderer, writing lines, geometries and effects, the shader contract, the fallback, hit testing and performance.
+supplies the stroke, and `graph.scene` draws built-in connections with Canvas2D or WebGL2. WebGL paths can
+carry shader effects.
 
 A `BlockConnection` is made of three parts, each with one job:
 
@@ -12,56 +12,60 @@ A `BlockConnection` is made of three parts, each with one job:
 - **The geometry** (`static geometry`): a pure function from the endpoints, `points` and the connection's data to
   cubic Bézier segments and an arrow, in world coordinates. Bounds, the arrow position and hit testing derive from it.
 - **The line** (`static line`): one object per connection, created by the component in its constructor. It owns the
-  look (`getStroke()`), the contract of its renderer and the connection's batch items: the line and its arrow.
+  look (`getStroke()` and `getArrowStroke()`) and the optional shader effect.
 
 ```typescript
 import { BlockConnection, Path2DLine, WebGLLine, blockGeometry } from "@gravity-ui/graph";
 
-// The defaults spelled out: Path2D lines, a Bézier or straight shape by `useBezierConnections`.
+// The default stroke and a Bézier or straight shape by useBezierConnections.
 class CanvasConnection extends BlockConnection {
   public static override line = Path2DLine;
   public static override geometry = blockGeometry;
 }
 
-// The same shape drawn with WebGL: the whole graph switches to WebGL.
+// The same geometry with the WebGLLine style and effect APIs.
 class GLConnection extends BlockConnection {
   public static override line = WebGLLine;
 }
 
-graph.updateSettings({ connection: GLConnection });
+graph.updateSettings({ connection: GLConnection, renderer: "webgl" });
 ```
 
 Lines and geometries compose: a geometry is written once, and both line kinds draw, bound and hit-test it.
 
 ## Choosing a renderer
 
-The kind of the connection class's line is the only source of the renderer:
+Set `renderer: "webgl"` to draw blocks, anchors and built-in connections in one WebGL context. With the default
+`renderer: "canvas"`, they use the same scene's Canvas2D interpreter. Changing the renderer preserves the
+connection objects and their geometry. The default line works with either renderer. Choose `WebGLLine` when you
+need the shader effect API.
 
-| `static line` | Renderer | What it draws |
-|---|---|---|
-| `Path2DLine` (default) or a subclass | Canvas2D `Path2D` on the graph layer's canvas | Any Canvas2D shape and style; nothing animates |
-| `WebGLLine` or a subclass | WebGL2 on its own canvas, right below the graph layer's canvas | The geometry only, with effects, animated ones included |
+A `Path2DLine` subclass, an immediate connection or a connection with custom Canvas painting hooks draws
+through the GraphLayer Canvas2D batch. Prefer `static geometry` for a shape that should participate in both scene renderers.
 
-One renderer draws every connection of a graph; there is no per-connection or mixed mode. A graph has one connection
-class (the `connection` setting), so `graph.updateSettings({ connection })` with a new class remounts every
-connection and switches the renderer when the new line's kind differs. Labels are drawn with Canvas2D above every line
-with either renderer.
+## Scene styles
 
-While the graph is stopped or detached (`graph.stop()`, `graph.detach()`, an unmounted `GraphCanvas`), the WebGL
-canvas leaves the root and nothing animates; the renderer keeps its GL objects and draws on the first frame after the
-graph starts again.
+Built-in connections declare the parts `line`, `arrow`, `labelBackground` and `label`. Write a tag on the
+`connection` entity and use a scene rule to style a part. A matching tag rule overrides a color from
+`styles.background` in the connection data.
 
-### When WebGL pays off
+```ts
+import { BlockConnection, defineTag } from "@gravity-ui/graph";
 
-Choose `WebGLLine` for effects, dashes and per-connection styles on large graphs, not for plain lines. Measured on
-Apple M3 Pro, Chromium (ANGLE Metal), DPR 2, a 1600×1000 viewport:
+const running = defineTag("running");
+graph.scene.styles.add([
+  { target: BlockConnection, tags: [running], style: { parts: { line: { color: "#39a96b" } } } },
+]);
+graph.scene.tags.add(running, { connection: [connectionId] });
+```
 
-- **Plain lines:** WebGL is not faster than Path2D; it costs 0.1–2 ms more main-thread time per frame.
-- **Dashes:** a still dash on canvas costs 655–1611 ms a frame on the Nirvana graph (Storybook
-  `NirvanaMaxGraphTest`: 13,916 blocks, Bézier connections) against 8.3 ms with WebGL. Canvas rasterizes the dash
-  along the whole curve; WebGL decides per pixel.
-- **Per-connection styles:** WebGL is 1.5–2.8× faster when zoomed in. Canvas strokes once per style group, and
-  per-connection colors and widths make many groups; WebGL keeps the style in each instance.
+Use `width: { px: 3, maxWorld: 20 }` for a stroke sized in screen pixels with a world-unit cap. Both renderers
+and the hit test resolve that width at the current zoom. A rule can also hide a part or set `opacity` or `dim`.
+Color and dim changes can use the WebGL style table without rebuilding the route. The default selection and hover
+rules raise the connection one bucket.
+
+A rule can set `parts.line.effect` to an effect use such as `flow.use(params)`, or set it to `null` to disable an
+effect. `WebGLLine.getStroke()` can also supply one. Canvas draws the base stroke with the matching paint rules.
 
 ## Lines
 
@@ -85,7 +89,7 @@ parameter (`class MyLine extends Path2DLine<MyConnection>`), so a line can call 
 **Hover and selection** never change the style of a line: a dashed line stays dashed, a line with an effect keeps
 its effect. `withInteraction()`, and the default stroke built on it, makes a hovered or selected line 2 units wider
 and gives a selected one the selection color; whatever stroke `getStroke()` returns is drawn as it is, its arrow and
-its Path2D fallback included, by both line kinds. One exception: on a `WebGLLine`, an effect whose stroke still has
+by both scene renderers. One exception: on a `WebGLLine`, an effect whose stroke still has
 the selection color `withInteraction()` applied gets the line's own color back and shows the selection itself through
 `f.hovered`, `f.selected` and `f.selectionColor` (see
 [Hover and selection in effects](#hover-and-selection-in-effects)), so `{ ...super.getStroke(state), effect }` runs
@@ -93,9 +97,8 @@ the effect over the connection's color. Build a custom look with `withInteractio
 the default stroke — `return this.withInteraction({ color: "#2f7cf6", width: 6, effect: flow.use(input) }, state)`.
 Returning `super.getStroke(state)` for hovered or selected connections would replace the look with the default line.
 
-**Update protocol.** The component calls `line.update()` when its state, props or geometry change: the line reads
-`getStroke()` (and `getArrowStroke()` while arrows are shown) again and tells the batch, which moves the line to its
-new style group and z-level (Path2D) or re-encodes its chunk (WebGL). The state carries the connection's data,
+**Update protocol.** When a connection changes, it reads `getStroke()` and `getArrowStroke()` and updates its
+scene primitives or Canvas batch items. The state carries the connection's data,
 custom fields included, so a stroke computed from the state follows the store with no extra work:
 
 ```typescript
@@ -409,7 +412,7 @@ are values: nothing is registered or referred to by name.
 | `animated` | Redraw every animation frame while a connection with the effect is drawn: for effects that read `f.time` |
 | `uniforms` | `{ name: { type, value } }`, read in GLSL as `u_<name>`; types `"float"`, `"vec2"`, `"vec3"`, `"vec4"`. Values are signals on the effect |
 | `extraWidth` | CSS pixels the effect may draw outside each side of the stroke, for glows (default 0) |
-| `fallback` | `(stroke, params) => TLineStroke`: the Path2D stroke while WebGL is unavailable. Default: the stroke without the effect |
+| `fallback` | Compatibility callback for the Canvas batch. The unified scene's Canvas renderer uses the base stroke |
 | `encode` | Typed parameters: packs `use(input)` into the numbers the shader reads. Without it, `use()` takes the numbers |
 
 The effect object has `uniforms` (signals), `use(input)`, which returns `{ effect, params }` for `stroke.effect`, and
@@ -607,26 +610,8 @@ class ParticlesConnection extends BlockConnection {
 
 ### Fallback strokes
 
-While WebGL is unavailable (see [Fallback](#fallback-and-connectionsrenderer)) Path2D draws each WebGL line with its
-effect's `fallback(stroke, params)`, or the stroke without the effect. Nothing animates there. The fallback starts from
-the stroke `getStroke()` returned, so a selected line of `withInteraction()` keeps the selection color. Give an effect
-a fallback when its stroke alone looks wrong, such as round particles on a 14 px stroke, which would become a solid
-band: the `particles` effect of [Hover and selection in effects](#hover-and-selection-in-effects) falls back to a thin
-dotted line.
-
-### Errors and warnings
-
-- A fragment that fails to compile or link reports one console error per source text, in every build, with the
-  compiler log; line numbers count from the first line of the effect's own text. Its connections are drawn with the
-  plain stroke in WebGL, a selected one of `withInteraction()` in the selection color; the graph stays on WebGL.
-- A uniform value of the wrong type or length reports one development-build error and is not applied.
-- More than 8 `params` are dropped with one development-build warning.
-- More than 64 effect objects with one source text alive at once report one development-build warning:
-  `defineConnectionEffect()` or `clone()` is called per connection. Objects of unmounted graphs stop counting once
-  they are garbage-collected.
-- `defineConnectionEffect()` throws for a uniform name other than letters, digits and underscores (starting with a
-  letter) and for an `extraWidth` that is negative or not finite. `stroke.effect` must come from `use()` of an object
-  created by `defineConnectionEffect()`.
+Canvas2D paints the base stroke returned by `getStroke()`. Put a static dash in that stroke if the Canvas version
+should be dashed too. Effect-specific fallback callbacks remain available to the compatibility Canvas batch.
 
 ## Shader contract
 
@@ -758,28 +743,11 @@ export const pulsingComets = defineConnectionEffect({
 
 ## Fallback and `$connectionsRenderer`
 
-A graph of `WebGLLine` connections without WebGL draws its lines with Path2D built from the same geometry, using each
-effect's fallback stroke, with no animation. This happens when WebGL2 is missing, when its setup fails (the library's
-shaders do not compile or link, for example) and when the context is lost, also while the renderer is set up; each
-episode logs one console warning, in every build, that names the reason. Without WebGL2 or after a failed setup, the
-graph stays on Path2D until the connection class changes: any change of the class tries WebGL again. A lost context
-waits for `webglcontextrestored`, then the renderer creates WebGL again; a change to another `WebGLLine` class does not
-retry meanwhile, a change to a `Path2DLine` class frees the lost context.
+When WebGL2 is unavailable or the scene loses its context, the Canvas2D interpreter draws the scene using the same
+geometry and the base strokes of effect lines. The scene manages context restoration.
 
-`graph.getGraphLayer().$connectionsRenderer` is a read-only signal of what draws the lines now:
-
-| Value | Meaning |
-|---|---|
-| `"canvas"` | Path2D, for a `Path2DLine` class. Also for a `WebGLLine` class while the graph's root is not in the document yet (the WebGL renderer is created on the first frame with the graph's canvas in the document) and after the connections unmount |
-| `"webgl"` | WebGL2 |
-| `"webgl-fallback"` | Path2D for a `WebGLLine` class, with the effects' fallback strokes |
-
-```typescript
-const renderer = graph.getGraphLayer().$connectionsRenderer;
-const unsubscribe = renderer.subscribe((value) => {
-  console.info("connections are drawn by", value); // "canvas" | "webgl" | "webgl-fallback"
-});
-```
+Read `graph.scene.$renderer` for renderer state, including loading and restoration. The compatibility signal
+`graph.getGraphLayer().$connectionsRenderer` maps the scene to `"canvas"`, `"webgl"` or `"webgl-fallback"`.
 
 ## Hit testing
 
@@ -787,9 +755,8 @@ One rule for both line kinds: a point hits a connection within `stroke.width / 2
 its drawn line (`THRESHOLD_LINE_HIT` is 8 by default: 9 for a 2-unit line, 10 hovered or selected). The arrow is part
 of the hit area while arrows are shown, with its own stroke width; a point inside a closed arrow hits too.
 
-- `Path2DLine` runs `isPointInStroke` on its own path with a line width of `width + 2 · threshold`, so a custom
-  `createPath()` is hit where it is drawn.
-- `WebGLLine` measures the distance to the geometry's segments, with curves flattened to half a CSS pixel.
+- Scene connections use the same analytic hit test in both renderers. Curves flatten to half a CSS pixel.
+- A `Path2DLine` subclass uses its custom path for hits, with a line width of `width + 2 · threshold`.
 - `extraWidth` is not part of the hit area: a glow is decoration.
 - Labels keep their own rule: a square of `THRESHOLD_LINE_HIT` screen pixels around the point meets the label.
 - The broad phase uses the connection's hit box: the bounds of the line, the arrow (while shown) and the label,
@@ -802,51 +769,33 @@ units. A filled custom path, for example, adds `isPointInPath`.
 
 ## Draw calls and order
 
-**Path2D** draws one `stroke()` (or `fill()`) per chunk of a style group: chunks by z-level, then group, then grid
-cell (see [Batch Rendering](batch-rendering.md)).
+The scene orders connections by z-index and insertion order. The default connection bucket is 100, or 101
+while hovered or selected. The shaft, arrow and labels share that element's depth and hit order. The WebGL
+backend batches their primitives with the rest of the scene.
 
-**WebGL** chunks connections by z-level and grid cell only; the style is in each instance. Per drawn chunk and effect
-group present it issues one instanced call for the straight segments and one for the curve pieces (each when there
-are any), plus one fill call when the chunk has closed arrows. Without effects that is one or two calls per chunk;
-the worst case is visible chunks × effects. Within a z-level the loop runs effects outside and chunks inside, so
-programs switch once per effect and z-level, not per chunk.
+When all visible connection roots are below the other visible roots, a large eligible path workload can use an
+internal single-sample connection pass in the scene's WebGL context. It draws from the same resident records,
+preserves the order of path pieces and joins, and uses the shader's analytic coverage with premultiplied
+source-over blending, as the standalone connection renderer did. At overlaps, nominally opaque hairlines can
+therefore accumulate coverage differently from the shared multisampled pass.
 
-Within one z-level WebGL draws the closed-arrow fills first, then the plain group, then each effect group in the order
-of its first appearance; inside a group straight pieces draw before curve pieces. Overlapping translucent lines of
-different effects on one z-level therefore blend in that order, not in insertion order. The order across z-levels is
-the same as with Path2D: hovered and selected connections above the others, an arrow one level below its line.
+Frames with interleaved scene order, visible connection labels or filled arrowheads, wide opaque strokes, or
+unsupported effect combinations use the shared multisampled pass. A hidden label can stay resident without
+affecting eligibility. The backend chooses the pass automatically using the current view and submitted workload.
 
-**Curves** stay within 0.25 CSS pixels of the true curve at every zoom. When the zoom changes enough, visible chunks
-are tessellated again over a few frames and drawn with the previous tessellation meanwhile. How curves are split is
-internal.
+The Canvas compatibility batch uses the rules in [Batch Rendering](batch-rendering.md).
 
 ## Known limits
 
-- `MultipointConnection` draws its `labels` in `afterRender()`, which only the Path2D batch calls: with a WebGL line
-  class they are drawn only in the fallback. The same holds for any `afterRender()`.
-- Effects never apply to arrows: an arrow is drawn with `getArrowStroke()`.
-- Custom closed arrows must be convex.
-- WebGL dash patterns use their first 4 numbers; a longer pattern reports one warning in development builds only.
-- Effect parameters are 8 numbers per connection; uniforms are `float` and `vec2`–`vec4`.
-- Every graph with WebGL lines has its own WebGL context. Browsers keep a limited number of live contexts (about
-  16), so a page with many WebGL graphs can run out; a graph whose context the browser drops falls back to Path2D.
-- Labels, and anything a `static override readonly mode = "immediate"` connection draws in `render()`, are drawn on the graph layer's
-  canvas, above every WebGL line.
+- Effects apply to the shaft. Arrows use `getArrowStroke()`.
+- WebGL dash patterns use their first 4 numbers. Effect parameters are 8 numbers per connection, with `float` and
+  `vec2`–`vec4` uniforms.
+- Immediate Canvas drawing hooks use the GraphLayer canvas.
 
 ## Diagnostics
 
-`getWebGLConnectionsStats()` and `resetWebGLConnectionsStats()` are experimental diagnostics for benchmarks and may
-change. They accumulate the main-thread work of every WebGL connections renderer on the page: `drawMs`, `draws`,
-`drawCalls`, `instances` (`lineInstances` plus `curveInstances`), `items` and `vertices`.
-
-```typescript
-import { getWebGLConnectionsStats, resetWebGLConnectionsStats } from "@gravity-ui/graph";
-
-resetWebGLConnectionsStats();
-// … after some frames:
-const { drawMs, draws, drawCalls } = getWebGLConnectionsStats();
-console.info(`${(drawMs / draws).toFixed(2)} ms, ${drawCalls / draws} draw calls per frame`);
-```
+The scene benchmark measures both renderers using the same scene elements. Its WebGL counters report
+draw calls, instances and uploaded bytes for the whole scene.
 
 ## See also
 

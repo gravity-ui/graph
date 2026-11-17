@@ -5,7 +5,6 @@ import { TConnection } from "../../../store/connection/ConnectionState";
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import { BlockConnections } from "./BlockConnections";
 import { MultipointConnection } from "./MultipointConnection";
-import type { IConnectionBatchItem } from "./batch";
 
 const baseProps: TConnectionProps = {
   id: "c",
@@ -38,10 +37,6 @@ class TestConnection extends BlockConnection<TConnection> implements ITestView {
   public applyProps<K extends keyof TConnectionProps>(nextProps: Pick<TConnectionProps, K>): void {
     this.setProps(nextProps);
     this.checkData();
-  }
-
-  public get arrow(): IConnectionBatchItem {
-    return this.line.arrow;
   }
 }
 
@@ -109,12 +104,21 @@ it("keeps the next showConnectionArrows value when bounds mode changes in the sa
   const graph = createGraph();
   const view = new TestConnection(baseProps, new BlockConnections({}, graph.getGraphLayer()));
   view.refresh();
-  const update = jest.spyOn(view.context.batch, "update");
-  const remove = jest.spyOn(view.context.batch, "delete");
+  const { store } = graph.scene;
+  const elementId = view.getSceneKey()?.elementId ?? "";
+  const drawnParts = () => store.get(elementId)?.primitives.map(({ part }) => part);
+  expect(drawnParts()).toEqual(["line", "arrow"]);
 
+  let publishedArrow = false;
+  const unsubscribe = store.subscribe(({ element }) => {
+    if (element.id === elementId && element.primitives.some(({ part }) => part === "arrow")) {
+      publishedArrow = true;
+    }
+  });
   view.applyProps({ showConnectionArrows: false, useTightBezierBounds: false });
+  unsubscribe();
 
-  expect(remove).toHaveBeenCalledWith(view.arrow);
-  expect(update).not.toHaveBeenCalledWith(view.arrow, expect.anything());
+  expect(publishedArrow).toBe(false);
+  expect(drawnParts()).toEqual(["line"]);
   Component.unmount(view);
 });

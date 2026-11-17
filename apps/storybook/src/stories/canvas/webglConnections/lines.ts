@@ -1,19 +1,13 @@
-import { BlockConnection, Path2DLine, WebGLLine, dashFlow, defineConnectionEffect, pulse } from "@gravity-ui/graph";
-import type {
-  TBaseConnectionState,
-  TConnection,
-  TConnectionEffectUse,
-  TLineStroke,
-  TWebGLStroke,
-} from "@gravity-ui/graph";
+import { BlockConnection, WebGLLine, dashFlow, defineConnectionEffect, pulse } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TConnection, TConnectionEffectUse, TWebGLStroke } from "@gravity-ui/graph";
 
-type TConnectionClass = typeof BlockConnection<TConnection>;
+export type TConnectionClass = typeof BlockConnection<TConnection>;
 
 /** The look of one connection; each renderer draws what it can of it. */
 export type TLook = {
   color: string;
   width: number;
-  /** A still dash in world units: what Path2D draws, and WebGL when there is no effect. */
+  /** A still dash in world units for both renderers. */
   pattern?: readonly number[];
   /** WebGL only. */
   effect?: TConnectionEffectUse;
@@ -24,9 +18,6 @@ export type TLook = {
  * one the selection color. A WebGL line with an effect gets its own color back and the effect shows the selection.
  */
 export type TDescribe = (id: string | number | undefined, state: TBaseConnectionState) => TLook;
-
-/** The two connection classes of one option: the same look, drawn by WebGL and by Path2D. */
-export type TConnectionPair = { webgl: TConnectionClass; canvas: TConnectionClass };
 
 const palette = ["#e15759", "#4e79a7", "#59a14f", "#f28e2b", "#b07aa1", "#76b7b2"];
 const flowColors = ["#2f7cf6", "#00a3a3", "#7a5af8"];
@@ -44,29 +35,17 @@ function toWebGLStroke({ color, width, pattern, effect }: TLook): TWebGLStroke {
   return pattern ? { color, width, dash: { pattern } } : { color, width };
 }
 
-function toCanvasStroke({ color, width, pattern }: TLook): TLineStroke {
-  return pattern ? { color, width, dash: { pattern } } : { color, width };
-}
-
-export function createConnections(describe: TDescribe): TConnectionPair {
+export function createConnection(describe: TDescribe): TConnectionClass {
   // The dash and the effect stay on hover and selection; an effect decides how the selection looks.
-  class GLLine extends WebGLLine {
+  class StyledLine extends WebGLLine {
     public override getStroke(state: TBaseConnectionState): TWebGLStroke {
       return this.withInteraction(toWebGLStroke(describe(this.connection.props.id, state)), state);
     }
   }
-  class GLConnection extends BlockConnection<TConnection> {
-    public static override line = GLLine;
+  class StyledConnection extends BlockConnection<TConnection> {
+    public static override line = StyledLine;
   }
-  class CanvasLine extends Path2DLine {
-    public override getStroke(state: TBaseConnectionState): TLineStroke {
-      return this.withInteraction(toCanvasStroke(describe(this.connection.props.id, state)), state);
-    }
-  }
-  class CanvasConnection extends BlockConnection<TConnection> {
-    public static override line = CanvasLine;
-  }
-  return { webgl: GLConnection, canvas: CanvasConnection };
+  return StyledConnection;
 }
 
 /** Custom effects, defined once at module scope: `use()` carries the per-connection values. */
@@ -137,23 +116,16 @@ export const glow = defineConnectionEffect({
   fallback: (stroke) => stroke,
 });
 
-/** The default lines of each renderer: the connection's colors, its `dashed` data, hover and selection. */
-class PlainWebGLConnection extends BlockConnection<TConnection> {
-  public static override line = WebGLLine;
-}
+export const stillDash = createConnection(() => ({ color: "#4e79a7", width: 2, pattern: [12, 8] }));
 
-export const plain: TConnectionPair = { webgl: PlainWebGLConnection, canvas: BlockConnection };
-
-export const stillDash = createConnections(() => ({ color: "#4e79a7", width: 2, pattern: [12, 8] }));
-
-export const runningDash = createConnections(() => ({
+export const runningDash = createConnection(() => ({
   color: "#4e79a7",
   width: 2,
   pattern: [12, 8],
   effect: dashFlow.use({ pattern: [12, 8], speed: 40 }),
 }));
 
-export const dataStyled = createConnections((id) => {
+export const dataStyled = createConnection((id) => {
   const hash = hashId(id);
   return { color: palette[hash % palette.length], width: 1 + (hash % 4) };
 });
@@ -162,7 +134,7 @@ export const dataStyled = createConnections((id) => {
  * A pipeline at work, picked per connection from a hash of its id: comets carry data forward at their own speed,
  * orange comets run back, green lines pass a signal wave across the graph, grey dashed lines wait.
  */
-export const pipeline = createConnections((id) => {
+export const pipeline = createConnection((id) => {
   const hash = hashId(id);
   const kind = hash % 10;
   if (kind < 4) {
@@ -188,7 +160,7 @@ export const pipeline = createConnections((id) => {
 });
 
 /** Every connection carries comets forward; speed and color vary per connection. */
-export const comets = createConnections((id) => {
+export const comets = createConnection((id) => {
   const hash = hashId(id);
   const pattern = [80, 180];
   return {
@@ -200,14 +172,14 @@ export const comets = createConnections((id) => {
 });
 
 /** One signal runs across the whole graph from the first layer to the last. */
-export const signalWave = createConnections(() => ({
+export const signalWave = createConnection(() => ({
   color: "#7a5af8",
   width: 6,
   effect: pulse.use({ period: 4, wavelength: 30000 }),
 }));
 
 /** Particles at their own spacing and speed: a stroke wide enough for round dots. */
-export const particleLines = createConnections((id) => {
+export const particleLines = createConnection((id) => {
   const hash = hashId(id);
   return {
     color: flowColors[hash % 3],
@@ -217,7 +189,7 @@ export const particleLines = createConnections((id) => {
 });
 
 /** Blue at the source, orange at the target, and a band that runs along at its own pace. */
-export const gradientLines = createConnections((id) => {
+export const gradientLines = createConnection((id) => {
   const laps = 0.2 + (hashId(id) % 5) * 0.1;
   return {
     color: "#7a8aa6",
@@ -226,4 +198,4 @@ export const gradientLines = createConnections((id) => {
   };
 });
 
-export const glowLines = createConnections(() => ({ color: "#2f7cf6", width: 3, effect: glow.use([]) }));
+export const glowLines = createConnection(() => ({ color: "#2f7cf6", width: 3, effect: glow.use([]) }));

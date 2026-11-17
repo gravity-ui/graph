@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { ECanDrag, Graph, TGraphConfig, TGraphSettingsConfig, TStyleRule } from "@gravity-ui/graph";
 import { ThemeProvider } from "@gravity-ui/uikit";
@@ -163,17 +163,19 @@ export const GraphStressTest: Story = {
   },
 };
 export const NirvanaMaxGraphTest: Story = {
-  render: (args) => {
-    return (
-      <GraphApp
-        {...args}
-        config={generatePrettyBlocks({
-          layersCount: 55,
-          connectionsPerLayer: 400,
-          overrideSettings: { useBezierConnections: true },
-        })}
-      ></GraphApp>
+  args: { renderer: "canvas" },
+  argTypes: {
+    renderer: { control: "select", options: ["canvas", "webgl"] },
+  },
+  render: function Render(args) {
+    const [config] = useState(() =>
+      generatePrettyBlocks({
+        layersCount: 55,
+        connectionsPerLayer: 400,
+        overrideSettings: { useBezierConnections: true },
+      })
     );
+    return <GraphApp {...args} config={config} />;
   },
 };
 

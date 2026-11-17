@@ -1,8 +1,8 @@
 import { dashFlow, pulse } from "@gravity-ui/graph";
 import type { Graph, TBaseConnectionState, TBlock, TBlockId, TConnection } from "@gravity-ui/graph";
 
-import { createConnections, glow, gradient, particles } from "./lines";
-import type { TConnectionPair, TLook } from "./lines";
+import { createConnection, glow, gradient, particles } from "./lines";
+import type { TLook } from "./lines";
 
 export type TEtlStageKind = "source" | "extract" | "validate" | "transform" | "load" | "consumer";
 export type TEtlStageStatus = "running" | "succeeded" | "idle" | "paused" | "failed";
@@ -141,12 +141,16 @@ function runningLook(effect: TEtlEffect, volume: number): TLook {
 }
 
 /** Failed and idle flows look the same for every effect; a running flow takes the selected one. */
-export const etlConnections: TConnectionPair = createConnections((_id, state: TBaseConnectionState) => {
-  const { status, volume = 1 } = state as TBaseConnectionState & Partial<TEtlConnection>;
-  if (status === "failed") return { color: failedColor, width: 3, pattern: [10, 8] };
-  if (status === "idle") return { color: "rgba(120, 120, 120, 0.6)", width: 1 };
-  return runningLook(etlEffect, volume);
-});
+export function createEtlConnection(readEffect: () => TEtlEffect): ReturnType<typeof createConnection> {
+  return createConnection((_id, state: TBaseConnectionState) => {
+    const { status, volume = 1 } = state as TBaseConnectionState & Partial<TEtlConnection>;
+    if (status === "failed") return { color: failedColor, width: 3, pattern: [10, 8] };
+    if (status === "idle") return { color: "rgba(120, 120, 120, 0.6)", width: 1 };
+    return runningLook(readEffect(), volume);
+  });
+}
+
+export const etlConnection = createEtlConnection(() => etlEffect);
 
 const blockWidth = 280;
 const blockHeight = 136;

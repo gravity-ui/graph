@@ -1,8 +1,9 @@
+import { defineConnectionEffect } from "../../../components/canvas/connections/effects";
 import type { TTileRect } from "../../culling/TileIndex";
 import { bakeElementStyle } from "../style";
 import type { TScenePrimitive } from "../types";
 
-import { geometryBounds, largestSize, paintedGeometryBounds } from "./levelBounds";
+import { CachedGeometryBounds, geometryBounds, largestSize, paintedGeometryBounds } from "./levelBounds";
 
 const box = (minX: number, minY: number, maxX: number, maxY: number): TTileRect => ({ minX, minY, maxX, maxY });
 
@@ -25,6 +26,54 @@ describe("largestSize", () => {
 });
 
 describe("geometryBounds", () => {
+  it("keeps cached hulls identical to geometry bounds as camera-aware widths and halos change", () => {
+    const glow = defineConnectionEffect({
+      extraWidth: 6,
+      fragment: "vec4 effect(ConnectionFragment f, vec4 c) { return c; }",
+    });
+    const primitives: TScenePrimitive[] = [
+      {
+        kind: "path",
+        segments: new Float32Array([0, 0, 10, 20, 20, -10, 30, 10]),
+        stroke: { width: { px: 2, minWorld: 3, maxWorld: 30 } },
+        effect: glow.use([]),
+      },
+      {
+        kind: "rect",
+        x: 20,
+        y: 50,
+        width: 30,
+        height: 20,
+        border: { width: { world: 2, minPx: 1 }, align: "outside" },
+      },
+      { kind: "circle", cx: 80, cy: 30, r: 12, border: { width: { px: 3 }, align: "center" } },
+      { kind: "polygon", points: new Float32Array([100, 0, 120, 10, 110, 20]), stroke: { width: 3 } },
+    ];
+    const cache = new CachedGeometryBounds(primitives);
+    for (const scale of [0.001, 0.01, 0.1, 1, 10])
+      expect(cache.at(() => scale)).toEqual(geometryBounds(primitives, scale));
+    expect(cache.at((primitive) => (primitive.kind === "circle" ? 1 : undefined))).toEqual(
+      geometryBounds([primitives[2]], 1)
+    );
+  });
+
+  it("includes the tagged glow's reach in the WebGL overlap geometry", () => {
+    const glow = defineConnectionEffect({
+      extraWidth: 6,
+      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+    });
+    const path: TScenePrimitive = {
+      kind: "path",
+      part: "line",
+      minScale: 0.5,
+      segments: new Float32Array([0, 0, 10, 0, 20, 0, 30, 0]),
+      stroke: { color: "#000", width: 2 },
+    };
+    const styled = bakeElementStyle([path], { parts: { line: { effect: glow.use([]) } } });
+    expect(geometryBounds(styled)).toEqual(box(-14, -14, 44, 14));
+    expect(paintedGeometryBounds(styled)).toEqual(paintedGeometryBounds([path]));
+  });
+
   it("pads a rect by its border: outside by the width, center by half, inside by nothing", () => {
     const rect = (align: "inside" | "center" | "outside"): TScenePrimitive => ({
       kind: "rect",

@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { BlockConnection, ECanDrag } from "@gravity-ui/graph";
-import type { Graph, TBlock, TConnection, TGraphColorsPatch, TRect } from "@gravity-ui/graph";
+import type { Graph, TBlock, TGraphColorsPatch, TRect, TSceneRenderer } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useSignal } from "@gravity-ui/graph-react";
 import { Flex, SegmentedRadioGroup, Slider, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -24,7 +24,7 @@ import {
   stillDashCode,
   stressCode,
 } from "./codeSamples";
-import { ETL_BLOCK_IS, etlBlocks, etlConnections, etlFlows, isEtlBlock, setEtlEffect } from "./etl";
+import { ETL_BLOCK_IS, etlBlocks, etlConnection, etlFlows, isEtlBlock, setEtlEffect } from "./etl";
 import type { TEtlEffect } from "./etl";
 import { EtlBlock, etlBlockRules } from "./etlBlock";
 import {
@@ -36,21 +36,19 @@ import {
   particleLines,
   particles,
   pipeline,
-  plain,
   runningDash,
   signalWave,
   stillDash,
 } from "./lines";
-import type { TConnectionPair } from "./lines";
+import type { TConnectionClass } from "./lines";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
 type TOption = { value: string; content: string };
-type TRenderer = "canvas" | "webgl";
 /** A slider writing an effect's float uniform. */
 type TSlider = { label: string; uniform: { value: number }; min: number; max: number; step: number };
 /** `code` replaces the story's code sample while the effect is selected. */
-type TEffect = TOption & { connections: TConnectionPair; code?: string; slider?: TSlider };
+type TEffect = TOption & { connection: TConnectionClass; code?: string; slider?: TSlider };
 
 /** Options are connections per layer for generatePrettyBlocks. */
 const sizes: TOption[] = [
@@ -59,7 +57,7 @@ const sizes: TOption[] = [
   { value: "1000", content: "~30k connections" },
 ];
 
-const renderers: { value: TRenderer; content: string }[] = [
+const renderers: { value: TSceneRenderer; content: string }[] = [
   { value: "canvas", content: "Canvas" },
   { value: "webgl", content: "WebGL" },
 ];
@@ -75,31 +73,35 @@ const particlesSlider: TSlider = {
 
 type TGraphViewProps = {
   config: TGeneratedGraphConfig;
-  connections: TConnectionPair;
-  renderer: TRenderer;
+  connection: TConnectionClass;
+  renderer: TSceneRenderer;
   useBezierConnections: boolean;
   initialView?: TRect;
 };
 
-/** One graph per renderer and effect: the connection class applies to connections created after it is set. */
+/** One graph per effect: the connection class applies to connections created after it is set. */
 const GraphView = ({
   config,
-  connections,
+  connection,
   renderer,
   useBezierConnections,
   initialView,
 }: TGraphViewProps): React.JSX.Element => {
   const { graph, setEntities, setSettings, start, zoomTo } = useGraph({});
-  const actual = useSignal(graph.getGraphLayer().$connectionsRenderer);
+  const actual = useSignal(graph.scene.$renderer);
+
+  useEffect(() => {
+    setSettings({ renderer });
+  }, [setSettings, renderer]);
 
   // Settings go first so connections are created with the custom class.
   useEffect(() => {
     setSettings({
-      connection: renderer === "webgl" ? connections.webgl : connections.canvas,
+      connection,
       showConnectionLabels: false,
       useBezierConnections,
     });
-  }, [setSettings, connections, renderer, useBezierConnections]);
+  }, [setSettings, connection, useBezierConnections]);
 
   useEffect(() => {
     setEntities({ blocks: config.blocks, connections: config.connections });
@@ -115,7 +117,7 @@ const GraphView = ({
     <>
       <GraphCanvas graph={graph} className="graph-canvas" renderBlock={renderBlock} />
       <Text variant="body-1" color="secondary" style={{ position: "absolute", right: 16, bottom: 8, zIndex: 10 }}>
-        Actual renderer: {actual}
+        Scene renderer: {actual}
       </Text>
     </>
   );
@@ -168,7 +170,7 @@ const GraphApp = ({
 }: TGraphAppProps): React.JSX.Element => {
   const [size, setSize] = useState(sizeOptions[0].value);
   const [effect, setEffect] = useState(effects[0].value);
-  const [renderer, setRenderer] = useState<TRenderer>("webgl");
+  const [renderer, setRenderer] = useState<TSceneRenderer>("webgl");
   const config = useMemo(
     () => generatePrettyBlocks({ layersCount, connectionsPerLayer: Number(size) }),
     [layersCount, size]
@@ -194,9 +196,9 @@ const GraphApp = ({
         </Flex>
         <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
           <GraphView
-            key={`${effect}/${size}/${renderer}`}
+            key={`${effect}/${size}`}
             config={config}
-            connections={selected.connections}
+            connection={selected.connection}
             renderer={renderer}
             useBezierConnections={useBezierConnections}
             initialView={initialView}
@@ -220,9 +222,9 @@ export default meta;
 export const RunningDash: StoryFn = () => (
   <GraphApp
     title="Running dash"
-    description="A connection class picks its renderer with static line. A WebGLLine subclass returns a stroke with the dashFlow effect; its Path2DLine twin returns the still dash. Switch the renderer to compare."
+    description="The scene renderer applies to blocks and connections. A WebGLLine subclass supplies the dashFlow effect, which WebGL animates. The Canvas scene draws the base stroke."
     code={runningDashCode}
-    effects={[{ value: "dash", content: "Running dash", connections: runningDash }]}
+    effects={[{ value: "dash", content: "Running dash", connection: runningDash }]}
     layersCount={30}
     sizes={sizes}
   />
@@ -231,7 +233,7 @@ RunningDash.parameters = {
   docs: {
     description: {
       story:
-        "A `WebGLLine` subclass returns `effect: dashFlow.use({ pattern: [12, 8], speed: 40 })` from `getStroke()`; the canvas twin is a `Path2DLine` with the still dash.",
+        "A `WebGLLine` subclass returns `effect: dashFlow.use({ pattern: [12, 8], speed: 40 })` from `getStroke()`. The graph's `renderer` setting chooses how the full scene is drawn.",
     },
   },
 };
@@ -241,7 +243,7 @@ export const PerConnectionStyle: StoryFn = () => (
     title="Per-connection style from data"
     description="getStroke() of the line picks color and width from a hash of the connection id, so every connection is styled from its own data."
     code={perConnectionCode}
-    effects={[{ value: "style", content: "Per-connection style", connections: dataStyled }]}
+    effects={[{ value: "style", content: "Per-connection style", connection: dataStyled }]}
     layersCount={30}
     sizes={sizes}
   />
@@ -258,12 +260,12 @@ PerConnectionStyle.parameters = {
 export const GraphStress: StoryFn = () => (
   <GraphApp
     title="Graph stress test"
-    description="The GraphEditor GraphStressTest graph with straight connections. Switch the renderer and the connection style; canvas draws the same dash still, WebGL runs it with dashFlow; a still dash on canvas is slow on large graphs."
+    description="The GraphEditor GraphStressTest graph with straight connections. Switch the renderer and the connection style; both renderers show the base stroke and WebGL can animate it with dashFlow."
     code={stressCode}
     effects={[
-      { value: "plain", content: "Plain", connections: plain },
-      { value: "dash", content: "Running dash", connections: runningDash },
-      { value: "style", content: "Per-connection style", connections: dataStyled },
+      { value: "plain", content: "Plain", connection: BlockConnection },
+      { value: "dash", content: "Running dash", connection: runningDash },
+      { value: "style", content: "Per-connection style", connection: dataStyled },
     ]}
     layersCount={110}
     sizes={[{ value: "1000", content: "1000 per layer" }]}
@@ -284,22 +286,22 @@ const nirvanaMiddle: TRect = { x: 31000, y: -1500, width: 5000, height: 3000 };
 export const NirvanaEffects: StoryFn = () => (
   <GraphApp
     title="Nirvana max graph with animated connections"
-    description="The GraphEditor NirvanaMaxGraphTest graph with WebGL effects: comets that fade towards the tail and run at their own speed in either direction, and a signal wave that crosses the graph. Particles, Gradient and Glow are custom shader effects defined in the story with defineConnectionEffect; the sliders write their uniforms (the particles jump while the speed slider moves: the phase is time times speed). Canvas draws the stroke without the effects (still dashes for the comets), and is slow with dashes on this graph."
+    description="The GraphEditor NirvanaMaxGraphTest graph with WebGL effects: comets that fade towards the tail and run at their own speed in either direction, and a signal wave that crosses the graph. Particles, Gradient and Glow are custom shader effects defined in the story with defineConnectionEffect; the sliders write their uniforms (the particles jump while the speed slider moves: the phase is time times speed). Canvas draws each effect line's base stroke."
     code={pipelineCode}
     effects={[
-      { value: "pipeline", content: "Pipeline", connections: pipeline },
-      { value: "comets", content: "Comets", connections: comets, code: cometsCode },
-      { value: "wave", content: "Signal wave", connections: signalWave, code: signalWaveCode },
+      { value: "pipeline", content: "Pipeline", connection: pipeline },
+      { value: "comets", content: "Comets", connection: comets, code: cometsCode },
+      { value: "wave", content: "Signal wave", connection: signalWave, code: signalWaveCode },
       {
         value: "particles",
         content: "Particles (shader)",
-        connections: particleLines,
+        connection: particleLines,
         code: particlesCode,
         slider: particlesSlider,
       },
-      { value: "gradient", content: "Gradient (shader)", connections: gradientLines, code: gradientCode },
-      { value: "glow", content: "Glow (shader)", connections: glowLines, code: glowCode, slider: glowSlider },
-      { value: "still", content: "Still dash", connections: stillDash, code: stillDashCode },
+      { value: "gradient", content: "Gradient (shader)", connection: gradientLines, code: gradientCode },
+      { value: "glow", content: "Glow (shader)", connection: glowLines, code: glowCode, slider: glowSlider },
+      { value: "still", content: "Still dash", connection: stillDash, code: stillDashCode },
     ]}
     layersCount={55}
     sizes={[{ value: "400", content: "400 per layer" }]}
@@ -325,35 +327,30 @@ const etlEffects: (TOption & { value: TEtlEffect; slider?: TSlider })[] = [
   { value: "plain", content: "Plain" },
 ];
 
-type TEtlEntities = { blocks: TBlock[]; connections: TConnection[] };
-
 /** White stage cards; the selection keeps the theme color. */
 const etlViewConfiguration: { colors: TGraphColorsPatch } = {
   colors: { block: { background: "#ffffff", border: "#d9dce1", text: "#1f2329" } },
 };
 
 type TEtlGraphViewProps = {
-  renderer: TRenderer;
+  renderer: TSceneRenderer;
   effect: TEtlEffect;
-  entities: TEtlEntities;
-  graphRef: React.MutableRefObject<Graph | null>;
 };
 
-/** One graph per renderer; the effect changes at runtime: the lines read it again with invalidateLine(). */
-const EtlGraphView = ({ renderer, effect, entities, graphRef }: TEtlGraphViewProps): React.JSX.Element => {
+const EtlGraphView = ({ renderer, effect }: TEtlGraphViewProps): React.JSX.Element => {
   const { graph, setEntities, setSettings, start, zoomTo } = useGraph({ viewConfiguration: etlViewConfiguration });
-  const actual = useSignal(graph.getGraphLayer().$connectionsRenderer);
+  const actual = useSignal(graph.scene.$renderer);
 
   useEffect(() => {
-    graphRef.current = graph;
-  }, [graph, graphRef]);
+    setSettings({ renderer });
+  }, [setSettings, renderer]);
 
   useEffect(() => graph.scene.styles.add(etlBlockRules), [graph]);
 
   // Settings go first so the stages and the flows are created with the custom classes.
   useEffect(() => {
     setSettings({
-      connection: renderer === "webgl" ? etlConnections.webgl : etlConnections.canvas,
+      connection: etlConnection,
       blockComponents: { [ETL_BLOCK_IS]: EtlBlock },
       canDrag: ECanDrag.ALL,
       canDragCamera: true,
@@ -362,13 +359,13 @@ const EtlGraphView = ({ renderer, effect, entities, graphRef }: TEtlGraphViewPro
       useBezierConnections: true,
       showConnectionArrows: true,
     });
-  }, [setSettings, renderer]);
+  }, [setSettings]);
 
   useEffect(() => {
-    setEntities(entities);
+    setEntities({ blocks: etlBlocks, connections: etlFlows });
     start();
     zoomTo("center", { padding: 100 });
-  }, [setEntities, start, zoomTo, entities]);
+  }, [setEntities, start, zoomTo]);
 
   // The camera and the selection stay: only the lines are read again.
   useEffect(() => {
@@ -389,7 +386,7 @@ const EtlGraphView = ({ renderer, effect, entities, graphRef }: TEtlGraphViewPro
     <>
       <GraphCanvas graph={graph} className="graph-canvas" renderBlock={renderBlock} />
       <Text variant="body-1" color="secondary" style={{ position: "absolute", right: 16, bottom: 8, zIndex: 10 }}>
-        Actual renderer: {actual}
+        Scene renderer: {actual}
       </Text>
     </>
   );
@@ -397,22 +394,8 @@ const EtlGraphView = ({ renderer, effect, entities, graphRef }: TEtlGraphViewPro
 
 const EtlApp = (): React.JSX.Element => {
   const [effect, setEffect] = useState<TEtlEffect>("comets");
-  const [renderer, setRenderer] = useState<TRenderer>("webgl");
-  const [entities, setEntities] = useState<TEtlEntities>({ blocks: etlBlocks, connections: etlFlows });
-  const graphRef = useRef<Graph | null>(null);
+  const [renderer, setRenderer] = useState<TSceneRenderer>("webgl");
   const selected = etlEffects.find((option) => option.value === effect) ?? etlEffects[0];
-
-  // The other renderer opens a new graph: it takes the moved stages and their statuses from the current one.
-  const switchRenderer = (next: TRenderer): void => {
-    const graph = graphRef.current;
-    if (graph) {
-      setEntities({
-        blocks: graph.rootStore.blocksList.toJSON(),
-        connections: graph.rootStore.connectionsList.toJSON(),
-      });
-    }
-    setRenderer(next);
-  };
 
   return (
     <ThemeProvider theme="light">
@@ -430,7 +413,7 @@ const EtlApp = (): React.JSX.Element => {
           </Text>
           <pre style={{ margin: 0, fontSize: 12, maxHeight: 180, overflow: "auto" }}>{etlCode}</pre>
           <Flex alignItems="center" gap={4} wrap>
-            <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={switchRenderer} />
+            <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />
             <SegmentedRadioGroup
               options={etlEffects}
               value={effect}
@@ -446,7 +429,7 @@ const EtlApp = (): React.JSX.Element => {
           {selected.slider && <UniformSlider key={selected.value} {...selected.slider} />}
         </Flex>
         <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
-          <EtlGraphView key={renderer} renderer={renderer} effect={effect} entities={entities} graphRef={graphRef} />
+          <EtlGraphView renderer={renderer} effect={effect} />
         </div>
       </Flex>
     </ThemeProvider>

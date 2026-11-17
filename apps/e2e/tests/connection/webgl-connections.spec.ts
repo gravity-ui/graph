@@ -50,7 +50,7 @@ async function useWebGLConnection(page: Page, kind: TLineKind): Promise<void> {
     class GL extends BlockConnection {
       static line = Line;
     }
-    window.graph.updateSettings({ connection: GL });
+    window.graph.updateSettings({ connection: GL, renderer: "webgl" });
   }, kind);
 }
 
@@ -58,7 +58,7 @@ async function hasWebGL2(page: Page): Promise<boolean> {
   return page.evaluate(() => Boolean(document.createElement("canvas").getContext("webgl2")));
 }
 
-/** Counts non-transparent pixels of the graph layer canvas (where fallback connections draw) within `radius` device pixels of a world point. */
+/** Counts non-transparent pixels of the Canvas scene within a radius of a world point. */
 async function countPixelsAround(page: Page, point: { x: number; y: number }, radius = 3): Promise<number> {
   return page.evaluate(
     ({ point: p, radius: r }) => {
@@ -66,7 +66,7 @@ async function countPixelsAround(page: Page, point: { x: number; y: number }, ra
       const sx = p.x * scale + x;
       const sy = p.y * scale + y;
       let count = 0;
-      const canvas = window.graph.getGraphCanvas();
+      const canvas = window.graph.scene.layer.getCanvas();
       if (canvas) {
         const ratio = canvas.width / canvas.getBoundingClientRect().width;
         const ctx = canvas.getContext("2d");

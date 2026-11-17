@@ -126,7 +126,7 @@ remove(); // removes exactly these rules
 | `style` | `{ parts?, raise?, dim?, opacity? }`, or a function of the entity's tag values returning the same. |
 
 A part value (`TScenePartStyle`) is `color`, `visible`, `width` (stroke or border), `scale` (circle radius factor),
-`dim`, `opacity` and `cameraAware` (the mode of the part's texts). `raise` is added to the element's `zIndex` bucket
+`dim`, `opacity`, `cameraAware` (the mode of the part's texts) and `effect` (WebGL paths). `raise` is added to the element's `zIndex` bucket
 while the rule applies: a selected block draws above its neighbour.
 
 **`cameraAware`** (`true` or `false`) turns the camera-aware mode of the part's texts on or off (see
@@ -196,6 +196,7 @@ How each part property goes through these steps:
 | --- | --- | --- | --- |
 | `color` | fills a paint the primitive leaves unset | the primitive's own paint beats the base | replaces the paint |
 | `width` | fills a stroke or border width the primitive leaves unset | the primitive's own width beats the base | replaces the width |
+| `effect` | fills an unset WebGL path effect | the path's own effect beats the base | replaces the effect, or disables it with `null` |
 | `visible` | applies: `false` hides every primitive of the part | primitives have no visibility of their own | wins over the base: `true` shows a part a base rule hides |
 | `scale` | applies to the part's circles | the primitive's radius | wins over the base scale |
 | `dim` (part) | applies to the part's primitives | primitives have no dim of their own | wins over the base dim |

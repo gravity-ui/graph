@@ -1,11 +1,7 @@
-import type { IConnectionBatchItem } from "../batch";
 import { generateBezierParams } from "../bezierHelpers";
-import { defineConnectionEffect, toConnectionEffect } from "../effects/ConnectionEffect";
 import { bezierSegment, lineSegment } from "../geometry/segments";
 import type { TWebGLShape } from "../lines/types";
 
-import { WebGLBatchBackend } from "./WebGLBatchBackend";
-import type { TGLChunk } from "./WebGLBatchBackend";
 import {
   CURVE_CHORDS,
   INSTANCE_FLOATS,
@@ -16,10 +12,6 @@ import {
   scaleBucket,
 } from "./encode";
 import type { TInstances } from "./encode";
-import { createFakeGL } from "./fakeGL";
-import type { TFakeGL } from "./fakeGL";
-import { ConnectionPrograms } from "./programs";
-import { getWebGLConnectionsStats, resetWebGLConnectionsStats } from "./stats";
 
 const [P0, C1, C2, P3] = generateBezierParams({ x: 0, y: 0 }, { x: 3000, y: 800 });
 
@@ -33,10 +25,6 @@ const RADIUS = 100;
 
 /** A quarter circle of `RADIUS` around the origin, from (r, 0) to (0, r), as one cubic. */
 const QUARTER_CIRCLE = new Float32Array([RADIUS, 0, RADIUS, KAPPA * RADIUS, KAPPA * RADIUS, RADIUS, 0, RADIUS]);
-
-/** Vertices of the two templates: a straight segment is one quad, a curve piece `CURVE_CHORDS` chords. */
-const LINE_VERTICES = 4;
-const CURVE_VERTICES = 2 * (CURVE_CHORDS + 1);
 
 const shape = (segments: ArrayLike<number>): TWebGLShape => ({
   segments: new Float32Array(segments),
@@ -207,156 +195,5 @@ describe("encodeShapes", () => {
     expect(instance(out.lines, 0)[1]).toBe(0);
     expect(instance(out.lines, 100)[1]).toBe(99);
     expect(out.lines.data.length).toBeGreaterThanOrEqual(101 * INSTANCE_FLOATS);
-  });
-});
-
-describe("WebGLBatchBackend tessellation", () => {
-  beforeEach(() => resetWebGLConnectionsStats());
-
-  afterEach(() => jest.restoreAllMocks());
-
-  const item = (segments: ArrayLike<number>, extra: Partial<TWebGLShape> = {}): IConnectionBatchItem => {
-    const itemShape = { ...shape(segments), ...extra };
-    return {
-      getPathBounds: () => [0, 0, 100, 100],
-      getPath: () => undefined,
-      style: () => undefined,
-      getWebGLShape: () => itemShape,
-    };
-  };
-
-  const effect = toConnectionEffect(
-    defineConnectionEffect({ fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color.bgra; } // T" })
-  );
-
-  function setup(): { fake: TFakeGL; backend: WebGLBatchBackend } {
-    const fake = createFakeGL();
-    const programs = new ConnectionPrograms(fake.gl);
-    programs.beginFrame({ width: 100, height: 100, x: 0, y: 0, scale: 1, dpr: 1, time: 0 });
-    return { fake, backend: new WebGLBatchBackend(fake.gl, programs) };
-  }
-
-  function drawLevel(backend: WebGLBatchBackend, chunks: readonly TGLChunk[]): void {
-    for (const chunk of chunks) backend.draw(undefined, chunk);
-    backend.endGroup();
-  }
-
-  /** Every `performance.now()` call advances the clock: a re-encode, timed by two calls, takes `step` ms. */
-  function clock(step: number): void {
-    let now = 0;
-    jest.spyOn(performance, "now").mockImplementation(() => (now += step));
-  }
-
-  it("draws a group's straight segments with the line template, then its curves, after one program bind", () => {
-    const { fake, backend } = setup();
-    const chunk = backend.build(
-      [
-        item(LONG_BEZIER),
-        item(lineSegment({ x: 0, y: 0 }, { x: 10, y: 0 })),
-        item(LONG_BEZIER, { effect, params: [] }),
-        item(lineSegment({ x: 0, y: 5 }, { x: 10, y: 5 })),
-      ],
-      undefined
-    );
-    expect(chunk.ranges.map(({ effect: rangeEffect, template, count }) => [rangeEffect, template, count])).toEqual([
-      [undefined, "line", 2],
-      [undefined, "curve", 5],
-      [effect, "curve", 5],
-    ]);
-    expect([chunk.lineInstances, chunk.curveInstances, chunk.count]).toEqual([2, 10, 12]);
-    const bound = fake.used.length;
-    drawLevel(backend, [chunk]);
-    expect(fake.draws.map(({ count, instances }) => [count, instances])).toEqual([
-      [LINE_VERTICES, 2],
-      [CURVE_VERTICES, 5],
-      [CURVE_VERTICES, 5],
-    ]);
-    expect(fake.used.slice(bound)).toHaveLength(2);
-    // Two template buffers, created once, and the chunk's instances.
-    expect(fake.live("buffer")).toBe(3);
-  });
-
-  it("builds a chunk for the frame's bucket", () => {
-    const { backend } = setup();
-    backend.beginFrame(-7);
-    const far = backend.build([item(LONG_BEZIER)], undefined);
-    backend.beginFrame(0);
-    const near = backend.build([item(LONG_BEZIER)], undefined);
-    expect([far.bucket, far.curveInstances]).toEqual([-7, 1]);
-    expect([near.bucket, near.curveInstances]).toEqual([0, 5]);
-  });
-
-  it("re-encodes drawn chunks of another bucket in place within the frame's budget and leaves the rest stale", () => {
-    const { fake, backend } = setup();
-    backend.beginFrame(0);
-    const chunks = [0, 1, 2].map(() => backend.build([item(LONG_BEZIER)], undefined));
-    const buffers = chunks.map(({ buffer }) => buffer);
-    // 1.5 ms per re-encode against a 2 ms budget: two chunks this frame.
-    clock(1.5);
-    backend.beginFrame(-7);
-    drawLevel(backend, chunks);
-    expect(chunks.map(({ bucket }) => bucket)).toEqual([-7, -7, 0]);
-    expect(fake.draws.map(({ instances }) => instances)).toEqual([1, 1, 5]);
-    expect(backend.drewStale).toBe(true);
-    // Fewer instances: the same buffers, rewritten.
-    chunks.forEach(({ buffer }, index) => expect(buffer).toBe(buffers[index]));
-
-    backend.beginFrame(-7);
-    expect(backend.drewStale).toBe(false);
-    drawLevel(backend, chunks);
-    expect(chunks.map(({ bucket }) => bucket)).toEqual([-7, -7, -7]);
-    expect(fake.draws.slice(3).map(({ instances }) => instances)).toEqual([1, 1, 1]);
-    expect(backend.drewStale).toBe(false);
-  });
-
-  it("re-encodes at least one chunk a frame, however long it takes", () => {
-    const { fake, backend } = setup();
-    backend.beginFrame(0);
-    const chunks = [0, 1].map(() => backend.build([item(LONG_BEZIER)], undefined));
-    clock(5);
-    backend.beginFrame(1);
-    drawLevel(backend, chunks);
-    expect(chunks.map(({ bucket }) => bucket)).toEqual([1, 0]);
-    expect(fake.draws.map(({ instances }) => instances)).toEqual([7, 5]);
-    expect(backend.drewStale).toBe(true);
-    // More instances than the buffer holds: a new one, the old one and its vertex arrays freed.
-    expect(fake.live("buffer")).toBe(4);
-    expect(fake.live("vertexArray")).toBe(2);
-  });
-
-  it("only relabels a chunk whose cubics keep their piece counts in the new bucket", () => {
-    const { fake, backend } = setup();
-    backend.beginFrame(-3);
-    // A straight segment, and a curve drawn in one piece at both buckets.
-    const chunk = backend.build([item(lineSegment({ x: 0, y: 0 }, { x: 10, y: 0 })), item(QUARTER_CIRCLE)], undefined);
-    const uploads = fake.uploads.length;
-    const ranges = chunk.ranges;
-    backend.beginFrame(-6);
-    drawLevel(backend, [chunk]);
-    expect(chunk.bucket).toBe(-6);
-    expect(fake.uploads).toHaveLength(uploads);
-    expect(chunk.ranges).toBe(ranges);
-    expect(backend.drewStale).toBe(false);
-
-    // In two pieces at bucket 1: re-encoded.
-    backend.beginFrame(1);
-    drawLevel(backend, [chunk]);
-    expect([chunk.bucket, chunk.curveInstances]).toEqual([1, 2]);
-    expect(fake.uploads.length).toBeGreaterThan(uploads);
-  });
-
-  it("counts line and curve instances in the stats", () => {
-    const { backend } = setup();
-    backend.beginFrame(0);
-    drawLevel(backend, [
-      backend.build([item(lineSegment({ x: 0, y: 0 }, { x: 10, y: 0 })), item(LONG_BEZIER)], undefined),
-    ]);
-    expect(getWebGLConnectionsStats()).toMatchObject({
-      drawCalls: 2,
-      instances: 6,
-      lineInstances: 1,
-      curveInstances: 5,
-      vertices: LINE_VERTICES + 5 * CURVE_VERTICES,
-    });
   });
 });

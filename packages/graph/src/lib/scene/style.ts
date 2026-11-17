@@ -1,3 +1,6 @@
+import { ConnectionEffect } from "../../components/canvas/connections/effects/ConnectionEffect";
+import type { TConnectionEffectUse } from "../../components/canvas/connections/effects/types";
+
 import { fadeColor, mixColor, parseColorAlpha } from "./colorAlpha";
 import type { TScenePartStyle, TScenePrimitive, TSceneStroke, TSceneStyle } from "./types";
 
@@ -215,6 +218,19 @@ function translucent(color: string | undefined): boolean {
  */
 const encodeKeys = new WeakMap<object, string>();
 
+const effectIds = new WeakMap<TConnectionEffectUse["effect"], number>();
+let nextEffectId = 0;
+
+/** Effects with one shader can have independent, mutable uniform signals. */
+export function connectionEffectId(effect: TConnectionEffectUse["effect"]): number {
+  let id = effectIds.get(effect);
+  if (id === undefined) {
+    id = ++nextEffectId;
+    effectIds.set(effect, id);
+  }
+  return id;
+}
+
 export function styleEncodeKey(style: TSceneStyle | undefined): string {
   if (!style) return "";
   const cached = encodeKeys.get(style);
@@ -228,6 +244,7 @@ export function styleEncodeKey(style: TSceneStyle | undefined): string {
       if (value.width !== undefined) key[`${layer}.${part}.width`] = value.width;
       if (value.scale !== undefined) key[`${layer}.${part}.scale`] = value.scale;
       if (value.cameraAware !== undefined) key[`${layer}.${part}.cameraAware`] = value.cameraAware;
+      if (value.effect !== undefined) key[`${layer}.${part}.effect`] = canonicalJson(value.effect);
       if (value.color !== undefined && (opacity < 1 || translucent(value.color))) {
         key[`${layer}.${part}.color`] = value.color;
       }
@@ -276,6 +293,7 @@ const lookKeys = new WeakMap<object, string>();
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
   if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (value instanceof ConnectionEffect) return String(connectionEffectId(value));
   const record = value as Record<string, unknown>;
   const entries: string[] = [];
   for (const key of Object.keys(record).sort()) {
@@ -343,12 +361,23 @@ export function bakeElementStyle(
     const opacity = styleOpacity(style, part);
     const base = part === undefined ? undefined : style.base?.[part];
     const override = part === undefined ? undefined : style.parts?.[part];
+    const effected = withPathEffect(primitive, base?.effect, override?.effect);
     if (opacity < 1) {
-      const styled = base || override ? withPartValues(primitive, base, override) : primitive;
+      const styled = base || override ? withPartValues(effected, base, override) : effected;
       return withOpacity(styled, opacity);
     }
-    return base || override ? withElementValues(primitive, base, override) : primitive;
+    return base || override ? withElementValues(effected, base, override) : effected;
   });
+}
+
+function withPathEffect(
+  primitive: TScenePrimitive,
+  base: TScenePartStyle["effect"],
+  override: TScenePartStyle["effect"]
+): TScenePrimitive {
+  if (primitive.kind !== "path") return primitive;
+  const effect = (override === undefined ? primitive.effect ?? base : override) ?? undefined;
+  return effect === primitive.effect ? primitive : { ...primitive, effect };
 }
 
 /**

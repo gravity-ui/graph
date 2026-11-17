@@ -1,5 +1,6 @@
 import { Graph } from "../../../graph";
 import { Component } from "../../../lib";
+import { globalScheduler } from "../../../lib/Scheduler";
 import type { TPoint } from "../../../utils/types/shapes";
 
 import { BezierMultipointConnection } from "./BezierMultipointConnection";
@@ -74,13 +75,13 @@ test("offscreen multipoint geometry is available to world hit queries before dra
     { x: 2000, y: 0 },
     { x: 2100, y: 0 },
   ]);
-  const view = new TestMultipointConnection(props, new BlockConnections({}, graph.getGraphLayer()));
-  view.refresh();
-  const hit = jest.spyOn(view.context.ctx, "isPointInStroke");
-  view.onHitBox({ x: 2050, y: 0, minX: 2050, maxX: 2050, minY: 0, maxY: 0 });
-  const path = hit.mock.calls[0][0] as Path2D;
-  expect(path.lineTo).toHaveBeenCalledWith(2100, 0);
-  Component.unmount(view);
+  graph.updateSettings({ connection: MultipointConnection });
+  graph.attach(document.createElement("div"));
+  graph.start();
+  for (let i = 0; i < 4; i++) globalScheduler.performUpdate();
+  const view = graph.connections.getConnectionState("c")?.getViewComponent();
+  expect(view?.onHitBox({ x: 2050, y: 0, minX: 2050, maxX: 2050, minY: 0, maxY: 0 })).toBe(true);
+  expect(view?.onHitBox({ x: 2050, y: 30, minX: 2050, maxX: 2050, minY: 30, maxY: 30 })).toBe(false);
   graph.unmount();
 });
 

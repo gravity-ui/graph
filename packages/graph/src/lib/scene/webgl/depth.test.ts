@@ -58,6 +58,19 @@ describe("SceneDepth atomicity and bulk load", () => {
     expect(depth.keyOf("e0")).toBeLessThan(depth.keyOf("e1"));
   });
 
+  it("keeps a large band's keys dense and ordered between its neighbouring bands", () => {
+    const depth = new SceneDepth();
+    depth.set("below", 50, 0);
+    depth.set("above", 200, 1);
+    for (let i = 0; i < 20000; i++) depth.set(`line${i}`, 100, i);
+    expect(depth.takeChanged()).toHaveLength(20002);
+    expect(["below", "line0", "line19999", "above"].map((id) => depth.keyOf(id))).toEqual([0, 1, 20000, 20001]);
+    depth.set("line0", 100, 20000);
+    expect(["below", "line1", "line0", "above"].map((id) => depth.keyOf(id))).toEqual([0, 1, 20000, 20001]);
+    depth.set("line0", 201, 20000);
+    expect(["line19999", "above", "line0"].map((id) => depth.keyOf(id))).toEqual([19999, 20000, 20001]);
+  });
+
   it("lists the elements whose own zIndex or order was set, not the ones a renumbering moved", () => {
     const depth = new SceneDepth();
     depth.set("a", 200, 1);
@@ -203,6 +216,20 @@ describe("SceneDepth keys and sub-order width", () => {
     expect(depth.maxSub).toBe(2 ** 16 - 1);
     depth.release("k63");
     expect(depth.maxSub).toBe(2 ** 17 - 1);
+  });
+
+  it("enforces the shared depth capacity with more than 16384 owners in one band", () => {
+    const depth = new SceneDepth();
+    // 129 primitives need 256 sub-orders: 32768 owners fill the 2^23 depth indices.
+    for (let i = 0; i < 32768; i++) depth.set(`e${i}`, 100, i);
+    depth.setSubCount("e0", 129);
+    expect(depth.takeChanged()).toHaveLength(32768);
+    expect(depth.subBits).toBe(8);
+    expect(depth.keyOf("e32767")).toBe(32767);
+    depth.set("overflow", 100, 32768);
+    expect(() => depth.takeChanged()).toThrow(/32769 owner elements.*e0 has 129 primitives/);
+    depth.delete("overflow");
+    expect(() => depth.takeChanged()).not.toThrow();
   });
 
   it("sizes the width by the widest root and the room by the number of keys", () => {

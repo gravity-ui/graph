@@ -1,5 +1,6 @@
 import { effect, signal } from "@preact/signals-core";
 
+import { defineConnectionEffect } from "../../components/canvas/connections/effects";
 import { SceneStore } from "../../lib/scene/SceneStore";
 import { TagStore } from "../tags/TagStore";
 import { defineTag } from "../tags/defineTag";
@@ -81,6 +82,32 @@ describe("StyleResolver", () => {
     const before = store.getStyles()[id];
     sheet.add([{ target: class Unrelated {}, style: { parts: { body: { color: "#000000" } } } }]);
     expect(store.getStyles()[id]).toBe(before);
+  });
+
+  it("rewrites a live effect row when a rule changes which object's uniforms it uses", () => {
+    const { store, sheet, resolver } = setup();
+    const first = defineConnectionEffect({
+      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color * u_intensity; }",
+      uniforms: { intensity: { type: "float", value: 1 } },
+    });
+    const second = first.clone();
+    sheet.setThemeRules([{ target: Target, tags: [running], style: { parts: { border: { effect: first.use([]) } } } }]);
+    const id = resolver.acquire(Target, new Map([[running, true]]) as never);
+    const before = store.getStyles()[id];
+    const unsubscribe = first.uniforms.intensity.subscribe(() => undefined);
+    try {
+      first.uniforms.intensity.value = 0.5;
+      sheet.add([{ target: class Unrelated {}, style: {} }]);
+      expect(store.getStyles()[id]).toBe(before);
+      second.uniforms.intensity.value = 0.5;
+      sheet.setThemeRules([
+        { target: Target, tags: [running], style: { parts: { border: { effect: second.use([]) } } } },
+      ]);
+      expect(store.getStyles()[id].parts?.border.effect?.effect).toBe(second);
+    } finally {
+      unsubscribe();
+      resolver.dispose();
+    }
   });
 
   it("recomputes on a scale change only when it crosses a rule threshold", () => {

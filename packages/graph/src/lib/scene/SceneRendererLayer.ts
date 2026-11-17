@@ -170,12 +170,12 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
       this.lastStyles = styles;
       backend.setStyles(styles);
     }
-    const { width, height, x, y, scale } = this.props.graph.cameraService.getCameraState();
+    const { width, height, x, y, scale, scaleMin } = this.props.graph.cameraService.getCameraState();
     const time = this.props.clock ? this.props.clock.now() : (performance.now() - this.start) / 1000;
     const dimColor = store.getDimColor();
     const level = this.props.level?.peek();
     const textPolicy = this.textPolicy();
-    if (backend.draw({ width, height, x, y, scale, dpr: this.getDRP(), time, dimColor, level, textPolicy })) {
+    if (backend.draw({ width, height, x, y, scale, scaleMin, dpr: this.getDRP(), time, dimColor, level, textPolicy })) {
       this.performRender();
     }
   }
@@ -187,7 +187,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     const store = this.props.store;
     const level = this.props.level?.peek();
     // The query leaves out elements with nothing to draw on the level (an anchor at the minimalistic level).
-    drawElements(ctx, store.query(this.getWorldViewport(), level), scale, {
+    drawElements(ctx, store.queryForCanvas(this.getWorldViewport(), scale, level), scale, {
       styles: store.getStyles(),
       dimColor: store.getDimColor(),
       level,
@@ -216,6 +216,9 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
   }
 
   private readonly createEvents = (token: number): TSceneBackendEvents => ({
+    onInvalidate: () => {
+      if (token === this.loadToken) this.performRender();
+    },
     onLost: () => {
       if (token !== this.loadToken) return;
       const state = this.rendererState.value;

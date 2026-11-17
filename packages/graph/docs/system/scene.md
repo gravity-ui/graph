@@ -6,15 +6,23 @@ The graph frame task updates it right after all layers (`layers.update()`, then 
 
 ## What the scene draws
 
-Blocks, their anchors and their child components draw in the scene. Each `CanvasBlock` owns one scene element, and
-each of its anchors and child components owns a child element nested in it (see
-[Block component](../components/block-component.md) and [Anchors](../components/anchors.md)).
-`GraphLayer` stays the parent of these components: it keeps the component tree, events, hit-testing, drags and the
-camera.
+Blocks, anchors, child components and built-in connections draw in the scene. Each `CanvasBlock` owns a scene element
+with its anchors and child components nested in it. Each built-in connection owns a scene element for its shaft,
+arrow and label. `GraphLayer` keeps the component tree, events, hit-testing, drags and the camera. See
+[Block component](../components/block-component.md), [Anchors](../components/anchors.md) and
+[Connections](../connections/webgl-connections.md).
 
-> Interim (until step 2): connections and immediate components (a `LegacyCanvasBlock`, any component with
-> `static override readonly mode = "immediate"`) still draw on the `GraphLayer` canvas. The scene canvas sits above the `GraphLayer`
-> canvas and below `ReactLayer`, so scene blocks cover connections, as blocks did before.
+Immediate components and custom Canvas connections still paint on `GraphLayer`. The scene canvas sits above
+`GraphLayer` and below `ReactLayer`.
+
+The built-in WebGL backend uses one WebGL2 context for the scene. It keeps path geometry and its instance metadata
+in resident texture records. Draw commands refer to those records by compact IDs, so culling and changes in
+draw order can change the submitted IDs without moving the path data.
+
+For large eligible workloads, the backend draws the connections into a single-sample target in the same context,
+then composites it below the rest of the scene. Blocks and their text retain the scene's multisampling. The target
+is redrawn each frame that uses it. Eligibility is internal and respects the authored scene order. See
+[connection draw calls and order](../connections/webgl-connections.md#draw-calls-and-order).
 
 ## Settings
 
@@ -106,11 +114,11 @@ renumbering. The Canvas 2D interpreter reads the store when it draws.
 `graph.scene.compareOrder(a, b)` is the scene order of two components, shared by drawing and hit-testing: negative
 when `a` draws below `b`. `HitTest` sorts its results with it, so the component drawn on top is hit first.
 
-- Components with a scene key (a `SceneComponent` whose element is written, see `getSceneKey()`) compare by their
+- Components with a scene key (see `getSceneKey()`) compare by their
   elements: the bucket (`zIndex` plus the style's `raise`), then the owner's `order` (a raise gives a new, larger
   one), then the pre-order of the owner's nesting: a child element right above its scene parent, siblings by
   `childOrder`.
-- Other components (connections until step 2, groups, layer components) compare by `(zIndex, renderOrder)`.
+- Other components (groups, immediate components, custom Canvas connections) compare by `(zIndex, renderOrder)`.
 - A component without a scene key against a scene component compares its `zIndex` with the element's bucket; at an
   equal value it lies above.
 
@@ -187,11 +195,11 @@ const crop = graph.scene.toImage({ rect: { x: 0, y: 0, width: 2000, height: 1000
 ```
 
 - **What it draws.** For the current view (no `rect` and no `scale`) the visible layer canvases under the scene come
-  first, such as the grid and the `GraphLayer` canvas with connections and `LegacyCanvasBlock`s. The picture is what
-  the user sees under the selection and HTML layers. Any other rect draws the scene only (no connections, no
-  `LegacyCanvasBlock` bodies), until step 2 moves connections into it.
+  first, such as the grid and the `GraphLayer` canvas with legacy Canvas content. Other rects draw the scene, including
+  built-in connections, their arrows and labels. Standard connection labels use the live label layout, including
+  the camera's current visibility threshold.
 - **`level` alone.** `toImage({ level })` without `rect` and `scale` is still the current view. The layer canvases
-  under the scene come as drawn live, at the live level: connections and `LegacyCanvasBlock` bodies look as on screen.
+  under the scene come as drawn live, at the live level.
   Only the scene is drawn at the requested level. For a picture of the scene alone at another level, pass `rect` (for
   example the camera's view in world units) or `scale`.
 - **Size.** `scale` and `pixelRatio` must be finite and positive, and the output at most 16,384 px per side and 2^26
@@ -234,8 +242,8 @@ const crop = graph.scene.toImage({ rect: { x: 0, y: 0, width: 2000, height: 1000
   the context show it after their next update. Call `toImage()` after the batch, or on the next frame.
 - `toImage` reads no signal for its caller: an effect that exports does not re-run on what the export read.
 
-`graph.getGraphCanvas()` is unchanged: it returns the `GraphLayer` canvas, which holds connections but no scene
-blocks. Use `toImage()` for screenshots.
+`graph.getGraphCanvas()` returns the `GraphLayer` canvas. Use `toImage()` for screenshots that include scene
+blocks and connections.
 
 ## Styles: `bindStyle`, `styleFor`, `explain`
 
@@ -378,18 +386,17 @@ backend throws.
   part.
 - **zIndex bands:** at most 16, raised buckets included: a block in bucket 200 that the theme raises while selected
   draws in band 201.
-- **Owner elements per band:** at most 16,384. Child elements do not count.
 - **Depth:** every owner element takes one depth key with 2^b sub-orders, where b is at least 5 and fits the owner with
   the most primitives, its child elements' included. Keys × 2^b must stay within 2^23. With 10,000 owners an owner can
-  have 512 primitives with its children; with 262,144 owners (16 full bands), 32. The width follows the widest owner
-  and re-encodes nothing when it changes.
+  have 512 primitives with its children; with 262,144 owners, 32. All bands share this capacity; there is no separate
+  owner limit per band. The width follows the widest owner and re-encodes nothing when it changes.
 
 ## Renderer differences
 
 The two renderers draw the same picture, with these known differences:
 
-- WebGL does not draw `icon` and `polygon` primitives yet, nor the `dash` of rect and circle borders (paths keep
-  theirs). Canvas 2D draws them.
+- WebGL draws fill-only triangle primitives, including the triangles used to fill connection arrowheads.
+  Canvas 2D also draws arbitrary polygons, icons, and dashed rect and circle borders. Both renderers draw dashed paths.
 - Line breaks and line placement are the same (one shared layout). Both renderers align a line by the measured width
   of the complete line (Canvas 2D by `textAlign`, as v1 drew it; WebGL by the shared metrics: its words and spaces
   plus the pair kerning across each space, the "x " and " y" pairs measured once per font), kerning around spaces

@@ -4,10 +4,9 @@ import { BlockGroups, ECanDrag, Group } from "@gravity-ui/graph";
 import type { BlockState, Graph, TBlock, TGraphColorsPatch } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import { GraphBlock, GraphCanvas, useGraph, useLayer, useSignal } from "@gravity-ui/graph-react";
-import { Button, Flex, SegmentedRadioGroup, Slider, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { Button, Flex, SegmentedRadioGroup, Slider, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { etlConnections, setEtlEffect } from "../webglConnections/etl";
 import { glow } from "../webglConnections/lines";
 
 import { EffectCardView } from "./EffectCardView";
@@ -28,6 +27,7 @@ import type { TEffectCard } from "./effectCard";
 import { EFFECT_PARTS } from "./effectPaths";
 import type { TEffectPart } from "./effectPaths";
 import { EtlSimulation, createEtlAtScale, pipelineRect } from "./etlAtScale";
+import { EtlScaleConnection, etlFlowRules } from "./etlConnection";
 import {
   STAGE_IS,
   STAGE_STATUSES,
@@ -269,52 +269,93 @@ const PipelineGroups = BlockGroups.withBlockGrouping({
   mapToGroups: (id, { rect }) => ({ id, rect, component: PipelineGroup }),
 });
 
-const SCALES = [0.05, 0.15, 0.4, 1];
+const ETL_VIEWS = ["fit", "pipeline", "0.05", "0.15", "0.4", "1"] as const;
+const ETL_COUNT_CONTROL = { type: "number", min: 100, max: 10_000, step: 1 } as const;
+
+type TEtlAtScaleArgs = {
+  blockCount: number;
+  connectionCount: number;
+  renderer: TRenderer;
+  html: boolean;
+  live: boolean;
+  focusOnFailures: boolean;
+  view: (typeof ETL_VIEWS)[number];
+  selectionGlow: number;
+};
+
+const etlDefaults: TEtlAtScaleArgs = {
+  blockCount: 1064,
+  connectionCount: 1400,
+  renderer: "webgl",
+  html: true,
+  live: true,
+  focusOnFailures: false,
+  view: "fit",
+  selectionGlow: 0.6,
+};
+
+function boundedCount(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(ETL_COUNT_CONTROL.min, Math.min(ETL_COUNT_CONTROL.max, Math.round(value)));
+}
+
 /** World units around the graph when it is fitted: the group frames and the far-zoom rings stay inside. */
 const FIT_PADDING = 300;
 
-const EtlAtScaleApp = (): React.JSX.Element => {
+const EtlAtScaleApp = ({
+  blockCount,
+  connectionCount,
+  renderer,
+  html,
+  live,
+  focusOnFailures,
+  view,
+  selectionGlow,
+}: TEtlAtScaleArgs): React.JSX.Element => {
   const { graph, setEntities, start, zoomTo } = useGraph({ viewConfiguration });
-  const data = useMemo(() => createEtlAtScale(), []);
+  const constants = graph.graphConstants;
+  const data = useMemo(
+    () => createEtlAtScale(blockCount, connectionCount, constants),
+    [blockCount, connectionCount, constants]
+  );
   const simulation = useMemo(() => new EtlSimulation(graph, data), [graph, data]);
-  const [renderer, setRenderer] = useState<TRenderer>("webgl");
-  const [live, setLive] = useState(true);
-  const [focus, setFocus] = useState(false);
-  const [html, setHtml] = useState<THtmlMode>("on");
   const [counts, setCounts] = useState(() => simulation.counts());
   const sceneState = useSignal(graph.scene.$renderer);
-  const linesState = useSignal(graph.getGraphLayer().$connectionsRenderer);
   const level = useSignal(graph.scene.$level);
 
   useLayer(graph, PipelineGroups, { draggable: true, updateBlocksOnDrag: true });
   useLayer(graph, MiniMapLayer, { location: "bottomRight", width: 280, height: 124 });
 
-  // Settings first, so the stages and the flows are created with these classes. The flows switch renderer with the
-  // connection class: a WebGLLine class runs the comets, its Path2DLine twin draws still dashes.
   useEffect(() => {
-    graph.updateSettings({
-      renderer,
-      connection: renderer === "webgl" ? etlConnections.webgl : etlConnections.canvas,
-    });
+    graph.updateSettings({ renderer });
   }, [graph, renderer]);
 
   useEffect(() => {
-    // The flows of etl.ts read the effect of a running flow from a module variable: comets here.
-    setEtlEffect("comets");
     graph.updateSettings({
+      connection: EtlScaleConnection,
       blockComponents: { [STAGE_IS]: StageBlock },
       canDrag: ECanDrag.ALL,
       showConnectionLabels: false,
       useBezierConnections: true,
       showConnectionArrows: true,
+      useBlocksAnchors: true,
     });
-    const remove = graph.scene.styles.add(stageRules);
+    const remove = graph.scene.styles.add([...stageRules, ...etlFlowRules]);
     simulation.writeAll();
     setEntities({ blocks: data.blocks, connections: data.connections });
     start();
-    zoomTo("center", { padding: FIT_PADDING });
     return remove;
-  }, [graph, data, simulation, setEntities, start, zoomTo]);
+  }, [graph, data, simulation, setEntities, start]);
+
+  useEffect(() => {
+    if (view === "fit") zoomTo("center", { padding: FIT_PADDING });
+    else if (view === "pipeline") zoomTo(pipelineRect(data, data.pipelines[0]), { padding: 80 });
+    else graph.zoom({ scale: Number(view) });
+  }, [data, graph, view, zoomTo]);
+
+  useEffect(() => {
+    glowUniform.value = selectionGlow;
+  }, [selectionGlow]);
 
   useEffect(() => {
     if (!live) return undefined;
@@ -326,8 +367,8 @@ const EtlAtScaleApp = (): React.JSX.Element => {
   }, [simulation, live]);
 
   useEffect(() => {
-    simulation.setFocus(focus);
-  }, [simulation, focus]);
+    simulation.setFocus(focusOnFailures);
+  }, [simulation, focusOnFailures]);
 
   // The HTML card's button: the action writes the stage's status tag and its flows, as a live tick does.
   const act = useCallback(
@@ -352,61 +393,31 @@ const EtlAtScaleApp = (): React.JSX.Element => {
   return (
     <ThemeProvider theme="light">
       <Flex direction="column" style={{ height: "100vh" }}>
-        <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">ETL at scale</Text>
-          <Text variant="body-1">
-            56 pipelines of etl.ts&apos;s 19 stages, each pipeline a group. A stage&apos;s status is a tag with a value
-            (statusTag), not data: rules colour the stripe (and the whole card far away) and show the effect parts of
-            the status. Live changes ten random statuses every 500 ms: the tags switch the effects without encoding a
-            block again, and the touching flows get their status with graph.api.updateConnection. The flows are real
-            connections (comets on WebGL); they are not scene elements, so the stage tags and the focus dim do not reach
-            them. Zoom out: the effects have their own widths per zoom range. Drag stages or whole pipelines; select a
-            stage for the glow. Canvas 2D draws the effect paths as static strokes. With HTML on, a React card replaces
-            each stage at the detailed level (scale 1 here): it reads the status tag, shows it with CSS animations
-            (running: marching border, queued: spinner, failed: pulse, selected: glow), and its button runs, pauses or
-            retries the stage.
+        <Flex alignItems="center" gap={4} wrap style={{ padding: "8px 16px" }}>
+          <Text variant="body-1" color="secondary">
+            {data.blocks.length.toLocaleString()} blocks · {data.connections.length.toLocaleString()} connections ·{" "}
+            {data.pipelines.length} groups · scene renderer: <b>{sceneState}</b> · level: <b>{level}</b> · <Fps /> fps
           </Text>
-          <Flex alignItems="center" gap={4} wrap>
-            <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />
-            <SegmentedRadioGroup options={htmlModes} value={html} onUpdate={setHtml} />
-            <Switch checked={live} onUpdate={setLive} content="Live" />
-            <Switch checked={focus} onUpdate={setFocus} content="Focus on failures" />
-            <Button onClick={() => zoomTo("center", { padding: FIT_PADDING })}>Fit all</Button>
-            <Button onClick={() => zoomTo(pipelineRect(data, "p01"), { padding: 80 })}>One pipeline</Button>
-            {SCALES.map((scale) => (
-              <Button key={scale} size="s" onClick={() => graph.zoom({ scale })}>
-                {scale}
-              </Button>
-            ))}
-            <UniformSlider label="Selection glow" uniform={glowUniform} min={0} max={1.5} step={0.05} />
-          </Flex>
-          <Flex alignItems="center" gap={4} wrap>
-            <Text variant="body-1" color="secondary">
-              {data.blocks.length.toLocaleString()} blocks · {data.connections.length.toLocaleString()} connections ·{" "}
-              {data.pipelines.length} groups · scene: <b>{sceneState}</b> · connections: <b>{linesState}</b> · level:{" "}
-              <b>{level}</b> · <Fps /> fps
-            </Text>
-            {STAGE_STATUSES.map((status: TStageStatus) => (
-              <Flex key={status} alignItems="center" gap={1}>
-                <span
-                  style={{
-                    display: "inline-block",
-                    width: 10,
-                    height: 10,
-                    borderRadius: 5,
-                    background: stageStatusColors[status],
-                  }}
-                />
-                <Text variant="body-1" color="secondary">
-                  {stageStatusLabels[status]} {counts[status]}
-                  {stageStatusEffects[status].length > 0 ? ` (${stageStatusEffects[status].join(", ")})` : ""}
-                </Text>
-              </Flex>
-            ))}
-          </Flex>
+          {STAGE_STATUSES.map((status: TStageStatus) => (
+            <Flex key={status} alignItems="center" gap={1}>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  background: stageStatusColors[status],
+                }}
+              />
+              <Text variant="body-1" color="secondary">
+                {stageStatusLabels[status]} {counts[status]}
+                {stageStatusEffects[status].length > 0 ? ` (${stageStatusEffects[status].join(", ")})` : ""}
+              </Text>
+            </Flex>
+          ))}
         </Flex>
         <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
-          <GraphCanvas graph={graph} className="graph-canvas" renderBlock={html === "on" ? renderStage : undefined} />
+          <GraphCanvas graph={graph} className="graph-canvas" renderBlock={html ? renderStage : undefined} />
         </div>
       </Flex>
     </ThemeProvider>
@@ -437,18 +448,43 @@ BlockEffects.parameters = {
   },
 };
 
-export const EtlAtScale: StoryFn = () => <EtlAtScaleApp />;
+export const EtlAtScale: StoryFn<TEtlAtScaleArgs> = (args) => {
+  const blockCount = boundedCount(args.blockCount, etlDefaults.blockCount);
+  const connectionCount = boundedCount(args.connectionCount, etlDefaults.connectionCount);
+  return (
+    <EtlAtScaleApp
+      key={`${blockCount}/${connectionCount}`}
+      {...args}
+      blockCount={blockCount}
+      connectionCount={connectionCount}
+    />
+  );
+};
 EtlAtScale.storyName = "ETL at scale";
+EtlAtScale.args = etlDefaults;
+EtlAtScale.argTypes = {
+  blockCount: { name: "Blocks", control: ETL_COUNT_CONTROL },
+  connectionCount: { name: "Connections", control: ETL_COUNT_CONTROL },
+  renderer: { name: "Renderer", control: "radio", options: ["webgl", "canvas"] },
+  html: { name: "HTML cards", control: "boolean" },
+  live: { name: "Live", control: "boolean" },
+  focusOnFailures: { name: "Focus on failures", control: "boolean" },
+  view: {
+    name: "View",
+    options: [...ETL_VIEWS],
+    control: { type: "select", labels: { fit: "Fit all", pipeline: "One pipeline" } },
+  },
+  selectionGlow: { name: "Selection glow", control: { type: "range", min: 0, max: 1.5, step: 0.05 } },
+};
 EtlAtScale.parameters = {
   docs: {
     description: {
       story:
-        "1064 scene stages in 56 groups with 1400 WebGL connections. The stage status is `statusTag` (a tag with a " +
-        "value); rules colour the stripe and the far-zoom tint and show the effect parts of each status. A live " +
-        "simulation rewrites ten statuses every 500 ms and updates the touching flows with " +
-        "`graph.api.updateConnection`. Focus on failures tags every other stage with a `dim` rule. At the detailed " +
-        "level a React stage card replaces the scene block (HTML on by default): it reads `statusTag` reactively, " +
-        "shows the status with CSS animations, and its Run, Pause or Retry button changes the status tag and the flows.",
+        "Vary the number of stages and connections independently in Controls. Stages have different numbers of " +
+        "input and output anchors, with room for every port in the scene blocks and HTML cards. " +
+        "Hover over a connection to highlight its route. " +
+        "Live updates ten stage statuses and their touching flows every 500 ms. Focus on failures dims the other " +
+        "stages. HTML cards replace the scene blocks at the detailed level and let you run, pause, or retry a stage.",
     },
   },
 };

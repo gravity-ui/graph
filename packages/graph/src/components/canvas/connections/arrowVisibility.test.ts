@@ -4,21 +4,17 @@ import { TConnection } from "../../../store/connection/ConnectionState";
 
 import { BlockConnection } from "./BlockConnection";
 import { MultipointConnection } from "./MultipointConnection";
-import type { TConnectionGeometry } from "./geometry";
-import { Path2DLine } from "./lines";
 import { TMultipointConnection } from "./types";
 
-/** The arrow builder of the default line, which is protected. */
-type TPath2DLineBuilders = {
-  createArrowPath(geometry: TConnectionGeometry): Path2D;
-};
+function pointHitBox(x: number, y: number) {
+  return { x, y, minX: x, minY: y, maxX: x, maxY: y };
+}
 
 describe("connection paint bounds at the viewport edge", () => {
   let graph: Graph;
 
   afterEach(() => {
     graph?.unmount();
-    jest.restoreAllMocks();
   });
 
   function start(
@@ -45,7 +41,12 @@ describe("connection paint bounds at the viewport edge", () => {
   function draw() {
     graph.start();
     for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
-    return graph.connections.getConnectionState("c")?.getViewComponent();
+    const view = graph.connections.getConnectionState("c")?.getViewComponent();
+    if (!(view instanceof BlockConnection)) throw new Error("Expected connection view");
+    const element = graph.scene.store
+      .query({ minX: 0, minY: 0, maxX: 1000, maxY: 800 }, graph.scene.$level.value)
+      .find(({ id }) => id === view.getSceneKey()?.elementId);
+    return { view, primitives: element?.primitives };
   }
 
   it("draws a short multipoint arrow entering the viewport; the hit box covers the arrow", () => {
@@ -62,13 +63,18 @@ describe("connection paint bounds at the viewport edge", () => {
     if (!state) throw new Error("Expected connection");
     state.$sourcePortState.value.updatePort({ x: 1010, y: 100, lookup: false });
     state.$targetPortState.value.updatePort({ x: 1011, y: 100, lookup: false });
-    const arrow = jest.spyOn(Path2DLine.prototype as unknown as TPath2DLineBuilders, "createArrowPath");
-    const view = draw();
+    const { view, primitives } = draw();
     // The triangle's base at x 995, padded by THRESHOLD_LINE_HIT 8 and half the width 2.
-    expect(view?.getHitBox()[0]).toBe(986);
-    expect(view?.isInViewport()).toBe(true);
-    expect(arrow).toHaveBeenCalled();
-    expect(arrow.mock.results[0].value.lineTo).toHaveBeenCalledWith(995, 105);
+    expect(view.getHitBox()[0]).toBe(986);
+    expect(view.isInViewport()).toBe(true);
+    expect(primitives).toContainEqual(
+      expect.objectContaining({
+        kind: "polygon",
+        part: "arrow",
+        points: new Float32Array([1011, 100, 995, 105, 995, 95]),
+      })
+    );
+    expect(view.onHitBox(pointHitBox(988, 104))).toBe(true);
   });
 
   it.each([1005, 1008])(
@@ -79,12 +85,12 @@ describe("connection paint bounds at the viewport edge", () => {
       state.$sourcePortState.value.updatePort({ x, y: 100, lookup: false });
       state.$targetPortState.value.updatePort({ x: x + 1, y: 100, lookup: false });
       graph.api.selectConnections(["c"], true);
-      const arrow = jest.spyOn(Path2DLine.prototype as unknown as TPath2DLineBuilders, "createArrowPath");
-      const view = draw();
+      const { view, primitives } = draw();
       // The chevron's wings 7.5 before the line, padded by half the selected width 4.
-      expect(view?.getHitBox()[0]).toBe(x - 9.5);
-      expect(view?.isInViewport()).toBe(true);
-      expect(arrow).toHaveBeenCalled();
+      expect(view.getHitBox()[0]).toBe(x - 9.5);
+      expect(view.isInViewport()).toBe(true);
+      expect(primitives).toContainEqual(expect.objectContaining({ kind: "path", part: "arrow" }));
+      expect(view.onHitBox(pointHitBox(x - 8.5, 92))).toBe(true);
     }
   );
 
@@ -94,11 +100,11 @@ describe("connection paint bounds at the viewport edge", () => {
     state.$sourcePortState.value.updatePort({ x: 1001.5, y: 100, lookup: false });
     state.$targetPortState.value.updatePort({ x: 1001.5, y: 200, lookup: false });
     graph.api.selectConnections(["c"], true);
-    const path = jest.spyOn(Path2DLine.prototype, "getPath");
-    const view = draw();
+    const { view, primitives } = draw();
     // Half the selected width 4 past the line.
-    expect(view?.getHitBox()[0]).toBe(999.5);
-    expect(view?.isInViewport()).toBe(true);
-    expect(path).toHaveBeenCalled();
+    expect(view.getHitBox()[0]).toBe(999.5);
+    expect(view.isInViewport()).toBe(true);
+    expect(primitives?.map(({ part }) => part)).toEqual(["line"]);
+    expect(view.onHitBox(pointHitBox(1000, 150))).toBe(true);
   });
 });

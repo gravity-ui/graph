@@ -6,9 +6,11 @@ import {
   bucketOf,
   chunkOrder,
   elementSteps,
+  filterTranslucentRuns,
   maxStepsOf,
   mergeBuckets,
   orderTranslucent,
+  sortBuckets,
   sourceBuckets,
   splitSteps,
 } from "./translucentOrder";
@@ -36,6 +38,28 @@ function writeElement(id: string, writes: [ranges: InstanceRanges, instances: Fl
 }
 
 describe("element steps", () => {
+  it("keeps a retained schedule on in-place subs edits but invalidates it when its local steps change", () => {
+    const ranges = new InstanceRanges(3);
+    ranges.setSteps("a", [{ step: 0, instances: quads([1, 0], [2, 1]) }]);
+    ranges.setSteps("b", [{ step: 1, instances: quads([3, 2]) }]);
+    ranges.retainLayout();
+    const levelOf = (): number => 0;
+    const before = sourceBuckets(ranges, levelOf, BITS);
+    const layout = ranges.layoutRevision;
+    ranges.edit("a", (data) => {
+      data[1] += 4;
+      data[4] += 4;
+    });
+    expect(ranges.layoutRevision).toBe(layout);
+    expect(sourceBuckets(ranges, levelOf, BITS)).toEqual(before);
+    ranges.setSteps("a", [{ step: 2, instances: quads([1, 4], [2, 5]) }]);
+    expect(ranges.layoutRevision).not.toBe(layout);
+    expect(orderTranslucent([{ instances: ranges }], levelOf, () => 0, BITS)).toEqual([
+      { source: 0, first: 2, count: 1 },
+      { source: 0, first: 0, count: 2 },
+    ]);
+  });
+
   it("starts a step at each change of program in primitive order", () => {
     // Body and border rects (subs 0, 1), a title of 3 glyphs (sub 2), anchor rects (subs 3, 4).
     const rects = { subs: quads([0, 0], [0, 1], [0, 3], [0, 4]), floats: 3 };
@@ -94,6 +118,86 @@ describe("element steps", () => {
 });
 
 describe("translucent order", () => {
+  it("omits inactive retained ranges before querying levels or building draw positions", () => {
+    const paths = new InstanceRanges(3);
+    paths.set("hidden", quads([1, 0], [2, 0]));
+    paths.set("shown", quads([3, 0], [4, 0]));
+    paths.retainLayout();
+    const visited: string[] = [];
+    const levelOf = (id: string): number => {
+      visited.push(id);
+      return 0;
+    };
+    expect(sourceBuckets(paths, levelOf, BITS, (first) => first >= 2)).toEqual([{ bucket: 0, first: 2, count: 2 }]);
+    expect(visited).toEqual(["shown"]);
+    expect(
+      orderTranslucent(
+        [{ instances: paths }],
+        levelOf,
+        () => 0,
+        BITS,
+        false,
+        () => false
+      )
+    ).toEqual([]);
+  });
+
+  it("orders retained path slots around holes and other programs without rewriting their geometry", () => {
+    const paths = new InstanceRanges(3);
+    const rects = new InstanceRanges(3);
+    paths.set("back", quads([10, 0], [11, 0]));
+    paths.set("removed", quads([20, 0], [21, 0]));
+    paths.set("front", quads([30, 0], [31, 0]));
+    rects.set("middle", quads([40, 0]));
+    paths.takeUpload();
+    paths.retainLayout();
+    paths.delete("removed");
+    paths.takeUpload();
+    const levels: Record<string, number> = { back: 0, middle: 1, front: 2 };
+    const order = (): TTranslucentRun[] =>
+      orderTranslucent(
+        [{ instances: paths }, { instances: rects }],
+        (id) => levels[id],
+        () => 0,
+        BITS
+      );
+    expect(order()).toEqual([
+      { source: 0, first: 0, count: 2 },
+      { source: 1, first: 0, count: 1 },
+      { source: 0, first: 4, count: 2 },
+    ]);
+    levels.back = 3;
+    expect(order()).toEqual([
+      { source: 1, first: 0, count: 1 },
+      { source: 0, first: 4, count: 2 },
+      { source: 0, first: 0, count: 2 },
+    ]);
+    expect(tags(paths)).toEqual([10, 11, 0, 0, 30, 31]);
+    expect(paths.takeUpload()).toEqual({ kind: "none" });
+  });
+
+  it("filters existing draws and merges only inactive intervening programs and buffer gaps", () => {
+    const input = [
+      { source: 0, first: 0, count: 2 },
+      { source: 1, first: 0, count: 2 },
+      { source: 0, first: 4, count: 2 },
+    ];
+    const active = [
+      [true, false, false, false, false, true],
+      [false, false],
+    ];
+    const visible = (source: number, first: number, count: number): boolean =>
+      active[source].slice(first, first + count).some(Boolean);
+    expect(filterTranslucentRuns(input, visible)).toEqual([{ source: 0, first: 0, count: 6 }]);
+    // Gathered path IDs can join these commands without submitting their inactive physical gap.
+    expect(filterTranslucentRuns(input, visible, () => false)).toEqual([input[0], input[2]]);
+    active[1][0] = true;
+    expect(filterTranslucentRuns(input, visible)).toEqual(input);
+    active[1][0] = false;
+    active[0][3] = true;
+    expect(filterTranslucentRuns(input, visible)).toEqual([input[0], input[2]]);
+  });
+
   it("orders chunks by level, then step, then element key", () => {
     expect(ELEMENT_KEYS).toBe(2 ** SCENE_DEPTH.INDEX_BITS);
     for (const bits of [BITS, 7]) {
@@ -308,6 +412,40 @@ describe("translucent order", () => {
     expect(mergeBuckets([[{ bucket: 5, first: 0, count: 2 }], [{ bucket: 5, first: 0, count: 3 }]])).toEqual([
       { source: 0, first: 0, count: 2 },
       { source: 1, first: 0, count: 3 },
+    ]);
+  });
+
+  it("sorts physical fragments within each position and keeps all source ties ahead of the next position", () => {
+    const first = sortBuckets([
+      { bucket: 4, first: 20, count: 1 },
+      { bucket: 2, first: 11, count: 2 },
+      { bucket: 2, first: 7, count: 1 },
+    ]);
+    expect(first).toEqual([
+      { bucket: 2, first: 7, count: 1 },
+      { bucket: 2, first: 11, count: 2 },
+      { bucket: 4, first: 20, count: 1 },
+    ]);
+    expect(
+      mergeBuckets([
+        first,
+        [
+          { bucket: 2, first: 4, count: 2 },
+          { bucket: 3, first: 10, count: 1 },
+        ],
+        [
+          { bucket: 1, first: 9, count: 1 },
+          { bucket: 2, first: 3, count: 1 },
+        ],
+      ])
+    ).toEqual([
+      { source: 2, first: 9, count: 1 },
+      { source: 0, first: 7, count: 1 },
+      { source: 0, first: 11, count: 2 },
+      { source: 1, first: 4, count: 2 },
+      { source: 2, first: 3, count: 1 },
+      { source: 1, first: 10, count: 1 },
+      { source: 0, first: 20, count: 1 },
     ]);
   });
 

@@ -94,6 +94,45 @@ test("removing a port immediately invalidates retained connection geometry", () 
   expect(state.$geometry.value).toBeUndefined();
 });
 
+test("connection geometry waits for the final delegate and follows a replacement at the same position", () => {
+  const graph = new Graph({ connections: [{ id: "c", sourcePortId: "s", targetPortId: "t" }] });
+  const state = graph.connections.getConnectionState("c");
+  if (!state) throw new Error("Expected connection");
+  const source = state.$sourcePortState.value;
+  source.updatePort({ x: 100, y: 200, lookup: false });
+  state.$targetPortState.value.updatePort({ x: 500, y: 600, lookup: false });
+  const middle = new PortState({ id: "middle", x: 0, y: 0, lookup: true });
+  const first = new PortState({ id: "first", x: 300, y: 400, lookup: true });
+  const second = new PortState({ id: "second", x: 300, y: 400 });
+  middle.delegate(first);
+  const changed = jest.fn();
+  const stop = state.$geometry.subscribe(changed);
+  try {
+    source.delegate(middle);
+    expect(changed).toHaveBeenLastCalledWith(undefined);
+    first.updatePort({ lookup: false });
+    expect(changed).toHaveBeenLastCalledWith([
+      { x: 300, y: 400 },
+      { x: 500, y: 600 },
+    ]);
+
+    middle.delegate(second);
+    changed.mockClear();
+    first.updatePort({ lookup: true });
+    expect(changed).not.toHaveBeenCalled();
+    second.setPoint(310, 410);
+    expect(changed).toHaveBeenLastCalledWith([
+      { x: 310, y: 410 },
+      { x: 500, y: 600 },
+    ]);
+
+    source.updatePort({ lookup: true });
+    expect(changed).toHaveBeenLastCalledWith(undefined);
+  } finally {
+    stop();
+  }
+});
+
 test("zooming an empty rectangle before attachment keeps camera coordinates finite", () => {
   const graph = new Graph({});
   graph.api.zoomToRect({ x: 0, y: 0, width: 0, height: 0 });

@@ -5,91 +5,6 @@
 
 import { CURVE_CHORDS } from "./encode";
 
-/**
- * The line program's vertex shader: one instance per cubic piece, a triangle strip along it. The template sets how many
- * chords the strip has: one for a straight segment (`createLineTemplate`), `CURVE_CHORDS` for a curve piece.
- */
-export const VERTEX = /* glsl */ `#version 300 es
-precision highp float;
-
-layout(location = 0) in vec2 graph_template;     // t along the piece, side -1 or +1
-layout(location = 1) in vec4 graph_p0c1;         // p0, c1
-layout(location = 2) in vec4 graph_c2p3;         // c2, p3
-layout(location = 3) in vec4 graph_rgba;         // straight rgba, 0..1
-layout(location = 4) in vec4 graph_stroke;       // width, connection length, distance at the piece start, piece length
-layout(location = 5) in vec4 graph_dash;         // on, off, on, off; zeros: solid
-layout(location = 6) in vec4 graph_params0;      // effect params 0..3
-layout(location = 7) in vec4 graph_params1;      // effect params 4..7
-// Selection rgb; hovered + 2 selected + 4 round(alpha * 255) + 1024 when the effect shows the selection.
-layout(location = 8) in vec4 graph_interaction;
-
-uniform vec2 graph_viewport;     // CSS pixels
-uniform vec3 graph_camera;       // x, y, scale
-uniform float graph_dpr;
-uniform float graph_extraWidth;  // CSS pixels drawn outside each side of the stroke
-
-out vec4 graph_vColor;
-out float graph_vAcross;
-out float graph_vHalfWidth;
-out float graph_vHairline;
-out float graph_vAlong;
-out vec2 graph_vWorld;
-flat out vec4 graph_vDash;
-flat out float graph_vLength;
-flat out vec4 graph_vParams0;
-flat out vec4 graph_vParams1;
-flat out vec3 graph_vInteraction;     // hovered, selected, the effect shows the selection: 0.0 or 1.0
-flat out vec4 graph_vSelectionColor;  // straight rgba
-
-vec2 graph_bezier(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
-  float u = 1.0 - t;
-  return u * u * u * a + 3.0 * u * u * t * b + 3.0 * u * t * t * c + t * t * t * d;
-}
-
-vec2 graph_bezierSlope(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
-  float u = 1.0 - t;
-  return 3.0 * u * u * (b - a) + 6.0 * u * t * (c - b) + 3.0 * t * t * (d - c);
-}
-
-void main() {
-  float t = graph_template.x;
-  vec2 p0 = graph_p0c1.xy;
-  vec2 c1 = graph_p0c1.zw;
-  vec2 c2 = graph_c2p3.xy;
-  vec2 p3 = graph_c2p3.zw;
-  vec2 d = graph_bezierSlope(p0, c1, c2, p3, t);
-  if (dot(d, d) < 1e-12) d = p3 - p0;
-  if (dot(d, d) < 1e-12) d = vec2(1.0, 0.0);
-  vec2 dir = normalize(d);
-  // Widths below one device pixel are drawn one pixel wide with reduced alpha, like canvas hairlines.
-  float deviceWidth = graph_stroke.x * graph_camera.z * graph_dpr;
-  float halfPx = max(deviceWidth, 1.0) * 0.5 / graph_dpr;
-  // One device pixel more than the stroke and its extra width: room for the anti-aliased edge.
-  float extent = halfPx + graph_extraWidth + 1.0 / graph_dpr;
-  vec2 normal = vec2(-dir.y, dir.x);
-  vec2 center = graph_bezier(p0, c1, c2, p3, t);
-  // CSS pixels from the center line.
-  vec2 offset = normal * graph_template.y * extent;
-  vec2 screen = center * graph_camera.z + graph_camera.xy + offset;
-  vec2 clip = screen / graph_viewport * 2.0 - 1.0;
-  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
-  graph_vAcross = graph_template.y * extent;
-  graph_vHalfWidth = halfPx;
-  graph_vHairline = min(deviceWidth, 1.0);
-  graph_vColor = graph_rgba;
-  graph_vAlong = graph_stroke.z + t * graph_stroke.w;
-  // The vertex's world position, off the center line: each fragment interpolates its own.
-  graph_vWorld = center + offset / graph_camera.z;
-  graph_vDash = graph_dash;
-  graph_vLength = graph_stroke.y;
-  graph_vParams0 = graph_params0;
-  graph_vParams1 = graph_params1;
-  int interaction = int(graph_interaction.w + 0.5);
-  graph_vInteraction = vec3(float(interaction & 1), float((interaction >> 1) & 1), float((interaction >> 10) & 1));
-  graph_vSelectionColor = vec4(graph_interaction.xyz, float((interaction >> 2) & 255) / 255.0);
-}
-`;
-
 /** Everything an effect can read, before the effect's source. */
 export const FRAGMENT_PRELUDE = /* glsl */ `#version 300 es
 precision highp float;
@@ -203,40 +118,6 @@ void main() {
 export function createFragmentShader(effect: string = IDENTITY_EFFECT, uniforms = ""): string {
   return `${FRAGMENT_PRELUDE}\n${uniforms}#line 1\n${effect}\n${FRAGMENT_MAIN}`;
 }
-
-/** The fill program's vertex shader: closed arrows as triangles in world coordinates. */
-export const FILL_VERTEX = /* glsl */ `#version 300 es
-precision highp float;
-
-layout(location = 0) in vec2 graph_position;  // world
-layout(location = 1) in vec4 graph_rgba;      // straight rgba, 0..1
-
-uniform vec2 graph_viewport;  // CSS pixels
-uniform vec3 graph_camera;    // x, y, scale
-
-out vec4 graph_vColor;
-
-void main() {
-  vec2 screen = graph_position * graph_camera.z + graph_camera.xy;
-  vec2 clip = screen / graph_viewport * 2.0 - 1.0;
-  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
-  graph_vColor = graph_rgba;
-}
-`;
-
-/** The fill program's fragment shader: the color premultiplied. The arrow's stroke anti-aliases its edge. */
-export const FILL_FRAGMENT = /* glsl */ `#version 300 es
-precision highp float;
-
-in vec4 graph_vColor;
-
-out vec4 graph_fragColor;
-
-void main() {
-  float alpha = clamp(graph_vColor.a, 0.0, 1.0);
-  graph_fragColor = vec4(graph_vColor.rgb * alpha, alpha);
-}
-`;
 
 /** Triangle strip of uniform chords along one piece: (t, side) pairs. */
 export function createCurveTemplate(chords = CURVE_CHORDS): Float32Array {

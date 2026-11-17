@@ -32,7 +32,9 @@ counted after the timed frames; WebGL columns do not print them, because they co
 `--renderers canvas,webgl` (default `canvas`): every variant x renderer is a column named `variant/renderer`, and
 the first column is the pixel reference. The API is detected per variant from the bundle's exports:
 
-- **New API** (`WebGLLine` is exported): the renderer comes from the connection class. The WebGL column uses
+- **Unified scene** (`WebGLLine` is exported and the old diagnostics are absent): the renderer comes from
+  the graph's `renderer` setting. Use the scene benchmark for timing the full scene frame.
+- **Separate WebGLLine renderer** (`WebGLLine` and the diagnostics are exported): the renderer comes from the connection class. The WebGL column uses
   `class extends BlockConnection { static line = WebGLLine }` (or a `WebGLLine` subclass for `--effect`), the canvas
   column `Path2DLine`. Each column prints `[canvas]`, `[webgl]` or `[webgl-fallback]`, read from
   `graph.getGraphLayer().$connectionsRenderer`.

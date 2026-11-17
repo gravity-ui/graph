@@ -1,5 +1,6 @@
 import { Anchor } from "../../components/canvas/anchors";
 import { Block } from "../../components/canvas/blocks/Block";
+import { BlockConnection } from "../../components/canvas/connections/BlockConnection";
 import type { TGraphColors } from "../../graphConfig";
 import { draggingTag, hoveredTag, selectedTag } from "../tags/builtinTags";
 
@@ -49,5 +50,24 @@ export function createThemeRules(colors: TGraphColors): TStyleRule[] {
     tags: [hoveredTag],
     style: { parts: { anchor: { scale: Anchor.CANVAS_HOVER_FACTOR }, border: { scale: Anchor.CANVAS_HOVER_FACTOR } } },
   };
-  return [blockBase, blockSelected, blockDragging, anchorBase, anchorSelected, anchorHovered];
+  const connectionSelected: TStyleRule<typeof BlockConnection> = {
+    target: BlockConnection,
+    tags: [selectedTag],
+    style: { raise: 1 },
+  };
+  const connectionHovered: TStyleRule<typeof BlockConnection> = {
+    target: BlockConnection,
+    tags: [hoveredTag],
+    style: { raise: 1 },
+  };
+  return [
+    blockBase,
+    blockSelected,
+    blockDragging,
+    anchorBase,
+    anchorSelected,
+    anchorHovered,
+    connectionSelected,
+    connectionHovered,
+  ];
 }

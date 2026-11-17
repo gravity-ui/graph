@@ -158,7 +158,6 @@ describe("WebGLLine", () => {
       const shape = line.getWebGLShape();
       expect(shape?.segments).toBe(straight.segments);
       expect(shape?.stroke).toEqual({ color: "#aaa", width: 2, dash: undefined });
-      expect(shape?.fill).toBeUndefined();
       expect(line.getWebGLShape()).toBe(shape);
     });
 
@@ -174,28 +173,7 @@ describe("WebGLLine", () => {
       expect(after?.stroke.width).toBe(4);
     });
 
-    it("draws a closed arrow as 3 line segments with a fill", () => {
-      const { connection } = stubConnection(closedArrowGeometry);
-      const line = new WebGLLine(connection);
-      line.update();
-      const shape = line.arrow.getWebGLShape?.();
-      expect(shape?.segments.length).toBe(3 * 8);
-      expect(shape?.fill).toBe(closedArrowGeometry.arrow?.points);
-      expect(shape?.stroke).toEqual({ color: "#aaa", width: 2 });
-      expect(line.arrow.getWebGLShape?.()).toBe(shape);
-    });
-
-    it("draws an open arrow as its sides without a fill, and has no shape without an arrow", () => {
-      const open = stubConnection(straight);
-      const line = new WebGLLine(open.connection);
-      line.update();
-      const arrow = straight.arrow;
-      const shape = line.arrow.getWebGLShape?.();
-      expect(shape?.segments.length).toBe(((arrow?.points.length ?? 0) / 2 - 1) * 8);
-      expect(shape?.fill).toBeUndefined();
-
-      const bare = new WebGLLine(stubConnection({ segments: straight.segments }).connection);
-      expect(bare.arrow.getWebGLShape?.()).toBeUndefined();
+    it("has no WebGL shape without geometry", () => {
       expect(new WebGLLine(stubConnection(undefined).connection).getWebGLShape()).toBeUndefined();
     });
   });
@@ -214,7 +192,6 @@ describe("WebGLLine", () => {
       const line = new WebGLLine(connection);
       line.update();
       line.getWebGLShape();
-      line.arrow.getWebGLShape?.();
       line.hitTest(1, 1, 8);
       expect(countPath2D).not.toHaveBeenCalled();
 
@@ -250,22 +227,12 @@ describe("WebGLLine", () => {
       }
     }
 
-    it("passes the effect and params into the line shape, not the arrow shape", () => {
+    it("passes the effect and params into the line shape", () => {
       const line = new EffectLine(stubConnection(closedArrowGeometry).connection);
       line.update();
       const shape = line.getWebGLShape();
       expect(shape?.effect).toBe(toConnectionEffect(pulse as never));
       expect(shape?.params).toEqual([3]);
-      expect(line.arrow.getWebGLShape?.()?.effect).toBeUndefined();
-    });
-
-    it("reports the effect of its stroke without geometry; the arrow reports none", () => {
-      const line = new EffectLine(stubConnection(undefined).connection);
-      line.update();
-      expect(line.getWebGLShape()).toBeUndefined();
-      expect(line.getWebGLEffect()).toBe(toConnectionEffect(pulse as never));
-      expect(line.arrow.getWebGLEffect?.()).toBeUndefined();
-      expect(new WebGLLine(stubConnection(straight).connection).getWebGLEffect()).toBeUndefined();
     });
 
     it("keeps the effect on hover and selection", () => {
@@ -409,7 +376,7 @@ describe("WebGLLine", () => {
         expect(shape?.interaction).toEqual({ hovered: false, selected: true, selectionColor: "#fc0" });
         expect(encoded(shape).packed).toBe(packed(false, true, true));
         // The arrow and the Path2D fallback have no effect: they draw the stroke, in the selection color.
-        expect(line.arrow.getWebGLShape?.()?.stroke.color).toBe("#fc0");
+        expect(line.getSceneStrokes().arrow?.color).toBe("#fc0");
         line.style(selected.ctx);
         expect(selected.ctx.strokeStyle).toBe("#ffcc00");
       }
@@ -433,7 +400,7 @@ describe("WebGLLine", () => {
       line.update();
       expect(line.getWebGLShape()?.stroke.color).toBe("#e5484d");
       expect(line.getWebGLShape()?.effectShowsSelection).toBeUndefined();
-      expect(line.arrow.getWebGLShape?.()?.stroke.color).toBe("#e5484d");
+      expect(line.getSceneStrokes().arrow?.color).toBe("#e5484d");
     });
 
     it("draws a stroke returned without withInteraction() as it is; its effect still gets the interaction", () => {
@@ -441,7 +408,7 @@ describe("WebGLLine", () => {
       const line = new (ownLook())(selected.connection);
       line.update();
       expect(line.getWebGLShape()?.stroke).toEqual({ color: "#f00", width: 2 });
-      expect(line.arrow.getWebGLShape?.()?.stroke).toEqual({ color: "#f00", width: 2 });
+      expect(line.getSceneStrokes().arrow).toEqual({ color: "#f00", width: 2 });
       expect(selected.batch.items.get(line)?.group).toBe("line/#f00/2/");
 
       const withEffect = stubConnection(closedArrowGeometry, { selected: true });
@@ -451,17 +418,16 @@ describe("WebGLLine", () => {
       expect(shape?.stroke).toEqual({ color: "#f00", width: 2 });
       expect(shape?.effectShowsSelection).toBeUndefined();
       expect(shape?.interaction).toEqual({ hovered: false, selected: true, selectionColor: "#fc0" });
-      expect(effectLine.arrow.getWebGLShape?.()?.stroke.color).toBe("#f00");
+      expect(effectLine.getSceneStrokes().arrow?.color).toBe("#f00");
       effectLine.style(withEffect.ctx);
       expect(withEffect.ctx.strokeStyle).toBe("#ff0000");
     });
 
-    it("passes the interaction of the state update() reads into the line shape, not the arrow shape", () => {
+    it("passes the interaction of the state update() reads into the line shape", () => {
       const { connection } = stubConnection(closedArrowGeometry);
       const line = new EffectLook(connection);
       line.update();
       expect(line.getWebGLShape()?.interaction).toEqual({ hovered: false, selected: false, selectionColor: "#fc0" });
-      expect(line.arrow.getWebGLShape?.()?.interaction).toBeUndefined();
 
       // The state passed to update(), not the connection's.
       const selectedBackground = "rgba(255, 0, 0, 0.5)";

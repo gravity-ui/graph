@@ -53,6 +53,54 @@ describe("SceneStore", () => {
     expect(store.query({ minX: 990, minY: 990, maxX: 1020, maxY: 1020 }).map((element) => element.id)).toEqual(["a"]);
   });
 
+  it("reuses the ordered Canvas query on a pan and checks exact bounds after scene changes", () => {
+    const store = new SceneStore(100);
+    store.add(input("owner", { x: -50 }));
+    store.add(input("child", { x: 5, parent: "owner" }));
+    store.add(input("earlier", { x: 20, zIndex: 0 }));
+    store.add(input("later", { x: 15 }));
+    store.add(input("edge", { x: 101 }));
+    store.add(input("unbounded", { x: Infinity }));
+    const viewport = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
+    const panned = { ...viewport, minX: 1, maxX: 101 };
+    const query = jest.spyOn(store, "query");
+    const ids = (rect = viewport) => store.queryForCanvas(rect, 1).map(({ id }) => id);
+    const inside = ["earlier", "child", "later", "unbounded"];
+    expect(ids()).toEqual(inside);
+    expect(ids()).toEqual(inside);
+    expect(ids(panned)).toEqual(["earlier", "child", "later", "edge", "unbounded"]);
+    expect(query).toHaveBeenCalledTimes(2);
+
+    store.update("owner", { hidden: true });
+    expect(ids(panned)).toEqual(["earlier", "later", "edge", "unbounded"]);
+    store.update("edge", { x: 50 });
+    store.raise("later");
+    expect(ids()).toEqual(["earlier", "edge", "unbounded", "later"]);
+  });
+
+  it("updates the cached Canvas query for a grown styled bound and a changed level", () => {
+    const store = new SceneStore();
+    const dot: TScenePrimitive = { kind: "circle", part: "body", cx: 0, cy: 0, r: 1, levelMask: LEVEL_BIT.schematic };
+    store.add(
+      input("halo", {
+        x: 102,
+        y: 50,
+        bounds: { minX: -1, minY: -1, maxX: 1, maxY: 1 },
+        primitives: [dot],
+      })
+    );
+    const row = store.defineStyle({});
+    store.setStyle("halo", row);
+    const viewport = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
+    const ids = (level: TSceneLevel) => store.queryForCanvas(viewport, 1, level).map(({ id }) => id);
+    expect(ids("schematic")).toEqual([]);
+    expect(ids("schematic")).toEqual([]);
+    store.replaceStyles(new Map([[row, { parts: { body: { scale: 4 } } }]]));
+    expect(ids("schematic")).toEqual(["halo"]);
+    expect(ids("schematic")).toEqual(["halo"]);
+    expect(ids("detailed")).toEqual([]);
+  });
+
   it("forgets deleted elements and rejects duplicate ids", () => {
     const store = new SceneStore();
     store.add(input("a"));

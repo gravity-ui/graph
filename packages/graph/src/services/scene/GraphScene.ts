@@ -16,6 +16,7 @@ import type { TSceneChange, TSceneElement, TSceneStyle, TSceneTextPolicy } from 
 import type { ISceneBackendModule } from "../../lib/scene/webgl/backendTypes";
 import { noop } from "../../utils/functions";
 import { clearMeasureTextCache } from "../../utils/functions/text";
+import { track } from "../../utils/functions/track";
 import { clearTextCache } from "../../utils/renderers/text";
 import type { TRect } from "../../utils/types/shapes";
 import { SceneStyleSheet } from "../styles/SceneStyleSheet";
@@ -447,22 +448,40 @@ export class GraphScene implements IGraphScene {
    * current tags. Returns a function that releases the row, resets the element to row 0 and forgets the binding.
    * Add the element first: a tag change sets the row of an element that exists, binding does not wait for one.
    */
-  public bindStyle(elementId: string, entity: TEntityAddress, target: TStyleTarget): () => void {
+  public bindStyle(
+    elementId: string,
+    entity: TEntityAddress,
+    target: TStyleTarget,
+    onStyleChange?: (style: TSceneStyle) => void
+  ): () => void {
     if (this.disposed) return noop;
     const key = entityKey(entity.type, entity.id);
     const binding = { target, elementId };
     const $tags = this.tags.$of(entity.type, entity.id);
     let current = 0;
+    let previousTags: TTagSet | undefined;
+    let previousStyle: TSceneStyle | undefined;
     const stop = effect(() => {
       const tags = $tags.value;
+      if (onStyleChange) track(this.$styleGeneration);
       untracked(() => {
-        // Acquire before release: a row both signatures share is not freed and defined again.
-        const next = this.resolver.acquire(target, tags);
         const element = this.store.get(elementId);
-        // A child's styleId is its drawn row; the row bound here is its own row.
-        if (element && this.store.ownStyleOf(elementId) !== next) this.store.setStyle(elementId, next);
-        if (current !== 0) this.resolver.release(current);
-        current = next;
+        if (tags !== previousTags) {
+          // Acquire before release: a row both signatures share is not freed and defined again.
+          const next = this.resolver.acquire(target, tags);
+          // A child's styleId is its drawn row; the row bound here is its own row.
+          if (element && this.store.ownStyleOf(elementId) !== next) this.store.setStyle(elementId, next);
+          if (current !== 0) this.resolver.release(current);
+          current = next;
+          previousTags = tags;
+        }
+        if (element && onStyleChange) {
+          const style = this.store.getStyles()[current];
+          if (style !== previousStyle) {
+            previousStyle = style;
+            onStyleChange(style);
+          }
+        }
       });
     });
     // Recorded after effect(): a throwing first run leaves no binding.
@@ -572,7 +591,7 @@ export class GraphScene implements IGraphScene {
   /**
    * Scene order of two components (spec section 9), the key drawing and hit-testing share: negative when `a` draws
    * below `b`. Components with a scene key compare by their elements' scene order (a child element right above its
-   * parent), then by the key's sub-order; other components (connections until step 2, groups, layer components) by
+   * parent), then by the key's sub-order; other components (groups and layer components) by
    * (zIndex, renderOrder), above scene components of the same zIndex.
    */
   public compareOrder(a: CoreComponent, b: CoreComponent): number {
@@ -652,7 +671,7 @@ export class GraphScene implements IGraphScene {
    * The scene's picture as a new canvas, drawn by the Canvas2D interpreter whatever the renderer: WebGL's drawing
    * buffer is not preserved, and export must not depend on it. For the current view (no `rect`, no `scale`) the visible
    * layer canvases under the scene come first, so the image is what the user sees below the selection and HTML layers;
-   * any other rect draws the scene only (until step 2 moves connections into it).
+   * any other rect draws the scene only, including its built-in connections.
    *
    * The picture does not depend on where the camera has been (Task 17g): the anchor components a block creates lazily
    * are created for the export when its rect and level need them, through their normal lifecycle, and dropped again

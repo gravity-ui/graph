@@ -350,7 +350,7 @@ export const initGraphConstants: TGraphConstants = {
   connection: {
     MUTED_CANVAS_CONNECTION_WIDTH: 0.8,
     SCALES: [0.01, 0.125, 0.125],
-    DEFAULT_Z_INDEX: 0,
+    DEFAULT_Z_INDEX: 100,
     THRESHOLD_LINE_HIT: 8,
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: 0.25,
     PATH2D_CHUNK_SIZE: 200,

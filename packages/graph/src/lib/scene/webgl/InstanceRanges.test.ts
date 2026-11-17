@@ -16,6 +16,123 @@ function spansOf(upload: TInstanceUpload, floats: number): [number, number[]][] 
   return upload.spans.map((span) => [span.byteOffset / (4 * floats), [...span.data]]);
 }
 
+describe("InstanceRanges retained layout", () => {
+  it("clears deleted slots without moving live instances or sorting them again", () => {
+    const ranges = new InstanceRanges(2);
+    ranges.set("a", inst(1, 2));
+    ranges.set("b", inst(3, 4, 5, 6));
+    ranges.set("c", inst(7, 8));
+    ranges.retainLayout();
+    ranges.takeUpload();
+    ranges.delete("b");
+    expect(ranges.layoutRetained).toBe(true);
+    expect(ranges.liveCount).toBe(2);
+    expect(ranges.count).toBe(4);
+    expect(layoutOf(ranges)).toEqual([
+      ["a", 0, 1, 0],
+      ["c", 3, 1, 0],
+    ]);
+    expect(spansOf(ranges.takeUpload(), 2)).toEqual([[1, [0, 0, 0, 0]]]);
+    const revision = ranges.revision;
+    expect(ranges.sortBy((id) => (id === "c" ? 0 : 1))).toBe(false);
+    expect(ranges.revision).toBe(revision);
+    expect(ranges.takeUpload()).toEqual({ kind: "none" });
+  });
+
+  it("reuses the smallest fitting hole and keeps unused slots cleared", () => {
+    const ranges = new InstanceRanges(1);
+    ranges.set("a", inst(1, 1));
+    ranges.set("small", inst(2, 2, 2));
+    ranges.set("b", inst(3, 3));
+    ranges.set("large", inst(4, 4, 4, 4, 4));
+    ranges.set("c", inst(5, 5));
+    ranges.retainLayout();
+    ranges.takeUpload();
+    ranges.delete("small");
+    ranges.delete("large");
+    ranges.set("x", inst(6, 6, 6, 6));
+    ranges.set("y", inst(7, 7));
+    expect(layoutOf(ranges)).toEqual([
+      ["a", 0, 2, 0],
+      ["y", 2, 2, 0],
+      ["b", 5, 2, 0],
+      ["x", 7, 4, 0],
+      ["c", 12, 2, 0],
+    ]);
+    expect([...ranges.data]).toEqual([1, 1, 7, 7, 0, 3, 3, 6, 6, 6, 6, 0, 5, 5]);
+    expect(ranges.liveCount).toBe(12);
+    expect(ranges.count).toBe(14);
+    expect(ranges.takeUpload().kind).toBe("range");
+  });
+
+  it("coalesces adjacent holes and trims the unused tail", () => {
+    const ranges = new InstanceRanges(1);
+    ranges.set("a", inst(1, 1));
+    ranges.set("b", inst(2, 2, 2));
+    ranges.set("c", inst(3, 3, 3, 3));
+    ranges.set("d", inst(4));
+    ranges.retainLayout();
+    ranges.takeUpload();
+    ranges.delete("b");
+    ranges.delete("c");
+    ranges.set("x", inst(5, 5, 5, 5, 5, 5));
+    expect(layoutOf(ranges)).toEqual([
+      ["a", 0, 2, 0],
+      ["x", 2, 6, 0],
+      ["d", 9, 1, 0],
+    ]);
+    ranges.delete("d");
+    expect(ranges.count).toBe(8);
+    expect(ranges.liveCount).toBe(8);
+    expect([...ranges.data]).toEqual([1, 1, 5, 5, 5, 5, 5, 5]);
+    expect(spansOf(ranges.takeUpload(), 1)).toEqual([[2, [5, 5, 5, 5, 5, 5]]]);
+  });
+
+  it("reuses slots through repeated effect migrations with identical companion allocation", () => {
+    const lists = [new InstanceRanges(2), new InstanceRanges(8)];
+    const resident = lists.map(() => new Float32Array(2048));
+    const upload = (): void => {
+      lists.forEach((ranges, index) => {
+        const change = ranges.takeUpload();
+        if (change.kind === "full") resident[index].set(ranges.data);
+        else if (change.kind === "range") {
+          for (const span of change.spans) resident[index].set(span.data, span.byteOffset / 4);
+        }
+        expect([...resident[index].subarray(0, ranges.data.length)]).toEqual([...ranges.data]);
+      });
+      expect(layoutOf(lists[0])).toEqual(layoutOf(lists[1]));
+    };
+    const put = (id: string, step: number, count: number): void => {
+      for (const ranges of lists) {
+        const instances = new Float32Array(count * ranges.floats).fill(1);
+        ranges.setSteps(
+          id,
+          step === 2
+            ? [
+                { step, instances: instances.subarray(0, ranges.floats) },
+                { step: step + 1, instances: instances.subarray(ranges.floats) },
+              ]
+            : [{ step, instances }]
+        );
+      }
+    };
+    for (let id = 0; id < 32; id++) put(`e${id}`, 0, 3);
+    for (const ranges of lists) ranges.retainLayout();
+    upload();
+    const initialBuffers = lists.map((ranges) => ranges.data.buffer.byteLength);
+    for (let frame = 0; frame < 200; frame++) {
+      const id = `e${frame % 32}`;
+      for (const ranges of lists) ranges.delete(id);
+      // Different read timing must not change how the two strides allocate their next range.
+      expect(lists[frame % 2].count).toBeGreaterThan(0);
+      put(id, frame % 3, frame % 2 ? 2 : 4);
+      upload();
+      expect(lists[0].count).toBeLessThanOrEqual(128);
+    }
+    expect(lists.map((ranges) => ranges.data.buffer.byteLength)).toEqual(initialBuffers);
+  });
+});
+
 describe("InstanceRanges", () => {
   it("packs elements and uploads fully after an add", () => {
     const ranges = new InstanceRanges(2);
@@ -27,6 +144,21 @@ describe("InstanceRanges", () => {
     expect(ranges.takeUpload()).toEqual({ kind: "none" });
   });
 
+  it("reads one element's resident count across steps and deletion without changing pending uploads", () => {
+    const ranges = new InstanceRanges(1);
+    ranges.setSteps("a", [
+      { step: 0, instances: inst(1, 2) },
+      { step: 1, instances: inst(3) },
+    ]);
+    ranges.set("b", inst(4));
+    expect(ranges.countOf("a")).toBe(3);
+    expect(ranges.countOf("missing")).toBe(0);
+    expect(ranges.takeUpload()).toEqual({ kind: "full" });
+    ranges.delete("a");
+    expect(ranges.countOf("a")).toBe(0);
+    expect(ranges.countOf("b")).toBe(1);
+  });
+
   it("rewrites in place when the count is unchanged", () => {
     const ranges = new InstanceRanges(2);
     ranges.set("a", inst(1, 1));
@@ -36,6 +168,58 @@ describe("InstanceRanges", () => {
     const upload = ranges.takeUpload();
     expect(upload).toMatchObject({ kind: "range", spans: [{ byteOffset: 8 }] });
     expect(spanFloats(upload)).toEqual([4, 4, 5, 5]);
+  });
+
+  it("uploads an appended range without rewriting the resident prefix", () => {
+    const ranges = new InstanceRanges(2);
+    ranges.set("resident", inst(1, 2, 3, 4));
+    ranges.takeUpload();
+    ranges.set("added", inst(5, 6));
+    expect(spansOf(ranges.takeUpload(), 2)).toEqual([[2, [5, 6]]]);
+    expect([...ranges.data]).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("uploads only the moved suffix after deleting a middle range", () => {
+    const ranges = new InstanceRanges(2);
+    ranges.set("prefix", inst(1, 2, 3, 4));
+    ranges.set("removed", inst(5, 6));
+    ranges.set("tail", inst(7, 8, 9, 10));
+    ranges.takeUpload();
+    ranges.delete("removed");
+    expect(spansOf(ranges.takeUpload(), 2)).toEqual([[2, [7, 8, 9, 10]]]);
+    expect(ranges.count).toBe(4);
+    expect([...ranges.data]).toEqual([1, 2, 3, 4, 7, 8, 9, 10]);
+  });
+
+  it("drops an edited trailing range without uploading its discarded data", () => {
+    const ranges = new InstanceRanges(2);
+    ranges.set("prefix", inst(1, 2));
+    ranges.set("tail", inst(3, 4));
+    ranges.takeUpload();
+    ranges.set("tail", inst(5, 6));
+    ranges.delete("tail");
+    expect(ranges.takeUpload()).toEqual({ kind: "none" });
+    expect([...ranges.data]).toEqual([1, 2]);
+  });
+
+  it("uploads only the replacement when the last range changes count", () => {
+    const ranges = new InstanceRanges(2);
+    ranges.set("prefix", inst(1, 2, 3, 4));
+    ranges.set("tail", inst(5, 6));
+    ranges.takeUpload();
+    ranges.set("tail", inst(7, 8, 9, 10));
+    expect(spansOf(ranges.takeUpload(), 2)).toEqual([[2, [7, 8, 9, 10]]]);
+    expect([...ranges.data]).toEqual([1, 2, 3, 4, 7, 8, 9, 10]);
+  });
+
+  it("uploads companion instances only when their fields change", () => {
+    const ranges = new InstanceRanges(2);
+    ranges.set("edge", inst(12, 1));
+    ranges.takeUpload();
+    ranges.set("edge", inst(12, 1), true);
+    expect(ranges.takeUpload()).toEqual({ kind: "none" });
+    ranges.set("edge", inst(12, 2), true);
+    expect(spanFloats(ranges.takeUpload())).toEqual([12, 2]);
   });
 
   it("compacts after delete and after a count change", () => {
@@ -192,7 +376,7 @@ describe("InstanceRanges", () => {
     ranges.delete("b");
     expect([...ranges.data]).toEqual([1, 1, 4]);
     expect(ranges.count).toBe(3);
-    expect(ranges.takeUpload()).toEqual({ kind: "full" });
+    expect(spansOf(ranges.takeUpload(), 1)).toEqual([[2, [4]]]);
     ranges.set("c", inst(9));
     expect([...ranges.data]).toEqual([1, 1, 9]);
     ranges.setSteps("a", []);
@@ -803,5 +987,43 @@ describe("InstanceRanges lazy removal", () => {
     const upload = ranges.takeUpload();
     expect(upload).toMatchObject({ kind: "range", spans: [{ byteOffset: 4 }] });
     expect(spanFloats(upload)).toEqual([8]);
+  });
+
+  it("keeps sparse uploads and companion offsets correct through repeated replacements", () => {
+    const lists = [new InstanceRanges(2), new InstanceRanges(3)];
+    const resident = lists.map(() => new Float32Array(1024));
+    const upload = (): void => {
+      lists.forEach((ranges, index) => {
+        const change = ranges.takeUpload();
+        if (change.kind === "full") resident[index].set(ranges.data);
+        else if (change.kind === "range") {
+          for (const span of change.spans) resident[index].set(span.data, span.byteOffset / 4);
+        }
+        expect([...resident[index].subarray(0, ranges.data.length)]).toEqual([...ranges.data]);
+      });
+      expect(layoutOf(lists[0])).toEqual(layoutOf(lists[1]));
+    };
+    const put = (id: string, step: number, count: number, value: number): void => {
+      for (const ranges of lists) {
+        ranges.setSteps(id, [{ step, instances: new Float32Array(count * ranges.floats).fill(value) }]);
+      }
+    };
+    for (let id = 0; id < 12; id++) put(`e${id}`, 0, 3, id);
+    upload();
+    const initialBuffers = lists.map((ranges) => ranges.data.buffer.byteLength);
+    for (let frame = 0; frame < 100; frame++) {
+      const id = `e${frame % 12}`;
+      for (const ranges of lists) ranges.delete(id);
+      put(id, frame % 3, frame % 2 ? 2 : 4, frame);
+      // One rewrite before and one after settling exercise dirty spans at both old and new offsets.
+      for (const ranges of lists) ranges.edit(`e${(frame + 5) % 12}`, (data) => data.fill(frame + 100));
+      expect(lists[frame % 2].count).toBeGreaterThan(0);
+      for (const ranges of lists) ranges.edit(`e${(frame + 8) % 12}`, (data) => data.fill(frame + 200));
+      if (frame % 7 === 0) {
+        for (const ranges of lists) ranges.sortBy((element, step) => step * 100 + Number(element.slice(1)));
+      }
+      upload();
+    }
+    expect(lists.map((ranges) => ranges.data.buffer.byteLength)).toEqual(initialBuffers);
   });
 });

@@ -1,3 +1,4 @@
+import { toConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import type { TTileRect } from "../../culling/TileIndex";
 import { resolveSceneSize } from "../size";
 import type { TScenePrimitive, TSceneSize, TSceneStroke } from "../types";
@@ -23,9 +24,9 @@ export function largestSize(size: TSceneSize, minScale?: number): number {
 }
 
 /** How far a closed shape's stroke reaches outside its edge, at its largest extent. */
-function strokeReach(stroke: TSceneStroke | undefined, minScale: number | undefined): number {
+function strokeReach(stroke: TSceneStroke | undefined, scale: number): number {
   if (stroke?.width === undefined) return 0;
-  const width = largestSize(stroke.width, minScale);
+  const width = resolveSceneSize(stroke.width, scale);
   switch (stroke.align ?? "center") {
     case "inside":
       return 0;
@@ -41,9 +42,9 @@ function strokeReach(stroke: TSceneStroke | undefined, minScale: number | undefi
  * places it by its alignment (`strokeReach`); Canvas 2D strokes it centred on the radius whatever the alignment, so it
  * reaches half its width at least.
  */
-function paintedCircleReach(stroke: TSceneStroke | undefined, minScale: number | undefined): number {
+function paintedCircleReach(stroke: TSceneStroke | undefined, scale: number): number {
   if (stroke?.width === undefined) return 0;
-  return Math.max(strokeReach(stroke, minScale), largestSize(stroke.width, minScale) / 2);
+  return Math.max(strokeReach(stroke, scale), resolveSceneSize(stroke.width, scale) / 2);
 }
 
 /**
@@ -52,15 +53,10 @@ function paintedCircleReach(stroke: TSceneStroke | undefined, minScale: number |
  * is wider than the rect's shorter side the inset path crosses the rect's middle, and the stroke paints past the rect
  * by the excess.
  */
-function paintedRectReach(
-  stroke: TSceneStroke | undefined,
-  minScale: number | undefined,
-  width: number,
-  height: number
-): number {
-  const reach = strokeReach(stroke, minScale);
+function paintedRectReach(stroke: TSceneStroke | undefined, scale: number, width: number, height: number): number {
+  const reach = strokeReach(stroke, scale);
   if (stroke?.width === undefined || stroke.align !== "inside") return reach;
-  const excess = largestSize(stroke.width, minScale) - Math.min(Math.abs(width), Math.abs(height));
+  const excess = resolveSceneSize(stroke.width, scale) - Math.min(Math.abs(width), Math.abs(height));
   return Math.max(reach, excess);
 }
 
@@ -100,12 +96,61 @@ function joinPoints(box: TTileRect, points: Float32Array, pad: number): void {
  * - A rect or circle border reaches out by its width (`outside`), half of it (`center`, the default) or nothing
  *   (`inside`), as WebGL places it; `paintedGeometryBounds` also covers what Canvas 2D paints.
  * - A path takes the hull of its control points, which contains the curve, padded by the whole stroke width: that
- *   covers the caps of its pieces as well as half the width. A path's effect draws `extraWidth` CSS pixels beyond the
- *   stroke; the store's bounds of the element have to cover it.
+ *   covers the caps of its pieces as well as half the width. WebGL overlap geometry includes the effect's
+ *   `extraWidth` CSS pixels at the lowest scale where the path is shown.
  * - A polygon takes its points, padded by its stroke width.
  */
-export function geometryBounds(primitives: readonly TScenePrimitive[]): TTileRect | undefined {
-  return boundsOf(primitives, false);
+export function geometryBounds(primitives: readonly TScenePrimitive[], scale?: number): TTileRect | undefined {
+  return boundsOf(primitives, false, scale);
+}
+
+/** Geometry hulls do not change with the camera; only their stroke and halo padding does. */
+export class CachedGeometryBounds {
+  private readonly items: {
+    primitive: TScenePrimitive;
+    hull?: TTileRect;
+    width?: TSceneSize;
+    reach: number;
+    halo: number;
+  }[];
+
+  constructor(primitives: readonly TScenePrimitive[]) {
+    this.items = primitives.map((primitive) => {
+      let bare = primitive;
+      let width: TSceneSize | undefined;
+      let reach = 0;
+      let halo = 0;
+      if (primitive.kind === "path") {
+        width = primitive.stroke.width;
+        reach = 1;
+        halo = primitive.effect ? toConnectionEffect(primitive.effect.effect).extraWidth : 0;
+        if (width !== undefined) bare = { ...primitive, stroke: { ...primitive.stroke, width: 0 }, effect: undefined };
+      } else if (primitive.kind === "rect" || primitive.kind === "circle") {
+        width = primitive.border?.width;
+        reach = 0.5;
+        if (primitive.border?.align === "inside") reach = 0;
+        else if (primitive.border?.align === "outside") reach = 1;
+        bare = { ...primitive, border: undefined };
+      } else if (primitive.kind === "polygon") {
+        width = primitive.stroke?.width;
+        reach = 1;
+        bare = { ...primitive, stroke: undefined };
+      }
+      return { primitive, hull: geometryBounds([bare]), width, reach, halo };
+    });
+  }
+
+  /** `scaleOf` also visits text: the caller can include its laid-out bounds separately. */
+  public at(scaleOf: (primitive: TScenePrimitive) => number | undefined): TTileRect | undefined {
+    const box: TTileRect = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    for (const { primitive, hull, width, reach, halo } of this.items) {
+      const scale = scaleOf(primitive);
+      if (scale === undefined || !hull) continue;
+      const pad = (width === undefined ? 0 : resolveSceneSize(width, scale) * reach) + halo / scale;
+      joinBox(box, hull.minX, hull.minY, hull.maxX, hull.maxY, pad);
+    }
+    return box.minX <= box.maxX ? box : undefined;
+  }
 }
 
 /**
@@ -123,32 +168,38 @@ export function paintedGeometryBounds(primitives: readonly TScenePrimitive[]): T
   return boundsOf(primitives, true);
 }
 
-function boundsOf(primitives: readonly TScenePrimitive[], painted: boolean): TTileRect | undefined {
+function boundsOf(
+  primitives: readonly TScenePrimitive[],
+  painted: boolean,
+  frameScale?: number
+): TTileRect | undefined {
   const box: TTileRect = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   for (const primitive of primitives) {
-    const { minScale } = primitive;
+    const scale = frameScale ?? lowestShownScale(primitive.minScale);
     switch (primitive.kind) {
       case "rect": {
         const { x, y, width, height, border } = primitive;
-        const pad = painted ? paintedRectReach(border, minScale, width, height) : strokeReach(border, minScale);
+        const pad = painted ? paintedRectReach(border, scale, width, height) : strokeReach(border, scale);
         joinBox(box, x, y, x + width, y + height, pad);
         break;
       }
       case "circle": {
         const { cx, cy, r, border } = primitive;
-        const pad = painted ? paintedCircleReach(border, minScale) : strokeReach(border, minScale);
+        const pad = painted ? paintedCircleReach(border, scale) : strokeReach(border, scale);
         joinBox(box, cx - r, cy - r, cx + r, cy + r, pad);
         break;
       }
       case "path":
         if (primitive.stroke.width !== undefined) {
-          const width = largestSize(primitive.stroke.width, minScale);
-          joinPoints(box, primitive.segments, painted ? paintedJoinReach(width) : width);
+          const width = resolveSceneSize(primitive.stroke.width, scale);
+          const halo =
+            !painted && primitive.effect ? toConnectionEffect(primitive.effect.effect).extraWidth / scale : 0;
+          joinPoints(box, primitive.segments, painted ? paintedJoinReach(width) : width + halo);
         }
         break;
       case "polygon": {
         const stroke = primitive.stroke?.width;
-        const width = stroke === undefined ? 0 : largestSize(stroke, minScale);
+        const width = stroke === undefined ? 0 : resolveSceneSize(stroke, scale);
         joinPoints(box, primitive.points, painted ? paintedJoinReach(width) : width);
         break;
       }

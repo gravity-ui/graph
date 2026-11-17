@@ -82,4 +82,23 @@ describe("library geometries", () => {
     expect(isLineSegment(two?.segments ?? new Float32Array(), 0)).toBe(false);
     expect(bezierMultipointGeometry(input())).toEqual(blockGeometry(input()));
   });
+
+  describe.each([
+    ["rounded", multipointGeometry],
+    ["bezier", bezierMultipointGeometry],
+  ])("%s multipoint geometry", (_name, build) => {
+    it.each([
+      [true, false, source, { x: 300, y: 80 }],
+      [false, true, { x: 0, y: 40 }, target],
+      [true, true, source, target],
+    ])("replaces only the delegated ends (source: %s, target: %s)", (sourceDelegated, targetDelegated, from, to) => {
+      const bend = { x: 200, y: 40 };
+      const points = Object.freeze([{ x: 0, y: 40 }, bend, { x: 300, y: 80 }]);
+      const geometry = build(input({ points, sourceDelegated, targetDelegated }));
+      expect(geometry).toEqual(build(input({ points: [from, bend, to] })));
+      expect(Array.from(geometry?.segments.slice(0, 2) ?? [])).toEqual([from.x, from.y]);
+      expect(Array.from(geometry?.segments.slice(-2) ?? [])).toEqual([to.x, to.y]);
+      expect(Array.from(geometry?.arrow?.points.slice(0, 2) ?? [])).toEqual([to.x, to.y]);
+    });
+  });
 });

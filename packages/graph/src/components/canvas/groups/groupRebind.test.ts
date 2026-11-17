@@ -157,8 +157,8 @@ describe("a kept group rebinds to the new group state of a group added back in t
       const component = viewOf();
       readd({ id: "g", rect: RECT });
       frames();
-      // Between the blocks, inside the group.
-      click(250, 125);
+      // Inside the group and clear of the connection.
+      click(250, 100);
       expect(stateOf().$selected.value).toBe(true);
       expect(component.state.selected).toBe(true);
     });
@@ -169,15 +169,15 @@ describe("a kept group rebinds to the new group state of a group added back in t
       readd({ id: "g", rect: RECT });
       frames();
       const layer = graph.getGraphLayer();
-      layer.handleEvent(new MouseEvent("mousemove", { clientX: 250, clientY: 125 }));
+      layer.handleEvent(new MouseEvent("mousemove", { clientX: 250, clientY: 100 }));
       expect(layer.$hoveredComponent.value === component).toBe(true);
-      layer.handleEvent(new MouseEvent("mousedown", { clientX: 250, clientY: 125 }));
-      document.dispatchEvent(new MouseEvent("mousemove", { clientX: 250, clientY: 125 }));
-      document.dispatchEvent(new MouseEvent("mousemove", { clientX: 270, clientY: 125 }));
+      layer.handleEvent(new MouseEvent("mousedown", { clientX: 250, clientY: 100 }));
+      document.dispatchEvent(new MouseEvent("mousemove", { clientX: 250, clientY: 100 }));
+      document.dispatchEvent(new MouseEvent("mousemove", { clientX: 270, clientY: 100 }));
       const drag = graph.dragService.$state.value;
       expect(drag.isDragging).toBe(true);
       expect(drag.components.includes(component)).toBe(true);
-      document.dispatchEvent(new MouseEvent("mouseup", { clientX: 270, clientY: 125 }));
+      document.dispatchEvent(new MouseEvent("mouseup", { clientX: 270, clientY: 100 }));
       frames();
     });
 

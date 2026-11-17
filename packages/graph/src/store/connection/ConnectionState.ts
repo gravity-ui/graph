@@ -180,7 +180,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
   public $geometry = computed((): [TPoint, TPoint] | undefined => {
     const sourcePort = this.$sourcePortState.value;
     const targetPort = this.$targetPortState.value;
-    if (!sourcePort.lookup && !targetPort.lookup) {
+    if (!sourcePort.lookup && !targetPort.lookup && !sourcePort.effectiveLookup && !targetPort.effectiveLookup) {
       return [sourcePort.$point.value, targetPort.$point.value];
     }
     return undefined;

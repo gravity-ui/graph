@@ -3,6 +3,7 @@
  * the list, `dead`, until the next compaction.
  */
 type TRange = { id: string; step: number; offset: number; count: number; dead: boolean };
+type TFreeSlot = { offset: number; count: number };
 
 /** The instances of one step of an element. */
 export type TStepInstances = { step: number; instances: Float32Array };
@@ -91,6 +92,11 @@ function sameShape(ranges: readonly TRange[], steps: readonly TStepSource[], flo
  * compactions between two reads the buffer grows to twice what the live instances need, so a frame walks the list at
  * most `FORCED_COMPACTIONS` + 2 times (the last at the read) whatever it reshapes, instead of once per element. Only
  * that case can leave the buffer larger than closing every gap at once would, at most twice.
+ *
+ * `retainLayout` keeps existing offsets after the initial packing. Removed instances become zero-filled holes,
+ * reused best-fit before appending; neighbouring holes join and trailing ones trim. `count`/`data` then include
+ * interior holes, `liveCount` and `forEachRange` exclude them, and sorting no longer moves data. Only draw sources
+ * whose zero-filled instances are invisible may use this mode. Main and companion lists retain/allocate together.
  */
 export class InstanceRanges {
   public readonly floats: number;
@@ -105,6 +111,13 @@ export class InstanceRanges {
   private readonly byId = new Map<string, TRange[]>();
   private buffer: Float32Array;
   private used = 0;
+  private live = 0;
+  private retained = false;
+  private slotsDirty = false;
+  private readonly freeStarts = new Map<number, TFreeSlot>();
+  private readonly freeEnds = new Map<number, TFreeSlot>();
+  private readonly freeSizes = new Map<number, Set<TFreeSlot>>();
+  private readonly freeCounts: number[] = [];
   private full = false;
   /** The span enclosing every dirty span, in instances: what goes up once the spans are not tracked apart. */
   private dirtyStart = Infinity;
@@ -125,12 +138,35 @@ export class InstanceRanges {
   }
 
   public get count(): number {
-    this.settle();
+    if (!this.retained) this.settle();
     return this.used;
   }
 
-  public get data(): Float32Array {
+  /** Live instances only; a retained layout's `count` also includes its interior holes. */
+  public get liveCount(): number {
+    return this.live;
+  }
+
+  public get layoutRetained(): boolean {
+    return this.retained;
+  }
+
+  /** Keeps resident offsets after the initial sort. Future holes are cleared and reused, never compacted or sorted. */
+  public retainLayout(): void {
+    if (this.retained) return;
     this.settle();
+    this.retained = true;
+  }
+
+  /** Resident instances of one element, without settling or changing its pending upload. */
+  public countOf(id: string): number {
+    let count = 0;
+    for (const range of this.byId.get(id) ?? []) count += range.count;
+    return count;
+  }
+
+  public get data(): Float32Array {
+    if (!this.retained) this.settle();
     return this.buffer.subarray(0, this.used * this.floats);
   }
 
@@ -140,8 +176,7 @@ export class InstanceRanges {
   }
 
   /**
-   * Changes whenever a range is added, removed or moved, but not on an in-place rewrite; unique across all lists. A
-   * full upload follows each such change, except a sort, which uploads the span it moved.
+   * Changes whenever a range is added, removed or moved, but not on an in-place rewrite; unique across all lists.
    */
   public get layoutRevision(): number {
     return this.layoutChanges;
@@ -150,27 +185,37 @@ export class InstanceRanges {
   /** The ranges in buffer order: `offset` and `count` in instances. */
   public forEachRange(visit: (id: string, offset: number, count: number, step: number) => void): void {
     this.settle();
-    for (const range of this.list) visit(range.id, range.offset, range.count, range.step);
+    for (const range of this.list) if (!range.dead) visit(range.id, range.offset, range.count, range.step);
   }
 
   /** Writes the element's instances as step 0, its only range: a copy (`TStepSource`). */
-  public set(id: string, instances: ArrayLike<number>): void {
+  public set(id: string, instances: ArrayLike<number>, onlyIfChanged = false): void {
     const current = this.byId.get(id);
     // The rewrite in place of `setSteps` for one step of the same count, without its step lists.
     if (current?.length === 1 && current[0].step === 0 && instances.length > 0) {
       if (current[0].count * this.floats === instances.length) {
+        const range = current[0];
+        if (onlyIfChanged && this.matches(range, instances)) return;
         this.changes = ++lastRevision;
-        this.write(current[0], instances);
+        this.write(range, instances);
         return;
       }
     }
     this.setSteps(id, [{ step: 0, instances }]);
   }
 
+  private matches(range: TRange, instances: ArrayLike<number>): boolean {
+    const start = range.offset * this.floats;
+    for (let i = 0; i < instances.length; i++) {
+      if (this.buffer[start + i] !== instances[i]) return false;
+    }
+    return true;
+  }
+
   /**
    * Replaces the element's ranges by one range per step, steps in ascending order; empty steps are skipped, and with
    * none left the element is deleted. With the same steps and counts the data is rewritten in place (a range upload);
-   * otherwise the old ranges are removed and the new ones go to the end (a full upload).
+   * otherwise the old ranges are removed and the new ones go to the end. Only new or moved instances are uploaded.
    */
   public setSteps(id: string, steps: readonly TStepSource[]): void {
     const chunks = steps.filter((chunk) => chunk.instances.length > 0);
@@ -189,12 +234,11 @@ export class InstanceRanges {
     }
     if (current) this.removeRanges(current);
     this.layoutChanges = ++lastRevision;
-    this.reserve(chunks.reduce((sum, chunk) => sum + chunk.instances.length / this.floats, 0));
+    if (!this.retained) this.reserve(chunks.reduce((sum, chunk) => sum + chunk.instances.length / this.floats, 0));
     this.byId.set(
       id,
       chunks.map((chunk) => this.append(id, chunk))
     );
-    this.full = true;
   }
 
   /**
@@ -249,15 +293,15 @@ export class InstanceRanges {
     this.layoutChanges = ++lastRevision;
     this.removeRanges(current);
     this.byId.delete(id);
-    this.full = true;
   }
 
   /**
    * Puts the ranges in ascending `keyOf` order, a stable sort, and moves their instance data along. Only the span from
    * the first range that moved to the last one is rewritten, and only it is uploaded. Returns whether anything moved;
-   * sorted ranges are left alone.
+   * sorted ranges and retained layouts are left alone.
    */
   public sortBy(keyOf: (id: string, step: number) => number): boolean {
+    if (this.retained) return false;
     this.settle();
     const list = this.list;
     const keys = new Float64Array(list.length);
@@ -292,15 +336,18 @@ export class InstanceRanges {
   }
 
   /**
-   * What to upload since the last call: everything after a resize or a removal, else the dirty spans (merged by
+   * What to upload since the last call: everything after an initial write, resize or complete move, else dirty spans (merged by
    * `instanceUploadPolicy`), or nothing.
    */
   public takeUpload(): TInstanceUpload {
-    this.settle();
+    if (!this.retained) this.settle();
     if (this.full) {
       this.clear();
       return { kind: "full" };
     }
+    // Compaction may discard dirty instances at the tail. Old offsets inside the live prefix are harmless: moved
+    // instances are dirty at their new offsets too, and an extra write still uploads the final data at that offset.
+    if (this.dirtyEnd > this.used) this.clipSpans();
     if (this.dirtyEnd < 0) return { kind: "none" };
     const spans = this.spanStarts.length <= 1 ? [this.spanOf(this.dirtyStart, this.dirtyEnd)] : this.mergedSpans();
     let bytes = 0;
@@ -317,6 +364,24 @@ export class InstanceRanges {
     this.spanEnds.length = 0;
     this.spansSorted = true;
     this.compactAt = COMPACT_SPANS;
+  }
+
+  private clipSpans(): void {
+    let kept = 0;
+    this.dirtyStart = Infinity;
+    this.dirtyEnd = -1;
+    for (let i = 0; i < this.spanStarts.length; i++) {
+      const start = this.spanStarts[i];
+      const end = Math.min(this.spanEnds[i], this.used);
+      if (start >= end) continue;
+      this.spanStarts[kept] = start;
+      this.spanEnds[kept] = end;
+      this.dirtyStart = Math.min(this.dirtyStart, start);
+      this.dirtyEnd = Math.max(this.dirtyEnd, end);
+      kept++;
+    }
+    this.spanStarts.length = kept;
+    this.spanEnds.length = kept;
   }
 
   private spanOf(start: number, end: number): TInstanceSpan {
@@ -435,22 +500,115 @@ export class InstanceRanges {
       count: chunk.instances.length / this.floats,
       dead: false,
     };
+    if (this.retained) {
+      // A long batch may remove and replace each element without reading the layout. Discard old metadata only
+      // after at least half the records are dead, so those changes never walk all live ranges per element.
+      if (this.deadRanges > 64 && this.deadRanges * 2 > this.list.length) this.settle();
+      const slot = this.freeSlot(range.count);
+      if (slot) {
+        range.offset = slot.offset;
+        this.removeFree(slot);
+        if (slot.count > range.count) {
+          this.addFree({ offset: slot.offset + range.count, count: slot.count - range.count });
+        }
+        this.list.push(range);
+        this.slotsDirty = true;
+        this.live += range.count;
+        this.write(range, chunk.instances);
+        return range;
+      }
+      this.reserve(range.count);
+    }
+    if (this.used === 0) this.full = true;
     this.buffer.set(chunk.instances, this.used * this.floats);
     this.list.push(range);
     this.used += range.count;
+    this.live += range.count;
+    this.markDirty(range);
     return range;
+  }
+
+  private freeSlot(count: number): TFreeSlot | undefined {
+    const size = this.freeCounts[this.freeSizeIndex(count)];
+    return this.freeSizes.get(size)?.values().next().value;
+  }
+
+  /** Lower bound over distinct free sizes, not over all resident ranges. */
+  private freeSizeIndex(count: number): number {
+    let low = 0;
+    let high = this.freeCounts.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (this.freeCounts[middle] < count) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  }
+
+  private addFree(slot: TFreeSlot): void {
+    this.freeStarts.set(slot.offset, slot);
+    this.freeEnds.set(slot.offset + slot.count, slot);
+    let sameSize = this.freeSizes.get(slot.count);
+    if (!sameSize) {
+      sameSize = new Set();
+      this.freeSizes.set(slot.count, sameSize);
+      this.freeCounts.splice(this.freeSizeIndex(slot.count), 0, slot.count);
+    }
+    sameSize.add(slot);
+  }
+
+  private removeFree(slot: TFreeSlot): void {
+    this.freeStarts.delete(slot.offset);
+    this.freeEnds.delete(slot.offset + slot.count);
+    const sameSize = this.freeSizes.get(slot.count);
+    sameSize?.delete(slot);
+    if (sameSize?.size === 0) {
+      this.freeSizes.delete(slot.count);
+      this.freeCounts.splice(this.freeSizeIndex(slot.count), 1);
+    }
+  }
+
+  private releaseSlot(offset: number, count: number): void {
+    const left = this.freeEnds.get(offset);
+    const right = this.freeStarts.get(offset + count);
+    if (left) {
+      this.removeFree(left);
+      offset = left.offset;
+      count += left.count;
+    }
+    if (right) {
+      this.removeFree(right);
+      count += right.count;
+    }
+    if (offset + count === this.used) this.used = offset;
+    else this.addFree({ offset, count });
   }
 
   /** Marks ranges dead; the next read of the layout closes their gaps (`compact`). */
   private removeRanges(ranges: readonly TRange[]): void {
-    for (const range of ranges) range.dead = true;
+    for (const range of ranges) {
+      range.dead = true;
+      this.live -= range.count;
+      if (this.retained) {
+        this.buffer.fill(0, range.offset * this.floats, (range.offset + range.count) * this.floats);
+        this.markDirty(range);
+        this.releaseSlot(range.offset, range.count);
+        this.slotsDirty = true;
+      }
+    }
     this.deadRanges += ranges.length;
   }
 
   /** Closes the gaps of the dead ranges before a read of the layout, which also ends the appends' count (`reserve`). */
   private settle(): void {
     this.forcedCompactions = 0;
-    if (this.deadRanges > 0) this.compact();
+    if (this.retained) {
+      if (this.slotsDirty) {
+        this.list = this.list.filter((range) => !range.dead).sort((a, b) => a.offset - b.offset);
+        this.deadRanges = 0;
+        this.slotsDirty = false;
+      }
+    } else if (this.deadRanges > 0) this.compact();
   }
 
   /** Drops the dead ranges and closes the gaps in one walk: one move per run of kept ranges after a dead one. */
@@ -465,6 +623,8 @@ export class InstanceRanges {
     const flush = (): void => {
       if (runCount > 0 && runFrom !== runTo) {
         this.buffer.copyWithin(runTo * floats, runFrom * floats, (runFrom + runCount) * floats);
+        this.markSpan(runTo, runTo + runCount);
+        if (runTo === 0) this.full = true;
       }
       runCount = 0;
     };
@@ -486,8 +646,6 @@ export class InstanceRanges {
     this.list = kept;
     this.used = write;
     this.deadRanges = 0;
-    // Every removal already asked for a full upload, which also covers in-place writes made at the old offsets.
-    this.full = true;
   }
 
   /**
@@ -498,7 +656,7 @@ export class InstanceRanges {
    */
   private reserve(added: number): void {
     if ((this.used + added) * this.floats <= this.buffer.length) return;
-    if (this.deadRanges > 0) {
+    if (this.deadRanges > 0 && !this.retained) {
       this.compact();
       this.forcedCompactions++;
     }
@@ -510,5 +668,6 @@ export class InstanceRanges {
     const grown = new Float32Array(capacity);
     grown.set(this.buffer);
     this.buffer = grown;
+    this.full = true;
   }
 }

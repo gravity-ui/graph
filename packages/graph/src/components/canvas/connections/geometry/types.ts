@@ -7,6 +7,9 @@ export type TConnectionGeometryInput = {
   source: TPoint;
   /** The target endpoint: `connectionPoints[1]`. */
   target: TPoint;
+  /** Whether the effective endpoint follows a delegate port. */
+  sourceDelegated?: boolean;
+  targetDelegated?: boolean;
   /** The connection's `points`, [] without them. */
   points: readonly TPoint[];
   useBezier: boolean;

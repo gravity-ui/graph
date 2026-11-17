@@ -1,19 +1,28 @@
 import { Buffer, Texture, getAttributeInfosFromLayouts, luma } from "@luma.gl/core";
-import type { BufferLayout, Device, RenderPass, RenderPipelineParameters, VertexFormat } from "@luma.gl/core";
+import type { BufferLayout, Device, Framebuffer, RenderPass, RenderPipelineParameters } from "@luma.gl/core";
 import { DynamicBuffer, Model } from "@luma.gl/engine";
 import type { ShaderPlugin } from "@luma.gl/shadertools";
 import { WEBGLBuffer, WEBGLVertexArray, webgl2Adapter } from "@luma.gl/webgl";
+import { untracked, effect as watch } from "@preact/signals-core";
 
 import { toConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import type { ConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
+import { dashFlow, pulse } from "../../../components/canvas/connections/effects/library";
 import type { TUniformTypes } from "../../../components/canvas/connections/effects/types";
-import { INSTANCE_ATTRIBUTES, INSTANCE_FLOATS, scaleBucket } from "../../../components/canvas/connections/webgl/encode";
+import {
+  CURVE_CHORDS,
+  INSTANCE_FLOATS,
+  createEncodedChunk,
+  scaleBucket,
+} from "../../../components/canvas/connections/webgl/encode";
 import { createCurveTemplate, createLineTemplate } from "../../../components/canvas/connections/webgl/shaders";
 import type { TSceneLevel } from "../../../services/scene/types";
+import { track } from "../../../utils/functions/track";
+import type { TTileRect } from "../../culling/TileIndex";
 import type { SceneStore } from "../SceneStore";
 import { readColorRgba } from "../colorAlpha";
 import { LEVEL_BIT, isOnLevel } from "../levels";
-import { bakeElementStyle } from "../style";
+import { bakeElementStyle, connectionEffectId } from "../style";
 import { DEFAULT_TEXT_POLICY, isLayoutValid, layoutText, resolveTextSize } from "../textLayout";
 import type { TTextLayout } from "../textLayout";
 import { peekSceneTextLayout, sceneTextLayout, sceneTextMetrics } from "../textMetrics";
@@ -29,14 +38,38 @@ import type {
   TSceneTextFrame,
 } from "./backendTypes";
 import { CameraTextEpochs } from "./cameraTextEpochs";
+import { coalesceTranslucentRuns, translucentRunOwners } from "./coalesceTranslucent";
+import { canCoarsenCurves, createCurveBins, partitionCurves } from "./curveTessellation";
 import { SCENE_DEPTH, SceneDepth, movesInDepth } from "./depth";
 import { PATH_ELEMENT_FLOATS, encodePaths } from "./encodePaths";
-import { RECT_FLOATS, checkSub, encodeRects, hasStrokeWidth, isTranslucentPaint } from "./encodeRects";
+import {
+  NO_LIMIT,
+  RECT_FLOATS,
+  checkSub,
+  encodeRects,
+  hasStrokeWidth,
+  isTranslucentPaint,
+  scaleBound,
+} from "./encodeRects";
 import { GLYPH_FLOATS, GLYPH_SUB_FLOATS, encodeText, writeTextGlyphs } from "./encodeText";
 import type { TTextEncodeInput, TTextGlyphPlaces } from "./encodeText";
+import { TRIANGLE_FLOATS, encodeTriangles, isFilledTriangle } from "./encodeTriangles";
 import { GlyphAtlas, glyphRun } from "./glyphs";
-import { geometryBounds } from "./levelBounds";
+import { InstanceVisibility } from "./instanceVisibility";
+import { CachedGeometryBounds, geometryBounds } from "./levelBounds";
+import {
+  MIXED_PATH_MAX_SOURCES,
+  canonicalizeMixedSources,
+  fullySubpixelPaths,
+  mixedPathSchedule,
+  separatedConnectionDepths,
+} from "./mixedPathPlan";
+import type { TLowerPathCommand, TMixedPathRange, TNativePathRange, TSubpixelPathWidth } from "./mixedPathPlan";
 import { TranslucentLevels } from "./overlapLevels";
+import { PathCulling } from "./pathCulling";
+import { PathDrawIds, gatheredPathDrawCount } from "./pathDrawIds";
+import type { TPathDrawSpan } from "./pathDrawIds";
+import { PATH_RECORD_TEXELS, pathRecordWrites } from "./pathRecords";
 import {
   ALPHA_FRAGMENT,
   ALPHA_VERTEX,
@@ -44,14 +77,19 @@ import {
   GLYPH_FRAGMENT,
   GLYPH_SUB_ATTRIBUTE,
   GLYPH_VERTEX,
-  PATH_ATTRIBUTES,
-  PATH_ELEMENT_ATTRIBUTES,
+  MIXED_COMPOSITE_FRAGMENT,
+  MIXED_COMPOSITE_VERTEX,
+  MIXED_PATH_FRAGMENT,
   PATH_FRAGMENT,
   PATH_VERTEX,
   QUAD_TEMPLATE,
   RECT_ATTRIBUTES,
   RECT_FRAGMENT,
   RECT_VERTEX,
+  TRIANGLE_ATTRIBUTES,
+  TRIANGLE_FRAGMENT,
+  TRIANGLE_VERTEX,
+  createMixedPathVertex,
   createPathPlugin,
 } from "./shaders";
 import { ElementTable, STYLE_ROW_TEXELS, StyleTable, TABLE_WIDTH } from "./tables";
@@ -60,7 +98,7 @@ import type { TTextEncode, TTextLayouts } from "./textEncodes";
 import { TextRelayout } from "./textRelayout";
 import type { ITextRelayoutHost } from "./textRelayout";
 import { createTinySdfGenerator } from "./tinySdfGlyphs";
-import { SUB_FLOAT, elementSteps, orderTranslucent, splitSteps } from "./translucentOrder";
+import { SUB_FLOAT, elementSteps, filterTranslucentRuns, orderTranslucent, splitSteps } from "./translucentOrder";
 import type { TElementSubs, TTranslucentRun } from "./translucentOrder";
 
 type TPass = "opaque" | "translucent";
@@ -93,13 +131,16 @@ type TInstanceBuffer = { name: string; buffer: DynamicBuffer };
 
 /**
  * A second per-instance list of a batch, kept in step with its instances (the same elements, steps, counts and order,
- * so each range lies at the same instance offset in both lists), in a GPU buffer of its own:
+ * so each range lies at the same instance offset in both lists):
  * - `"elements"` (paths): each instance's element data, `PATH_ELEMENT_FLOATS` (element index, sub, part slot, scale
- *   bounds, level mask);
+ *   bounds, level mask), uploaded together with the path payload to the record texture;
  * - `"subs"` (glyphs): each instance's sub, one float (`TEncodedGlyphs.subs`), so that a re-sub of unchanged texts
  *   writes and uploads this buffer only.
  */
-type TCompanion = { kind: "elements" | "subs"; ranges: InstanceRanges; buffer: DynamicBuffer };
+type TCompanion = { kind: "elements" | "subs"; ranges: InstanceRanges; buffer?: DynamicBuffer };
+
+/** Paths keep one GPU copy of their payload and companion; the instance buffer holds only ordered addresses. */
+type TPathRecords = { texture: Texture; ids: PathDrawIds };
 
 /** The float of a companion instance that holds the primitive's sub. */
 const COMPANION_SUB_FLOAT: Record<TCompanion["kind"], number> = { elements: SUB_FLOAT, subs: 0 };
@@ -110,6 +151,7 @@ type TBatch = {
   buffer: DynamicBuffer;
   /** Path and glyph batches: the companion list of the instances (`TCompanion`), kept in step with `ranges`. */
   companion?: TCompanion;
+  pathRecords?: TPathRecords;
   model: Model;
   /** The model's uniforms: luma reads this object at every draw. */
   uniforms: TUniforms;
@@ -121,7 +163,80 @@ type TBatch = {
   pointers?: readonly { buffer: DynamicBuffer; attributes: readonly TPointer[] }[];
   /** The instance the per-instance attributes point at: translucent runs start inside the buffer. */
   pointedAt: number;
+  /** Curve batches keep conservative bounds of contiguous resident instances. */
+  culling?: PathCulling;
+  /** Small culled gaps can cost less to submit than an additional draw. */
+  /** Plain opaque pieces certified for this template at the coarse device scale. */
+  curveChords?: 8;
+  /** Translucent path storage keeps its initial packing after the first upload. */
+  retainRanges?: boolean;
 };
+
+/** Physical instance offsets until gathering; path commands then address their compact ID stream. */
+type TDraw = { batch: TBatch; first: number; count: number; curveDetail?: number };
+const MIXED_EFFECT_PROGRAMS = new Set([toConnectionEffect(dashFlow).programKey, toConnectionEffect(pulse).programKey]);
+// The extra pass pays off on the measured large fit views. At around 600k vertices the shared pass wins.
+const MIN_MIXED_CONNECTION_VERTICES = 1_500_000;
+
+type TMixedOwnerRange = TPathDrawSpan & { connection: boolean };
+type TMixedSource = { records: TPathRecords; chords: number; plain: boolean; tie: number };
+type TMixedPathWork = {
+  stock?: TPathGroup;
+  sources: TMixedSource[];
+  ranges: (TMixedPathRange | TNativePathRange<TBatch>)[];
+  widths: TSubpixelPathWidth;
+  customEffect?: TEffect;
+  customKey?: number;
+};
+type TInstancePointerTarget = Pick<TBatch, "model" | "layout" | "instanceBuffers" | "pointers" | "pointedAt">;
+type TMixedPlan = {
+  effect?: TEffect;
+  effectUniforms?: TUniforms;
+  sources: TMixedSource[];
+  spans: TPathDrawSpan[];
+  commands: TLowerPathCommand<TBatch>[];
+  widths: TSubpixelPathWidth;
+  upperOpaque: TDraw[];
+  upperTranslucent: TDraw[];
+  nativeOnlyPaint: TDraw[];
+};
+type TMixedDraw = TInstancePointerTarget & {
+  programKey: string;
+  uniforms: TUniforms;
+  buffer: DynamicBuffer;
+  ids: PathDrawIds;
+};
+type TPreparedMixed = { plan: TMixedPlan; draw: TMixedDraw; target: Framebuffer; upload: TUploadKind };
+
+function hasEffectDepthWrites(effect?: TEffect): boolean {
+  return /\bgl_FragDepth\b/.test(effect?.fragment ?? "");
+}
+
+function firstOverlappingOwnerRange(ranges: readonly TMixedOwnerRange[], first: number): number {
+  let low = 0;
+  let high = ranges.length;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (ranges[mid].first + ranges[mid].count <= first) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
+function sameDraws(left: readonly TDraw[], right: readonly TDraw[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((draw, index) => {
+      const other = right[index];
+      return (
+        draw.batch === other.batch &&
+        draw.first === other.first &&
+        draw.count === other.count &&
+        draw.curveDetail === other.curveDetail
+      );
+    })
+  );
+}
 
 /**
  * An element's translucent instances of one program, before they are cut into steps, and their companion data when the
@@ -130,18 +245,32 @@ type TBatch = {
  */
 type TTranslucentWrite = { batch: TBatch; instances: Float32Array; companion?: Float32Array };
 
+/** Scale interval where the same primitives participate in the overlap pass, with a conservative stroke extent. */
+type TOverlapScope = { from: number; to: number; minScale: number; dpr: number; level?: TSceneLevel };
+
+function withinOverlapScope(scope: TOverlapScope, scale: number, level: TSceneLevel | undefined, dpr: number): boolean {
+  return scale >= scope.from && scale < scope.to && scope.level === level && scope.dpr === dpr;
+}
+
+function containsBox(outer: TTileRect, inner: TTileRect): boolean {
+  return inner.minX >= outer.minX && inner.minY >= outer.minY && inner.maxX <= outer.maxX && inner.maxY <= outer.maxY;
+}
+
 /** An element's translucent glyphs and their subs (`TEncodedGlyphs`). */
 type TTranslucentGlyphs = { instances: Float32Array; subs: Float32Array };
 
-/** The paths of one pass and one effect program ("plain" without an effect): a batch per vertex template. */
+/** The paths of one pass and one effect instance: a batch per vertex template. */
 type TPathGroup = {
   pass: TPass;
-  /** The last effect object seen for the program: its uniform values and extra width are drawn. */
+  programKey?: string;
   effect: TEffect | undefined;
+  users: number;
+  stopUniforms?: () => void;
   /** The effect does not compile or link: the group draws the plain stroke and never takes the effect up. */
   fallback: boolean;
   lines: TBatch;
   curves: TBatch;
+  coarseCurves?: TBatch;
 };
 
 /** Curves are tessellated once, for scales up to 2. */
@@ -166,13 +295,6 @@ const UPLOAD_COST: Record<TUploadKind, number> = { none: 0, range: 1, full: 2 };
 
 /** RGBA32F texels of the element and style tables, r8 of the atlas: bytes per texel. */
 const TABLE_TEXEL_BYTES = 16;
-
-const VERTEX_FORMATS: Record<number, VertexFormat> = {
-  1: "float32",
-  2: "float32x2",
-  3: "float32x3",
-  4: "float32x4",
-};
 
 /** The target holds premultiplied colour, as the context's `premultipliedAlpha: true` expects. */
 const PASS_PARAMETERS: Record<TPass, RenderPipelineParameters> = {
@@ -226,14 +348,15 @@ function vec4Layout(name: string, attributes: readonly string[], floats: number)
 }
 
 /**
- * A program drawn as instanced quads: shaders, buffers (template, instances), floats per instance, tables read, and the
- * kind, buffer layout and floats per instance of its companion list, if it keeps one.
+ * A program using the shared quad template: shaders, buffers (template, instances), floats per instance, tables read,
+ * and the kind, buffer layout and floats per instance of its companion list, if it keeps one.
  */
 type TQuadProgram = {
   vs: string;
   fs: string;
   layout: readonly [BufferLayout, BufferLayout];
   floats: number;
+  vertexCount?: number;
   textures: readonly TTextureName[];
   companion?: { kind: TCompanion["kind"]; layout: BufferLayout; floats: number };
 };
@@ -243,6 +366,18 @@ const RECT_PROGRAM: TQuadProgram = {
   fs: RECT_FRAGMENT,
   layout: [{ name: "scene_template", format: "float32x2" }, vec4Layout("rect_instances", RECT_ATTRIBUTES, RECT_FLOATS)],
   floats: RECT_FLOATS,
+  textures: ["scene_elements", "scene_styles"],
+};
+
+const TRIANGLE_PROGRAM: TQuadProgram = {
+  vs: TRIANGLE_VERTEX,
+  fs: TRIANGLE_FRAGMENT,
+  layout: [
+    { name: "scene_template", format: "float32x2" },
+    vec4Layout("triangle_instances", TRIANGLE_ATTRIBUTES, TRIANGLE_FLOATS),
+  ],
+  floats: TRIANGLE_FLOATS,
+  vertexCount: 3,
   textures: ["scene_elements", "scene_styles"],
 };
 
@@ -272,16 +407,11 @@ const PATH_TEXTURES: readonly TTextureName[] = ["scene_elements", "scene_styles"
 const PATH_LAYOUT: BufferLayout[] = [
   { name: "graph_template", format: "float32x2" },
   {
-    name: "graph_instances",
+    name: "graph_recordId",
     stepMode: "instance",
-    byteStride: INSTANCE_FLOATS * FLOAT_BYTES,
-    attributes: INSTANCE_ATTRIBUTES.map(([location, size, offset]) => ({
-      attribute: PATH_ATTRIBUTES[location],
-      format: VERTEX_FORMATS[size],
-      byteOffset: offset * FLOAT_BYTES,
-    })),
+    byteStride: FLOAT_BYTES,
+    format: "float32",
   },
-  vec4Layout("scene_pathElements", PATH_ELEMENT_ATTRIBUTES, PATH_ELEMENT_FLOATS),
 ];
 
 function compilerLog(model: Model): string {
@@ -320,7 +450,10 @@ function companionData<TData extends ArrayLike<number>>(
 function setInstances(batch: TBatch, id: string, instances: ArrayLike<number>, companion?: ArrayLike<number>): void {
   if (instances.length > 0) {
     batch.ranges.set(id, instances);
-    if (batch.companion) batch.companion.ranges.set(id, companionData(batch, batch.companion, instances, companion));
+    if (batch.companion) {
+      const data = companionData(batch, batch.companion, instances, companion);
+      batch.companion.ranges.set(id, data, batch.companion.kind === "elements");
+    }
   } else {
     removeInstances(batch, id);
   }
@@ -346,11 +479,11 @@ function sameNumbers(a: readonly number[], b: readonly number[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-/** Primitives of the kinds the slice does not draw. */
+/** Unsupported primitives, including polygons beyond the filled arrow triangles. */
 function countSkipped(primitives: readonly TScenePrimitive[]): { polygon: number; icon: number } {
   const counts = { polygon: 0, icon: 0 };
   for (const primitive of primitives) {
-    if (primitive.kind === "polygon") counts.polygon++;
+    if (primitive.kind === "polygon" && !isFilledTriangle(primitive)) counts.polygon++;
     else if (primitive.kind === "icon") counts.icon++;
   }
   return counts;
@@ -419,7 +552,7 @@ class WebGLSceneBackend implements ISceneBackend {
   /** The elements in the backend: their current origin, visibility and style are written on a depth change. */
   private readonly elements = new Map<string, TSceneElement>();
   private readonly pathGroupsOf = new Map<string, Set<TPathGroup>>();
-  /** Polygon and icon primitives per element: the slice does not draw them. Summed in `stats.skipped`. */
+  /** Unsupported primitives per element. Summed in `stats.skipped`. */
   private readonly skippedOf = new Map<string, { polygon: number; icon: number }>();
   /** Elements with a path whose effect is animated. */
   private readonly animated = new Set<string>();
@@ -439,8 +572,52 @@ class WebGLSceneBackend implements ISceneBackend {
    * changes.
    */
   private readonly encodedCounts = new Map<string, number>();
-  /** The elements with instances in a translucent batch (`setTranslucent`). */
   private readonly translucentIds = new Set<string>();
+  /** Effects have screen-space halos and often different shapes by level. Ordinary paints keep stable overlap boxes. */
+  private readonly effectOverlapPrimitives = new Map<string, readonly TScenePrimitive[]>();
+  private readonly overlapDirty = new Set<string>();
+  private overlapScope?: TOverlapScope;
+  private overlapStyles: readonly TSceneStyle[] = [];
+  private readonly overlapGeometry = new Map<
+    string,
+    { primitives: readonly TScenePrimitive[]; geometry: CachedGeometryBounds }
+  >();
+  /** Above the measured large-upload range, camera changes must not repack the resident lists. */
+  private scheduleRevision = 0;
+  private mixedRootRevision = -1;
+  private mixedRootsSeparated = false;
+  private mixedOwnershipRevision = 0;
+  private readonly mixedOwnedRanges = new WeakMap<
+    TBatch,
+    {
+      layout: number;
+      ownership: number;
+      ranges: TMixedOwnerRange[];
+    }
+  >();
+  private mixedPlan?: {
+    sceneRevision: number;
+    layouts: number[];
+    opaque: readonly TDraw[];
+    translucent: readonly TDraw[];
+    plan?: TMixedPlan;
+  };
+  private mixedDraw?: TMixedDraw;
+  private readonly mixedDisabled = new Set<string>();
+  private mixedTarget?: Framebuffer;
+  private mixedComposite?: Model;
+  private mixedTextureUnits?: number;
+  private mixedTextureLimit?: number;
+  private readonly visibility = new WeakMap<TBatch, InstanceVisibility>();
+  private activeStamp: number[] = [];
+  private activeScope?: Pick<TOverlapScope, "from" | "to" | "level">;
+  private activeRuns: TTranslucentRun[] = [];
+  private activeDrawGroups = 0;
+  private activeOwners: ReturnType<typeof translucentRunOwners> = [];
+  private coalesceScope?: TOverlapScope & { clip: TTileRect };
+  private coalescedRuns: TTranslucentRun[] = [];
+  private scheduleScale?: number;
+  private refineTranslucent = false;
   /** The scale and policy texts are laid out for: the next draw's (`applyMany`, `replay`, `draw`). */
   private textFrame: TSceneTextFrame = { scale: 1, textPolicy: DEFAULT_TEXT_POLICY };
   /** The text frame of the draws (`refreshTexts`), rewritten by each one. */
@@ -507,10 +684,14 @@ class WebGLSceneBackend implements ISceneBackend {
   private readonly atlasTexture: Texture;
 
   private readonly rects: Record<TPass, TBatch>;
+  private readonly triangles: Record<TPass, TBatch>;
   private readonly glyphs: Record<TPass, TBatch>;
   /** The subs of the opaque glyphs: a re-sub rewrites them only (`encodeGlyphs`). */
   private readonly glyphSubs: TCompanion;
   private readonly pathGroups = new Map<string, TPathGroup>();
+  /** One unused group per shader source, with its buffers and program but without an effect or subscriptions. */
+  private readonly idlePathGroups = new Map<string, TPathGroup>();
+  private nextPathGroupId = 0;
   private readonly alphaModel: Model;
 
   /** The overlap levels of the elements with translucent instances. */
@@ -541,7 +722,8 @@ class WebGLSceneBackend implements ISceneBackend {
     private readonly gl: WebGL2RenderingContext,
     private readonly device: Device,
     private readonly listeners: AbortController,
-    createdAt: number
+    createdAt: number,
+    private readonly requestDraw?: () => void
   ) {
     this.quadTemplate = this.createTemplate(QUAD_TEMPLATE);
     this.lineTemplate = this.createTemplate(createLineTemplate());
@@ -559,6 +741,10 @@ class WebGLSceneBackend implements ISceneBackend {
     this.rects = {
       opaque: this.createBatch("rect-opaque", RECT_PROGRAM, "opaque"),
       translucent: this.createBatch("rect-translucent", RECT_PROGRAM, "translucent"),
+    };
+    this.triangles = {
+      opaque: this.createBatch("triangle-opaque", TRIANGLE_PROGRAM, "opaque"),
+      translucent: this.createBatch("triangle-translucent", TRIANGLE_PROGRAM, "translucent"),
     };
     this.glyphs = {
       opaque: this.createBatch("glyph-opaque", GLYPH_PROGRAM, "opaque"),
@@ -603,11 +789,13 @@ class WebGLSceneBackend implements ISceneBackend {
     store.forEach((element) => this.applyChange({ type: "add", element }));
     this.rebaseChildren();
     this.flushDepth();
+    this.releaseUnusedPathGroups();
     this.stats.lastReplayMs = performance.now() - start;
   }
 
   public applyMany(changes: readonly TSceneChange[], text?: TSceneTextFrame): void {
     const start = performance.now();
+    if (changes.length > 0) this.scheduleRevision++;
     if (text) this.textFrame = text;
     // The elements the frame deletes or moves give up their depth places before any element takes one: the frame then
     // fits the depth limits whenever its changes one by one did, whatever the order of different elements' changes.
@@ -617,10 +805,19 @@ class WebGLSceneBackend implements ISceneBackend {
     for (const change of changes) this.applyChange(change);
     this.rebaseChildren();
     this.flushDepth();
+    this.releaseUnusedPathGroups();
     this.stats.lastApplyMs = performance.now() - start;
   }
 
   public setStyles(styles: readonly TSceneStyle[]): void {
+    this.scheduleRevision++;
+    if (styles !== this.overlapStyles) {
+      for (const id of this.effectOverlapPrimitives.keys()) {
+        const row = this.elements.get(id)?.styleId;
+        if (row !== undefined && this.overlapStyles[row] !== styles[row]) this.overlapDirty.add(id);
+      }
+      this.overlapStyles = styles;
+    }
     this.styles.setStyles(styles);
   }
 
@@ -642,55 +839,87 @@ class WebGLSceneBackend implements ISceneBackend {
     // The width of the last apply (a no-op renumber): every program multiplies the element keys by it.
     this.depth.renumber();
     this.subs = 2 ** this.depth.subBits;
-    // Before the uploads: sorting moves translucent instances.
+    // Resident paths never sort: upload their local changes and prepare exact visibility before building buckets.
+    let uploadKind = this.uploadPaths(frame);
+    this.refreshOverlapBounds(frame);
     this.orderTranslucent();
-    let uploadKind: TUploadKind = "none";
+    // Dense non-path lists may still have moved during ordering.
     for (const batch of this.allBatches()) {
+      if (batch.pathRecords) continue;
       const kind = this.upload(batch);
       if (UPLOAD_COST[kind] > UPLOAD_COST[uploadKind]) uploadKind = kind;
     }
+    for (const group of this.pathGroups.values()) this.setEffectUniforms(group);
+    const opaqueDraws: TDraw[] = [];
+    const translucentDraws: TDraw[] = [];
+    for (const batch of this.passBatches("opaque")) {
+      this.appendVisibleDraws(opaqueDraws, batch, frame, 0, batch.ranges.count);
+    }
+    for (const run of this.visibleTranslucentRuns(frame)) {
+      this.appendVisibleDraws(translucentDraws, this.translucentBatches[run.source], frame, run.first, run.count);
+    }
+    const mixed = this.prepareMixedPlane(frame, opaqueDraws, translucentDraws);
+    const nativeRuns: TDraw[][] = [];
+    for (const command of mixed?.plan.commands ?? []) {
+      // Individual passes prevent gather's local merging from crossing a stock window.
+      if (command.native) nativeRuns.push([{ batch: command.native, first: command.first, count: command.count }]);
+    }
+    const upperOpaque = mixed ? mixed.plan.upperOpaque.map((draw) => ({ ...draw })) : opaqueDraws;
+    const upperTranslucent = mixed ? mixed.plan.upperTranslucent.map((draw) => ({ ...draw })) : translucentDraws;
+    const addressUpload = this.gatherPathDraws(...nativeRuns, upperOpaque, upperTranslucent);
+    if (mixed && UPLOAD_COST[mixed.upload] > UPLOAD_COST[uploadKind]) uploadKind = mixed.upload;
+    if (UPLOAD_COST[addressUpload] > UPLOAD_COST[uploadKind]) uploadKind = addressUpload;
     this.stats.lastUploadKind = uploadKind;
     this.stats.lastUploadBytes = this.frameUploadBytes;
     this.stats.lastUploadWrites = this.frameUploadWrites;
     this.stats.uploadBytes += this.frameUploadBytes;
     this.stats.drawCalls = 0;
     this.stats.instances = 0;
-    for (const group of this.pathGroups.values()) this.setEffectUniforms(group);
 
-    const pass = this.device.beginRenderPass({ clearColor: [0, 0, 0, 0], clearDepth: 0, clearStencil: false });
+    const pass = mixed
+      ? this.beginMixedScene(frame, mixed, nativeRuns)
+      : this.device.beginRenderPass({ clearColor: [0, 0, 0, 0], clearDepth: 0, clearStencil: false });
     this.gl.enable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-    let opaque = false;
-    for (const batch of this.passBatches("opaque")) {
-      opaque = this.drawInstances(pass, batch, frame, batch.ranges.count) || opaque;
-    }
+    this.drawPrepared(pass, upperOpaque, frame);
     this.gl.disable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-    if (opaque) {
+    if (upperOpaque.length > 0) {
       pass.setParameters({ colorMask: WRITE_ALPHA });
       this.alphaModel.draw(pass);
       pass.setParameters({ colorMask: WRITE_ALL });
       this.stats.drawCalls += 1;
     }
-    // Translucent primitives blend over each other in scene order wherever they overlap, across programs (paths, rects,
-    // glyphs): level by level, step by step, one instanced draw per program and range. Depth orders them against the
+    // Translucent primitives blend over each other in scene order wherever they overlap, across programs: level by
+    // level, step by step, one instanced draw per program and range. Depth orders them against the
     // opaque pass.
-    for (const run of this.translucentRuns) {
-      const batch = this.translucentBatches[run.source];
-      this.pointInstances(batch, run.first);
-      this.drawInstances(pass, batch, frame, run.count);
-    }
-    this.stats.translucentDrawCalls = this.translucentRuns.length;
+    const beforeTranslucent = this.stats.drawCalls;
+    this.drawPrepared(pass, upperTranslucent, frame);
+    this.stats.translucentDrawCalls = this.stats.drawCalls - beforeTranslucent + (mixed?.plan.commands.length ?? 0);
     pass.end();
     this.device.submit();
 
     if (this.frames++ === 0) this.stats.firstFrameMs = performance.now() - start;
-    return this.hasVisibleAnimation();
+    return this.hasVisibleAnimation() || this.refineTranslucent;
   }
 
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
     this.listeners.abort();
+    for (const group of this.pathGroups.values()) group.stopUniforms?.();
     for (const batch of this.allBatches()) this.destroyBatch(batch);
+    for (const group of this.idlePathGroups.values()) {
+      this.destroyBatch(group.lines);
+      this.destroyBatch(group.curves);
+    }
+    this.pathGroups.clear();
+    this.idlePathGroups.clear();
+    this.pathGroupsOf.clear();
+    this.destroyMixedDraw();
+    this.mixedComposite?.destroy();
+    if (this.ownsObjects()) {
+      this.mixedTarget?.destroy();
+      this.mixedComposite?.vertexArray.destroy();
+    }
     this.alphaModel.destroy();
     if (this.ownsObjects()) {
       this.alphaModel.vertexArray.destroy();
@@ -705,6 +934,9 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   private applyChange(change: TSceneChange): void {
+    if (change.type !== "update" || !change.fields || change.fields.has("parent") || change.fields.has("entityType")) {
+      this.mixedOwnershipRevision++;
+    }
     const { element } = change;
     if (change.type === "delete") {
       this.remove(element.id);
@@ -728,9 +960,11 @@ class WebGLSceneBackend implements ISceneBackend {
     // opacity) changed.
     if (changed("primitives")) this.primitivesChanged(element);
     if (parent !== undefined && changed("childOrder")) this.rebase.add(parent);
-    if (changed("x") || changed("y") || changed("hidden") || changed("styleId")) this.writeElement(element);
+    const visibilityChanged = changed("hidden") || changed("styleId");
+    if (changed("x") || changed("y") || visibilityChanged) this.writeElement(element);
     // The store sends no update to what is nested in an element whose hidden flag changed.
-    if (changed("hidden")) this.writeChildren(element.id);
+    if (changed("hidden")) this.writeChildren(element.id, true);
+    if (visibilityChanged || changed("bounds")) this.invalidateOverlap(element.id);
     // A translucent element that moves can start or stop overlapping others.
     const moved = changed("x") || changed("y") || changed("bounds");
     if (moved) this.levels.moved(element.id);
@@ -810,9 +1044,10 @@ class WebGLSceneBackend implements ISceneBackend {
    * Writes the texels of the elements drawn after an element in its owner (`SceneStore.childrenOf`: an owner's
    * children, or what is nested in a child): their key follows the owner, their hidden state the nesting.
    */
-  private writeChildren(id: string): void {
+  private writeChildren(id: string, visibilityChanged = false): void {
     for (const child of this.store?.childrenOf(id) ?? []) {
       if (this.elements.has(child.id)) this.writeElement(child);
+      if (visibilityChanged) this.invalidateOverlap(child.id);
     }
   }
 
@@ -901,6 +1136,7 @@ class WebGLSceneBackend implements ISceneBackend {
       if (this.elements.has(parent)) this.rebase.add(parent);
     }
     for (const batch of this.allBatches()) removeInstances(batch, id);
+    for (const group of this.pathGroupsOf.get(id) ?? []) group.users--;
     this.pathGroupsOf.delete(id);
     this.setSkipped(id, { polygon: 0, icon: 0 });
     this.animated.delete(id);
@@ -908,6 +1144,9 @@ class WebGLSceneBackend implements ISceneBackend {
     this.forgetCameraTexts(id);
     this.encodedCounts.delete(id);
     this.translucentIds.delete(id);
+    this.effectOverlapPrimitives.delete(id);
+    this.overlapGeometry.delete(id);
+    this.overlapDirty.delete(id);
     this.depth.delete(id);
     this.levels.delete(id);
     this.table.free(id);
@@ -916,6 +1155,7 @@ class WebGLSceneBackend implements ISceneBackend {
 
   private reset(): void {
     this.elements.clear();
+    for (const group of this.pathGroups.values()) group.users = 0;
     this.pathGroupsOf.clear();
     this.skippedOf.clear();
     this.stats.skipped.polygon = 0;
@@ -930,6 +1170,19 @@ class WebGLSceneBackend implements ISceneBackend {
     this.translucentWrites.clear();
     this.encodedCounts.clear();
     this.translucentIds.clear();
+    this.effectOverlapPrimitives.clear();
+    this.overlapGeometry.clear();
+    this.scheduleRevision++;
+    this.activeStamp = [];
+    this.activeScope = undefined;
+    this.coalesceScope = undefined;
+    this.activeOwners = [];
+    this.activeRuns = [];
+    this.coalescedRuns = [];
+    this.scheduleScale = undefined;
+    this.refineTranslucent = false;
+    this.overlapDirty.clear();
+    this.overlapScope = undefined;
     this.depth = new SceneDepth();
     this.levels.clear();
     this.table = new ElementTable();
@@ -940,6 +1193,9 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   private readonly slotOf = (part: string | undefined): number => this.styles.slotOf(part);
+
+  private readonly pathScratch = createEncodedChunk();
+  private readonly curveScratch = createCurveBins();
 
   /**
    * Encodes the element's primitives with the element properties of its style baked in (widths, circle scale,
@@ -957,10 +1213,13 @@ class WebGLSceneBackend implements ISceneBackend {
     const rects = encodeRects(primitives, index, this.slotOf, subBase, maxSub);
     // The opaque rects are a view of the encoder's list (`TInstanceView`): written before any other encode runs.
     setInstances(this.rects.opaque, id, rects.opaque);
+    const triangles = encodeTriangles(primitives, index, this.slotOf, subBase, maxSub);
+    setInstances(this.triangles.opaque, id, triangles.opaque);
     const glyphs = this.encodeGlyphs(id, primitives, index, subBase, maxSub);
     const translucent = this.encodePathsOf(id, primitives, index, subBase, maxSub);
     translucent.push(
       { batch: this.rects.translucent, instances: rects.translucent },
+      { batch: this.triangles.translucent, instances: triangles.translucent },
       { batch: this.glyphs.translucent, instances: glyphs.instances, companion: glyphs.subs }
     );
     this.setTranslucent(id, primitives, translucent);
@@ -1229,8 +1488,8 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   /**
-   * Writes an element's translucent instances of every translucent program (`writes`: its paths' lines and curves,
-   * then rects, then glyphs), and their companion data, cut into its local steps: a new step at each change of program
+   * Writes an element's translucent instances of every translucent program and their companion data, cut into its
+   * local steps: a new step at each change of program
    * in primitive order. Keeps the element in the overlap levels while it has translucent instances, with the bounds of
    * its baked primitives.
    */
@@ -1253,11 +1512,24 @@ class WebGLSceneBackend implements ISceneBackend {
       }
     });
     if (present.length > 0) {
-      this.levels.set(id, geometryBounds(primitives));
       this.translucentIds.add(id);
+      if (this.overlapGeometry.get(id)?.primitives !== primitives) {
+        this.overlapGeometry.set(id, { primitives, geometry: new CachedGeometryBounds(primitives) });
+      }
+      if (primitives.some((primitive) => primitive.kind === "path" && primitive.effect)) {
+        this.effectOverlapPrimitives.set(id, primitives);
+        this.overlapDirty.add(id);
+      } else {
+        this.effectOverlapPrimitives.delete(id);
+        this.overlapDirty.delete(id);
+        this.levels.set(id, geometryBounds(primitives));
+      }
     } else {
       this.levels.delete(id);
+      this.overlapGeometry.delete(id);
       this.translucentIds.delete(id);
+      this.effectOverlapPrimitives.delete(id);
+      this.overlapDirty.delete(id);
     }
     // A glyph re-encode of a camera-aware text re-cuts the steps with them (`relayoutTexts`).
     if (present.length > 0 && this.cameraTexts.has(id)) this.translucentWrites.set(id, writes);
@@ -1286,10 +1558,13 @@ class WebGLSceneBackend implements ISceneBackend {
     );
     const groups = new Set<TPathGroup>();
     for (const group of groupOfSub) if (group) groups.add(group);
+    const previous = this.pathGroupsOf.get(id);
     const translucent: TTranslucentWrite[] = [];
     for (const group of groups) {
+      if (!previous?.has(group)) group.users++;
       const select = (_: TScenePrimitive, sub: number): boolean => groupOfSub[sub] === group;
-      const encoded = encodePaths(primitives, index, PATH_BUCKET, this.slotOf, select, subBase, maxSub);
+      const scratch = group.pass === "translucent" ? undefined : this.pathScratch;
+      const encoded = encodePaths(primitives, index, PATH_BUCKET, this.slotOf, select, subBase, maxSub, scratch);
       if (group.pass === "translucent") {
         translucent.push(
           { batch: group.lines, instances: encoded.lines, companion: encoded.lineElements },
@@ -1297,13 +1572,33 @@ class WebGLSceneBackend implements ISceneBackend {
         );
       } else {
         setInstances(group.lines, id, encoded.lines, encoded.lineElements);
-        setInstances(group.curves, id, encoded.curves, encoded.curveElements);
+        if (group.coarseCurves) {
+          const batches = [group.coarseCurves, group.curves];
+          partitionCurves(
+            this.curveScratch,
+            encoded.curves,
+            encoded.curveElements,
+            batches.map((batch) => batch.ranges.countOf(id))
+          );
+          this.curveScratch.forEach((bin, i) =>
+            setInstances(
+              batches[i],
+              id,
+              bin.paths.subarray(0, bin.count * INSTANCE_FLOATS),
+              bin.elements.subarray(0, bin.count * PATH_ELEMENT_FLOATS)
+            )
+          );
+        } else {
+          setInstances(group.curves, id, encoded.curves, encoded.curveElements);
+        }
       }
     }
-    for (const group of this.pathGroupsOf.get(id) ?? []) {
+    for (const group of previous ?? []) {
       if (groups.has(group)) continue;
+      group.users--;
       removeInstances(group.lines, id);
       removeInstances(group.curves, id);
+      if (group.coarseCurves) removeInstances(group.coarseCurves, id);
     }
     if (groups.size > 0) this.pathGroupsOf.set(id, groups);
     else this.pathGroupsOf.delete(id);
@@ -1323,17 +1618,35 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   private pathGroupFor(pass: TPass, effect: TEffect | undefined): TPathGroup {
-    const key = `${pass}|${effect ? effect.programKey : "plain"}`;
+    const key = `${pass}|${effect ? connectionEffectId(effect) : "plain"}`;
     const known = this.pathGroups.get(key);
-    if (known) {
-      if (effect && !known.fallback) known.effect = effect;
-      return known;
+    if (known) return known;
+    const programKey = effect?.programKey;
+    let group = programKey === undefined ? undefined : this.idlePathGroups.get(programKey);
+    if (programKey !== undefined && group) {
+      this.idlePathGroups.delete(programKey);
+      // A table can have grown and replaced its texture while this group was idle.
+      group.lines.model.setBindings(this.batchBindings(group.lines));
+      group.curves.model.setBindings(this.batchBindings(group.curves));
     }
-    const id = `path-${pass}-${this.pathGroups.size}`;
+    group ??= this.createPathGroup(pass, effect);
+    group.effect = group.fallback ? undefined : effect;
+    if (group.effect) group.stopUniforms = this.watchUniforms(group.effect);
+    this.pathGroups.set(key, group);
+    this.orderStamp = [];
+    this.layoutStamp = [];
+    return group;
+  }
+
+  private createPathGroup(pass: TPass, effect: TEffect | undefined): TPathGroup {
+    const id = `path-${pass}-${this.nextPathGroupId++}`;
+    const programKey = effect?.programKey;
     let plugin = createPathPlugin(effect);
     let group: TPathGroup = {
       pass,
-      effect,
+      programKey,
+      effect: undefined,
+      users: 0,
       fallback: false,
       lines: this.createPathBatch(`${id}-lines`, pass, plugin, this.lineTemplate, createLineTemplate()),
       curves: this.createPathBatch(`${id}-curves`, pass, plugin, this.curveTemplate, createCurveTemplate()),
@@ -1351,14 +1664,60 @@ class WebGLSceneBackend implements ISceneBackend {
       plugin = createPathPlugin(undefined);
       group = {
         pass,
+        programKey,
         effect: undefined,
+        users: 0,
         fallback: true,
         lines: this.createPathBatch(`${id}-lines`, pass, plugin, this.lineTemplate, createLineTemplate()),
         curves: this.createPathBatch(`${id}-curves`, pass, plugin, this.curveTemplate, createCurveTemplate()),
       };
     }
-    this.pathGroups.set(key, group);
+    group.curves.culling = new PathCulling();
+    group.lines.culling = new PathCulling();
+    if (pass === "opaque" && !effect) {
+      // Same-depth pieces have the same RGB: alpha-to-coverage unions their samples independent of bin order.
+      group.coarseCurves = this.createPathBatch(
+        `${id}-curves-coarse`,
+        pass,
+        plugin,
+        this.curveTemplate,
+        createCurveTemplate()
+      );
+      group.coarseCurves.curveChords = 8;
+      group.coarseCurves.culling = new PathCulling();
+    }
     return group;
+  }
+
+  private watchUniforms(effect: TEffect): (() => void) | undefined {
+    const uniforms = Object.values(effect.uniforms);
+    const requestDraw = this.requestDraw;
+    if (uniforms.length === 0 || !requestDraw) return undefined;
+    let subscribed = false;
+    return watch(() => {
+      for (const uniform of uniforms) track(uniform);
+      if (subscribed) untracked(requestDraw);
+      subscribed = true;
+    });
+  }
+
+  private releaseUnusedPathGroups(): void {
+    for (const [key, group] of this.pathGroups) {
+      const { programKey } = group;
+      if (programKey === undefined || group.users > 0) continue;
+      group.stopUniforms?.();
+      group.stopUniforms = undefined;
+      group.effect = undefined;
+      this.pathGroups.delete(key);
+      if (this.idlePathGroups.has(programKey)) {
+        this.destroyBatch(group.lines);
+        this.destroyBatch(group.curves);
+      } else {
+        this.idlePathGroups.set(programKey, group);
+      }
+      this.orderStamp = [];
+      this.layoutStamp = [];
+    }
   }
 
   /** Whether the GL objects are alive: deleting objects of a lost context, restored or not, only reports errors. */
@@ -1371,7 +1730,8 @@ class WebGLSceneBackend implements ISceneBackend {
     if (!this.ownsObjects()) return;
     batch.model.vertexArray.destroy();
     batch.buffer.destroy();
-    batch.companion?.buffer.destroy();
+    batch.companion?.buffer?.destroy();
+    batch.pathRecords?.texture.destroy();
   }
 
   private createTemplate(data: Float32Array): Buffer {
@@ -1396,8 +1756,8 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   /**
-   * A rect or glyph batch: the quad template, one instance buffer (`layout[1]`) and, for a program with a companion
-   * list (glyphs: their subs), the companion's buffer.
+   * A batch with the shared quad template, one instance buffer (`layout[1]`) and, for a program with a companion
+   * list, the companion's buffer.
    */
   private createBatch(id: string, program: TQuadProgram, pass: TPass): TBatch {
     const { vs, fs, layout, floats, textures } = program;
@@ -1406,12 +1766,13 @@ class WebGLSceneBackend implements ISceneBackend {
     const bufferLayout: BufferLayout[] = [...layout];
     let companion: TCompanion | undefined;
     if (program.companion) {
+      const companionBuffer = this.createInstanceBuffer(program.companion.floats);
       companion = {
         kind: program.companion.kind,
         ranges: new InstanceRanges(program.companion.floats),
-        buffer: this.createInstanceBuffer(program.companion.floats),
+        buffer: companionBuffer,
       };
-      instanceBuffers.push({ name: program.companion.layout.name, buffer: companion.buffer });
+      instanceBuffers.push({ name: program.companion.layout.name, buffer: companionBuffer });
       bufferLayout.push(program.companion.layout);
     }
     const uniforms: TUniforms = { scene_opaquePass: pass === "opaque" ? 1 : 0 };
@@ -1428,7 +1789,7 @@ class WebGLSceneBackend implements ISceneBackend {
       bindings: this.bindings(textures),
       uniforms,
       parameters: PASS_PARAMETERS[pass],
-      vertexCount: QUAD_TEMPLATE.length / 2,
+      vertexCount: program.vertexCount ?? QUAD_TEMPLATE.length / 2,
       isInstanced: true,
       instanceCount: 0,
     });
@@ -1452,13 +1813,18 @@ class WebGLSceneBackend implements ISceneBackend {
     template: Buffer,
     templateData: Float32Array
   ): TBatch {
-    const buffer = this.createInstanceBuffer(INSTANCE_FLOATS);
+    const buffer = this.createInstanceBuffer(1);
     const elements: TCompanion = {
       kind: "elements",
       ranges: new InstanceRanges(PATH_ELEMENT_FLOATS),
-      buffer: this.createInstanceBuffer(PATH_ELEMENT_FLOATS),
     };
-    const uniforms: TUniforms = { scene_opaquePass: pass === "opaque" ? 1 : 0 };
+    // Empty effect groups need only a placeholder; the first upload allocates their actual record table.
+    const pathRecords = { texture: this.createTableTexture(PATH_RECORD_TEXELS, 1), ids: new PathDrawIds() };
+    const uniforms: TUniforms = {
+      scene_opaquePass: pass === "opaque" ? 1 : 0,
+      graph_curveStep: 1,
+      graph_recordWidth: PATH_RECORD_TEXELS,
+    };
     const model = new Model(this.device, {
       id,
       vs: PATH_VERTEX,
@@ -1466,8 +1832,8 @@ class WebGLSceneBackend implements ISceneBackend {
       plugins: [plugin],
       topology: "triangle-strip",
       bufferLayout: PATH_LAYOUT,
-      attributes: { graph_template: template, graph_instances: buffer, scene_pathElements: elements.buffer },
-      bindings: this.bindings(PATH_TEXTURES),
+      attributes: { graph_template: template, graph_recordId: buffer },
+      bindings: { ...this.bindings(PATH_TEXTURES), graph_records: pathRecords.texture },
       uniforms,
       parameters: PASS_PARAMETERS[pass],
       vertexCount: templateData.length / 2,
@@ -1476,16 +1842,15 @@ class WebGLSceneBackend implements ISceneBackend {
     });
     return {
       ranges: new InstanceRanges(INSTANCE_FLOATS),
+      retainRanges: pass === "translucent",
       buffer,
       companion: elements,
+      pathRecords,
       model,
       uniforms,
       textures: PATH_TEXTURES,
       layout: PATH_LAYOUT,
-      instanceBuffers: [
-        { name: PATH_LAYOUT[1].name, buffer },
-        { name: PATH_LAYOUT[2].name, buffer: elements.buffer },
-      ],
+      instanceBuffers: [{ name: PATH_LAYOUT[1].name, buffer }],
       pointedAt: 0,
     };
   }
@@ -1499,19 +1864,28 @@ class WebGLSceneBackend implements ISceneBackend {
     return Object.fromEntries(names.map((name) => [name, textures[name]]));
   }
 
+  private batchBindings(batch: TBatch): Record<string, Texture> {
+    const bindings = this.bindings(batch.textures);
+    if (batch.pathRecords) bindings.graph_records = batch.pathRecords.texture;
+    return bindings;
+  }
+
   private *allBatches(): Generator<TBatch> {
     yield this.rects.opaque;
     yield this.rects.translucent;
+    yield this.triangles.opaque;
+    yield this.triangles.translucent;
     yield this.glyphs.opaque;
     yield this.glyphs.translucent;
     for (const group of this.pathGroups.values()) {
       yield group.lines;
       yield group.curves;
+      if (group.coarseCurves) yield group.coarseCurves;
     }
   }
 
   /**
-   * The batches of a pass: paths, rects, glyphs. Depth orders the opaque pass; the translucent pass is drawn by
+   * The batches of a pass. Depth orders the opaque pass; the translucent pass is drawn by
    * `translucentRuns`, where this order breaks ties (the line and curve pieces of one path).
    */
   private *passBatches(pass: TPass): Generator<TBatch> {
@@ -1519,9 +1893,85 @@ class WebGLSceneBackend implements ISceneBackend {
       if (group.pass !== pass) continue;
       yield group.lines;
       yield group.curves;
+      if (group.coarseCurves) yield group.coarseCurves;
     }
     yield this.rects[pass];
+    yield this.triangles[pass];
     yield this.glyphs[pass];
+  }
+
+  private invalidateOverlap(id: string): void {
+    if (this.effectOverlapPrimitives.has(id)) this.overlapDirty.add(id);
+  }
+
+  private refreshOverlapBounds(frame: TSceneFrame): void {
+    if (this.effectOverlapPrimitives.size === 0) return;
+    // The shaders compare floats. Use those same thresholds to keep the order valid on the crossing frame.
+    const scale = Math.fround(frame.scale);
+    let scope = this.overlapScope;
+    let ids: Iterable<string> = this.overlapDirty;
+    const level = frame.level;
+    if (!scope || !withinOverlapScope(scope, scale, level, frame.dpr)) {
+      // At the low end of each octave strokes and halos have their largest world extent.
+      const minScale = 2 ** Math.floor(Math.log2(scale));
+      scope = { from: minScale, to: 2 * minScale, minScale, level, dpr: frame.dpr };
+      this.overlapScope = scope;
+      ids = this.effectOverlapPrimitives.keys();
+    }
+    for (const id of ids) {
+      const element = this.elements.get(id);
+      const primitives = this.effectOverlapPrimitives.get(id);
+      const box = element && primitives && this.overlapBounds(element, primitives, scope, scale);
+      if (box) this.levels.set(id, box, true);
+      else this.levels.delete(id);
+    }
+    this.overlapDirty.clear();
+  }
+
+  private overlapBounds(
+    element: TSceneElement,
+    primitives: readonly TScenePrimitive[],
+    scope: TOverlapScope,
+    scale: number
+  ): TTileRect | undefined {
+    if (this.hiddenInScene(element)) return undefined;
+    const style = this.overlapStyles[element.styleId];
+    let hasTranslucentText = false;
+    const geometry = (this.overlapGeometry.get(element.id)?.geometry ?? new CachedGeometryBounds(primitives)).at(
+      (primitive) => {
+        if (!isOnLevel(primitive.levelMask, scope.level)) return undefined;
+        const { part } = primitive;
+        if (part !== undefined && (style?.parts?.[part]?.visible ?? style?.base?.[part]?.visible) === false)
+          return undefined;
+        const from = Math.fround(scaleBound(primitive.minScale, 0));
+        const to = Math.fround(scaleBound(primitive.maxScale, NO_LIMIT));
+        const translucentText = primitive.kind === "text" && isTranslucentPaint(primitive.color);
+        if (scale < from) {
+          scope.to = Math.min(scope.to, from);
+          return undefined;
+        }
+        if (scale >= to) {
+          scope.from = Math.max(scope.from, to);
+          return undefined;
+        }
+        scope.from = Math.max(scope.from, from);
+        scope.to = Math.min(scope.to, to);
+        hasTranslucentText = hasTranslucentText || translucentText;
+        return scope.minScale;
+      }
+    );
+    // Glyph ink bounds come from the scene's text layout. Opaque text needs no translucent ordering.
+    const bounds = hasTranslucentText ? element.bounds : geometry;
+    if (!bounds) return undefined;
+    const paint = geometry ?? bounds;
+    // Include the anti-aliased rim of rects and the minimum device-pixel width of paths.
+    const pad = Math.max(1, 1.5 / scope.dpr) / scope.minScale;
+    return {
+      minX: Math.min(paint.minX, bounds.minX) - pad,
+      minY: Math.min(paint.minY, bounds.minY) - pad,
+      maxX: Math.max(paint.maxX, bounds.maxX) + pad,
+      maxY: Math.max(paint.maxY, bounds.maxY) + pad,
+    };
   }
 
   private readonly levelOf = (id: string): number => this.levels.levelOf(id);
@@ -1530,14 +1980,12 @@ class WebGLSceneBackend implements ISceneBackend {
 
   /**
    * Updates the overlap levels after a change of the translucent set, of a translucent element's own zIndex or order,
-   * or of a translucent element's origin or bounds. Then, when a level or a translucent instance list changed since the
-   * runs were built, rebuilds the draw runs: for each level, for each step, a draw per program. The instances are
-   * sorted by (level, step, element key) when ranges were added or removed since (the lists upload in full then
-   * anyway). A level change alone leaves them where they lie: a moved element's chunks are drawn from there at their
-   * new draw position, a draw call or two each, until more than `MAX_OUT_OF_PLACE` buckets are out of place
-   * (`orderTranslucent`); sorting instead would move and upload every instance between their old and new places. A pan
-   * or a zoom does neither. A change of the depth's width rebuilds the runs in its frame: it bounds the steps of an
-   * element, so it numbers the draw positions.
+   * or of a translucent element's origin or bounds. When levels, range layout or path visibility change, rebuilds
+   * the draw runs: for each level, for each step, a draw per program. Retained path ranges stay at their resident
+   * offsets; only their visible draw schedule follows the levels. Dense lists sort after structural changes or more than
+   * `MAX_OUT_OF_PLACE` buckets move; a smaller level change adds draws without moving their instances. A pan does
+   * neither. A change of the depth's width rebuilds the runs in its frame: it bounds the steps of an element, so it
+   * numbers the draw positions.
    */
   private orderTranslucent(): void {
     if (this.levels.pending) {
@@ -1548,7 +1996,13 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     const { subBits } = this.depth;
     const batches = [...this.passBatches("translucent")];
-    const stamp = (): number[] => [subBits, this.levels.revision, ...batches.map((batch) => batch.ranges.revision)];
+    // Draw positions depend on range membership, steps and offsets, not in-place paint or geometry edits.
+    const stamp = (): number[] => [
+      subBits,
+      this.levels.revision,
+      ...batches.map((batch) => batch.ranges.layoutRevision),
+      ...batches.map((batch) => (batch.pathRecords ? this.visibility.get(batch)?.visibilityRevision ?? 0 : 0)),
+    ];
     if (sameNumbers(stamp(), this.orderStamp)) return;
     const start = performance.now();
     const layout = (): number[] => batches.map((batch) => batch.ranges.layoutRevision);
@@ -1557,7 +2011,9 @@ class WebGLSceneBackend implements ISceneBackend {
       this.levelOf,
       this.orderKeyOf,
       subBits,
-      !sameNumbers(layout(), this.layoutStamp)
+      !sameNumbers(layout(), this.layoutStamp),
+      (source, first, count) =>
+        !batches[source].pathRecords || (this.visibility.get(batches[source])?.any(first, count) ?? true)
     );
     this.translucentBatches = batches;
     // After the sort: it changes the revisions of the lists it reorders.
@@ -1566,11 +2022,145 @@ class WebGLSceneBackend implements ISceneBackend {
     this.stats.lastTranslucentOrderMs = performance.now() - start;
   }
 
+  /** Filters non-path visibility and optionally coalesces a fragmented visible schedule without changing overlap order. */
+  private visibleTranslucentRuns(frame: TSceneFrame): readonly TTranslucentRun[] {
+    this.refineTranslucent = false;
+    const batches = this.translucentBatches;
+    if (!batches.some((batch) => batch.ranges.layoutRetained && batch.ranges.liveCount > 0))
+      return this.translucentRuns;
+    const scale = Math.fround(frame.scale);
+    if (!(scale > 0) || !Number.isFinite(scale)) return this.translucentRuns;
+    const previousScale = this.scheduleScale;
+    const zooming = previousScale !== undefined && previousScale !== scale;
+    this.scheduleScale = scale;
+    let changed = false;
+    // Visibility can change in place without changing the physical ranges used by the order schedule.
+    const stamp = [
+      this.scheduleRevision,
+      ...this.orderStamp,
+      ...batches.map(
+        (batch) => (batch.companion?.kind === "elements" ? batch.companion.ranges : batch.ranges).revision
+      ),
+    ];
+    const active = this.activeScope;
+    if (
+      !active ||
+      !sameNumbers(stamp, this.activeStamp) ||
+      active.level !== frame.level ||
+      scale < active.from ||
+      scale >= active.to
+    ) {
+      changed = true;
+      const scope = { from: -Infinity, to: Infinity, level: frame.level };
+      const visibility = batches.map((batch) => {
+        let cached = this.visibility.get(batch);
+        if (!cached) {
+          if (batch.companion?.kind === "elements") cached = new InstanceVisibility("path");
+          else if (batch.companion?.kind === "subs") cached = new InstanceVisibility("glyph");
+          else if (batch.ranges.floats === TRIANGLE_FLOATS) cached = new InstanceVisibility("triangle");
+          else cached = new InstanceVisibility("rect");
+          this.visibility.set(batch, cached);
+        }
+        cached.update(
+          batch.companion?.kind === "elements" ? batch.companion.ranges : batch.ranges,
+          this.table.data,
+          this.styles.data,
+          frame,
+          this.scheduleRevision
+        );
+        scope.from = Math.max(scope.from, cached.from);
+        scope.to = Math.min(scope.to, cached.to);
+        return cached;
+      });
+      this.activeRuns = filterTranslucentRuns(
+        this.translucentRuns,
+        (source, first, count) => visibility[source].any(first, count),
+        (source) => !batches[source].pathRecords
+      );
+      // The path address stream already joins adjacent runs of one source, regardless of resident gaps. Only
+      // remaining program barriers justify the more expensive overlap coalescer; non-path runs keep their draws.
+      this.activeDrawGroups = gatheredPathDrawCount(
+        this.activeRuns,
+        batches.map((batch) => Boolean(batch.pathRecords))
+      );
+      this.activeOwners = [];
+      this.activeScope = scope;
+      this.activeStamp = stamp;
+      this.coalesceScope = undefined;
+    }
+    if (this.activeDrawGroups < 512) return this.activeRuns;
+    const x = Math.fround(frame.x),
+      y = Math.fround(frame.y);
+    const width = Math.fround(frame.width),
+      height = Math.fround(frame.height);
+    const view: TTileRect = {
+      minX: (-x - 2) / scale,
+      minY: (-y - 2) / scale,
+      maxX: (width - x + 2) / scale,
+      maxY: (height - y + 2) / scale,
+    };
+    if (!Number.isFinite(view.minX + view.minY + view.maxX + view.maxY)) return this.activeRuns;
+    let scope = this.coalesceScope;
+    if (scope && withinOverlapScope(scope, scale, frame.level, frame.dpr) && containsBox(scope.clip, view))
+      return this.coalescedRuns;
+    // A changing camera draws the exact active schedule immediately. Refine after it settles, instead of adding
+    // footprint construction to the same frame as a level transition or a large scene edit.
+    if (zooming || (changed && previousScale !== undefined)) {
+      this.refineTranslucent = true;
+      return this.activeRuns;
+    }
+    if (this.activeOwners.length === 0) {
+      this.activeOwners = translucentRunOwners(
+        this.activeRuns,
+        batches.map((batch) => batch.ranges),
+        batches.map((batch) => batch.companion?.kind === "subs")
+      );
+    }
+    const padX = (view.maxX - view.minX) / 4,
+      padY = (view.maxY - view.minY) / 4;
+    const clip = { minX: view.minX - padX, minY: view.minY - padY, maxX: view.maxX + padX, maxY: view.maxY + padY };
+    const minScale = 2 ** Math.floor(Math.log2(scale));
+    scope = { from: minScale, to: 2 * minScale, minScale, level: frame.level, dpr: frame.dpr, clip };
+    const current = scope;
+    this.coalescedRuns = coalesceTranslucentRuns(this.activeOwners, clip, (id) => {
+      const element = this.elements.get(id);
+      const cached = this.overlapGeometry.get(id);
+      // Unknown ink is a barrier. Glyph sources are always barriers: their ink can overhang authored layout bounds.
+      if (!element || !cached) return clip;
+      const box = this.overlapBounds(element, cached.primitives, current, scale);
+      if (!box) return this.hiddenInScene(element) ? undefined : clip;
+      const ox = Math.fround(element.x),
+        oy = Math.fround(element.y);
+      const magnitude = Math.max(
+        Math.abs(ox),
+        Math.abs(oy),
+        Math.abs(box.minX),
+        Math.abs(box.minY),
+        Math.abs(box.maxX),
+        Math.abs(box.maxY),
+        Math.abs(clip.minX),
+        Math.abs(clip.minY),
+        Math.abs(clip.maxX),
+        Math.abs(clip.maxY)
+      );
+      // Include encoded float coordinates, origin addition and projection, even for cancelling large operands.
+      const pad = (magnitude + 1) * 2 ** -18 + 2 / minScale;
+      return {
+        minX: ox + box.minX - pad,
+        minY: oy + box.minY - pad,
+        maxX: ox + box.maxX + pad,
+        maxY: oy + box.maxY + pad,
+      };
+    });
+    this.coalesceScope = scope;
+    return this.coalescedRuns;
+  }
+
   /**
    * Points the batch's per-instance attributes at instance `first`. WebGL 2 has no base instance, so a run that starts
    * inside the instance buffer moves the attribute offsets in the model's vertex array; the formats are float32.
    */
-  private pointInstances(batch: TBatch, first: number): void {
+  private pointInstances(batch: TInstancePointerTarget, first: number): void {
     if (batch.pointedAt === first) return;
     const vertexArray = batch.model.vertexArray;
     if (!(vertexArray instanceof WEBGLVertexArray)) throw new Error("The scene backend needs a WebGL vertex array");
@@ -1594,7 +2184,7 @@ class WebGLSceneBackend implements ISceneBackend {
    * The pointers luma sets for the batch's per-instance attributes (`WEBGLVertexArray.setBuffer`), per buffer. Each
    * must be a float32 attribute, neither integer nor normalized: `pointInstances` re-points them as such.
    */
-  private instancePointers(batch: TBatch): { buffer: DynamicBuffer; attributes: TPointer[] }[] {
+  private instancePointers(batch: TInstancePointerTarget): { buffer: DynamicBuffer; attributes: TPointer[] }[] {
     const infos = Object.values(getAttributeInfosFromLayouts(batch.model.pipeline.shaderLayout, [...batch.layout]));
     return batch.instanceBuffers.map(({ name, buffer }) => ({
       buffer,
@@ -1620,7 +2210,9 @@ class WebGLSceneBackend implements ISceneBackend {
   /** The group's extra width (0 without an effect) and its effect's `u_<name>` values. */
   private setEffectUniforms(group: TPathGroup): void {
     const { effect } = group;
-    for (const { uniforms } of [group.lines, group.curves]) {
+    for (const batch of [group.lines, group.curves, group.coarseCurves]) {
+      if (!batch) continue;
+      const { uniforms } = batch;
       uniforms.graph_extraWidth = effect?.extraWidth ?? 0;
       if (!effect) continue;
       for (const name of Object.keys(effect.uniformTypes)) {
@@ -1630,10 +2222,423 @@ class WebGLSceneBackend implements ISceneBackend {
     }
   }
 
-  /**
-   * `scene_dimColor` of a dim colour, parsed as the Canvas2D interpreter parses it (`readColorRgba`): a colour that
-   * does not parse dims nothing in either renderer.
-   */
+  /** Ownership follows the existing scene root, even for a path painted by a block's child. */
+  private ownedDrawRanges(batch: TBatch): readonly TMixedOwnerRange[] {
+    const layout = batch.ranges.layoutRevision;
+    const ownership = this.mixedOwnershipRevision;
+    const cached = this.mixedOwnedRanges.get(batch);
+    if (cached?.layout === layout && cached.ownership === ownership) return cached.ranges;
+    const ranges: TMixedOwnerRange[] = [];
+    batch.ranges.forEachRange((id, first, count) => {
+      const element = this.elements.get(id);
+      const root = element && this.elements.get(this.rootIdOf(element));
+      const connection = (root ?? element)?.entityType === "connection";
+      const last = ranges[ranges.length - 1];
+      if (last?.connection === connection && last.first + last.count === first) last.count += count;
+      else ranges.push({ first, count, connection });
+    });
+    this.mixedOwnedRanges.set(batch, { layout, ownership, ranges });
+    return ranges;
+  }
+
+  /** Splits physical ranges before gatherPathDraws can map their first indices to compact addresses. */
+  private splitMixedDraws(draws: readonly TDraw[], upper: TDraw[], connection: TDraw[]): void {
+    for (const draw of draws) {
+      const ranges = this.ownedDrawRanges(draw.batch);
+      if (ranges.length === 1 && ranges[0].first === 0) {
+        (ranges[0].connection ? connection : upper).push({ ...draw });
+        continue;
+      }
+      const end = draw.first + draw.count;
+      for (let i = firstOverlappingOwnerRange(ranges, draw.first); i < ranges.length && ranges[i].first < end; i++) {
+        const range = ranges[i];
+        const first = Math.max(draw.first, range.first);
+        const count = Math.min(end, range.first + range.count) - first;
+        (range.connection ? connection : upper).push({ ...draw, first, count });
+      }
+    }
+  }
+
+  private buildMixedPlane(opaque: readonly TDraw[], translucent: readonly TDraw[]): TMixedPlan | undefined {
+    const upperOpaque: TDraw[] = [];
+    const upperTranslucent: TDraw[] = [];
+    const lowerOpaque: TDraw[] = [];
+    const lowerTranslucent: TDraw[] = [];
+    this.splitMixedDraws(opaque, upperOpaque, lowerOpaque);
+    this.splitMixedDraws(translucent, upperTranslucent, lowerTranslucent);
+    const lower = [...lowerOpaque, ...lowerTranslucent];
+    const nativeOnlyPaint: TDraw[] = [];
+    const lowerPaths: TDraw[] = [];
+    for (const draw of lower) (draw.batch.pathRecords ? lowerPaths : nativeOnlyPaint).push(draw);
+    if (!lowerPaths.length) return undefined;
+
+    const groupOf = new Map<TBatch, TPathGroup>();
+    for (const group of this.pathGroups.values()) {
+      groupOf.set(group.lines, group);
+      groupOf.set(group.curves, group);
+      if (group.coarseCurves) groupOf.set(group.coarseCurves, group);
+    }
+    // Explicit shader depth writes are interpreted by the shared depth buffer.
+    if ([...upperOpaque, ...upperTranslucent].some(({ batch }) => hasEffectDepthWrites(groupOf.get(batch)?.effect)))
+      return undefined;
+    const ties = new Map(
+      [...this.passBatches("opaque"), ...this.passBatches("translucent")].map((batch, index) => [batch, index])
+    );
+    const stock = this.mixedStockGroup(lowerPaths, groupOf);
+    const work: TMixedPathWork = {
+      stock,
+      sources: [],
+      ranges: [],
+      widths: { worldWidth: 0, pixelWidth: 0 },
+    };
+    for (const draw of lowerPaths) {
+      const group = groupOf.get(draw.batch);
+      const tie = ties.get(draw.batch);
+      if (!group || tie === undefined || !this.collectMixedPaths(draw, group, tie, work)) return undefined;
+    }
+    canonicalizeMixedSources(work.sources, work.ranges);
+    const schedule = mixedPathSchedule(work.ranges);
+    if (!schedule?.spans.length) return undefined;
+    return {
+      ...schedule,
+      effect: stock?.effect,
+      effectUniforms: stock?.curves.uniforms,
+      sources: work.sources,
+      widths: work.widths,
+      upperOpaque,
+      upperTranslucent,
+      nativeOnlyPaint,
+    };
+  }
+
+  /** Labels and filled arrows stay in the shared pass whenever their vertex predicates allow paint. */
+  private hasVisibleNativeOnlyPaint(plan: TMixedPlan, frame: TSceneFrame): boolean {
+    for (const { batch, first, count } of plan.nativeOnlyPaint) {
+      let visibility = this.visibility.get(batch);
+      if (!visibility) {
+        let kind: "rect" | "triangle" | "glyph" = "rect";
+        if (batch.companion?.kind === "subs") kind = "glyph";
+        else if (batch.ranges.floats === TRIANGLE_FLOATS) kind = "triangle";
+        visibility = new InstanceVisibility(kind);
+        this.visibility.set(batch, visibility);
+      }
+      visibility.update(batch.ranges, this.table.data, this.styles.data, frame, this.scheduleRevision);
+      if (visibility.any(first, count)) return true;
+    }
+    return false;
+  }
+
+  /** Keep the common stock shader when a single connection has another effect. */
+  private mixedStockGroup(lower: readonly TDraw[], groups: ReadonlyMap<TBatch, TPathGroup>): TPathGroup | undefined {
+    const weights = new Map<TEffect, number>();
+    let stock: TPathGroup | undefined;
+    let weight = 0;
+    for (const { batch, count } of lower) {
+      const group = groups.get(batch);
+      const effect = group?.effect;
+      if (!effect || !MIXED_EFFECT_PROGRAMS.has(effect.programKey) || effect.extraWidth !== 0) continue;
+      const total = (weights.get(effect) ?? 0) + count;
+      weights.set(effect, total);
+      if (total > weight) {
+        stock = group;
+        weight = total;
+      }
+    }
+    return stock;
+  }
+
+  private collectMixedPaths(draw: TDraw, group: TPathGroup, tie: number, work: TMixedPathWork): boolean {
+    const { batch } = draw;
+    const { pathRecords, companion } = batch;
+    if (!pathRecords || !companion || group.fallback) return false;
+    const native = group.effect && group.effect !== work.stock?.effect ? group.effect : undefined;
+    if (native && ((work.customEffect && work.customEffect !== native) || hasEffectDepthWrites(native))) return false;
+    const chords = batch === group.lines ? 1 : draw.curveDetail ?? 16;
+    let source = work.sources.findIndex((entry) => entry.records === pathRecords && entry.chords === chords);
+    if (!native && source < 0) {
+      source = work.sources.length;
+      if (source >= MIXED_PATH_MAX_SOURCES) return false;
+      work.sources.push({ records: pathRecords, chords, plain: !group.effect, tie });
+    }
+    const elements = companion.ranges.data;
+    const data = batch.ranges.data;
+    const end = draw.first + draw.count;
+    let first = draw.first;
+    while (first < end) {
+      const at = first * PATH_ELEMENT_FLOATS;
+      const owner = elements[at];
+      const sub = elements[at + SUB_FLOAT];
+      let last = first + 1;
+      while (
+        last < end &&
+        elements[last * PATH_ELEMENT_FLOATS] === owner &&
+        elements[last * PATH_ELEMENT_FLOATS + SUB_FLOAT] === sub
+      )
+        last++;
+      const key = this.table.data[owner * 4 + 2];
+      if (key >= 0) {
+        const range = { key, sub, tie, first, count: last - first };
+        if (native) {
+          if (work.customKey !== undefined && work.customKey !== key) return false;
+          work.customEffect = native;
+          work.customKey = key;
+          work.ranges.push({ ...range, native: batch });
+        } else {
+          work.ranges.push({ ...range, source });
+        }
+        if (group.pass === "opaque") this.extendMixedWidth(work.widths, data, elements, first, last);
+      }
+      first = last;
+    }
+    return true;
+  }
+
+  private extendMixedWidth(
+    widths: TSubpixelPathWidth,
+    data: Float32Array,
+    elements: Float32Array,
+    first: number,
+    end: number
+  ): void {
+    for (let slot = first; slot < end; slot++) {
+      const e = slot * PATH_ELEMENT_FLOATS;
+      const mode = Math.floor(elements[e + 6] / 8);
+      const minimum = elements[e + 3];
+      const value = data[slot * INSTANCE_FLOATS + 12];
+      widths.worldWidth = Math.max(widths.worldWidth, mode === 1 ? minimum : value);
+      if (mode !== 0) widths.pixelWidth = Math.max(widths.pixelWidth, mode === 1 ? value : minimum);
+    }
+  }
+
+  private hasMixedVertexWork(
+    opaque: readonly TDraw[],
+    translucent: readonly TDraw[],
+    connectionOnly: boolean
+  ): boolean {
+    let remaining = MIN_MIXED_CONNECTION_VERTICES;
+    for (const draws of [opaque, translucent]) {
+      for (const draw of draws) {
+        const { batch } = draw;
+        if (!batch.pathRecords) continue;
+        const chords = draw.curveDetail ?? (batch.curveChords ? CURVE_CHORDS : undefined);
+        const vertices = chords === undefined ? batch.model.vertexCount : (chords + 1) * 2;
+        remaining -= vertices * (connectionOnly ? this.connectionInstances(draw) : draw.count);
+        if (remaining <= 0) return true;
+      }
+    }
+    return false;
+  }
+
+  private connectionInstances({ batch, first, count }: TDraw): number {
+    const ranges = this.ownedDrawRanges(batch);
+    if (ranges.length === 1 && ranges[0].first === 0) return ranges[0].connection ? count : 0;
+    const end = first + count;
+    let result = 0;
+    for (let i = firstOverlappingOwnerRange(ranges, first); i < ranges.length && ranges[i].first < end; i++) {
+      const range = ranges[i];
+      if (range.connection) result += Math.min(end, range.first + range.count) - Math.max(first, range.first);
+    }
+    return result;
+  }
+
+  private prepareMixedPlane(
+    frame: TSceneFrame,
+    opaque: readonly TDraw[],
+    translucent: readonly TDraw[]
+  ): TPreparedMixed | undefined {
+    // Reject light workloads before inspecting ownership or allocating the target.
+    if (!this.pathGroupsOf.size || !this.hasMixedVertexWork(opaque, translucent, false)) return undefined;
+    this.mixedTextureUnits ??= this.gl.getContextAttributes()?.antialias
+      ? (this.gl.getParameter(this.gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) as number)
+      : 0;
+    if (this.mixedTextureUnits < 3) return undefined;
+    this.mixedTextureLimit ??= this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE) as number;
+    const width = Math.max(1, Math.round(frame.width * frame.dpr));
+    const height = Math.max(1, Math.round(frame.height * frame.dpr));
+    if (!(Math.max(width, height) <= this.mixedTextureLimit)) return undefined;
+    const sceneRevision = this.scheduleRevision;
+    if (this.mixedRootRevision !== sceneRevision) {
+      const roots = [];
+      for (const element of this.elements.values()) {
+        if (element.parent !== undefined || element.hidden) continue;
+        roots.push({ entityType: element.entityType, key: this.depth.peekKey(element.id) });
+      }
+      this.mixedRootsSeparated = separatedConnectionDepths(roots);
+      this.mixedRootRevision = sceneRevision;
+    }
+    if (!this.mixedRootsSeparated || !this.hasMixedVertexWork(opaque, translucent, true)) return undefined;
+    const plan = this.cachedMixedPlane(opaque, translucent);
+    if (
+      !plan ||
+      plan.sources.length + 2 > this.mixedTextureUnits ||
+      !fullySubpixelPaths(plan.widths, frame.scale, frame.dpr) ||
+      this.hasVisibleNativeOnlyPaint(plan, frame)
+    )
+      return undefined;
+
+    const draw = this.mixedDrawFor(plan);
+    if (!draw) return undefined;
+    if (!this.mixedTarget || this.mixedTarget.width !== width || this.mixedTarget.height !== height) {
+      this.mixedTarget?.destroy();
+      this.mixedTarget = undefined;
+      try {
+        this.mixedTarget = this.device.createFramebuffer({ width, height, colorAttachments: ["rgba8unorm"] });
+      } catch {
+        return undefined;
+      }
+    }
+    let changed = draw.ids.update(plan.spans);
+    let upload: TUploadKind = changed ? "range" : "none";
+    if (draw.ids.data.byteLength > draw.buffer.byteLength) {
+      draw.buffer.resize({ byteLength: Math.max(draw.ids.data.byteLength, draw.buffer.byteLength * 2) });
+      draw.model.setAttributes({ graph_recordId: draw.buffer });
+      draw.pointedAt = 0;
+      changed = { byteOffset: 0, data: draw.ids.data };
+      upload = "full";
+    }
+    if (changed) {
+      draw.buffer.write(changed.data, changed.byteOffset);
+      this.countUpload(changed.data.byteLength);
+    }
+    return { plan, draw, target: this.mixedTarget, upload };
+  }
+
+  private cachedMixedPlane(opaque: readonly TDraw[], translucent: readonly TDraw[]): TMixedPlan | undefined {
+    const sceneRevision = this.scheduleRevision;
+    // Camera-driven packing can move records while a prepared span retains identical first/count values.
+    const layouts = [...new Set([...opaque, ...translucent].map(({ batch }) => batch))].flatMap((batch) => [
+      batch.ranges.layoutRevision,
+      batch.companion?.ranges.layoutRevision ?? 0,
+    ]);
+    let cached = this.mixedPlan;
+    if (
+      !cached ||
+      cached.sceneRevision !== sceneRevision ||
+      !sameNumbers(cached.layouts, layouts) ||
+      !sameDraws(cached.opaque, opaque) ||
+      !sameDraws(cached.translucent, translucent)
+    ) {
+      cached = {
+        sceneRevision,
+        layouts,
+        opaque: opaque.map((draw) => ({ ...draw })),
+        translucent: translucent.map((draw) => ({ ...draw })),
+        plan: this.buildMixedPlane(opaque, translucent),
+      };
+      this.mixedPlan = cached;
+    }
+    return cached.plan;
+  }
+
+  private mixedDrawFor(plan: TMixedPlan): TMixedDraw | undefined {
+    const key = `${plan.effect?.programKey ?? "plain"}|${plan.sources.length}`;
+    if (this.mixedDisabled.has(key)) return undefined;
+    let draw = this.mixedDraw;
+    if (draw?.programKey !== key) {
+      this.destroyMixedDraw();
+      const buffer = this.createInstanceBuffer(1);
+      const uniforms: TUniforms = { scene_opaquePass: 0 };
+      const model = new Model(this.device, {
+        id: "scene-mixed-connections",
+        vs: createMixedPathVertex(plan.sources.length),
+        fs: MIXED_PATH_FRAGMENT,
+        plugins: [createPathPlugin(plan.effect)],
+        topology: "triangle-strip",
+        bufferLayout: PATH_LAYOUT,
+        attributes: { graph_template: this.curveTemplate, graph_recordId: buffer },
+        uniforms,
+        parameters: { ...PASS_PARAMETERS.translucent, depthCompare: "always" },
+        vertexCount: createCurveTemplate().length / 2,
+        isInstanced: true,
+        instanceCount: 0,
+      });
+      draw = {
+        programKey: key,
+        model,
+        uniforms,
+        buffer,
+        ids: new PathDrawIds(),
+        layout: PATH_LAYOUT,
+        instanceBuffers: [{ name: PATH_LAYOUT[1].name, buffer }],
+        pointedAt: 0,
+      };
+      this.mixedDraw = draw;
+      if (!isLinked(model)) {
+        this.mixedDisabled.add(key);
+        this.destroyMixedDraw();
+        return undefined;
+      }
+    }
+    return draw;
+  }
+
+  private destroyMixedDraw(): void {
+    const draw = this.mixedDraw;
+    if (!draw) return;
+    draw.model.destroy();
+    if (this.ownsObjects()) {
+      draw.model.vertexArray.destroy();
+      draw.buffer.destroy();
+    }
+    this.mixedDraw = undefined;
+  }
+
+  private beginMixedScene(
+    frame: TSceneFrame,
+    { plan, draw, target }: TPreparedMixed,
+    nativeRuns: readonly TDraw[][]
+  ): RenderPass {
+    const clear = {
+      clearColor: [0, 0, 0, 0] as [number, number, number, number],
+      clearDepth: 0,
+      clearStencil: false as const,
+    };
+    const bindings: Record<string, Texture> = this.bindings(PATH_TEXTURES);
+    const widths = Array<number>(8).fill(10);
+    const kinds = Array<number>(8).fill(16);
+    plan.sources.forEach(({ records, chords, plain }, index) => {
+      const { texture } = records;
+      bindings[`graph_records${index}`] = texture;
+      widths[index] = texture.width;
+      kinds[index] = chords + (plain ? 32 : 0);
+    });
+    draw.model.setBindings(bindings);
+    draw.model.setVertexCount((Math.max(...plan.sources.map(({ chords }) => chords)) + 1) * 2);
+    Object.assign(draw.uniforms, plan.effectUniforms, {
+      graph_extraWidth: 0,
+      graph_widths0: widths.slice(0, 4),
+      graph_widths1: widths.slice(4),
+      graph_kinds0: kinds.slice(0, 4),
+      graph_kinds1: kinds.slice(4),
+    });
+    const connectionPass = this.device.beginRenderPass({ ...clear, clearDepth: false, framebuffer: target });
+    let nativeIndex = 0;
+    for (const command of plan.commands) {
+      if (command.native) this.drawPrepared(connectionPass, nativeRuns[nativeIndex++], frame);
+      else {
+        this.pointInstances(draw, command.first);
+        this.drawInstances(connectionPass, draw, frame, command.count);
+      }
+    }
+    connectionPass.end();
+
+    // An ordinary fullscreen draw replicates the lower premultiplied color into each default sample.
+    const color = target.colorAttachments[0].texture;
+    this.mixedComposite ??= new Model(this.device, {
+      id: "scene-mixed-composite",
+      vs: MIXED_COMPOSITE_VERTEX,
+      fs: MIXED_COMPOSITE_FRAGMENT,
+      parameters: { depthWriteEnabled: false, depthCompare: "always", blend: false },
+      vertexCount: 3,
+    });
+    this.mixedComposite.setBindings({ graph_connectionColor: color });
+    const pass = this.device.beginRenderPass(clear);
+    this.mixedComposite.draw(pass);
+    this.stats.drawCalls += 1;
+    return pass;
+  }
+
+  /** `scene_dimColor` matches the colors parsed by the Canvas2D interpreter. */
   private setDimColor(color: string): void {
     if (color === this.dimColor) return;
     this.dimColor = color;
@@ -1641,12 +2646,110 @@ class WebGLSceneBackend implements ISceneBackend {
     this.dimFloats = rgba ? [rgba[0] / 255, rgba[1] / 255, rgba[2] / 255, 1] : NO_DIM_COLOR;
   }
 
+  /** Culls physical resident ranges before the path address stream is gathered. */
+  private appendVisibleDraws(draws: TDraw[], batch: TBatch, frame: TSceneFrame, first: number, count: number): void {
+    if (count === 0) return;
+    const curveChords =
+      batch.curveChords && canCoarsenCurves(frame, batch.culling?.untranslated === true)
+        ? batch.curveChords
+        : undefined;
+    const ranges = batch.culling?.ranges(first, count, frame, Number(batch.uniforms.graph_extraWidth ?? 0), {
+      curveChords,
+    });
+    if (!ranges) {
+      draws.push({ batch, first, count });
+      return;
+    }
+    for (const range of ranges) {
+      draws.push({ batch, first: range.first, count: range.count, curveDetail: range.curveChords });
+    }
+  }
+
+  /**
+   * Gather only after physical visibility, owner and ordering queries. Adjacent commands can then share a draw
+   * even when their resident slots lie apart or run backwards; non-path commands remain ordering barriers.
+   */
+  private gatherPathDraws(...passes: TDraw[][]): TUploadKind {
+    const byBatch = new Map<TBatch, TDraw[]>();
+    for (const draws of passes) {
+      for (const draw of draws) {
+        if (!draw.batch.pathRecords) continue;
+        let ordered = byBatch.get(draw.batch);
+        if (!ordered) byBatch.set(draw.batch, (ordered = []));
+        ordered.push(draw);
+      }
+    }
+    let kind: TUploadKind = "none";
+    for (const [batch, draws] of byBatch) {
+      const records = batch.pathRecords;
+      if (!records) continue;
+      const { ids } = records;
+      let changed = ids.update(draws);
+      if (ids.data.byteLength > batch.buffer.byteLength) {
+        batch.buffer.resize({ byteLength: Math.max(ids.data.byteLength, batch.buffer.byteLength * 2) });
+        // A new GPU buffer needs the complete address list, including its unchanged prefix.
+        changed = { byteOffset: 0, data: ids.data };
+        batch.model.setAttributes({ graph_recordId: batch.buffer });
+        batch.pointedAt = 0;
+        kind = "full";
+      }
+      if (changed) {
+        batch.buffer.write(changed.data, changed.byteOffset);
+        this.countUpload(changed.data.byteLength);
+        if (kind === "none") kind = "range";
+      }
+      let first = 0;
+      for (const draw of draws) {
+        draw.first = first;
+        first += draw.count;
+      }
+    }
+    for (const draws of passes) {
+      let used = 0;
+      for (const draw of draws) {
+        const last = draws[used - 1];
+        if (
+          draw.batch.pathRecords &&
+          last?.batch === draw.batch &&
+          last.curveDetail === draw.curveDetail &&
+          last.first + last.count === draw.first
+        ) {
+          last.count += draw.count;
+        } else {
+          draws[used++] = draw;
+        }
+      }
+      draws.length = used;
+    }
+    return kind;
+  }
+
+  private drawPrepared(pass: RenderPass, draws: readonly TDraw[], frame: TSceneFrame): void {
+    for (const { batch, first, count, curveDetail } of draws) {
+      this.pointInstances(batch, first);
+      this.drawInstances(pass, batch, frame, count, curveDetail);
+    }
+  }
+
   /** Draws `count` instances of the batch from where its attributes point; false when there are none. */
-  private drawInstances(pass: RenderPass, batch: TBatch, frame: TSceneFrame, count: number): boolean {
+  private drawInstances(
+    pass: RenderPass,
+    batch: Pick<TBatch, "model" | "uniforms" | "curveChords" | "culling">,
+    frame: TSceneFrame,
+    count: number,
+    curveDetail?: number
+  ): boolean {
     if (count === 0) return false;
     const viewport = [frame.width, frame.height];
     const camera = [frame.x, frame.y, frame.scale];
     const { uniforms } = batch;
+    if (batch.curveChords) {
+      const chords =
+        curveDetail ??
+        (batch.curveChords && canCoarsenCurves(frame, batch.culling?.untranslated === true) ? batch.curveChords : 16);
+      uniforms.graph_curveStep = 16 / chords;
+      batch.model.setVertexCount((chords + 1) * 2);
+    }
     uniforms.scene_viewport = viewport;
     uniforms.scene_camera = camera;
     uniforms.scene_time = frame.time;
@@ -1665,17 +2768,42 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   /**
-   * Uploads what changed in the instance data of a batch and in its companion list, each list on its own: everything
-   * after a resize or removal, else its dirty range (a re-sub of glyphs: the range of their subs only). Returns the
-   * larger upload of the two.
+   * Uploads changed physical records. Paths interleave their payload and companion into one texture; other batches
+   * keep separate attribute buffers (a re-sub of glyphs uploads their subs only).
    */
+  private uploadPaths(frame: TSceneFrame): TUploadKind {
+    let kind: TUploadKind = "none";
+    for (const batch of this.allBatches()) {
+      if (!batch.pathRecords || !batch.companion) continue;
+      const uploaded = this.upload(batch);
+      if (UPLOAD_COST[uploaded] > UPLOAD_COST[kind]) kind = uploaded;
+      batch.culling?.update(batch.ranges.data, batch.companion.ranges.data, this.table.data, frame);
+      if (!batch.retainRanges) continue;
+      let visibility = this.visibility.get(batch);
+      if (!visibility) {
+        visibility = new InstanceVisibility("path");
+        this.visibility.set(batch, visibility);
+      }
+      visibility.update(batch.companion.ranges, this.table.data, this.styles.data, frame, this.scheduleRevision);
+    }
+    return kind;
+  }
+
   private upload(batch: TBatch): TUploadKind {
     const { companion } = batch;
-    const generations = (): number => batch.buffer.generation + (companion?.buffer.generation ?? 0);
+    if (batch.pathRecords && companion) {
+      const kind = this.uploadPathRecords(batch, batch.pathRecords, companion);
+      if (batch.retainRanges) {
+        batch.ranges.retainLayout();
+        companion.ranges.retainLayout();
+      }
+      return kind;
+    }
+    const generations = (): number => batch.buffer.generation + (companion?.buffer?.generation ?? 0);
     const before = generations();
-    let kind = this.uploadRanges(batch.ranges, batch.buffer);
-    if (companion) {
-      const companionKind = this.uploadRanges(companion.ranges, companion.buffer);
+    let kind = this.uploadRanges(batch.ranges, batch.buffer, batch.culling);
+    if (companion?.buffer) {
+      const companionKind = this.uploadRanges(companion.ranges, companion.buffer, batch.culling);
       if (UPLOAD_COST[companionKind] > UPLOAD_COST[kind]) kind = companionKind;
     }
     if (generations() !== before) {
@@ -1684,16 +2812,58 @@ class WebGLSceneBackend implements ISceneBackend {
       batch.model.setAttributes(Object.fromEntries(batch.instanceBuffers.map(({ name, buffer }) => [name, buffer])));
       batch.pointedAt = 0;
     }
+    if (batch.retainRanges) {
+      batch.ranges.retainLayout();
+      companion?.ranges.retainLayout();
+    }
     return kind;
   }
 
-  private uploadRanges(ranges: InstanceRanges, buffer: DynamicBuffer): TUploadKind {
-    const upload = ranges.takeUpload();
+  /** The CPU lists retain physical slots; only dirty records go to their one GPU texture. */
+  private uploadPathRecords(batch: TBatch, records: TPathRecords, companion: TCompanion): TUploadKind {
+    let payload = batch.ranges.takeUpload();
+    const elements = companion.ranges.takeUpload();
+    this.visibility.get(batch)?.invalidate(elements, companion.ranges);
+    batch.culling?.invalidate(payload, batch.ranges.floats);
+    batch.culling?.invalidate(elements, companion.ranges.floats);
+    const count = batch.ranges.count;
+    const texels = count * PATH_RECORD_TEXELS;
+    if (count > 2 ** 24) throw new Error("Path record addresses must be exact float32 integers");
+    if (texels > records.texture.width * records.texture.height) {
+      const limit = this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE) as number;
+      // Entire records share a row. Small groups start with at most one old instance-buffer's capacity; large
+      // tables settle at a fixed width and grow vertically without moving the resident record addresses.
+      const maxWidth = Math.floor(Math.min(4096, limit) / PATH_RECORD_TEXELS) * PATH_RECORD_TEXELS;
+      const width = Math.min(
+        maxWidth,
+        Math.max(INITIAL_INSTANCES, 2 ** Math.ceil(Math.log2(count))) * PATH_RECORD_TEXELS
+      );
+      const rows = Math.ceil(texels / width);
+      if (rows > limit) throw new Error("Path record table exceeds the device texture capacity");
+      const height = Math.min(limit, Math.max(rows, records.texture.width === width ? records.texture.height * 2 : 1));
+      records.texture.destroy();
+      records.texture = this.createTableTexture(width, height);
+      batch.uniforms.graph_recordWidth = width;
+      batch.model.setBindings(this.batchBindings(batch));
+      payload = { kind: "full" };
+    }
+    const writes = pathRecordWrites(batch.ranges.data, companion.ranges.data, payload, elements, records.texture.width);
+    for (const { data, ...region } of writes) {
+      records.texture.writeData(data, region);
+      this.countUpload(data.byteLength);
+    }
+    return UPLOAD_COST[payload.kind] >= UPLOAD_COST[elements.kind] ? payload.kind : elements.kind;
+  }
+
+  private uploadRanges(ranges: InstanceRanges, buffer: DynamicBuffer, culling?: PathCulling): TUploadKind {
+    let upload = ranges.takeUpload();
+    const data = ranges.data;
+    if (data.byteLength > buffer.byteLength) {
+      buffer.resize({ byteLength: Math.max(data.byteLength, buffer.byteLength * 2) });
+      upload = { kind: "full" };
+    }
+    culling?.invalidate(upload, ranges.floats);
     if (upload.kind === "full") {
-      const { data } = ranges;
-      if (data.byteLength > buffer.byteLength) {
-        buffer.resize({ byteLength: Math.max(data.byteLength, buffer.byteLength * 2) });
-      }
       if (data.byteLength > 0) {
         buffer.write(data);
         this.countUpload(data.byteLength);
@@ -1764,7 +2934,7 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   private rebind(): void {
-    for (const batch of this.allBatches()) batch.model.setBindings(this.bindings(batch.textures));
+    for (const batch of this.allBatches()) batch.model.setBindings(this.batchBindings(batch));
   }
 
   /** Rows of style texels without overrides and base colours (alpha -1) and without dim (r 0). */
@@ -1822,7 +2992,7 @@ export const createSceneBackend: TCreateSceneBackend = async (
   try {
     // luma's debug default follows NODE_ENV; the scene reports its own shader errors.
     device = await luma.attachDevice(gl, { adapters: [webgl2Adapter], debug: false, debugShaders: "never" });
-    return new WebGLSceneBackend(canvas, gl, device, listeners, createdAt);
+    return new WebGLSceneBackend(canvas, gl, device, listeners, createdAt, events.onInvalidate);
   } catch (error) {
     listeners.abort();
     device?.getDefaultCanvasContext().destroy();

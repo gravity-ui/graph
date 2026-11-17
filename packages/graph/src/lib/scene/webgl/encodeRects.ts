@@ -73,7 +73,7 @@ export function checkSub(sub: number, maxSub: number): void {
 }
 
 /** Writes `(mode, value, min, max)` of a camera-aware size at `offset`. */
-export function writeSize(out: Float32Array, offset: number, size: TSceneSize): void {
+export function writeSize(out: Float32Array | number[], offset: number, size: TSceneSize): void {
   if (typeof size === "number") {
     out[offset] = 0;
     out[offset + 1] = size;

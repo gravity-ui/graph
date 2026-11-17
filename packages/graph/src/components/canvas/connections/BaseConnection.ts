@@ -372,10 +372,10 @@ export class BaseConnection<
    *
    * @returns {void}
    */
-  private updateHitBox = (): void => {
+  protected updateHitBox(): void {
     const { x, y, width, height } = this.getHitBoxRect();
     const padding = this.getHitBoxPadding();
     this.setHitBox(x - padding, y - padding, x + width + padding, y + height + padding, this.hitBoxNeedsRestore);
     this.hitBoxNeedsRestore = false;
-  };
+  }
 }

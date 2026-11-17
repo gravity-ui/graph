@@ -190,11 +190,18 @@ function compareOwners(a: TNode, b: TNode): number {
   return a.bucket - b.bucket || a.element.order - b.element.order;
 }
 
+type TCanvasQuery = {
+  scale: number;
+  level: TSceneLevel | undefined;
+  region?: { rect: TTileRect; elements: readonly TSceneElement[]; bounds: Float64Array };
+};
+
 /** Research prototype (E2): the elements of a scene, found by world rect and returned in draw order. */
 export class SceneStore {
   private readonly nodes = new Map<string, TNode>();
 
   private readonly index: TileIndex<TNode>;
+  private canvasQuery?: TCanvasQuery;
 
   /** The last query's mark (`TNode.mark`). */
   private queryMark = 0;
@@ -723,6 +730,72 @@ export class SceneStore {
     return found;
   }
 
+  /** @internal Reuses draw order during a Canvas pan. Any scene or style change drops the candidates. */
+  public queryForCanvas(rect: TTileRect, scale: number, level?: TSceneLevel): readonly TSceneElement[] {
+    const { minX, minY, maxX, maxY } = rect;
+    const width = maxX - minX;
+    const height = maxY - minY;
+    if (!Number.isFinite(minX + minY + maxX + maxY + width + height) || width < 0 || height < 0) {
+      return this.query(rect, level);
+    }
+    const cached = this.canvasQuery;
+    if (!cached || cached.scale !== scale || cached.level !== level) {
+      // A single draw at a new scale or after a scene change uses the ordinary query, as during a zoom or drag.
+      this.canvasQuery = { scale, level };
+      return this.query(rect, level);
+    }
+    let region = cached.region;
+    if (
+      !region ||
+      minX < region.rect.minX ||
+      minY < region.rect.minY ||
+      maxX > region.rect.maxX ||
+      maxY > region.rect.maxY
+    ) {
+      const marginX = width / 8;
+      const marginY = height / 8;
+      region = this.canvasQueryRegion(
+        {
+          minX: minX - marginX,
+          minY: minY - marginY,
+          maxX: maxX + marginX,
+          maxY: maxY + marginY,
+        },
+        level
+      );
+      cached.region = region;
+    }
+    const { elements, bounds } = region;
+    const found: TSceneElement[] = [];
+    for (let i = 0, at = 0; i < elements.length; i++, at += 4) {
+      // Exact per-element filtering preserves run boundaries at the viewport edges.
+      if (bounds[at] <= maxX && bounds[at + 1] <= maxY && bounds[at + 2] >= minX && bounds[at + 3] >= minY) {
+        found.push(elements[i]);
+      }
+    }
+    return found;
+  }
+
+  private canvasQueryRegion(rect: TTileRect, level: TSceneLevel | undefined): NonNullable<TCanvasQuery["region"]> {
+    const elements = this.query(rect, level);
+    const bounds = new Float64Array(elements.length * 4);
+    for (let i = 0, at = 0; i < elements.length; i++, at += 4) {
+      const element = elements[i];
+      const { minX, minY, maxX, maxY } = this.requireNode(element.id).drawn ?? element.bounds;
+      const x0 = element.x + minX;
+      const y0 = element.y + minY;
+      const x1 = element.x + maxX;
+      const y1 = element.y + maxY;
+      // TileIndex includes records with non-finite or inverted bounds in every query.
+      const bounded = Number.isFinite(x0 + y0 + x1 + y1) && x0 <= x1 && y0 <= y1;
+      bounds[at] = bounded ? x0 : -Infinity;
+      bounds[at + 1] = bounded ? y0 : -Infinity;
+      bounds[at + 2] = bounded ? x1 : Infinity;
+      bounds[at + 3] = bounded ? y1 : Infinity;
+    }
+    return { rect, elements, bounds };
+  }
+
   /** What an element has to redo when its row changes from `previous` to `next`. */
   private styleFields(previous: TSceneStyle | undefined, next: TSceneStyle | undefined): Set<keyof TSceneElement> {
     const fields = new Set<keyof TSceneElement>();
@@ -934,10 +1007,12 @@ export class SceneStore {
   }
 
   private emit(change: TSceneChange): void {
+    this.canvasQuery = undefined;
     this.listeners.forEach((listener) => listener(change));
   }
 
   private emitStyles(change: TSceneStyleChange): void {
+    this.canvasQuery = undefined;
     this.styleListeners.forEach((listener) => listener(change));
   }
 

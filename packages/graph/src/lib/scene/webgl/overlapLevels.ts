@@ -391,16 +391,16 @@ export type TLevelElement = { x: number; y: number; bounds: TTileRect };
  * depth key) and each gets level 1 + the highest level of the earlier ones whose bounds intersect its own, or 0. The
  * elements of one level never overlap, so they can be drawn together.
  *
- * An element's bounds are conservative: the store's bounds (every primitive at its largest extent) joined with the
- * bounds of its baked primitives (`geometryBounds` in `levelBounds.ts`), which a style's width or scale can widen.
+ * The backend supplies either an element's complete overlap bounds (for effects at the current scale and level), or
+ * a bound that widens the element's store bounds.
  *
  * `update()` recomputes the levels only after a change that can move them. A change of the translucent set or of a
  * translucent element's depth key rebuilds them all; a translucent element that moves or changes its bounds re-levels
- * itself and the later elements around it (`OverlapGrid.move`). A pan or a zoom changes nothing here.
+ * itself and the later elements around it (`OverlapGrid.move`). A pan changes nothing here.
  */
 export class TranslucentLevels {
   /** The translucent elements and the bounds of their baked primitives. */
-  private readonly baked = new Map<string, TTileRect | undefined>();
+  private readonly baked = new Map<string, { bounds: TTileRect | undefined; complete: boolean }>();
   /** The translucent elements in scene order at the last rebuild, and their index in it. */
   private ordered: string[] = [];
   private indexOf = new Map<string, number>();
@@ -434,11 +434,15 @@ export class TranslucentLevels {
     return index === undefined ? 0 : this.out[index];
   }
 
-  /** Adds a translucent element, or updates the bounds of its baked primitives (relative to its origin). */
-  public set(id: string, baked: TTileRect | undefined): void {
-    if (!this.baked.has(id)) this.full = true;
-    else if (!sameBounds(this.baked.get(id), baked)) this.moves.add(id);
-    this.baked.set(id, baked);
+  /** Adds an element or updates its relative bounds. Complete bounds replace the store box. */
+  public set(id: string, bounds: TTileRect | undefined, complete = false): void {
+    const before = this.baked.get(id);
+    if (!before) this.full = true;
+    else {
+      if (before.complete === complete && sameBounds(before.bounds, bounds)) return;
+      this.moves.add(id);
+    }
+    this.baked.set(id, { bounds, complete });
   }
 
   /** The element has no translucent primitive any more, or left the scene. */
@@ -512,7 +516,7 @@ export class TranslucentLevels {
     return changed;
   }
 
-  /** The element's world box: the store's bounds joined with its baked primitives' bounds, at its origin. */
+  /** The complete overlap box, or the store's box widened by the baked primitives, at the element's origin. */
   private writeBox(index: number, elementOf: (id: string) => TLevelElement | undefined): void {
     const id = this.ordered[index];
     const element = elementOf(id);
@@ -524,9 +528,11 @@ export class TranslucentLevels {
     }
     const { x, y, bounds } = element;
     const baked = this.baked.get(id);
-    this.boxes[i] = x + (baked ? Math.min(bounds.minX, baked.minX) : bounds.minX);
-    this.boxes[i + 1] = y + (baked ? Math.min(bounds.minY, baked.minY) : bounds.minY);
-    this.boxes[i + 2] = x + (baked ? Math.max(bounds.maxX, baked.maxX) : bounds.maxX);
-    this.boxes[i + 3] = y + (baked ? Math.max(bounds.maxY, baked.maxY) : bounds.maxY);
+    const paint = baked?.bounds ?? bounds;
+    const base = baked?.complete ? paint : bounds;
+    this.boxes[i] = x + Math.min(base.minX, paint.minX);
+    this.boxes[i + 1] = y + Math.min(base.minY, paint.minY);
+    this.boxes[i + 2] = x + Math.max(base.maxX, paint.maxX);
+    this.boxes[i + 3] = y + Math.max(base.maxY, paint.maxY);
   }
 }

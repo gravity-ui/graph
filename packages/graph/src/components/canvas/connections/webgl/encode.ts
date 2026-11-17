@@ -102,20 +102,6 @@ function curvePieces(s: ArrayLike<number>, o: number, bucket: number): number {
   return Math.min(MAX_PIECES, Math.max(1, Math.ceil(chords / CURVE_CHORDS)));
 }
 
-/**
- * Whether a curve of the shapes is drawn in another number of pieces at bucket `to` than at bucket `from`: otherwise
- * `encodeShapes` writes the same instances at both.
- */
-export function piecesDiffer(shapes: readonly TWebGLShape[], from: number, to: number): boolean {
-  for (const { segments } of shapes) {
-    for (let o = 0; o + 8 <= segments.length; o += 8) {
-      if (isLineSegment(segments, o)) continue;
-      if (curvePieces(segments, o, from) !== curvePieces(segments, o, to)) return true;
-    }
-  }
-  return false;
-}
-
 function bezier(p0: number, c1: number, c2: number, p3: number, t: number): number {
   const u = 1 - t;
   return u * u * u * p0 + 3 * u * u * t * c1 + 3 * u * t * t * c2 + t * t * t * p3;
@@ -267,7 +253,12 @@ function writeTotal(instances: TInstances, first: number, total: number): void {
  * instance of a shape carries the shape's whole length. Counts are not reset: a new chunk starts from
  * `createEncodedChunk()` or zero counts.
  */
-export function encodeShapes(shapes: readonly TWebGLShape[], bucket: number, out: TEncodedChunk): void {
+export function encodeShapes(
+  shapes: readonly TWebGLShape[],
+  bucket: number,
+  out: TEncodedChunk,
+  measureDistance = true
+): void {
   const { lines, curves } = out;
   for (const { segments, stroke, params, interaction, effectShowsSelection = false } of shapes) {
     const instanceStroke: TInstanceStroke = {
@@ -285,7 +276,9 @@ export function encodeShapes(shapes: readonly TWebGLShape[], bucket: number, out
         reserve(lines, 1);
         const base = lines.count * INSTANCE_FLOATS;
         for (let i = 0; i < 8; i++) lines.data[base + i] = segments[o + i];
-        const length = Math.hypot(segments[o + 6] - segments[o], segments[o + 7] - segments[o + 1]);
+        const length = measureDistance
+          ? Math.hypot(segments[o + 6] - segments[o], segments[o + 7] - segments[o + 1])
+          : 0;
         writeStroke(lines.data, base, instanceStroke, distance, length);
         distance += length;
         lines.count++;
@@ -302,7 +295,7 @@ export function encodeShapes(shapes: readonly TWebGLShape[], bucket: number, out
         } else {
           writePiece(segments, o, t0, t1, curves.data, base);
         }
-        const length = pieceLength(segments, o, t0, t1);
+        const length = measureDistance ? pieceLength(segments, o, t0, t1) : 0;
         writeStroke(curves.data, base, instanceStroke, distance, length);
         distance += length;
         curves.count++;

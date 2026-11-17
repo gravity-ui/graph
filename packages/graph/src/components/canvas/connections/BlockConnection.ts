@@ -2,8 +2,14 @@ import intersects from "intersects";
 
 import type { TComponentMode } from "../../../lib/CoreComponent";
 import { isDevelopmentBuild } from "../../../lib/detachedWarning";
+import { resolveSceneSize } from "../../../lib/scene/size";
+import type { TScenePrimitive, TSceneStroke, TSceneStyle } from "../../../lib/scene/types";
+import { largestSize } from "../../../lib/scene/webgl/levelBounds";
 import { HitBoxData } from "../../../services/HitTest";
+import type { TSceneKey } from "../../../services/scene/sceneKey";
 import { ESelectionStrategy } from "../../../services/selection/types";
+import type { TStyleParts, TStyleTarget } from "../../../services/styles/types";
+import { entityKey } from "../../../services/tags/TagStore";
 import { TConnection } from "../../../store/connection/ConnectionState";
 import { isMetaKeyEvent } from "../../../utils/functions";
 import { cachedMeasureText } from "../../../utils/renderers/text";
@@ -16,10 +22,14 @@ import { ConnectionLabel } from "./Label";
 import type { IConnectionLabelOwner } from "./Label";
 import { blockGeometry } from "./geometry";
 import type { TConnectionGeometry, TConnectionGeometryFn } from "./geometry";
+import { distanceToArrow, distanceToSegments } from "./geometry/distance";
 import { hasChangedValue } from "./hasChangedValue";
 import { getLabelCoords } from "./labelHelper";
-import { Path2DLine } from "./lines";
-import type { ConnectionLine, TConnectionLineClass } from "./lines";
+import { Path2DLine, WebGLLine } from "./lines";
+import type { ConnectionLine, TConnectionLineClass, TLineStroke } from "./lines";
+import { getSelectionColor } from "./lines/ConnectionLine";
+import { arrowSegments } from "./lines/WebGLLine";
+import type { TLineInteraction } from "./lines/types";
 import { warnRemovedConnectionMethods } from "./removedMethods";
 import type { TMultipointConnection } from "./types";
 
@@ -40,6 +50,10 @@ export type TBlockConnection = {
 /** The geometry input of connections without `points`. */
 const NO_POINTS: readonly TPoint[] = Object.freeze([]);
 
+function sceneStroke(stroke: TLineStroke): TSceneStroke {
+  return { color: stroke.color, width: stroke.width, dash: stroke.dash?.pattern };
+}
+
 export class BlockConnection<T extends TConnection = TConnection>
   extends BaseConnection<TConnectionProps, TBaseConnectionState, TGraphConnectionsContext, T>
   implements IConnectionLabelOwner
@@ -51,11 +65,13 @@ export class BlockConnection<T extends TConnection = TConnection>
    */
   public static override readonly mode: TComponentMode = "retained";
 
-  /** How lines are drawn; its kind picks the renderer of the whole graph. */
+  /** The line's appearance and optional Canvas drawing hooks. The graph scene picks its renderer. */
   public static line: TConnectionLineClass = Path2DLine;
 
   /** Pure shape: cubic segments and the arrow, in world coordinates. */
   public static geometry: TConnectionGeometryFn = blockGeometry;
+
+  public declare readonly __styleParts?: TStyleParts<"line" | "arrow" | "labelBackground" | "label">;
 
   public readonly cursor = "pointer";
 
@@ -84,6 +100,16 @@ export class BlockConnection<T extends TConnection = TConnection>
   /** World rectangle of `labelGeometry` from the last bounds update. */
   private labelWorldBounds: TPathBounds | undefined;
 
+  private sceneKey?: TSceneKey;
+
+  private unbindSceneStyle?: () => void;
+
+  private sceneHitStyle?: TSceneStyle;
+
+  private sceneHitHalfWidth = 0;
+
+  private sceneInteraction?: TLineInteraction;
+
   /**
    * Creates a new BlockConnection instance.
    *
@@ -110,8 +136,179 @@ export class BlockConnection<T extends TConnection = TConnection>
    * Takes the props explicitly: during `propsChanged()` `this.props` still holds the previous values.
    */
   private updateLine(state: TBaseConnectionState = this.state, props: TConnectionProps = this.props): void {
-    this.line.update(state, props);
-    this.syncLabel(this.getBatchZIndex(state));
+    if (this.geometryDirty && this.usesSceneDrawing()) return;
+    this.line.readStrokes(state, props);
+    this.updateDrawing(state, props);
+  }
+
+  protected hasCanvasDecorations(defaultAfterRender?: BlockConnection["afterRender"]): boolean {
+    return (
+      this.afterRender !== defaultAfterRender ||
+      this.renderLabel !== BlockConnection.prototype.renderLabel ||
+      this.renderLabelText !== BlockConnection.prototype.renderLabelText
+    );
+  }
+
+  private usesSceneDrawing(): boolean {
+    const mode = (this.constructor as typeof BlockConnection).mode;
+    return (
+      mode === "retained" &&
+      (this.line.constructor === Path2DLine || this.line instanceof WebGLLine) &&
+      !this.hasCanvasDecorations()
+    );
+  }
+
+  public getSceneKey(): TSceneKey | undefined {
+    return this.sceneKey;
+  }
+
+  private updateDrawing(state: TBaseConnectionState = this.state, props: TConnectionProps = this.props): void {
+    if (this.usesSceneDrawing()) {
+      this.syncScene(state, props);
+    } else {
+      this.line.updateItems(state, props);
+      this.syncLabel(this.getBatchZIndex(state));
+    }
+  }
+
+  private syncScene(state: TBaseConnectionState, props: TConnectionProps): void {
+    const scene = this.context.graph.scene;
+    const key = this.sceneKey;
+    const geometry = this.shape;
+    const pathBounds = this.pathBounds;
+    const visible = this.isRenderAllowed();
+    if (!visible || !geometry || !pathBounds) {
+      if (key && !scene.store.get(key.elementId)?.hidden) scene.store.update(key.elementId, { hidden: true });
+      return;
+    }
+    const primitives = this.scenePrimitives(geometry, state, props);
+    const label = this.labelWorldBounds ?? pathBounds;
+    const bounds = {
+      minX: Math.min(pathBounds[0], label[0]),
+      minY: Math.min(pathBounds[1], label[1]),
+      maxX: Math.max(pathBounds[2], label[2]),
+      maxY: Math.max(pathBounds[3], label[3]),
+    };
+    const zIndex = this.zIndex;
+    if (key) {
+      const element = scene.store.get(key.elementId);
+      const orderChanged = element?.zIndex !== zIndex;
+      // A geometry update must not release the element's depth slot or rewrite its visibility texel.
+      scene.store.update(key.elementId, {
+        bounds,
+        primitives,
+        ...(orderChanged ? { zIndex } : {}),
+        ...(element?.hidden ? { hidden: false } : {}),
+      });
+    } else {
+      const id = this.getEntityId();
+      const elementId = entityKey("connection", id);
+      scene.store.add({ id: elementId, entityType: "connection", x: 0, y: 0, zIndex, bounds, primitives });
+      this.sceneKey = { elementId, sub: 0 };
+      this.unbindSceneStyle = scene.bindStyle(
+        elementId,
+        { type: "connection", id },
+        this.constructor as TStyleTarget,
+        (style) => this.updateSceneHitStyle(style)
+      );
+    }
+  }
+
+  private updateSceneHitStyle(style: TSceneStyle): void {
+    const previous = this.sceneHitStyle;
+    this.sceneHitStyle = style;
+    const line = style.parts?.line?.width;
+    const arrow = style.parts?.arrow?.width;
+    const halfWidth = Math.max(largestSize(line ?? 0), largestSize(arrow ?? 0)) / 2;
+    if (halfWidth !== this.sceneHitHalfWidth) {
+      this.sceneHitHalfWidth = halfWidth;
+      if (this.isRenderAllowed() && this.shape) this.updateHitBox();
+    }
+    if (previous?.raise !== style.raise || previous?.base !== style.base || previous?.parts !== style.parts) {
+      this.context.graph.getGraphLayer().requestRetarget();
+    }
+  }
+
+  private getSceneInteraction(state: TBaseConnectionState): TLineInteraction {
+    const hovered = Boolean(state.hovered);
+    const selected = Boolean(state.selected);
+    const selectionColor = getSelectionColor(this, state);
+    const current = this.sceneInteraction;
+    if (current?.hovered === hovered && current.selected === selected && current.selectionColor === selectionColor) {
+      return current;
+    }
+    this.sceneInteraction = { hovered, selected, selectionColor };
+    return this.sceneInteraction;
+  }
+
+  private scenePrimitives(
+    geometry: TConnectionGeometry,
+    state: TBaseConnectionState,
+    props: TConnectionProps
+  ): TScenePrimitive[] {
+    const webgl = this.line.getWebGLShape();
+    const strokes = this.line.getSceneStrokes();
+    const primitives: TScenePrimitive[] = [
+      {
+        kind: "path",
+        part: "line",
+        segments: webgl?.segments ?? geometry.segments,
+        stroke: sceneStroke(webgl?.stroke ?? strokes.shaft),
+        canvasStroke: webgl?.effect ? sceneStroke(strokes.shaft) : undefined,
+        effect: webgl?.effect ? { effect: webgl.effect, params: webgl.params ?? [] } : undefined,
+        interaction: webgl?.interaction ?? this.getSceneInteraction(state),
+        effectShowsSelection: webgl?.effectShowsSelection,
+      },
+    ];
+    const arrow = props.showConnectionArrows ? geometry.arrow : undefined;
+    if (arrow && strokes.arrow && arrow.points.length >= 4) {
+      const { points, closed } = arrow;
+      const stroke = sceneStroke(strokes.arrow);
+      if (closed) {
+        for (let i = 2; i + 3 < points.length; i += 2) {
+          const triangle =
+            points.length === 6
+              ? points
+              : new Float32Array([points[0], points[1], points[i], points[i + 1], points[i + 2], points[i + 3]]);
+          primitives.push({ kind: "polygon", part: "arrow", points: triangle, fill: stroke.color });
+        }
+      }
+      primitives.push({ kind: "path", part: "arrow", segments: arrowSegments(arrow), stroke });
+    }
+    this.appendSceneLabels(primitives, state);
+    return primitives;
+  }
+
+  protected appendSceneLabels(primitives: TScenePrimitive[], state: TBaseConnectionState): void {
+    if (!state.label || !this.labelPaintGeometry) return;
+    const rect = this.labelPaintGeometry;
+    const [top, right, , left] = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    const size = this.context.connectionLabelFontSize.peek();
+    const { background, text } = this.getLabelColors(state);
+    primitives.push(
+      { kind: "rect", part: "labelBackground", ...rect, fill: background },
+      {
+        kind: "text",
+        part: "label",
+        text: state.label,
+        color: text,
+        family: "sans-serif",
+        x: rect.x + left,
+        y: rect.y + top,
+        size,
+        lineHeight: size,
+        width: rect.width - left - right + 1,
+        wrap: false,
+      }
+    );
+  }
+
+  protected getLabelColors({ selected, hovered }: TBaseConnectionState): { background: string; text: string } {
+    const colors = this.context.colors.connectionLabel;
+    return {
+      background: (selected && colors.selectedBackground) || (hovered && colors.hoverBackground) || colors.background,
+      text: (selected && colors.selectedText) || (hovered && colors.hoverText) || colors.text,
+    };
   }
 
   /** Batch z-level: selected and hovered connections are drawn above the others. */
@@ -132,8 +329,7 @@ export class BlockConnection<T extends TConnection = TConnection>
     if (!this.isEntityAvailable()) return;
     const lineHalfWidth = this.line.getLineHalfWidth();
     const arrowHalfWidth = this.line.getArrowHalfWidth();
-    // update(), not invalidate(): the line's invalidate() calls this method.
-    this.line.update();
+    this.line.readStrokes();
     if (lineHalfWidth !== this.line.getLineHalfWidth() || arrowHalfWidth !== this.line.getArrowHalfWidth()) {
       // Bounds and the hit box pad by half the stroke widths.
       const updateBounds = (): void => {
@@ -143,11 +339,12 @@ export class BlockConnection<T extends TConnection = TConnection>
       if (options?.followsCamera) this.withCameraDerivedHitBox(updateBounds);
       else updateBounds();
     }
-    this.syncLabel();
+    this.updateDrawing();
   }
 
   /** Keeps the label pass in step with the label's bounds, visibility and z-level. */
   private syncLabel(zIndex: number = this.getBatchZIndex()): void {
+    if (this.usesSceneDrawing()) return;
     if (this.labelWorldBounds) this.context.labels.update(this.labelShape, zIndex);
     else this.context.labels.delete(this.labelShape);
   }
@@ -187,6 +384,7 @@ export class BlockConnection<T extends TConnection = TConnection>
         const updateBounds = (): void => {
           this.updateBounds();
           this.updateCullingBounds();
+          this.updateDrawing();
         };
         // A zoom that changed the font size resizes the box without a retarget (settled item 11: camera moves keep
         // today's rule); a change of the graph constants (the label's threshold) asks for one.
@@ -286,7 +484,10 @@ export class BlockConnection<T extends TConnection = TConnection>
    * plus `THRESHOLD_LINE_HIT`: the hit box pads by as much, so the broad phase never cuts the hit test off.
    */
   protected override getHitBoxPadding(): number {
-    return super.getHitBoxPadding() + Math.max(this.line.getLineHalfWidth(), this.line.getArrowHalfWidth() ?? 0);
+    return (
+      super.getHitBoxPadding() +
+      Math.max(this.line.getLineHalfWidth(), this.line.getArrowHalfWidth() ?? 0, this.sceneHitHalfWidth)
+    );
   }
 
   /** The bounds and the label, joined with the arrow's points while arrows are shown: the hit test covers the arrow. */
@@ -331,8 +532,7 @@ export class BlockConnection<T extends TConnection = TConnection>
     this.line.readStrokes(this.state, props);
     this.updateBounds(additionalPoints, props);
     this.updateCullingBounds(props);
-    this.line.updateItems(this.state, props);
-    this.syncLabel(this.getBatchZIndex(this.state));
+    this.updateDrawing(this.state, props);
   }
 
   /** Runs `static geometry` on the endpoints, props and data of the connection; undefined without endpoints. */
@@ -346,6 +546,8 @@ export class BlockConnection<T extends TConnection = TConnection>
       useBezier: props.useBezier,
       bezierDirection: props.bezierDirection,
       connection,
+      sourceDelegated: this.connectedState.$sourcePortState.value.isDelegated,
+      targetDelegated: this.connectedState.$targetPortState.value.isDelegated,
     });
   }
 
@@ -382,10 +584,12 @@ export class BlockConnection<T extends TConnection = TConnection>
       this.pathBounds = undefined;
       this.labelWorldBounds = undefined;
     }
-    // Chunks cache the union of their items' bounds.
-    this.context.batch.markBoundsDirty(this.line);
-    this.context.batch.markBoundsDirty(this.line.arrow);
-    this.syncLabel();
+    if (!this.usesSceneDrawing()) {
+      // Chunks cache the union of their items' bounds.
+      this.context.batch.markBoundsDirty(this.line);
+      this.context.batch.markBoundsDirty(this.line.arrow);
+      this.syncLabel();
+    }
   }
 
   protected override handleEvent(event: MouseEvent) {
@@ -410,7 +614,44 @@ export class BlockConnection<T extends TConnection = TConnection>
     const x = (shape.minX + shape.maxX) / 2;
     const y = (shape.minY + shape.maxY) / 2;
     const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
-    return this.line.hitTest(x, y, threshold) || this.hitTestLabel(shape);
+    if (!this.isRenderAllowed()) return false;
+    if (!this.usesSceneDrawing()) return this.line.hitTest(x, y, threshold) || this.hitTestLabel(shape);
+    const paintedLabel = this.isScenePartVisible("label") || this.isScenePartVisible("labelBackground");
+    return this.hitSceneStroke(x, y, threshold) || (paintedLabel && this.hitTestLabel(shape));
+  }
+
+  private hitSceneStroke(x: number, y: number, threshold: number): boolean {
+    if (this.line instanceof WebGLLine && this.line.hitTest !== WebGLLine.prototype.hitTest) {
+      const visible = this.isScenePartVisible("line") || this.isScenePartVisible("arrow");
+      return visible && this.line.hitTest(x, y, threshold);
+    }
+    const geometry = this.shape;
+    if (!geometry) return false;
+    const scale = this.context.camera.getCameraScale();
+    const style = this.sceneHitStyle;
+    const lineSize = style?.parts?.line?.width;
+    const width =
+      (lineSize === undefined ? this.line.getLineHalfWidth() : resolveSceneSize(lineSize, scale) / 2) + threshold;
+    if (
+      this.isScenePartVisible("line") &&
+      geometry.segments.length &&
+      distanceToSegments(geometry.segments, x, y, 0.5 / scale, width) <= width
+    )
+      return true;
+    const arrowWidth = this.line.getArrowHalfWidth();
+    const arrowSize = style?.parts?.arrow?.width;
+    return (
+      geometry.arrow !== undefined &&
+      arrowWidth !== undefined &&
+      this.isScenePartVisible("arrow") &&
+      distanceToArrow(geometry.arrow, x, y) <=
+        (arrowSize === undefined ? arrowWidth : resolveSceneSize(arrowSize, scale) / 2) + threshold
+    );
+  }
+
+  private isScenePartVisible(part: string): boolean {
+    const style = this.sceneHitStyle;
+    return (style?.parts?.[part]?.visible ?? style?.base?.[part]?.visible) !== false;
   }
 
   /** Whether the point hits the label: a square of `THRESHOLD_LINE_HIT` screen pixels around it meets the label. */
@@ -503,6 +744,9 @@ export class BlockConnection<T extends TConnection = TConnection>
   protected unmount(): void {
     this.unsubscribeLabelFontSize?.();
     this.unsubscribeLabelFontSize = undefined;
+    this.unbindSceneStyle?.();
+    if (this.sceneKey) this.context.graph.scene.store.delete(this.sceneKey.elementId);
+    this.sceneKey = undefined;
     super.unmount();
     this.line.dispose();
     this.context.labels.delete(this.labelShape);

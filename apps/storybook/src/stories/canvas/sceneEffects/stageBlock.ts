@@ -1,5 +1,13 @@
-import { CanvasBlock, defineTag, selectedTag } from "@gravity-ui/graph";
-import type { TBlock, TBlockView, TScenePrimitive, TStyleParts, TStyleRule } from "@gravity-ui/graph";
+import { Anchor, CanvasBlock, defineTag, selectedTag } from "@gravity-ui/graph";
+import type {
+  TAnchorClass,
+  TAnchorView,
+  TBlock,
+  TBlockView,
+  TScenePrimitive,
+  TStyleParts,
+  TStyleRule,
+} from "@gravity-ui/graph";
 
 import { etlKindBadges, etlStatusColors, etlStatusTints, formatRows } from "../webglConnections/etl";
 import type { TEtlStageKind } from "../webglConnections/etl";
@@ -194,6 +202,13 @@ function stripeAndBody(width: number, height: number, stripe: number): TScenePri
   ];
 }
 
+/** The detailed scene keeps the ports visible when a stage has no HTML card. */
+class StageAnchor extends Anchor {
+  protected override detailed(view: TAnchorView = this.getViewData()): readonly TScenePrimitive[] {
+    return this.schematic(view);
+  }
+}
+
 /**
  * An ETL stage drawn in the scene on every level. Far away it is a card tinted by its status with thick effect rings
  * (two zoom ranges); closer it shows the kind, the name and the throughput. The status stripe and every effect are
@@ -205,6 +220,10 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
   >;
 
   private schematicCache?: { view: object; primitives: readonly TScenePrimitive[] };
+
+  protected override getAnchorClass(): TAnchorClass {
+    return StageAnchor;
+  }
 
   protected override minimalistic(view: TBlockView<TStageBlock>): readonly TScenePrimitive[] {
     const stripe = 36;

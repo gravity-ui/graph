@@ -43,9 +43,6 @@ class LineArrowItem implements IConnectionBatchItem {
   }
 
   /** @internal */
-  public getWebGLShape(): TWebGLShape | undefined {
-    return this.line.getArrowWebGLShape();
-  }
 }
 
 /**
@@ -183,6 +180,11 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     return this.arrowStroke ? halfWidth(this.arrowStroke) : undefined;
   }
 
+  /** @internal The strokes already read for the scene element's shaft and arrow. */
+  public getSceneStrokes(): { shaft: TLineStroke; arrow?: TLineStroke } {
+    return { shaft: this.getCurrentStroke(), arrow: this.arrowStroke };
+  }
+
   /**
    * For looks that depend on outside data: the connection's `invalidateLine()`, which reads the strokes again (see
    * update()) and keeps the bounds, the hit box and the label in step with them. A width that follows the camera
@@ -228,18 +230,8 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     return this.connection.isInViewport();
   }
 
-  /** @internal What the WebGL batch draws for the line; lines without WebGL shapes return `undefined`. */
+  /** @internal The line stroke and its optional WebGL effect; lines without WebGL shapes return `undefined`. */
   public getWebGLShape(): TWebGLShape | undefined {
-    return undefined;
-  }
-
-  /** @internal What the WebGL batch draws for the arrow. */
-  public getArrowWebGLShape(): TWebGLShape | undefined {
-    return undefined;
-  }
-
-  /** @internal The effect of the line's WebGL shape, from the stroke read last; lines without WebGL shapes have none. */
-  public getWebGLEffect(): TWebGLShape["effect"] {
     return undefined;
   }
 

@@ -4,8 +4,6 @@ import type { ConnectionState, TConnection } from "../../../store/connection/Con
 import type { TBlock } from "../blocks/Block";
 
 import { BlockConnection } from "./BlockConnection";
-import type { ConnectionLabel } from "./Label";
-import type { ConnectionLine } from "./lines";
 
 /**
  * Task 3y: a connection removed from the store and added back with the same id before a frame. The store made a new
@@ -30,7 +28,7 @@ function frames(count = 4): void {
   for (let i = 0; i < count; i++) globalScheduler.performUpdate();
 }
 
-type TConnectionInternals = { line: ConnectionLine; labelShape: ConnectionLabel; connectedState: ConnectionState };
+type TConnectionInternals = { connectedState: ConnectionState };
 
 describe("a connection added back in the same frame gets a component of its own", () => {
   let graph: Graph;
@@ -57,11 +55,9 @@ describe("a connection added back in the same frame gets a component of its own"
     return view;
   };
   const internals = (view: BlockConnection): TConnectionInternals => view as unknown as TConnectionInternals;
-  const inBatch = (view: BlockConnection): boolean => view.context.batch.has(internals(view).line);
-  const labelled = (view: BlockConnection): boolean => view.context.labels.has(internals(view).labelShape);
-  /** The line hits wherever its hit box does (jsdom's canvas has no stroke test). */
-  const hitLine = (): void => {
-    jest.spyOn(graph.getGraphLayer().context.ctx, "isPointInStroke").mockReturnValue(true);
+  const elementOf = (view: BlockConnection) => {
+    const key = view.getSceneKey();
+    return key && graph.scene.store.get(key.elementId);
   };
   /** Removes connection c and adds it back with the same id and this data, with no frame in between. */
   const readd = (connection: TConnection): void => {
@@ -89,11 +85,8 @@ describe("a connection added back in the same frame gets a component of its own"
     expect(view.isMounted()).toBe(true);
     expect(view.isEntityAvailable()).toBe(true);
     expect(oldView.isMounted()).toBe(false);
-    expect(inBatch(oldView)).toBe(false);
-    expect(labelled(oldView)).toBe(false);
-    // The new component draws: its line is in the batch and its label in the label pass, with the new data.
-    expect(inBatch(view)).toBe(true);
-    expect(labelled(view)).toBe(true);
+    expect(elementOf(oldView)).toBeUndefined();
+    expect(elementOf(view)?.primitives.find(({ kind }) => kind === "text")).toMatchObject({ text: "second" });
     expect(view.state.label).toBe("second");
     expect(view.connectionPoints).toEqual(oldView.connectionPoints);
     expect(view.isPathVisible()).toBe(true);
@@ -101,7 +94,6 @@ describe("a connection added back in the same frame gets a component of its own"
 
   it("makes the new connection the hit target", () => {
     start();
-    hitLine();
     readd(CONNECTION);
     frames();
     expect(graph.getElementOverPoint({ x: 250, y: 25 }) === viewOf()).toBe(true);
@@ -124,7 +116,7 @@ describe("a connection added back in the same frame gets a component of its own"
     const fourth = viewOf();
     expect(fourth === third).toBe(false);
     expect(third.isMounted()).toBe(false);
-    expect(inBatch(fourth)).toBe(true);
+    expect(elementOf(fourth)).toBeDefined();
     // Exactly one component per connection: the kept ones are gone from the tree.
     const parent = fourth.getParent() as unknown as { getChildComponents(): readonly unknown[] };
     expect(parent.getChildComponents().filter((child) => child instanceof BlockConnection)).toHaveLength(1);
@@ -145,7 +137,7 @@ describe("a connection added back in the same frame gets a component of its own"
     // The re-added connection got a component of its own, and none of the others lost or changed theirs.
     const views = ["c", ...ids].map((id) => viewOf(id));
     expect(new Set(views).size).toBe(views.length);
-    expect(views.every((view) => view.isMounted() && inBatch(view))).toBe(true);
+    expect(views.every((view) => view.isMounted() && elementOf(view))).toBe(true);
     expect(ids.every((id) => viewOf(id) === before.get(id))).toBe(true);
     expect(internals(viewOf()).connectedState === stateOf()).toBe(true);
     expect(errors).not.toHaveBeenCalled();
@@ -158,6 +150,6 @@ describe("a connection added back in the same frame gets a component of its own"
     frames();
     expect(viewOf() === view).toBe(true);
     expect(view.isMounted()).toBe(true);
-    expect(inBatch(view)).toBe(true);
+    expect(elementOf(view)).toBeDefined();
   });
 });

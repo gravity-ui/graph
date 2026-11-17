@@ -1,3 +1,5 @@
+import { dashFlow, pulse } from "../../components/canvas/connections/effects";
+
 import {
   applyStyle,
   bakeElementStyle,
@@ -24,6 +26,58 @@ const border: TScenePrimitive = {
   border: { width: 2 },
 };
 const dot: TScenePrimitive = { kind: "circle", cx: 0, cy: 0, r: 4, fill: "#111111", part: "anchor" };
+
+describe("path effects", () => {
+  const path: TScenePrimitive = {
+    kind: "path",
+    part: "line",
+    segments: new Float32Array(8),
+    stroke: { color: "#f00", width: 2, dash: [3, 4] },
+  };
+  const flow = dashFlow.use({ pattern: [12, 8], speed: 40 });
+  const own = pulse.use({ period: 2, wavelength: 20 });
+
+  it("bakes a named part's effect for WebGL while Canvas uses the styled stroke", () => {
+    const style = { parts: { line: { effect: flow, color: "rgba(0, 255, 0, 0.5)" } }, opacity: 0.5 };
+    const [baked, untouched] = bakeElementStyle([path, dot], style);
+    expect(baked).toMatchObject({
+      effect: flow,
+      stroke: { color: "rgba(0, 255, 0, 0.25)", width: 2, dash: [3, 4] },
+    });
+    expect(untouched).not.toHaveProperty("effect");
+    expect(applyStyle(path, style)).toMatchObject({
+      stroke: { color: "rgba(0, 255, 0, 0.25)", width: 2, dash: [3, 4] },
+    });
+    expect(applyStyle(path, style)).not.toHaveProperty("effect");
+    expect(path).not.toHaveProperty("effect");
+  });
+
+  it("uses the base effect only for an unset path effect and lets a tag override or disable it", () => {
+    const base = { line: { effect: flow } };
+    const alreadyAnimated = { ...path, effect: own };
+    expect(bakeElementStyle([path], { base })[0]).toMatchObject({ effect: flow });
+    expect(bakeElementStyle([alreadyAnimated], { base })[0]).toBe(alreadyAnimated);
+    expect(bakeElementStyle([alreadyAnimated], { base, parts: { line: { effect: flow } } })[0]).toMatchObject({
+      effect: flow,
+    });
+    expect(bakeElementStyle([alreadyAnimated], { base, parts: { line: { effect: null } } })[0]).toMatchObject({
+      effect: undefined,
+    });
+  });
+
+  it("keeps reused effect instances equal and tracks changes in their parameters or identity", () => {
+    const look = { parts: { line: { effect: flow } } };
+    const same = { parts: { line: { effect: dashFlow.use({ pattern: [12, 8], speed: 40 }) } } };
+    const faster = { parts: { line: { effect: dashFlow.use({ pattern: [12, 8], speed: 60 }) } } };
+    const clone = { parts: { line: { effect: dashFlow.clone().use({ pattern: [12, 8], speed: 40 }) } } };
+    for (const key of [styleEncodeKey, styleLookKey]) {
+      expect(key(look)).toBe(key(same));
+      expect(key(look)).not.toBe(key(faster));
+      expect(key(look)).not.toBe(key(clone));
+      expect(key(look)).not.toBe(key({}));
+    }
+  });
+});
 
 describe("applyStyle", () => {
   it("fills unset paints from base and leaves set ones", () => {

@@ -1,6 +1,7 @@
 import { Graph } from "../../../graph";
 import { globalScheduler } from "../../../lib/Scheduler";
 import type { TBatchParams } from "../../../lib/batch/types";
+import type { TScenePrimitive } from "../../../lib/scene/types";
 import type { HitBoxData } from "../../../services/HitTest";
 import type { TConnection } from "../../../store/connection/ConnectionState";
 
@@ -73,6 +74,12 @@ function registered(graph: Graph): Map<IConnectionBatchItem, TBatchParams> {
   return items;
 }
 
+function pathsOf(graph: Graph, id: string): Extract<TScenePrimitive, { kind: "path" }>[] {
+  const key = view(graph, id).getSceneKey();
+  const primitives = key && graph.scene.store.get(key.elementId)?.primitives;
+  return primitives?.filter((primitive) => primitive.kind === "path") ?? [];
+}
+
 type TKindConnection = TMultipointConnection & { kind?: "polyline" | "bezier" };
 
 function isPolyline(connection: Readonly<TConnection>): connection is Readonly<TKindConnection> {
@@ -125,19 +132,15 @@ describe("BlockConnection line protocol", () => {
     jest.restoreAllMocks();
   });
 
-  it("draws a default graph through Path2DLine: a line item per connection and its arrow one level below", () => {
+  it("puts the default shaft and open arrow into each connection's scene element", () => {
     graph = mount();
-    const items = registered(graph);
-    const connection = view(graph, "a");
-    const zIndex = connection.zIndex;
-    const color = connection.context.colors.connection.background;
-
-    expect(items.size).toBe(4);
+    const color = view(graph, "a").context.colors.connection.background;
+    expect(registered(graph).size).toBe(0);
     for (const id of ["a", "b"]) {
-      const line = lineOf(view(graph, id));
-      expect(line).toBeInstanceOf(Path2DLine);
-      expect(items.get(line)).toEqual({ zIndex, group: `line/${color}/2/` });
-      expect(items.get(line.arrow)).toEqual({ zIndex: zIndex - 1, group: `arrow/open/${color}/2//line/${color}/2/` });
+      expect(pathsOf(graph, id).map(({ part, stroke }) => [part, stroke])).toEqual([
+        ["line", { color, width: 2 }],
+        ["arrow", { color, width: 2 }],
+      ]);
     }
   });
 
@@ -176,20 +179,18 @@ describe("BlockConnection line protocol", () => {
     expect(arrow.closePath).not.toHaveBeenCalled();
   });
 
-  it("moves a hovered line to a wider group above the others", () => {
+  it("widens the hovered shaft and arrow and raises their scene element", () => {
     graph = mount();
     const connection = view(graph, "a");
-    const zIndex = connection.zIndex;
-    const color = connection.context.colors.connection.background;
+    const other = view(graph, "b");
 
-    (connection as unknown as { onHoverChange(hovered: boolean): void }).onHoverChange(true);
-    frames(1);
+    graph.getGraphLayer().handleEvent(new MouseEvent("mousemove", { clientX: 180, clientY: 100 }));
+    expect(graph.getGraphLayer().$hoveredComponent.value).toBe(connection);
+    frames(8);
 
-    const line = lineOf(connection);
-    const items = registered(graph);
-    expect(items.get(line)).toEqual({ zIndex: zIndex + 10, group: `line/${color}/4/` });
-    expect(items.get(line.arrow)).toEqual({ zIndex: zIndex + 9, group: `arrow/open/${color}/4//line/${color}/4/` });
-    expect(items.get(lineOf(view(graph, "b")))).toEqual({ zIndex, group: `line/${color}/2/` });
+    expect(pathsOf(graph, "a").map(({ stroke }) => stroke.width)).toEqual([4, 4]);
+    expect(pathsOf(graph, "b").map(({ stroke }) => stroke.width)).toEqual([2, 2]);
+    expect(graph.scene.compareOrder(connection, other)).toBeGreaterThan(0);
   });
 
   it("switches the shape with the connection's data through static geometry", () => {
@@ -210,9 +211,11 @@ describe("BlockConnection line protocol", () => {
     frames();
 
     expect(a.getGeometry()?.arrow?.closed).toBe(true);
-    const items = registered(graph);
-    expect(items.get(lineOf(a).arrow)?.group).toMatch(/^arrow\/closed\//);
-    expect(items.get(lineOf(b).arrow)?.group).toMatch(/^arrow\/open\//);
+    expect(b.getGeometry()?.arrow?.closed).toBe(false);
+    const id = a.getSceneKey()?.elementId;
+    expect(id && graph.scene.store.get(id)?.primitives.some(({ kind }) => kind === "polygon")).toBe(true);
+    const otherId = b.getSceneKey()?.elementId;
+    expect(otherId && graph.scene.store.get(otherId)?.primitives.some(({ kind }) => kind === "polygon")).toBe(false);
   });
 
   it("invalidateLine() reads a stroke that depends on data outside the store again", () => {
@@ -240,20 +243,19 @@ describe("BlockConnection line protocol", () => {
   it("hit-tests the line at the world center of the hit box with the threshold in world units", () => {
     graph = mount();
     const a = view(graph, "a");
-    const box: HitBoxData = { minX: 249, maxX: 251, minY: 99, maxY: 101, x: 0, y: 0 };
-    const hitTest = jest.spyOn(Path2DLine.prototype, "hitTest").mockReturnValue(true);
+    const box: HitBoxData = { minX: 179, maxX: 181, minY: 99, maxY: 101, x: 0, y: 0 };
     const hitTestLabel = jest.spyOn(a as unknown as { hitTestLabel(shape: HitBoxData): boolean }, "hitTestLabel");
 
     expect(a.onHitBox(box)).toBe(true);
     expect(a.context.constants.connection.THRESHOLD_LINE_HIT).toBe(8);
-    expect(hitTest).toHaveBeenCalledWith(250, 100, 8);
     expect(hitTestLabel).not.toHaveBeenCalled();
 
     // A line miss falls through to the label: none here, then a label hit.
-    hitTest.mockReturnValue(false);
-    expect(a.onHitBox(box)).toBe(false);
-    expect(hitTestLabel).toHaveBeenCalledWith(box);
+    expect(a.onHitBox({ ...box, minY: 108, maxY: 109 })).toBe(true);
+    const miss = { ...box, minY: 109, maxY: 110 };
+    expect(a.onHitBox(miss)).toBe(false);
+    expect(hitTestLabel).toHaveBeenCalledWith(miss);
     hitTestLabel.mockReturnValue(true);
-    expect(a.onHitBox(box)).toBe(true);
+    expect(a.onHitBox(miss)).toBe(true);
   });
 });

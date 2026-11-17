@@ -111,9 +111,15 @@ export function chunkOrder(level: number, step: number, elementKey: number, subB
 export const MAX_OUT_OF_PLACE = 16;
 
 /** A source's ranges grouped by draw position, in buffer order; a sorted source has one bucket per position. */
-export function sourceBuckets(ranges: InstanceRanges, levelOf: (id: string) => number, subBits: number): TBucket[] {
+export function sourceBuckets(
+  ranges: InstanceRanges,
+  levelOf: (id: string) => number,
+  subBits: number,
+  visible?: (first: number, count: number) => boolean
+): TBucket[] {
   const buckets: TBucket[] = [];
   ranges.forEachRange((id, offset, count, step) => {
+    if (visible && !visible(offset, count)) return;
     const bucket = bucketOf(levelOf(id), step, subBits);
     const last = buckets[buckets.length - 1];
     if (last && last.bucket === bucket && last.first + last.count === offset) last.count += count;
@@ -124,7 +130,24 @@ export function sourceBuckets(ranges: InstanceRanges, levelOf: (id: string) => n
 
 /** The buckets in draw order: by draw position, then by buffer order. */
 export function sortBuckets(buckets: readonly TBucket[]): TBucket[] {
-  return [...buckets].sort((a, b) => a.bucket - b.bucket || a.first - b.first);
+  const groups = new Map<number, TBucket[]>();
+  const unordered = new Set<number>();
+  for (const bucket of buckets) {
+    const group = groups.get(bucket.bucket);
+    if (!group) groups.set(bucket.bucket, [bucket]);
+    else {
+      if (group[group.length - 1].first > bucket.first) unordered.add(bucket.bucket);
+      group.push(bucket);
+    }
+  }
+  const sorted: TBucket[] = [];
+  // sourceBuckets already visits physical offsets in order. Sort only the few distinct draw positions, rather
+  // than comparing every fragment; keep the helper exact for callers supplying arbitrary physical order too.
+  for (const [position, group] of [...groups].sort((a, b) => a[0] - b[0])) {
+    if (unordered.has(position)) group.sort((a, b) => a.first - b.first);
+    for (const bucket of group) sorted.push(bucket);
+  }
+  return sorted;
 }
 
 /** Buckets beyond one per draw position in a sorted bucket list: what out-of-place chunks add. */
@@ -152,11 +175,39 @@ export function mergeBuckets(sources: readonly (readonly TBucket[])[]): TTranslu
       }
     }
     if (best < 0) return runs;
-    const bucket = sources[best][next[best]++];
-    const last = runs[runs.length - 1];
-    if (last && last.source === best && last.first + last.count === bucket.first) last.count += bucket.count;
-    else runs.push({ source: best, first: bucket.first, count: bucket.count });
+    // Every fragment of this source at the winning position precedes the next source. Retained slots can leave
+    // thousands of such fragments; search the sources once per position, not once per physical fragment.
+    do {
+      const bucket = sources[best][next[best]++];
+      const last = runs[runs.length - 1];
+      if (last && last.source === best && last.first + last.count === bucket.first) last.count += bucket.count;
+      else runs.push({ source: best, first: bucket.first, count: bucket.count });
+    } while (sources[best][next[best]]?.bucket === bestBucket);
   }
+}
+
+/** Removes shader-inactive draws and joins survivors only through shader-inactive gaps in their resident buffer. */
+export function filterTranslucentRuns(
+  input: readonly TTranslucentRun[],
+  visible: (source: number, first: number, count: number) => boolean,
+  bridge: (source: number) => boolean = () => true
+): TTranslucentRun[] {
+  const runs: TTranslucentRun[] = [];
+  for (const run of input) {
+    if (!visible(run.source, run.first, run.count)) continue;
+    const last = runs[runs.length - 1];
+    const gap = last ? run.first - last.first - last.count : -1;
+    if (
+      last &&
+      last.source === run.source &&
+      gap >= 0 &&
+      (gap === 0 || bridge(run.source)) &&
+      !visible(run.source, last.first + last.count, gap)
+    ) {
+      last.count += gap + run.count;
+    } else runs.push({ ...run });
+  }
+  return runs;
 }
 
 /**
@@ -166,32 +217,41 @@ export function mergeBuckets(sources: readonly (readonly TBucket[])[]): TTranslu
  * element's level, `keyOf` its element key (below `ELEMENT_KEYS`) and `subBits` the depth's sub-order width of this
  * frame, which bounds the steps of an element.
  *
- * With `compact` (the default; the backend passes it when ranges were added or removed, which uploads the lists in
- * full anyway) every source's chunks are first sorted by `(level, step, element key)`, primitive order kept inside a
- * chunk, so each draw position of a program is one contiguous range and one draw. Without it the data stays where it
- * is: a chunk whose level changed is drawn from where it lies, at its new position in the draw order, which costs a
- * draw call or two instead of moving every instance between its old and new place. Once more than
- * `MAX_OUT_OF_PLACE` buckets are out of place, the sources are sorted anyway.
+ * With `compact` (the default; the backend passes it after structural changes), dense sources are sorted by
+ * `(level, step, element key)`, primitive order kept inside a chunk, so each draw position is one contiguous range.
+ * Without it a chunk whose level changed is drawn from its resident offset at its new draw position, adding draws
+ * instead of moving its neighbours. Once more than `MAX_OUT_OF_PLACE` dense buckets are out of place, those sources
+ * are sorted anyway. Retained sources never move: their logical bucket schedule is rebuilt over the live ranges.
  */
 export function orderTranslucent(
   sources: readonly TTranslucentSource[],
   levelOf: (id: string) => number,
   keyOf: (id: string) => number,
   subBits: number,
-  compact = true
+  compact = true,
+  visible?: (source: number, first: number, count: number) => boolean
 ): TTranslucentRun[] {
   const sortSources = (): void => {
     const order = (id: string, step: number): number => chunkOrder(levelOf(id), step, keyOf(id), subBits);
     for (const { instances, companion } of sources) {
+      if (instances.layoutRetained) continue;
       instances.sortBy(order);
       companion?.sortBy(order);
     }
   };
   const bucketLists = (): TBucket[][] =>
-    sources.map((source) => sortBuckets(sourceBuckets(source.instances, levelOf, subBits)));
+    sources.map((source, index) =>
+      sortBuckets(
+        sourceBuckets(source.instances, levelOf, subBits, visible && ((first, count) => visible(index, first, count)))
+      )
+    );
   if (compact) sortSources();
   let lists = bucketLists();
-  if (!compact && lists.reduce((sum, list) => sum + outOfPlace(list), 0) > MAX_OUT_OF_PLACE) {
+  if (
+    !compact &&
+    lists.reduce((sum, list, source) => sum + (sources[source].instances.layoutRetained ? 0 : outOfPlace(list)), 0) >
+      MAX_OUT_OF_PLACE
+  ) {
     sortSources();
     lists = bucketLists();
   }

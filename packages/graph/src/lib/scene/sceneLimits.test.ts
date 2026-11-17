@@ -41,7 +41,6 @@ describe("watchSceneLimits", () => {
     store.add(element("big", 1, rects(30, "p0")));
     store.add(element("kid", 0, rects(3, "p0"), "big"));
     for (let z = 0; z < 17; z++) store.add(element(`z${z}`, 1000 + z));
-    for (let i = 0; i <= 16384; i++) store.add(element(`n${i}`, 5000));
     store.add(
       element(
         "parts2",
@@ -49,10 +48,17 @@ describe("watchSceneLimits", () => {
         Array.from({ length: 17 }, (_, i) => rect(`q${i}`))
       )
     );
-    expect(messages()).toHaveLength(3);
+    expect(messages()).toHaveLength(2);
     expect(messages()[0]).toContain("16 distinct parts; the limit is 15");
     expect(messages()[1]).toContain("zIndex bands, raised buckets included; the limit is 16");
-    expect(messages()[2]).toContain("zIndex band 5000 has 16385 owner elements; the limit is 16384");
+    stop();
+  });
+
+  it("reports nothing for 20000 owners in one band while the shared depth budget fits", () => {
+    const store = new SceneStore();
+    const stop = watchSceneLimits(store);
+    for (let i = 0; i < 20000; i++) store.add(element(`line${i}`, 100, [rect()]));
+    expect(messages()).toEqual([]);
     stop();
   });
 

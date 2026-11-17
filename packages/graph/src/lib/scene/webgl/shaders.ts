@@ -1,7 +1,8 @@
 /**
- * GLSL ES 3.00 of the scene programs: rects, glyphs and paths. Every program reads its element (origin, depth key,
- * style) from the element table and writes its depth from the key, so one depth buffer orders all of them. The target
- * holds premultiplied colour (see `SCENE_OUTPUT`). Effects reach the path program through one luma `ShaderPlugin`
+ * GLSL ES 3.00 of the scene programs. Every program reads its element (origin, depth key,
+ * style) from the element table. The shared pass orders them with depth. When connection roots already precede
+ * the rest, their subpixel paths can blend in painter order into a single-sample target. Both targets hold
+ * premultiplied colour (see `SCENE_OUTPUT`). Effects reach the path program through one luma `ShaderPlugin`
  * (`createPathPlugin`), the only shader injection of the scene.
  */
 
@@ -13,6 +14,7 @@ import { FRAGMENT_MAIN, FRAGMENT_PRELUDE, IDENTITY_EFFECT } from "../../../compo
 
 import { DEPTH_INDICES } from "./depth";
 import { SDF_EDGE } from "./glyphs";
+import { MIXED_PATH_SOURCE_BITS, MIXED_PATH_SOURCE_STRIDE } from "./mixedPathPlan";
 import { DIM_TEXEL, PART_SLOTS, TABLE_WIDTH } from "./tables";
 
 /** Shared by every vertex shader: frame uniforms, the element and style tables, depth, sizes and clip space. */
@@ -107,7 +109,7 @@ vec4 sceneDimmed(vec4 paint, float dim) {
 `;
 
 /**
- * Shared by the rect and glyph fragment shaders: what a fragment writes in each pass. The target holds premultiplied
+ * What a fragment writes in each pass. The target holds premultiplied
  * colour.
  * - The opaque pass (alpha to coverage, no blending) writes the colour at full strength and the coverage as alpha:
  *   alpha to coverage turns the alpha into the sample mask, and the alpha pass then makes the covered samples opaque.
@@ -124,6 +126,48 @@ vec4 sceneOutput(vec3 premultiplied, float alpha) {
 
 /** The quad of a rect or glyph instance as a triangle strip. */
 export const QUAD_TEMPLATE = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
+
+/** Instance attributes of a filled triangle (see `encodeTriangles`). */
+export const TRIANGLE_ATTRIBUTES = ["triangle_ids", "triangle_ab", "triangle_cScales", "triangle_fill"] as const;
+
+export const TRIANGLE_VERTEX = /* glsl */ `#version 300 es
+precision highp float;
+
+layout(location = 0) in vec2 scene_template;    // the first three corners of the quad template
+layout(location = 1) in vec4 triangle_ids;      // element index, sub, part slot, level mask
+layout(location = 2) in vec4 triangle_ab;       // first and second points
+layout(location = 3) in vec4 triangle_cScales;  // third point, minScale, maxScale
+layout(location = 4) in vec4 triangle_fill;     // straight rgba
+
+${SCENE_COMMON}
+flat out vec4 triangle_vColor;
+
+void main() {
+  vec4 element = sceneElement(triangle_ids.x);
+  float slot = triangle_ids.z;
+  if (sceneHidden(element.w, slot) || !sceneShown(element.z, triangle_cScales.z, triangle_cScales.w)
+      || !sceneOnLevel(triangle_ids.w)) {
+    gl_Position = SCENE_HIDDEN;
+    return;
+  }
+  vec2 point = scene_template.y > 0.5 ? triangle_cScales.xy : mix(triangle_ab.xy, triangle_ab.zw, scene_template.x);
+  gl_Position = sceneClip(element.xy + point, sceneDepth(element.z, triangle_ids.y));
+  triangle_vColor = sceneDimmed(scenePaint(triangle_fill, element.w, slot), sceneDim(element.w, slot));
+}
+`;
+
+export const TRIANGLE_FRAGMENT = /* glsl */ `#version 300 es
+precision highp float;
+
+flat in vec4 triangle_vColor;
+out vec4 scene_fragColor;
+${SCENE_OUTPUT}
+void main() {
+  float alpha = triangle_vColor.a;
+  if (alpha < 0.002) discard;
+  scene_fragColor = sceneOutput(triangle_vColor.rgb * alpha, alpha);
+}
+`;
 
 /** Instance attributes of the rect program, one vec4 each, in instance order (see `encodeRects`). */
 export const RECT_ATTRIBUTES = [
@@ -306,46 +350,73 @@ void main() {
 }
 `;
 
-/** Instance attributes of the path program by location (see #451's `INSTANCE_ATTRIBUTES`). */
-export const PATH_ATTRIBUTES: Readonly<Record<number, string>> = {
-  1: "graph_p0c1",
-  2: "graph_c2p3",
-  3: "graph_rgba",
-  4: "graph_stroke",
-  5: "graph_dash",
-  6: "graph_params0",
-  7: "graph_params1",
-  8: "graph_interaction",
-};
+const MIXED_RECORD_ADDRESS = /* glsl */ `
+  int packedSlot = int(graph_recordId);
+  graph_source = packedSlot >> ${MIXED_PATH_SOURCE_BITS};
+  int record = (packedSlot & ${MIXED_PATH_SOURCE_STRIDE - 1}) * 10;
+  int lane = graph_source & 3;
+  int rowWidth = graph_source < 4 ? graph_widths0[lane] : graph_widths1[lane];
+  int flags = graph_source < 4 ? graph_kinds0[lane] : graph_kinds1[lane];
+  int kind = flags & 31;
+  graph_vMixedPlain = float(flags >> 5);
+  graph_recordBase = ivec2(record % rowWidth, record / rowWidth);
+  // Records each occupy ten contiguous texels from the start of a physical row.
+  record = 0;
+`;
 
-/** Per-instance element data of the path program, one vec4 each (see `PATH_ELEMENT_FLOATS`). */
-export const PATH_ELEMENT_ATTRIBUTES = ["scene_pathIds", "scene_pathScales"] as const;
+function mixedRecordDeclarations(count: number): string {
+  const samplers = Array.from({ length: count }, (_, i) => `uniform highp sampler2D graph_records${i};`).join("\n");
+  return `${samplers}
+uniform ivec4 graph_widths0;
+uniform ivec4 graph_widths1;
+uniform ivec4 graph_kinds0;
+uniform ivec4 graph_kinds1;
+int graph_source;
+ivec2 graph_recordBase;`;
+}
+
+function mixedRecordLookup(count: number): string {
+  const branches = Array.from(
+    { length: count - 1 },
+    (_, i) => `if (graph_source == ${i}) return texelFetch(graph_records${i}, address, 0);`
+  ).join("\n  ");
+  return `vec4 graph_record(int texel) {
+  ivec2 address = graph_recordBase + ivec2(texel, 0);
+  ${branches}
+  return texelFetch(graph_records${count - 1}, address, 0);
+}`;
+}
 
 /**
  * #451's line vertex shader with the element: control points are relative to the element origin, the depth comes
  * from the element key and the path's sub, the style paints the stroke by the path's part slot, and a hidden
  * element or a camera scale outside the path's bounds moves the instance out of the clip volume.
  */
-export const PATH_VERTEX = /* glsl */ `#version 300 es
+export const PATH_VERTEX = pathVertex(0);
+
+/** Link only the sampler slots this mixed draw needs. */
+export function createMixedPathVertex(sourceCount: number): string {
+  return pathVertex(sourceCount);
+}
+
+function pathVertex(sourceCount: number): string {
+  return /* glsl */ `#version 300 es
 precision highp float;
 
 layout(location = 0) in vec2 graph_template;     // t along the piece, side -1 or +1
-layout(location = 1) in vec4 graph_p0c1;         // p0, c1
-layout(location = 2) in vec4 graph_c2p3;         // c2, p3
-layout(location = 3) in vec4 graph_rgba;         // straight rgba, 0..1; alpha -3: the base colour
-layout(location = 4) in vec4 graph_stroke;       // width, connection length, distance at the piece start, piece length
-layout(location = 5) in vec4 graph_dash;         // on, off, on, off; zeros: solid
-layout(location = 6) in vec4 graph_params0;      // effect params 0..3
-layout(location = 7) in vec4 graph_params1;      // effect params 4..7
-// Selection rgb; hovered + 2 selected + 4 round(alpha * 255) + 1024 when the effect shows the selection.
-layout(location = 8) in vec4 graph_interaction;
-layout(location = 9) in vec4 scene_pathIds;      // element index, sub, stroke part slot
-layout(location = 10) in vec4 scene_pathScales; // minScale, maxScale, levelMask
+layout(location = 1) in float graph_recordId;    // stable resident slot, gathered in logical draw order
+${
+  sourceCount
+    ? mixedRecordDeclarations(sourceCount)
+    : `uniform highp sampler2D graph_records;
+uniform int graph_recordWidth;`
+}
 
 uniform vec2 graph_viewport;     // CSS pixels
 uniform vec3 graph_camera;       // x, y, scale
 uniform float graph_dpr;
 uniform float graph_extraWidth;  // CSS pixels drawn outside each side of the stroke
+uniform float graph_curveStep;   // dyadic template stride, 1 for the complete resident strip
 ${SCENE_COMMON}
 out vec4 graph_vColor;
 out float graph_vAcross;
@@ -359,6 +430,7 @@ flat out vec4 graph_vParams0;
 flat out vec4 graph_vParams1;
 flat out vec3 graph_vInteraction;     // hovered, selected, the effect shows the selection: 0.0 or 1.0
 flat out vec4 graph_vSelectionColor;  // straight rgba
+${sourceCount ? "flat out float graph_vMixedPlain;" : ""}
 
 vec2 graph_bezier(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
   float u = 1.0 - t;
@@ -370,14 +442,38 @@ vec2 graph_bezierSlope(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
   return 3.0 * u * u * (b - a) + 6.0 * u * t * (c - b) + 3.0 * t * t * (d - c);
 }
 
+${
+  sourceCount
+    ? mixedRecordLookup(sourceCount)
+    : `vec4 graph_record(int texel) {
+  return texelFetch(graph_records, ivec2(texel % graph_recordWidth, texel / graph_recordWidth), 0);
+}`
+}
+
 void main() {
+  ${sourceCount ? MIXED_RECORD_ADDRESS : "int record = int(graph_recordId) * 10;"}
+  vec4 graph_p0c1 = graph_record(record);         // p0, c1
+  vec4 graph_c2p3 = graph_record(record + 1);     // c2, p3
+  vec4 graph_rgba = graph_record(record + 2);    // straight rgba; alpha -3: base colour
+  vec4 graph_stroke = graph_record(record + 3);  // width, full length, piece start and length
+  vec4 graph_dash = graph_record(record + 4);
+  vec4 graph_params0 = graph_record(record + 5);
+  vec4 graph_params1 = graph_record(record + 6);
+  vec4 graph_interaction = graph_record(record + 7);
+  vec4 scene_pathIds = graph_record(record + 8); // element, sub, stroke part slot, width minimum
+  vec4 scene_pathScales = graph_record(record + 9); // min/max scale, level and width mode, width maximum
   vec4 element = sceneElement(scene_pathIds.x);
+  int levelAndWidth = int(scene_pathScales.z);
   if (sceneHidden(element.w, scene_pathIds.z) || !sceneShown(element.z, scene_pathScales.x, scene_pathScales.y)
-      || !sceneOnLevel(scene_pathScales.z)) {
+      || !sceneOnLevel(float(levelAndWidth & 7))) {
     gl_Position = SCENE_HIDDEN;
     return;
   }
-  float t = graph_template.x;
+  float t = ${
+    sourceCount
+      ? "kind == 1 ? (gl_VertexID < 2 ? 0.0 : 1.0) : min(1.0, graph_template.x * (kind == 8 ? 2.0 : 1.0))"
+      : "graph_template.x * graph_curveStep"
+  };
   vec2 p0 = graph_p0c1.xy + element.xy;
   vec2 c1 = graph_p0c1.zw + element.xy;
   vec2 c2 = graph_c2p3.xy + element.xy;
@@ -387,7 +483,9 @@ void main() {
   if (dot(d, d) < 1e-12) d = vec2(1.0, 0.0);
   vec2 dir = normalize(d);
   // Widths below one device pixel are drawn one pixel wide with reduced alpha, like canvas hairlines.
-  float deviceWidth = graph_stroke.x * graph_camera.z * graph_dpr;
+  float mode = float(levelAndWidth >> 3);
+  float width = sceneSize(vec4(mode, graph_stroke.x, scene_pathIds.w, scene_pathScales.w), graph_camera.z);
+  float deviceWidth = width * graph_camera.z * graph_dpr;
   float halfPx = max(deviceWidth, 1.0) * 0.5 / graph_dpr;
   // One device pixel more than the stroke and its extra width: room for the anti-aliased edge.
   float extent = halfPx + graph_extraWidth + 1.0 / graph_dpr;
@@ -417,9 +515,35 @@ void main() {
   graph_vSelectionColor = vec4(graph_interaction.xyz, float((interaction >> 2) & 255) / 255.0);
 }
 `;
+}
 
 /** #451's fragment `main()`: the application source of the path program. */
 export const PATH_FRAGMENT = `#version 300 es\n${FRAGMENT_MAIN}`;
+
+/** Plain paths use the same identity treatment even when they share an effect program. */
+export const MIXED_PATH_FRAGMENT = `#version 300 es
+precision highp float;
+flat in float graph_vMixedPlain;
+${FRAGMENT_MAIN.replace(
+  "vec4 color = effect(f, graph_vColor);",
+  "vec4 color = graph_vMixedPlain > 0.5 ? (graph_vInteraction.z * f.selected > 0.5 ? f.selectionColor : graph_vColor) : effect(f, graph_vColor);"
+)}`;
+
+export const MIXED_COMPOSITE_VERTEX = /* glsl */ `#version 300 es
+void main() {
+  const vec2 vertices[3] = vec2[3](vec2(-1, -1), vec2(3, -1), vec2(-1, 3));
+  gl_Position = vec4(vertices[gl_VertexID], 0, 1);
+}
+`;
+
+export const MIXED_COMPOSITE_FRAGMENT = /* glsl */ `#version 300 es
+precision highp float;
+uniform sampler2D graph_connectionColor;
+out vec4 scene_fragColor;
+void main() {
+  scene_fragColor = texelFetch(graph_connectionColor, ivec2(gl_FragCoord.xy), 0);
+}
+`;
 
 /**
  * #451's fragment prelude (inputs, uniforms, `ConnectionFragment`, effect helpers) as a shader module. luma places

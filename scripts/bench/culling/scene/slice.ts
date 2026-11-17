@@ -3805,8 +3805,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     }
   });
 
-  // C34 (Task 3y): the same-frame re-add family, in pixels of the graph layer's 2D canvas, where Path2D draws the
-  // connections (straight lines here, cyan, 2 px).
+  // C34 (Task 3y): the same-frame re-add family, in pixels of the scene's WebGL canvas (cyan, 2 px lines).
   // 1. Blocks P (x 0..100) and Q (x 400..500), y 4000..4050, and connection K from P's output (100, 4025) to Q's input
   //    (400, 4025). K is removed and added back before a frame: the line is drawn at (250, 4025).
   // 2. Blocks M1 (x 0..100) and M2 (x 150..250), y 4200..4250, in collapsible group G, and block O (x 600..700), with
@@ -3833,13 +3832,11 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     const settle = (): void => {
       for (let i = 0; i < 6; i++) graph.scheduler.performUpdate();
     };
-    /** Whether a vertical strip of 13 device px around a WORLD point of the graph layer's canvas has a cyan pixel. */
+    /** Whether a vertical strip of 13 device px around a world point in the scene has a cyan pixel. */
     const lineAt = (wx: number, wy: number): { found: boolean; sample: string } => {
       settle();
-      const canvas = graph.getGraphCanvas();
-      const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
       const [sx, sy] = screenOf(wx, wy);
-      const data = ctx.getImageData(Math.floor(sx * dpr), Math.floor(sy * dpr) - 6, 1, 13).data;
+      const data = readRegion(Math.floor(sx * dpr), Math.floor(sy * dpr) - 6, 1, 13);
       let best: TPixel = [0, 0, 0, 0];
       for (let i = 0; i < data.length; i += 4) {
         const pixel: TPixel = [data[i], data[i + 1], data[i + 2], data[i + 3]];

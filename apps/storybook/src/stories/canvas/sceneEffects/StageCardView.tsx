@@ -1,7 +1,7 @@
 import React from "react";
 
 import type { Graph } from "@gravity-ui/graph";
-import { GraphBlock } from "@gravity-ui/graph-react";
+import { GraphBlock, GraphBlockAnchor } from "@gravity-ui/graph-react";
 import { ArrowRotateRight, Pause, Play } from "@gravity-ui/icons";
 import { Button, Icon } from "@gravity-ui/uikit";
 import type { IconProps } from "@gravity-ui/uikit";
@@ -120,6 +120,9 @@ export const StageCardView = ({ graph, block, onAction }: TStageCardViewProps): 
         </div>
       </div>
       <StatusEffect status={status} block={block} />
+      {block.anchors?.map((anchor) => (
+        <GraphBlockAnchor key={anchor.id} graph={graph} anchor={anchor} position="absolute" />
+      ))}
     </GraphBlock>
   );
 };

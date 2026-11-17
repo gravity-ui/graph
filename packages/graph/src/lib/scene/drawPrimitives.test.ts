@@ -10,12 +10,14 @@ jest.mock("./textLayout", () => {
 
 beforeAll(() => {
   // jest-canvas-mock 2.5 has no roundRect.
-  if (!("roundRect" in CanvasRenderingContext2D.prototype)) {
-    Object.defineProperty(CanvasRenderingContext2D.prototype, "roundRect", {
-      value: function roundRect(): void {},
-      configurable: true,
-      writable: true,
-    });
+  for (const prototype of [CanvasRenderingContext2D.prototype, Path2D.prototype]) {
+    if (!("roundRect" in prototype)) {
+      Object.defineProperty(prototype, "roundRect", {
+        value: function roundRect(): void {},
+        configurable: true,
+        writable: true,
+      });
+    }
   }
 });
 
@@ -173,7 +175,7 @@ describe("scene primitives", () => {
 
   it("insets an inside border and outsets an outside one by half its width", () => {
     const ctx = createContext();
-    const roundRect = jest.spyOn(ctx, "roundRect");
+    const roundRect = jest.spyOn(Path2D.prototype, "roundRect");
     const rect = { kind: "rect" as const, x: 0, y: 0, width: 40, height: 20, radius: 8 };
     drawElements(
       ctx,
@@ -185,13 +187,15 @@ describe("scene primitives", () => {
     );
     expect(roundRect).toHaveBeenNthCalledWith(1, 102, 52, 36, 16, 6);
     expect(roundRect).toHaveBeenNthCalledWith(2, 98, 48, 44, 24, 10);
+    roundRect.mockRestore();
   });
 
   it("draws rects without a radius with rect, so they draw in a context without roundRect", () => {
     const ctx = createContext();
     // A browser without CanvasRenderingContext2D.roundRect.
     Object.defineProperty(ctx, "roundRect", { value: undefined, configurable: true });
-    const rect = jest.spyOn(ctx, "rect");
+    const fill = jest.spyOn(ctx, "fill");
+    const stroke = jest.spyOn(ctx, "stroke");
     const border = { color: "#000", width: 4, align: "inside" as const };
     const plain = { kind: "rect" as const, x: 0, y: 0, width: 40, height: 20, fill: "#fff", border };
     expect(() =>
@@ -205,9 +209,40 @@ describe("scene primitives", () => {
         1
       )
     ).not.toThrow();
-    expect(rect).toHaveBeenCalledTimes(6);
-    expect(rect).toHaveBeenNthCalledWith(1, 100, 50, 40, 20);
-    expect(rect).toHaveBeenNthCalledWith(2, 102, 52, 36, 16);
+    expect(fill).toHaveBeenCalledTimes(3);
+    expect(stroke).toHaveBeenCalledTimes(3);
+    expect((fill.mock.calls[0][0] as Path2D).rect).toHaveBeenCalledWith(100, 50, 40, 20);
+    expect((stroke.mock.calls[0][0] as Path2D).rect).toHaveBeenCalledWith(102, 52, 36, 16);
+  });
+
+  it("reuses rectangle geometry across paints and refreshes changed insets and origins", () => {
+    const ctx = createContext();
+    const fill = jest.spyOn(ctx, "fill");
+    const stroke = jest.spyOn(ctx, "stroke");
+    const rect = {
+      kind: "rect" as const,
+      x: 0,
+      y: 0,
+      width: 40,
+      height: 20,
+      radius: 8,
+      fill: "#fff",
+      border: { color: "#000", width: { px: 4 }, align: "inside" as const },
+    };
+    const layer = element({ x: 100, y: 50, primitives: [rect] });
+    drawElements(ctx, [layer], 1);
+    drawElements(ctx, [layer], 1);
+    drawElements(ctx, [layer], 2);
+    drawElements(ctx, [{ ...layer, x: 120 }], 2);
+
+    expect(fill.mock.calls[0][0]).toBeInstanceOf(Path2D);
+    expect(stroke.mock.calls[0][0]).toBeInstanceOf(Path2D);
+    expect(fill.mock.calls[1][0]).toBe(fill.mock.calls[0][0]);
+    expect(stroke.mock.calls[1][0]).toBe(stroke.mock.calls[0][0]);
+    expect(fill.mock.calls[2][0]).toBe(fill.mock.calls[0][0]);
+    expect(stroke.mock.calls[2][0]).not.toBe(stroke.mock.calls[0][0]);
+    expect(fill.mock.calls[3][0]).not.toBe(fill.mock.calls[0][0]);
+    expect(stroke.mock.calls[3][0]).not.toBe(stroke.mock.calls[2][0]);
   });
 
   it("strokes consecutive paths of one stroke style with one call", () => {

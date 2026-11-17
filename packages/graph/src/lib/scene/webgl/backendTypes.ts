@@ -17,6 +17,8 @@ export type TSceneFrame = {
   x: number;
   y: number;
   scale: number;
+  /** Internal camera limit, used to retain conservative translucent packing through zoom. */
+  scaleMin?: number;
   dpr: number;
   /** Seconds on the graph clock. */
   time: number;
@@ -52,7 +54,7 @@ export type TSceneBackendStats = {
    */
   lastUploadKind: "none" | "full" | "range";
   lastReplayMs: number;
-  /** Primitives now in the backend that it does not draw: the slice has no polygon and no icon support. */
+  /** Unsupported primitives, including polygons beyond the filled arrow triangles. */
   skipped: { polygon: number; icon: number };
   /**
    * In the last frame: the draw calls of the translucent pass (part of `drawCalls`): for each overlap level, for each
@@ -120,7 +122,7 @@ export interface ISceneBackend {
   dispose(): void;
 }
 
-export type TSceneBackendEvents = { onLost(): void; onRestored(): void };
+export type TSceneBackendEvents = { onLost(): void; onRestored(): void; onInvalidate?(): void };
 
 export type TCreateSceneBackend = (sibling: HTMLCanvasElement, events: TSceneBackendEvents) => Promise<ISceneBackend>;
 

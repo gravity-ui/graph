@@ -121,6 +121,12 @@ export class PortState<T = unknown> {
     return this.$state.value.lookup;
   }
 
+  /** Whether the port supplying the effective point is still waiting for coordinates. */
+  public get effectiveLookup(): boolean | undefined {
+    const delegate = this.$delegate.value;
+    return delegate ? delegate.effectiveLookup : this.lookup;
+  }
+
   /**
    * Get the port's metadata
    *

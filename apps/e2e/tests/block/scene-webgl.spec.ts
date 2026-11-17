@@ -98,6 +98,129 @@ async function anchorPoint(page: Page, blockId: string, anchorId: string): Promi
 }
 
 test.describe("Scene blocks with the WebGL renderer", () => {
+  test("batches effect paths by their visible bounds at the current zoom", async ({ page }) => {
+    const graph = new GraphPageObject(page);
+    await graph.initialize({ ...CONFIG, blocks: [] });
+    test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+    const row = await page.evaluate(() => {
+      const { defineConnectionEffect, lineSegment } = window.GraphModule;
+      const { scene, cameraService } = window.graph;
+      cameraService.set({ scale: 1, x: 0, y: 0 });
+      const styleId = scene.store.defineStyle({});
+      const glow = defineConnectionEffect({
+        extraWidth: 8,
+        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return vec4(color.rgb, 0.5); }",
+      });
+      for (let i = 0; i < 8; i++) {
+        scene.store.add({
+          id: `effect-${i}`,
+          x: 100 + i * 90,
+          y: 0,
+          zIndex: 200,
+          bounds: { minX: -810, minY: -710, maxX: 810, maxY: 1210 },
+          primitives: [
+            {
+              kind: "path",
+              part: "glow",
+              minScale: 0.07,
+              segments: new Float32Array(lineSegment({ x: 0, y: 100 }, { x: 0, y: 400 })),
+              stroke: { color: i % 2 === 0 ? "#ff0000" : "#0000ff", width: 16 },
+              effect: glow.use([]),
+            },
+          ],
+        });
+        scene.store.setStyle(`effect-${i}`, styleId);
+      }
+      return styleId;
+    });
+    await expect.poll(() => rendererState(page)).toBe("webgl");
+    const levels = (): Promise<number | undefined> =>
+      page.evaluate(() => window.graph.scene.layer.getBackend()?.stats.translucentLevels);
+    await expect.poll(levels).toBe(1);
+
+    await graph.evaluate((g) => g.cameraService.set({ scale: 0.1, x: 0, y: 0 }));
+    await expect.poll(levels).toBeGreaterThan(1);
+    const pixel = await page.evaluate(() => {
+      const { scene, scheduler } = window.graph;
+      scene.layer.performRender();
+      scheduler.performUpdate();
+      const gl = scene.layer.getBackend()?.canvas.getContext("webgl2");
+      if (!gl) throw new Error("WebGL2 unavailable");
+      const rgba = new Uint8Array(4);
+      const dpr = gl.drawingBufferWidth / window.graph.cameraService.getCameraState().width;
+      gl.readPixels(
+        Math.floor(14 * dpr),
+        gl.drawingBufferHeight - Math.floor(21 * dpr),
+        1,
+        1,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        rgba
+      );
+      return Array.from(rgba);
+    });
+    expect(Math.abs(pixel[0] - 64)).toBeLessThanOrEqual(2);
+    expect(Math.abs(pixel[2] - 128)).toBeLessThanOrEqual(2);
+
+    await graph.evaluate((g) => g.cameraService.set({ scale: 0.065, x: 0, y: 0 }));
+    await expect.poll(levels).toBe(0);
+
+    await graph.evaluate((g) => g.cameraService.set({ scale: 1, x: 0, y: 0 }));
+    await expect.poll(levels).toBe(1);
+
+    // A stylesheet can re-use a row id while changing visibility of every element that uses it.
+    await page.evaluate((id) => {
+      window.graph.scene.store.replaceStyles(new Map([[id, { parts: { glow: { visible: false } } }]]));
+    }, row);
+    await expect.poll(levels).toBe(0);
+  });
+
+  test("draws a filled arrow triangle in scene order", async ({ page }) => {
+    const graphPO = new GraphPageObject(page);
+    await graphPO.initialize({ ...CONFIG, blocks: [] });
+    test.skip(!(await hasWebGL2(page)), "Headless Chromium has no WebGL2");
+
+    await page.evaluate((scale) => {
+      const graph = window.graph;
+      graph.cameraService.set({ scale, x: 0, y: 0 });
+      graph.scene.store.add({
+        id: "arrow-pixel-test",
+        zIndex: 100,
+        x: 100,
+        y: 100,
+        bounds: { minX: 0, minY: 0, maxX: 80, maxY: 80 },
+        primitives: [
+          { kind: "rect", x: 0, y: 0, width: 80, height: 80, fill: "#0020c0" },
+          { kind: "polygon", points: new Float32Array([0, 0, 80, 40, 0, 80]), fill: "#ff0000" },
+        ],
+      });
+    }, SCALE);
+    await expect.poll(() => rendererState(page), { timeout: 10_000 }).toBe("webgl");
+    await graphPO.waitForFrames(3);
+
+    const inside = { x: 110, y: 120, width: 8, height: 8 };
+    const outside = { ...inside, x: 156 };
+    const opaque = await countColor(page, inside, [255, 0, 0], 3);
+    expect(opaque.matched).toBe(opaque.total);
+    const background = await countColor(page, outside, [0, 32, 192], 3);
+    expect(background.matched).toBe(background.total);
+
+    await page.evaluate(() => {
+      const { store } = window.graph.scene;
+      const element = store.get("arrow-pixel-test");
+      if (!element) throw new Error("missing triangle");
+      store.update(element.id, {
+        primitives: element.primitives.map((primitive) =>
+          primitive.kind === "polygon" ? { ...primitive, fill: "rgba(255, 0, 0, 0.5)" } : primitive
+        ),
+      });
+    });
+    await graphPO.waitForFrames(3);
+    expect(await rendererState(page)).toBe("webgl");
+    const translucent = await countColor(page, inside, [128, 16, 96], 3);
+    expect(translucent.matched).toBe(translucent.total);
+  });
+
   test("draws blocks and a selected anchor's ring through WebGL, and a selection raise after the first frame", async ({
     page,
   }) => {

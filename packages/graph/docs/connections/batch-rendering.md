@@ -1,13 +1,8 @@
 # Batch Rendering System in BlockConnection
 
-BlockConnection uses a batch rendering system to optimize performance when displaying many connections. Instead of
-drawing each connection individually, the system groups connections with similar visual properties and renders them
-together, significantly reducing canvas API calls.
-
-Connection components do not draw their lines. Each connection's line object (`static line`, see
-[Connection Lines, Geometry and WebGL](webgl-connections.md)) registers two items with the batch of
-`BlockConnections`: the line and its arrow. One batch draws every connection of a graph: a `BatchScene` with a Path2D
-backend for a `Path2DLine` class, or with a WebGL2 backend for a `WebGLLine` class.
+Built-in connections draw in [`graph.scene`](../system/scene.md). Connections with custom Canvas hooks
+use the compatibility batch on `GraphLayer`. Their line object (see [Connection Lines, Geometry and WebGL](webgl-connections.md))
+registers a line item and an arrow item with the Path2D batch.
 
 ## How Batching Works
 
@@ -45,18 +40,15 @@ Where two items of one group overlap, the overlap is composited once when they s
 not. With translucent colors, or at anti-aliased crossings, those pixels can differ from a version that grouped
 items by registration order; everywhere else the picture is the same.
 
-The batch is a `BatchScene` (`lib/batch`) with a `Path2D` or a WebGL2 backend: the scene owns items, chunks, order
-and culling, the backend builds and draws a chunk. The WebGL batch chunks items by z-level and grid cell only, since
-each instance carries its own style; its draw calls and order are described in
-[Draw calls and order](webgl-connections.md#draw-calls-and-order).
+The batch is a `BatchScene` (`lib/batch`) with a Path2D backend. The scene owns items, chunks, order and culling.
+The backend builds and draws each chunk.
 
 `afterRender` hooks of a drawn Path2D chunk run in chunk order, only for items in the viewport: an item's
 `isInViewport()` decides (a retained connection compares its bounds with the layer's culling viewport while
 `BlockConnections` walks its children; without culling, its hit box against the camera), otherwise its bounds do.
-Items without bounds always run. The WebGL batch runs no `afterRender` hooks.
+Items without bounds always run.
 
-Connection labels are not batch items: `BlockConnections` draws them in a label pass right after the batch, and
-none while it does not walk its children.
+`BlockConnections` draws custom Canvas labels in a separate pass after the batch.
 
 The batch belongs to the component that renders it, usually `BlockConnections`. A child-traversal veto
 pauses the children's lifecycle but does not hide their batched paths; a parent that wants to hide them
@@ -159,7 +151,7 @@ A look that only changes the color, width or dash needs no group override: retur
 ### Best Practices
 
 1. **Minimize Group Variations**: Too many unique groups reduce batching efficiency; per-connection styles on large
-   graphs are cheaper with `WebGLLine`, which keeps the style in each instance
+   graphs can use `WebGLLine` and `renderer: "webgl"` for declarative styles
 2. **Describe the look with `getStroke()`**: its default group follows the stroke; override `style()` and
    `getGroup()` together only for what a stroke cannot say
 3. **Prefer geometries to paths**: a custom `static geometry` is drawn, bounded and hit-tested by both renderers
@@ -172,7 +164,7 @@ If you notice performance problems with custom connections:
 
 1. Check group name uniqueness - too many unique groups prevent batching
 2. Check for dashes on large canvas graphs: a still dash is rasterized along the whole curve; WebGL draws it per pixel
-3. Check `graph.getGraphLayer().$connectionsRenderer`: `"webgl-fallback"` means a WebGL line class is drawn by Path2D
+3. Check `graph.scene.$renderer` for fallback to the Canvas interpreter
 
 ### Visual Artifacts
 

@@ -1,10 +1,13 @@
 import intersects from "intersects";
 
+import type { TScenePrimitive } from "../../../lib/scene/types";
 import { HitBoxData } from "../../../services/HitTest";
 import type { TPoint } from "../../../utils/types/shapes";
 
+import type { TBaseConnectionState } from "./BaseConnection";
 import type { TPathBounds } from "./BatchPath2D";
 import { BlockConnection } from "./BlockConnection";
+import type { TConnectionProps } from "./BlockConnection";
 import { multipointGeometry } from "./geometry";
 import type { TConnectionGeometryFn } from "./geometry";
 import type { TMultipointConnection } from "./types";
@@ -25,6 +28,42 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
     this.renderLabelsText(ctx);
   }
 
+  protected override hasCanvasDecorations(): boolean {
+    return super.hasCanvasDecorations(MultipointConnection.prototype.afterRender);
+  }
+
+  protected override appendSceneLabels(primitives: TScenePrimitive[], state: TBaseConnectionState): void {
+    super.appendSceneLabels(primitives, state);
+    const [top, right, bottom, left] = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    const colors = this.getLabelColors(state);
+    for (const { x, y, width, height, text } of this.labelsGeometry) {
+      primitives.push(
+        {
+          kind: "rect",
+          part: "labelBackground",
+          x: x - left,
+          y: y - top,
+          width: width + left + right,
+          height: height + top + bottom,
+          fill: colors.background,
+        },
+        {
+          kind: "text",
+          part: "label",
+          text,
+          x,
+          y: y - DEFAULT_FONT_SIZE,
+          family: "sans-serif",
+          size: DEFAULT_FONT_SIZE,
+          lineHeight: DEFAULT_FONT_SIZE,
+          width,
+          color: colors.text,
+          wrap: false,
+        }
+      );
+    }
+  }
+
   /** The labels with their paddings: what `afterRender()` draws. */
   protected override getAfterRenderBounds(): TPathBounds | undefined {
     if (!this.labelsGeometry.length) return undefined;
@@ -43,9 +82,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   }
 
   protected override hitTestLabel(shape: HitBoxData): boolean {
-    if (!this.labelsGeometry.length) {
-      return false;
-    }
+    if (super.hitTestLabel(shape)) return true;
 
     const THRESHOLD_LINE_HIT = this.context.constants.connection.THRESHOLD_LINE_HIT;
     const x = (shape.minX + shape.maxX) / 2;
@@ -95,7 +132,8 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
     return;
   }
 
-  protected override updateLabelGeometry(): void {
+  protected override updateLabelGeometry(props: TConnectionProps): void {
+    super.updateLabelGeometry(props);
     this.labelsGeometry = (this.connectedState.$state.value.labels ?? []).flatMap(({ x, y, text, width, height }) =>
       x === undefined || y === undefined || text === undefined || width === undefined || height === undefined
         ? []

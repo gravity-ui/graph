@@ -7,12 +7,11 @@ import { PART_SLOTS } from "./webgl/tables";
 
 const MAX_PARTS = PART_SLOTS - 1;
 const MAX_BANDS = 2 ** SCENE_DEPTH.BAND_BITS;
-const MAX_PER_BAND = 2 ** SCENE_DEPTH.RANK_BITS;
 
 /**
  * Development errors for the scene limits (spec §5.4), once per limit and store, so a limit is named before the WebGL
  * renderer falls back: distinct parts in the scene (named by primitives or by style rows), zIndex bands with raised
- * buckets, owner elements per band, and the depth indices: every owner element (root) takes a depth key with
+ * buckets, and the shared depth indices: every owner element (root) takes a depth key with
  * 2^subBits sub-orders, where the width fits the root with the most primitives, its child elements' included
  * (`subBitsFor`), and keys x 2^subBits must stay within 2^23.
  * Production builds watch nothing.
@@ -48,9 +47,6 @@ export function watchSceneLimits(store: SceneStore): () => void {
     owners.set(band, count);
     if (owners.size > MAX_BANDS) {
       report("bands", `The scene has ${owners.size} zIndex bands, raised buckets included; the limit is ${MAX_BANDS}`);
-    }
-    if (count > MAX_PER_BAND) {
-      report("band", `zIndex band ${band} has ${count} owner elements; the limit is ${MAX_PER_BAND}`);
     }
   };
   const setTotal = (rootId: string, total: number | undefined): void => {

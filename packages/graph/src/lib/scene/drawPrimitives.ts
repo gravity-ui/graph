@@ -8,6 +8,11 @@ import { sceneTextLayout, sceneTextMetrics } from "./textMetrics";
 import type { TSceneElement, TScenePrimitive, TSceneStroke, TSceneStyle, TSceneTextPolicy } from "./types";
 
 type TTextPrimitive = Extract<TScenePrimitive, { kind: "text" }>;
+type TRectPrimitive = Extract<TScenePrimitive, { kind: "rect" }>;
+type TRectPaths = { x: number; y: number; face?: Path2D; inset?: number; border?: Path2D };
+
+// A primitive is immutable. Keep just its latest position and resolved border inset.
+const rectPaths = new WeakMap<TScenePrimitive, TRectPaths>();
 
 export function isPrimitiveVisible(primitive: TScenePrimitive, scale: number, level?: TSceneLevel): boolean {
   if (primitive.minScale !== undefined && scale < primitive.minScale) return false;
@@ -29,21 +34,70 @@ function insetRadius(radius: number | readonly number[] | undefined, inset: numb
   return radius.map((value) => Math.max(0, value - inset));
 }
 
-/**
- * Adds a rect to the path: `rect` without a radius (or with every radius 0), so square rects, the default block's
- * included, draw in browsers without `roundRect`.
- */
-function addRect(
+function drawRect(
   ctx: CanvasRenderingContext2D,
+  rect: TRectPrimitive,
+  source: TScenePrimitive,
   x: number,
   y: number,
-  width: number,
-  height: number,
-  radius: number | number[]
+  scale: number
 ): void {
+  let paths: TRectPaths | undefined;
+  if (typeof Path2D.prototype.roundRect === "function") {
+    paths = rectPaths.get(source);
+    if (!paths || paths.x !== x || paths.y !== y) {
+      paths = { x, y };
+      rectPaths.set(source, paths);
+    }
+  }
+  if (rect.fill) {
+    ctx.fillStyle = rect.fill;
+    if (paths) ctx.fill((paths.face ??= buildRectPath(rect, x, y, 0)));
+    else {
+      ctx.beginPath();
+      appendRect(ctx, rect, x, y, 0);
+      ctx.fill();
+    }
+  }
+  if (rect.border && applyStroke(ctx, rect.border, scale)) {
+    const inset = strokeInset(rect.border, scale);
+    if (paths) {
+      if (inset === 0) ctx.stroke((paths.face ??= buildRectPath(rect, x, y, 0)));
+      else {
+        if (!paths.border || paths.inset !== inset) {
+          paths.inset = inset;
+          paths.border = buildRectPath(rect, x, y, inset);
+        }
+        ctx.stroke(paths.border);
+      }
+    } else {
+      ctx.beginPath();
+      appendRect(ctx, rect, x, y, inset);
+      ctx.stroke();
+    }
+  }
+}
+
+function buildRectPath(rect: TRectPrimitive, x: number, y: number, inset: number): Path2D {
+  const path = new Path2D();
+  appendRect(path, rect, x, y, inset);
+  return path;
+}
+
+function appendRect(
+  path: CanvasRenderingContext2D | Path2D,
+  rect: TRectPrimitive,
+  x: number,
+  y: number,
+  inset: number
+): void {
+  const width = rect.width - 2 * inset;
+  const height = rect.height - 2 * inset;
+  const radius = insetRadius(rect.radius, inset);
   const square = typeof radius === "number" ? radius === 0 : radius.every((value) => value === 0);
-  if (square) ctx.rect(x, y, width, height);
-  else ctx.roundRect(x, y, width, height, radius);
+  // Square rects also draw in browsers without roundRect.
+  if (square) path.rect(x + inset, y + inset, width, height);
+  else path.roundRect(x + inset, y + inset, width, height, radius);
 }
 
 /** Sets the stroke's style; false when its colour or width is unset, which draws nothing. */
@@ -117,30 +171,9 @@ function drawShape(
   policy: TSceneTextPolicy | undefined
 ): void {
   switch (primitive.kind) {
-    case "rect": {
-      const x = ox + primitive.x;
-      const y = oy + primitive.y;
-      if (primitive.fill) {
-        ctx.fillStyle = primitive.fill;
-        ctx.beginPath();
-        addRect(ctx, x, y, primitive.width, primitive.height, insetRadius(primitive.radius, 0));
-        ctx.fill();
-      }
-      if (primitive.border && applyStroke(ctx, primitive.border, scale)) {
-        const inset = strokeInset(primitive.border, scale);
-        ctx.beginPath();
-        addRect(
-          ctx,
-          x + inset,
-          y + inset,
-          primitive.width - 2 * inset,
-          primitive.height - 2 * inset,
-          insetRadius(primitive.radius, inset)
-        );
-        ctx.stroke();
-      }
+    case "rect":
+      drawRect(ctx, primitive, source, ox + primitive.x, oy + primitive.y, scale);
       return;
-    }
     case "circle": {
       ctx.beginPath();
       ctx.arc(ox + primitive.cx, oy + primitive.cy, primitive.r, 0, 2 * Math.PI);
@@ -288,7 +321,9 @@ export function drawElements(
     for (let p = 0; p < element.primitives.length; p++) {
       const source = element.primitives[p];
       if (!isPrimitiveDrawn(source, scale, options)) continue;
-      const primitive = applyStyle(source, style, options.dimColor);
+      const painted =
+        source.kind === "path" && source.canvasStroke ? { ...source, stroke: source.canvasStroke } : source;
+      const primitive = applyStyle(painted, style, options.dimColor);
       if (!primitive) continue;
       drawn++;
       if (primitive.kind === "path" || primitive.kind === "polygon") {

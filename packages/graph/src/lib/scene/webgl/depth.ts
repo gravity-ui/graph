@@ -2,15 +2,14 @@
 import type { TSceneChange } from "../types";
 
 /**
- * The depth layout. Owner elements (roots) take dense keys over all zIndex bands, at most 2^BAND_BITS bands of at most
- * 2^RANK_BITS owners each. Every key has 2^subBits sub-orders for the primitives of its root and of the root's child
+ * The depth layout. Owner elements (roots) take dense keys over at most 2^BAND_BITS zIndex bands, sharing the depth
+ * budget regardless of their band. Every key has 2^subBits sub-orders for the primitives of its root and of its child
  * elements; `subBits` is at least MIN_SUB_BITS and follows the root with the most primitives (`SceneDepth.subBits`).
  * keys x 2^subBits must stay within 2^INDEX_BITS depth indices, the headroom under a 24-bit depth buffer.
  */
-export const SCENE_DEPTH = { BAND_BITS: 4, RANK_BITS: 14, MIN_SUB_BITS: 5, INDEX_BITS: 23 } as const;
+export const SCENE_DEPTH = { BAND_BITS: 4, MIN_SUB_BITS: 5, INDEX_BITS: 23 } as const;
 
 const MAX_BANDS = 2 ** SCENE_DEPTH.BAND_BITS;
-const MAX_RANK = 2 ** SCENE_DEPTH.RANK_BITS;
 
 /** The depth indices (key x 2^subBits + sub) the depth buffer tells apart. */
 export const DEPTH_INDICES = 2 ** SCENE_DEPTH.INDEX_BITS;
@@ -147,7 +146,7 @@ export class SceneDepth {
    * Gives up the element's place in its band until its next `set`, keeping its key, so the key comparison of the next
    * renumber still sees whether it moved. A frame releases every element it moves, and deletes, before it sets any
    * (see `movesInDepth`): each state it passes through is then part of its start or of its end state, so it fits the
-   * band and rank limits whenever applying its changes one by one did (review C1).
+   * band limit whenever applying its changes one by one did (review C1).
    */
   public release(id: string): void {
     const zIndex = this.zIndexOf.get(id);
@@ -278,16 +277,11 @@ export class SceneDepth {
 
   /** Throws before anything is modified, so a failing set leaves the element where it was. */
   private assertFits(zIndex: number, previous: number | undefined): void {
-    const count = this.counts.get(zIndex);
-    if (count === undefined) {
-      const freesBand = previous !== undefined && this.counts.get(previous) === 1;
-      if (this.counts.size - (freesBand ? 1 : 0) >= MAX_BANDS) {
-        throw new RangeError(`Scene depth supports at most ${MAX_BANDS} zIndex bands`);
-      }
-      return;
+    if (this.counts.has(zIndex)) return;
+    const freesBand = previous !== undefined && this.counts.get(previous) === 1;
+    if (this.counts.size - (freesBand ? 1 : 0) >= MAX_BANDS) {
+      throw new RangeError(`Scene depth supports at most ${MAX_BANDS} zIndex bands`);
     }
-    const length = previous === zIndex ? count - 1 : count;
-    if (length >= MAX_RANK) throw new RangeError(`zIndex band ${zIndex} exceeds ${MAX_RANK} elements`);
   }
 
   private uncount(zIndex: number): void {

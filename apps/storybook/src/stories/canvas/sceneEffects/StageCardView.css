@@ -1,13 +1,20 @@
 /*
- * The stage card is 280 × 136 world units: CSS pixels at scale 1. The status effects (htmlEffects.css) sit inside it;
- * only the selection glow's halo reaches outside.
+ * The stage card follows the graph block's geometry. Status effects sit inside the card; anchors and the
+ * selection glow can extend past its edges.
  */
 .scene-stage {
+  --graph-block-anchor-width: 18px;
+  --graph-block-anchor-height: 18px;
   position: relative;
   border-radius: 12px;
   transition:
     opacity 0.2s,
     box-shadow 0.2s;
+}
+
+/* Absolute children start inside the wrapper border. Keep anchor centers at the graph's port coordinates. */
+.scene-stage > .graph-block-anchor {
+  margin: -1px 0 0 -1px;
 }
 
 /* The selection glow, the twin of the scene's `glow` part: its edge inside the card, its halo outside. */

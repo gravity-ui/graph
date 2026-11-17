@@ -3,17 +3,20 @@ import type { ConnectionEffect } from "../../../components/canvas/connections/ef
 import type { TUniformTypes } from "../../../components/canvas/connections/effects/types";
 import type { TWebGLShape } from "../../../components/canvas/connections/lines/types";
 import { INSTANCE_FLOATS, createEncodedChunk, encodeShapes } from "../../../components/canvas/connections/webgl/encode";
+import type { TEncodedChunk } from "../../../components/canvas/connections/webgl/encode";
 import { ALL_LEVELS_MASK } from "../levels";
-import { resolveSceneSize } from "../size";
 import type { TScenePrimitive } from "../types";
 
-import { MAX_SUB, NO_LIMIT, USE_BASE, checkSub, hasStrokeWidth, scaleBound } from "./encodeRects";
+import { MAX_SUB, NO_LIMIT, USE_BASE, checkSub, hasStrokeWidth, scaleBound, writeSize } from "./encodeRects";
 import type { TSlotOf } from "./encodeRects";
 
 /** Offset of the straight rgba in a path instance (see `INSTANCE_FLOATS`). */
 const COLOR_OFFSET = 8;
 
-/** Floats of a path instance's element data: elementIndex, sub, stroke slot, 0, minScale, maxScale, levelMask, 0. */
+/**
+ * Floats of a path instance's element data: elementIndex, sub, stroke slot, width minimum, minScale, maxScale,
+ * level mask in the low three bits plus width mode in the high bits, width maximum.
+ */
 export const PATH_ELEMENT_FLOATS = 8;
 
 export type TEncodedPaths = {
@@ -48,9 +51,8 @@ function elementData(data: readonly number[], count: number): number[] {
 /**
  * Path primitives as connection-line instances for the scale bucket, each with its element data (element, sub, the
  * stroke's part slot, scale bounds). An unset stroke colour is written as `USE_BASE`; a path whose stroke width is
- * unset draws nothing and is skipped. Widths are resolved at scale 1: camera-aware path widths are out of scope for the
- * slice. `select` skips paths without renumbering: it gets the index in `primitives`, and `sub` is `subBase` plus that
- * index.
+ * unset draws nothing and is skipped. The shader resolves camera-aware widths from the packed width mode and bounds.
+ * `select` skips paths without renumbering: `sub` is `subBase` plus the path's index in `primitives`.
  *
  * @param subBase The depth sub-order of the first primitive: a child element's primitives follow its parent's and its
  * earlier siblings'.
@@ -63,42 +65,61 @@ export function encodePaths(
   slotOf: TSlotOf,
   select: (primitive: TScenePrimitive, index: number) => boolean = selectAll,
   subBase = 0,
-  maxSub = MAX_SUB
+  maxSub = MAX_SUB,
+  scratch?: TEncodedChunk
 ): TEncodedPaths {
-  const chunk = createEncodedChunk();
+  const chunk = scratch ?? createEncodedChunk();
+  chunk.lines.count = 0;
+  chunk.curves.count = 0;
   const lineElements: number[] = [];
   const curveElements: number[] = [];
   const effects: TConnectionEffectUse[] = [];
+  let widthSize: number[] | undefined;
   primitives.forEach((primitive, sub) => {
     if (primitive.kind !== "path" || !select(primitive, sub)) return;
     const at = subBase + sub;
     checkSub(at, maxSub);
     const { stroke, effect } = primitive;
     if (!hasStrokeWidth(stroke)) return;
+    const width = stroke.width;
+    let widthValue: number;
+    let widthMode = 0;
+    let minWidth = 0;
+    let maxWidth = 0;
+    if (typeof width === "number") {
+      widthValue = width;
+    } else {
+      widthSize ??= [];
+      writeSize(widthSize, 0, width);
+      [widthMode, widthValue, minWidth, maxWidth] = widthSize;
+    }
     const shape: TWebGLShape = {
       segments: primitive.segments,
       stroke: {
         // An unset colour: any parsable colour here, `USE_BASE` replaces it below.
         color: stroke.color ?? "#000",
-        width: resolveSceneSize(stroke.width, 1),
+        width: widthValue,
         dash: stroke.dash ? { pattern: stroke.dash } : undefined,
       },
       effect: effect?.effect as unknown as ConnectionEffect<TUniformTypes, never> | undefined,
       params: effect?.params,
+      interaction: effect || primitive.effectShowsSelection ? primitive.interaction : undefined,
+      effectShowsSelection: primitive.effectShowsSelection,
     };
     const data = [
       elementIndex,
       at,
       slotOf(primitive.part),
-      0,
+      minWidth,
       scaleBound(primitive.minScale, 0),
       scaleBound(primitive.maxScale, NO_LIMIT),
-      primitive.levelMask ?? ALL_LEVELS_MASK,
-      0,
+      (primitive.levelMask ?? ALL_LEVELS_MASK) + widthMode * 8,
+      maxWidth,
     ];
     const lines = chunk.lines.count;
     const curves = chunk.curves.count;
-    encodeShapes([shape], bucket, chunk);
+    // Only dashes and effects read the longitudinal distances in the shader.
+    encodeShapes([shape], bucket, chunk, effect !== undefined || Boolean(stroke.dash?.length));
     if (stroke.color === undefined) {
       useBase(chunk.lines.data, lines, chunk.lines.count);
       useBase(chunk.curves.data, curves, chunk.curves.count);
@@ -108,8 +129,13 @@ export function encodePaths(
     if (effect) effects.push(effect);
   });
   return {
-    lines: chunk.lines.data.slice(0, chunk.lines.count * INSTANCE_FLOATS),
-    curves: chunk.curves.data.slice(0, chunk.curves.count * INSTANCE_FLOATS),
+    // The opaque ranges copy both views before this scratch chunk is reused.
+    lines: scratch
+      ? chunk.lines.data.subarray(0, chunk.lines.count * INSTANCE_FLOATS)
+      : chunk.lines.data.slice(0, chunk.lines.count * INSTANCE_FLOATS),
+    curves: scratch
+      ? chunk.curves.data.subarray(0, chunk.curves.count * INSTANCE_FLOATS)
+      : chunk.curves.data.slice(0, chunk.curves.count * INSTANCE_FLOATS),
     lineElements: new Float32Array(lineElements),
     curveElements: new Float32Array(curveElements),
     effects,

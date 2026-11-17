@@ -59,8 +59,22 @@ export const bezierGeometry: TConnectionGeometryFn = ({ source, target, bezierDi
 export const blockGeometry: TConnectionGeometryFn = (input: TConnectionGeometryInput) =>
   input.useBezier ? bezierGeometry(input) : straightGeometry(input);
 
+function resolveMultipointEnds({
+  points,
+  source,
+  target,
+  sourceDelegated,
+  targetDelegated,
+}: TConnectionGeometryInput): readonly TPoint[] {
+  if (points.length < 2 || (!sourceDelegated && !targetDelegated)) return points;
+  const resolved = [...points];
+  if (sourceDelegated) resolved[0] = source;
+  if (targetDelegated) resolved[resolved.length - 1] = target;
+  return resolved;
+}
+
 export const multipointGeometry: TConnectionGeometryFn = (input) => {
-  const { points } = input;
+  const points = resolveMultipointEnds(input);
   if (points.length === 0) {
     return blockGeometry(input);
   }
@@ -71,7 +85,8 @@ export const multipointGeometry: TConnectionGeometryFn = (input) => {
 };
 
 export const bezierMultipointGeometry: TConnectionGeometryFn = (input) => {
-  const { points, bezierDirection } = input;
+  const { bezierDirection } = input;
+  const points = resolveMultipointEnds(input);
   if (points.length === 0) {
     return blockGeometry(input);
   }

@@ -2,6 +2,7 @@ import { computed, effect, signal, untracked } from "@preact/signals-core";
 import type { ReadonlySignal } from "@preact/signals-core";
 
 import type { SceneStore } from "../../lib/scene/SceneStore";
+import { styleLookKey } from "../../lib/scene/style";
 import type { TSceneStyle } from "../../lib/scene/types";
 import type { TSceneLevel } from "../scene/types";
 import type { TagStore } from "../tags/TagStore";
@@ -18,8 +19,8 @@ type TRow = {
   readonly styleId: number;
   refs: number;
   style: TSceneStyle;
-  /** JSON of `style`, compared on a recompute. */
-  json: string;
+  /** A key for the contents of the style row, compared on a recompute. */
+  lookKey: string;
 };
 
 export type TStyleResolverDeps = {
@@ -74,7 +75,7 @@ export class StyleResolver {
       const own = new Map(tags);
       const style = this.compute(target, own);
       const styleId = this.deps.store.defineStyle(style);
-      row = { signature, target, tags: own, styleId, refs: 0, style, json: JSON.stringify(style) };
+      row = { signature, target, tags: own, styleId, refs: 0, style, lookKey: styleLookKey(style) };
       this.rows.set(signature, row);
       this.rowsById.set(row.styleId, row);
     }
@@ -108,7 +109,7 @@ export class StyleResolver {
     if (level === this.deps.$level.peek() && band === this.$band.peek()) return rows;
     for (const row of this.rows.values()) {
       const style = this.compute(row.target, row.tags, level, scale);
-      if (JSON.stringify(style) !== row.json) rows.set(row.styleId, style);
+      if (styleLookKey(style) !== row.lookKey) rows.set(row.styleId, style);
     }
     return rows;
   }
@@ -147,10 +148,10 @@ export class StyleResolver {
     const changed = new Map<number, TSceneStyle>();
     for (const row of this.rows.values()) {
       const style = this.compute(row.target, row.tags);
-      const json = JSON.stringify(style);
-      if (json === row.json) continue;
+      const lookKey = styleLookKey(style);
+      if (lookKey === row.lookKey) continue;
       row.style = style;
-      row.json = json;
+      row.lookKey = lookKey;
       changed.set(row.styleId, style);
     }
     if (changed.size > 0) this.deps.store.replaceStyles(changed);

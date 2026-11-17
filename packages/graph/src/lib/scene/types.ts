@@ -1,4 +1,5 @@
 import type { TConnectionEffectUse } from "../../components/canvas/connections/effects";
+import type { TLineInteraction } from "../../components/canvas/connections/lines/types";
 import type { TTileRect } from "../culling/TileIndex";
 
 /** Which renderer draws the scene: the Canvas2D interpreter or the lazily loaded WebGL backend. */
@@ -46,7 +47,8 @@ export type TSceneTextPolicy = { readonly cameraAware: boolean };
 export type TScenePart = string;
 
 /**
- * Values of one part. Table properties: color, visible, dim. Element properties: width, scale, opacity, cameraAware.
+ * Values of one part. Table properties: color, visible, dim. Element properties: width, scale, opacity, cameraAware,
+ * effect.
  * In a row, a `parts` value wins over the `base` value of the same property.
  */
 export type TScenePartStyle = {
@@ -74,6 +76,8 @@ export type TScenePartStyle = {
    * the primitive's clamps. The graph setting `cameraAwareText: false` turns every text off whatever the styles say.
    */
   cameraAware?: boolean;
+  /** WebGL path effect. A base rule fills an unset effect. A state rule replaces it or disables it with null. */
+  effect?: Readonly<TConnectionEffectUse> | null;
 };
 
 /** A computed style row. */
@@ -81,8 +85,8 @@ export type TSceneStyle = Readonly<{
   /** State rules: override the primitive's own values. */
   parts?: Readonly<Record<TScenePart, Readonly<TScenePartStyle>>>;
   /**
-   * Base rules: a colour or width fills only a value the primitive leaves unset; `visible`, `scale`, `dim`, `opacity`
-   * and `cameraAware` apply unless `parts` sets them.
+   * Base rules: a colour, width or effect fills only a value the primitive leaves unset; `visible`, `scale`, `dim`,
+   * `opacity` and `cameraAware` apply unless `parts` sets them.
    */
   base?: Readonly<Record<TScenePart, Readonly<TScenePartStyle>>>;
   /** Added to the element's zIndex bucket while the style is on. */
@@ -182,7 +186,15 @@ export type TScenePrimitive = Readonly<
       | { kind: "icon"; path: Path2D; viewBox: number; x: number; y: number; size: number; color?: string }
       /** Cubic segments, 8 numbers each (p0, c1, c2, p3), as the connection geometries produce them. */
       /** The effect is drawn by WebGL only; the Canvas2D interpreter ignores it. */
-      | { kind: "path"; segments: Float32Array; stroke: TSceneStroke; effect?: TConnectionEffectUse }
+      | {
+          kind: "path";
+          segments: Float32Array;
+          stroke: TSceneStroke;
+          effect?: TConnectionEffectUse;
+          canvasStroke?: TSceneStroke;
+          interaction?: TLineInteraction;
+          effectShowsSelection?: boolean;
+        }
       /** A closed polygon given as x, y pairs. */
       | { kind: "polygon"; points: Float32Array; fill?: string; stroke?: TSceneStroke }
     )

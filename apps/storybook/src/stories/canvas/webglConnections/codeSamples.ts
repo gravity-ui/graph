@@ -22,8 +22,8 @@ class RunningDashLine extends WebGLLine {
 class RunningDashConnection extends BlockConnection {
   public static override line = RunningDashLine;
 }
-// Canvas twin: a Path2DLine subclass returning this.withInteraction({ color, width: 2, dash: { pattern: [12, 8] } }, state)
-// graph.setSettings({ connection: RunningDashConnection });`;
+// The Canvas renderer draws the base stroke.
+// graph.updateSettings({ renderer: "webgl", connection: RunningDashConnection });`;
 
 export const perConnectionCode = `${imports("BlockConnection, WebGLLine")}
 const palette = ["#e15759", "#4e79a7", "#59a14f", "#f28e2b", "#b07aa1", "#76b7b2"];
@@ -39,7 +39,7 @@ class DataStyledLine extends WebGLLine {
 class DataStyledConnection extends BlockConnection {
   public static override line = DataStyledLine;
 }
-// graph.setSettings({ connection: DataStyledConnection });`;
+// graph.updateSettings({ connection: DataStyledConnection });`;
 
 export const stressCode = `${imports("BlockConnection, WebGLLine, dashFlow")}
 // GraphEditor/GraphStressTest: generatePrettyBlocks({ layersCount: 110, connectionsPerLayer: 1000 }), straight lines
@@ -52,8 +52,7 @@ class StressLine extends WebGLLine {
 class StressConnection extends BlockConnection {
   public static override line = StressLine;
 }
-// graph.setSettings({ connection: StressConnection, useBezierConnections: false });
-// The renderer switch picks the WebGL or the Path2D twin (Path2DLine, still dash) of the same look.`;
+// graph.updateSettings({ renderer: "webgl", connection: StressConnection, useBezierConnections: false });`;
 
 export const pipelineCode = `${imports("BlockConnection, WebGLLine, dashFlow, pulse")}
 ${hashHelper}
@@ -83,7 +82,8 @@ class PipelineLine extends WebGLLine {
 class PipelineConnection extends BlockConnection {
   public static override line = PipelineLine;
 }
-// Effects are WebGL only: the Path2D twin draws the still dashes and steady lines.`;
+// Canvas draws the base stroke of each line.
+// graph.updateSettings({ renderer: "webgl", connection: PipelineConnection });`;
 
 export const cometsCode = `${imports("BlockConnection, WebGLLine, dashFlow")}
 ${hashHelper}
@@ -165,7 +165,7 @@ const gradient = defineConnectionEffect({
     laps,
     ...to,
   ],
-  fallback: (stroke) => stroke, // Path2D draws the plain stroke while WebGL is unavailable
+  fallback: (stroke) => stroke, // Canvas draws the plain stroke
 });
 
 class GradientLine extends WebGLLine {
@@ -240,7 +240,7 @@ class FlowConnection extends BlockConnection {
 
 function setupGraph(graph: Graph): void {
   // the stages can be dragged; the flows follow them
-  graph.updateSettings({ connection: FlowConnection, canDrag: ECanDrag.ALL });
+  graph.updateSettings({ renderer: "webgl", connection: FlowConnection, canDrag: ECanDrag.ALL });
 }
 
 // On change, every connection reads its line again:

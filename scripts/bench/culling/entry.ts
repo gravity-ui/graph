@@ -379,8 +379,14 @@ async function setup(options: {
       ? { useBezierConnections: true, showConnectionArrows: true, useBlocksAnchors: true }
       : { useBezierConnections: false, showConnectionArrows: false, useBlocksAnchors: true };
   const { connection, note } = connectionFor(options.effect, options.renderer ?? "canvas");
-  // The prototype picks the renderer by a setting; the new API takes it from the connection class above.
-  const rendererSettings = api === "prototype" ? { connectionsRenderer: options.renderer ?? "canvas" } : {};
+  // The unified scene replaces the separate renderer and its diagnostics. Older variants keep their own setting.
+  const selectedRenderer = options.renderer ?? "canvas";
+  const rendererSettings =
+    api === "prototype"
+      ? { connectionsRenderer: selectedRenderer }
+      : api === "new" && !glStats.getWebGLConnectionsStats
+        ? { renderer: selectedRenderer }
+        : {};
   const graph = new Graph(
     {
       settings: {

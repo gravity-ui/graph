@@ -393,7 +393,8 @@ export async function setupBlocks(
       const { x, y, width, height, scale } = graph.cameraService.getCameraState();
       const elements = graph.scene.query({ x: -x / scale, y: -y / scale, width: width / scale, height: height / scale });
       const children = elements.filter((element) => element.parent !== undefined).length;
-      return { blocks: elements.length - children, anchors: children, elements: elements.length };
+      const blocks = elements.filter((element) => element.entityType === "block").length;
+      return { blocks, anchors: children, elements: elements.length };
     },
   };
 }

@@ -30,6 +30,7 @@ describe("encodePaths", () => {
     expect(Array.from(out.lineElements)).toEqual([4, 0, 0, 0, 0, 1e9, 7, 0]);
     expect(out.curveElements).toHaveLength(0);
     expect(out.lines[12]).toBe(2);
+    expect(Array.from(out.lines.slice(13, 16))).toEqual([0, 0, 0]);
     expect(Array.from(out.lines.slice(8, 12))).toEqual([1, 0, 0, 1]);
   });
 
@@ -86,7 +87,7 @@ describe("encodePaths", () => {
     const pieces = out.curves.length / INSTANCE_FLOATS;
     expect(pieces).toBeGreaterThanOrEqual(1);
     expect(out.curveElements).toHaveLength(PATH_ELEMENT_FLOATS * pieces);
-    expect(Array.from(out.curveElements.slice(0, 2))).toEqual([2, 1]);
+    expect(Array.from(out.curveElements.slice(0, PATH_ELEMENT_FLOATS))).toEqual([2, 1, 0, 0, 0, 1e9, 15, 10]);
     expect(out.curves[12]).toBe(3);
   });
 
@@ -122,6 +123,7 @@ describe("encodePaths", () => {
     );
     expect(out.effects).toEqual([use]);
     expect(out.lines.length / INSTANCE_FLOATS).toBe(2);
+    expect(Array.from(out.lines.slice(13, 16))).toEqual([30, 0, 30]);
     expect(Array.from(out.lines.slice(16, 20))).toEqual([4, 2, 0, 0]);
   });
 
