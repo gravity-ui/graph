@@ -216,7 +216,9 @@ const renderBlock = <T extends TBlock>(graph: Graph, block: T): React.JSX.Elemen
   <StageHtml graph={graph} block={block} />
 );
 
-const SceneInteractionApp = (): React.JSX.Element => {
+type SceneInteractionArgs = { minimap: boolean };
+
+const SceneInteractionApp = ({ minimap }: SceneInteractionArgs): React.JSX.Element => {
   const { graph, start, setEntities, zoomTo } = useGraph({});
   const [renderer, setRenderer] = useState<"canvas" | "webgl">("canvas");
   const [html, setHtml] = useState<"on" | "off">("on");
@@ -226,7 +228,7 @@ const SceneInteractionApp = (): React.JSX.Element => {
   // The bus's click carries the native event; `getEventTarget` names the graph component it hit, also when that
   // component stopped the click (the run button does) and when the click came from the HTML button.
   useGraphEvent(graph, "click", (detail) => setLastClick(describeTarget(getEventTarget(detail.sourceEvent))));
-  useLayer(graph, MiniMapLayer, { location: "bottomRight", width: 200, height: 160 });
+  useLayer(minimap ? graph : null, MiniMapLayer, { location: "bottomRight", width: 200, height: 160 });
 
   useEffect(() => {
     graph.updateSettings({ blockComponents: { Stage: StageBlock }, canDrag: ECanDrag.ALL });
@@ -296,12 +298,14 @@ const SceneInteractionApp = (): React.JSX.Element => {
   );
 };
 
-const meta: Meta = {
+const meta: Meta<SceneInteractionArgs> = {
   title: "Canvas/SceneInteraction",
   component: SceneInteractionApp,
+  args: { minimap: false },
+  argTypes: { minimap: { name: "Minimap", control: "boolean" } },
   parameters: { layout: "fullscreen" },
 };
 
 export default meta;
 
-export const SceneInteraction: StoryFn = () => <SceneInteractionApp />;
+export const SceneInteraction: StoryFn<SceneInteractionArgs> = (args) => <SceneInteractionApp {...args} />;

@@ -293,7 +293,7 @@ const etlDefaults: TEtlAtScaleArgs = {
   connectionCount: 10_000,
   renderer: "webgl",
   html: true,
-  minimap: true,
+  minimap: false,
   live: false,
   focusOnFailures: false,
   view: "fit",
@@ -532,7 +532,7 @@ EtlAtScale.parameters = {
         "Camera motion can run a 20-second zoom cycle from 0.05 to 0.9 and back around a central pipeline, " +
         "or pan in a circle at the current scale over 16 seconds. Stages have different numbers of " +
         "input and output anchors, with room for every port in the scene blocks and HTML cards. " +
-        "Hover over a connection to highlight its route. Turn Minimap off to remove its layer and compare performance. " +
+        "Hover over a connection to highlight its route. Enable Minimap in Controls to show the graph overview. " +
         "Effect min scale makes block and running-flow effects steady below the cutoff (0 means always active); " +
         "status colours and selection remain visible. Hover highlighting still animates one connection at any scale. " +
         "Changing the control reconfigures the scene; zooming across the cutoff keeps the same geometry. " +
