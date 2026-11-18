@@ -1,4 +1,4 @@
-import { effect, untracked } from "@preact/signals-core";
+import { computed, effect, signal, untracked } from "@preact/signals-core";
 
 import { Component } from "../../../lib/Component";
 import { CoreComponent } from "../../../lib/CoreComponent";
@@ -68,6 +68,8 @@ export class Blocks extends Component {
   /** Set when the block list changes: the next reconcile recomputes the graph's largest anchor overflow. */
   private blocksChanged = false;
 
+  private readonly $usesCustomParentProps = signal(false);
+
   private font: string;
 
   constructor(props: {}, context: CoreComponent) {
@@ -89,16 +91,29 @@ export class Blocks extends Component {
   }
 
   protected subscribe() {
-    this.blocks = this.context.graph.rootStore.blocksList.$blocks.value;
-    this.blocksView = this.context.graph.rootStore.settings.getConfigFlag("blockComponents");
+    const { blocksList: store, settings } = this.context.graph.rootStore;
+    this.blocks = store.$blocks.value;
+    this.blocksView = settings.getConfigFlag("blockComponents");
+    const viewBlocks = computed(() => {
+      // Extensions that decide what parent props to create or apply keep the list-driven lifecycle.
+      if (
+        this.$usesCustomParentProps.value ||
+        Object.values(settings.$blockComponents.value).some((type) => type && type.create !== Block.create)
+      ) {
+        return store.$blocks.value;
+      }
+      track(store.$viewRevision);
+      return store.$blocks.peek();
+    });
     return [
-      this.context.graph.rootStore.blocksList.$blocks.subscribe((blocks) => {
+      viewBlocks.subscribe((blocks) => {
         this.blocks = blocks;
         this.blocksChanged = true;
         this.rerender();
       }),
-      this.context.graph.rootStore.settings.$blockComponents.subscribe((blockComponents) => {
+      settings.$blockComponents.subscribe((blockComponents) => {
         this.blocksView = blockComponents;
+        this.blocksChanged = true;
         this.rerender();
       }),
     ];
@@ -258,16 +273,19 @@ export class Blocks extends Component {
     let overflow = 0;
     let reach = 0;
     let levels = 0;
+    let usesCustomParentProps = false;
     for (const state of this.blocks) {
       const block = state.getViewComponent();
       if (!block) continue;
       overflow = Math.max(overflow, block.getAnchorOverflow());
       reach = Math.max(reach, block.getAnchorReach());
       levels = unionLevelMasks(levels, block.getAnchorLevels());
+      usesCustomParentProps ||= Component.hasParentPropsOverrides(block, Block.prototype);
     }
     resetAnchorOverflow(this.context.graph, overflow);
     resetAnchorReach(this.context.graph, reach);
     resetAnchorLevels(this.context.graph, levels);
+    this.$usesCustomParentProps.value = usesCustomParentProps;
   }
 
   protected updateChildren() {

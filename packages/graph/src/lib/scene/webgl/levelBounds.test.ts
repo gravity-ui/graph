@@ -57,6 +57,26 @@ describe("geometryBounds", () => {
     );
   });
 
+  it("bounds the WebGL hairline and the first active halo at their own scales", () => {
+    const glow = defineConnectionEffect({
+      extraWidth: 6,
+      fragment: "vec4 effect(ConnectionFragment f, vec4 c) { return c; }",
+    });
+    const path: TScenePrimitive = {
+      kind: "path",
+      segments: new Float32Array([0, 0, 10, 0, 20, 0, 30, 0]),
+      stroke: { width: { px: 2, maxWorld: 4 } },
+      effect: glow.use([], { minScale: 0.5 }),
+    };
+    const cache = new CachedGeometryBounds([path]);
+    expect(cache.pathsOnly).toBe(true);
+    // At 0.05 the hairline and AA reach 15 world units. At 0.5 the stroke, AA and halo also reach 15.
+    expect(cache.at(() => 0.05, 2)).toEqual(box(-15, -15, 45, 15));
+    expect(cache.at(() => 0.05, 1)).toEqual(box(-30, -30, 60, 30));
+    expect(cache.at(() => 1, 2)).toEqual(box(-7.5, -7.5, 37.5, 7.5));
+    expect(cache.at(() => undefined, 2)).toBeUndefined();
+  });
+
   it("includes the tagged glow's reach in the WebGL overlap geometry", () => {
     const glow = defineConnectionEffect({
       extraWidth: 6,

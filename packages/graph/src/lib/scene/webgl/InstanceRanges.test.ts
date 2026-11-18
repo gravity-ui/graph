@@ -39,6 +39,36 @@ describe("InstanceRanges retained layout", () => {
     expect(ranges.takeUpload()).toEqual({ kind: "none" });
   });
 
+  it("keeps a bounded sequence of exact old spans across retained slot reuse", () => {
+    const ranges = new InstanceRanges(1);
+    ranges.set("a", inst(1));
+    ranges.set("b", inst(2, 2));
+    ranges.retainLayout();
+    const baseline = ranges.layoutRevision;
+    ranges.delete("a");
+    const deleted = ranges.layoutRevision;
+    ranges.set("c", inst(3));
+    const reused = ranges.layoutRevision;
+    ranges.set("b", inst(4, 4, 4));
+    expect(
+      ranges
+        .retainedChangesSince(baseline)
+        ?.map(({ from, id, previous }) => [
+          from,
+          id,
+          previous.map(({ offset, count, step }) => ({ offset, count, step })),
+        ])
+    ).toEqual([
+      [baseline, "a", [{ offset: 0, count: 1, step: 0 }]],
+      [deleted, "c", []],
+      [reused, "b", [{ offset: 1, count: 2, step: 0 }]],
+    ]);
+
+    for (let i = 0; i < 80; i++) ranges.set("b", i % 2 ? inst(5, 5, 5) : inst(5, 5));
+    expect(ranges.retainedChangesSince(baseline)).toBeUndefined();
+    expect(ranges.retainedChangesSince(ranges.layoutRevision)).toEqual([]);
+  });
+
   it("reuses the smallest fitting hole and keeps unused slots cleared", () => {
     const ranges = new InstanceRanges(1);
     ranges.set("a", inst(1, 1));

@@ -99,27 +99,47 @@ describe("resident curve tessellation", () => {
     expect(canCoarsenCurves({ ...frame, scale: NaN }, true)).toBe(false);
   });
 
-  it("keeps resident counts across a certificate change, updating only the edited instance", () => {
+  it("moves certificates between homogeneous retained sources with local uploads and bounded storage", () => {
     const bins = createCurveBins();
     const elements = new Float32Array([0, 0, 0, 0, 0, 1e9, 7, 0]);
-    partitionCurves(bins, path(gentle), elements);
     const resident = bins.map(() => new InstanceRanges(INSTANCE_FLOATS));
-    const write = (): void =>
-      bins.forEach((bin, i) => resident[i].set("edge", bin.paths.subarray(0, bin.count * INSTANCE_FLOATS)));
-    write();
-    for (const ranges of resident) ranges.takeUpload();
-    const counts = bins.map((bin) => bin.count);
-    partitionCurves(bins, path(sharp), elements, counts);
-    expect(bins.map((bin) => bin.count)).toEqual(counts);
-    expect(bins[0].paths[20]).toBe(16);
-    write();
-    expect(resident[0].takeUpload()).toMatchObject({ kind: "range", bytes: INSTANCE_FLOATS * 4 });
-    expect(resident[1].takeUpload()).toEqual({ kind: "none" });
-    partitionCurves(bins, path(gentle), elements, counts);
-    expect(bins[0].paths[20]).toBe(8);
+    const companions = bins.map(() => new InstanceRanges(PATH_ELEMENT_FLOATS));
+    for (const lists of [resident, companions]) {
+      for (const ranges of lists) {
+        for (let i = 0; i < 200; i++) ranges.set(`other-${i}`, new Float32Array(ranges.floats).fill(i + 1));
+        ranges.takeUpload();
+        ranges.retainLayout();
+      }
+    }
+    const capacities = [...resident, ...companions].map((ranges) => ranges.data.buffer.byteLength);
+    for (let edit = 0; edit < 100; edit++) {
+      const coarse = edit % 2 === 0;
+      const source = path(coarse ? gentle : sharp);
+      partitionCurves(bins, source, elements);
+      expect(bins.map((bin) => bin.count)).toEqual(coarse ? [1, 0] : [0, 1]);
+      for (let i = 0; i < bins.length; i++) {
+        const bin = bins[i];
+        if (bin.count) {
+          expect(bin.paths.subarray(0, INSTANCE_FLOATS)).toEqual(source);
+          resident[i].set("edge", bin.paths.subarray(0, INSTANCE_FLOATS));
+          companions[i].set("edge", bin.elements.subarray(0, PATH_ELEMENT_FLOATS));
+        } else {
+          resident[i].delete("edge");
+          companions[i].delete("edge");
+        }
+      }
+      for (const ranges of [...resident, ...companions]) {
+        const upload = ranges.takeUpload();
+        expect(upload.kind).not.toBe("full");
+        if (upload.kind === "range") expect(upload.bytes).toBeLessThanOrEqual(ranges.floats * 4);
+        expect(ranges.count).toBeLessThanOrEqual(201);
+        expect(ranges.ownerRanges("other-199")[0].offset).toBe(199);
+      }
+      expect([...resident, ...companions].map((ranges) => ranges.data.buffer.byteLength)).toEqual(capacities);
+    }
   });
 
-  it("fills resident quotas without losing records, companion owners or overflow detail", () => {
+  it("keeps classification and companion owners without rewriting the encoded records", () => {
     const paths = new Float32Array(INSTANCE_FLOATS * 4);
     [path(gentle), path(moderate), path(moderate, 100), path(moderate, 100)].forEach((data, i) =>
       paths.set(data, i * INSTANCE_FLOATS)
@@ -130,17 +150,19 @@ describe("resident curve tessellation", () => {
       elements.set([i + 1, 0, 0, 0, 0, 1e9, 7, 0], i * PATH_ELEMENT_FLOATS);
     }
     const bins = createCurveBins();
-    partitionCurves(bins, paths, elements, [3, 1]);
-    expect(bins.map((bin) => bin.count)).toEqual([3, 1]);
+    partitionCurves(bins, paths, elements);
+    expect(bins.map((bin) => bin.count)).toEqual([2, 2]);
     const ids: number[] = [];
     for (const bin of bins)
       for (let i = 0; i < bin.count; i++) {
         const id = bin.paths[i * INSTANCE_FLOATS + 8];
         expect(bin.elements[i * PATH_ELEMENT_FLOATS]).toBe(id);
+        expect(bin.paths.subarray(i * INSTANCE_FLOATS, (i + 1) * INSTANCE_FLOATS)).toEqual(
+          paths.subarray((id - 1) * INSTANCE_FLOATS, id * INSTANCE_FLOATS)
+        );
         ids.push(id);
       }
     expect(ids.sort()).toEqual([1, 2, 3, 4]);
-    expect([bins[0].paths[20], bins[0].paths[2 * INSTANCE_FLOATS + 20]]).toEqual([8, 16]);
   });
 
   it("partitions full records with companion data, retaining dashed and pixel-width pieces", () => {
@@ -154,9 +176,7 @@ describe("resident curve tessellation", () => {
     const bins = createCurveBins();
     partitionCurves(bins, paths, elements);
     expect(bins.map((bin) => bin.count)).toEqual([2, 2]);
-    const expected = paths.slice(0, INSTANCE_FLOATS);
-    expected[20] = 8;
-    expect(bins[0].paths.slice(0, INSTANCE_FLOATS)).toEqual(expected);
+    expect(bins[0].paths.slice(0, INSTANCE_FLOATS)).toEqual(paths.slice(0, INSTANCE_FLOATS));
     expect([bins[0].elements[0], bins[0].elements[8], bins[1].elements[0], bins[1].elements[8]]).toEqual([1, 2, 3, 4]);
     partitionCurves(bins, paths.subarray(0, INSTANCE_FLOATS), elements.subarray(0, PATH_ELEMENT_FLOATS));
     expect(bins.map((bin) => bin.count)).toEqual([1, 0]);

@@ -16,6 +16,46 @@ async function initialize(page: Page): Promise<GraphPageObject> {
   return graph;
 }
 
+test("adding one path record after two full texture rows only uploads the local edit", async ({ page }) => {
+  await initialize(page);
+  const { initialBytes, editBytes, error } = await page.evaluate(() => {
+    const { scene, cameraService, scheduler } = window.graph;
+    const backend = scene.layer.getBackend();
+    const gl = backend?.canvas.getContext("webgl2");
+    if (!backend || !gl) throw new Error("Missing WebGL backend");
+    // Fill two physical rows of ten-texel records exactly, then cross the row boundary.
+    const perRow = Math.floor(Math.min(4096, gl.getParameter(gl.MAX_TEXTURE_SIZE)) / 10);
+    const add = (id: string, pieces: number) => {
+      const segments = Float32Array.from(
+        Array.from({ length: pieces }, (_, x) =>
+          window.GraphModule.lineSegment({ x, y: 10 }, { x: x + 1, y: 10 })
+        ).flat()
+      );
+      scene.store.add({
+        id,
+        entityType: "connection",
+        x: 0,
+        y: 0,
+        zIndex: 0,
+        bounds: { minX: 0, minY: 9, maxX: pieces, maxY: 11 },
+        primitives: [{ kind: "path", segments, stroke: { color: "#3456ab", width: 1 } }],
+      });
+      scene.layer.performRender();
+      scheduler.performUpdate();
+      backend.draw({ ...cameraService.getCameraState(), dpr: 2, time: 0, dimColor: scene.store.getDimColor() });
+    };
+    const before = backend.stats.uploadBytes;
+    add("resident", perRow * 2);
+    const initialBytes = backend.stats.uploadBytes - before;
+    const beforeEdit = backend.stats.uploadBytes;
+    add("one-piece", 1);
+    return { initialBytes, editBytes: backend.stats.uploadBytes - beforeEdit, error: gl.getError() };
+  });
+  expect(error).toBe(0);
+  expect(editBytes).toBeGreaterThan(0);
+  expect(editBytes).toBeLessThan(initialBytes / 2);
+});
+
 /** Compare the same backend, camera, clock and AA policy; only the private overview selector is bypassed. */
 async function compare(page: Page, scale: number, dpr: number, x = 0.3125, y = 70.1875) {
   return page.evaluate(
@@ -324,6 +364,81 @@ test("unsafe widths, dashes, halo effects, cusps and translated origins retain e
     expect(result.encodes).toBe(0);
     expect(result.sourceWrites).toBe(0);
   }
+});
+
+test("reconnecting an opaque Bézier preserves neighbors in both curve buffers and restores the same pixels", async ({
+  page,
+}) => {
+  const graph = await initialize(page);
+  const { before, after, edited, neighbor, changedImage, restoredImage } = await page.evaluate(async () => {
+    const { graph, GraphModule } = window;
+    const { scene, connections, cameraService, scheduler } = graph;
+    graph.updateSettings({ useBezierConnections: true, showConnectionArrows: false, showConnectionLabels: false });
+    cameraService.set({ x: 0, y: 0, scale: 0.04 });
+    connections.observePort("source", scene).updatePort({ x: 100, y: 100, lookup: false });
+    connections.observePort("target", scene).updatePort({ x: 600, y: 350, lookup: false });
+    connections.observePort("alternate", scene).updatePort({ x: 2000, y: 600, lookup: false });
+    const ids = ["first", "second"];
+    for (const id of ids) {
+      graph.api.addConnection({
+        id,
+        sourcePortId: "source",
+        targetPortId: "target",
+        styles: { background: "#d04020" },
+      });
+    }
+
+    type Ranges = { ownerRanges(id: string): readonly { offset: number; count: number }[] };
+    type Source = { chords: number; group: { curves: { ranges: Ranges }; coarseCurves: { ranges: Ranges } } };
+    const backend = scene.layer.getBackend()!;
+    const probe = backend as typeof backend & {
+      hasMixedVertexWork(): boolean;
+      beginMixedScene(frame: unknown, prepared: { plan: { sources: Source[] } }, native: unknown): unknown;
+    };
+    // Only bypass the large-graph cutoff. Observe the sources actually submitted to the mixed pass.
+    probe.hasMixedVertexWork = () => true;
+    let sources: Source[] = [];
+    const begin = probe.beginMixedScene;
+    probe.beginMixedScene = function (...args) {
+      sources = args[1].plan.sources;
+      return begin.apply(this, args);
+    };
+    const snapshot = async () => {
+      await new Promise(requestAnimationFrame);
+      scene.layer.performRender();
+      scheduler.performUpdate();
+      sources = [];
+      backend.draw({ ...cameraService.getCameraState(), dpr: 2, time: 0, dimColor: scene.store.getDimColor() });
+      const adaptive = sources.find((source) => source.chords === 8);
+      const ordinary = sources.find((source) => source.chords === 16);
+      if (!adaptive || !ordinary) throw new Error("Both ordinary and eight-chord curves must reach the mixed pass");
+      const read = (ranges: Ranges) =>
+        ids.map((id) => {
+          const [{ offset, count }] = ranges.ownerRanges(GraphModule.entityKey("connection", id));
+          return { offset, count };
+        });
+      return { ordinary: read(ordinary.group.curves.ranges), adaptive: read(adaptive.group.coarseCurves.ranges) };
+    };
+    const before = await snapshot();
+    const originalImage = backend.canvas.toDataURL();
+    const edited = before.ordinary[0].offset < before.ordinary[1].offset ? 0 : 1;
+    graph.api.updateConnection(ids[edited], { targetPortId: "alternate" });
+    const after = await snapshot();
+    const changedImage = backend.canvas.toDataURL() !== originalImage;
+    graph.api.updateConnection(ids[edited], { targetPortId: "target" });
+    await snapshot();
+    const restoredImage = backend.canvas.toDataURL() === originalImage;
+    for (const port of ["source", "target", "alternate"]) connections.unobservePort(port, scene);
+    return { before, after, edited, neighbor: 1 - edited, changedImage, restoredImage };
+  });
+
+  for (const batch of ["ordinary", "adaptive"] as const) {
+    expect(before[batch][edited].offset).toBeLessThan(before[batch][neighbor].offset);
+    expect(after[batch][edited].count).toBeGreaterThan(before[batch][edited].count);
+    expect(after[batch][neighbor]).toEqual(before[batch][neighbor]);
+  }
+  expect(changedImage).toBe(true);
+  expect(restoredImage).toBe(true);
 });
 
 test("real connections refresh after move, add and delete and restore the same overview image", async ({

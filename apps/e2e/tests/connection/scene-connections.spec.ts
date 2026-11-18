@@ -286,6 +286,151 @@ test("the built-in WebGLLine shares the scene context and remains drawable throu
   await assertDrawing();
 });
 
+test("reconnecting a resident line reuses its order and mixed plan, while paint width and depth still gate the plane", async ({
+  page,
+}) => {
+  const graph = new GraphPageObject(page);
+  await graph.initialize({
+    blocks: [],
+    connections: [
+      { id: "edge", sourcePortId: "source", targetPortId: "target", styles: { background: "rgba(255,32,32,0.7)" } },
+    ],
+    settings: {
+      renderer: "webgl",
+      useBezierConnections: false,
+      showConnectionArrows: false,
+      showConnectionLabels: false,
+    },
+  });
+  test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+  await expectRenderer(page, "webgl");
+  await centerOrigin(graph);
+  const result = await page.evaluate(async () => {
+    const { graph, GraphModule } = window;
+    const { scene, cameraService, scheduler, connections } = graph;
+    const state = connections.getConnectionState("edge")!;
+    state.$sourcePortState.value.updatePort({ x: 100, y: 100, lookup: false });
+    state.$targetPortState.value.updatePort({ x: 400, y: 100, lookup: false });
+    const alternate = connections.observePort("alternate", scene);
+    alternate.updatePort({ x: 400, y: 180, lookup: false });
+    const segment = new Float32Array(GraphModule.lineSegment({ x: 100, y: 260 }, { x: 400, y: 260 }));
+    const stroke = (width: number) => ({
+      kind: "path" as const,
+      segments: segment,
+      stroke: { color: "#3456ab", width },
+    });
+    scene.store.add({
+      id: "opaque-stroke",
+      entityType: "connection",
+      x: 0,
+      y: 0,
+      zIndex: 0,
+      bounds: { minX: 95, minY: 250, maxX: 405, maxY: 270 },
+      primitives: [stroke(0.125)],
+    });
+    const backend = scene.layer.getBackend()!;
+    const probe = backend as typeof backend & {
+      hasMixedVertexWork(): boolean;
+      prepareMixedPlane(...args: unknown[]): unknown;
+      stockOrder?: { ordered: object };
+      mixedPlan?: { plan?: object };
+      pathGroupsOf: Map<string, Set<{ lines: { ranges: { revision: number } } }>>;
+    };
+    // Route the small fixture through the same mixed pass as a large graph.
+    probe.hasMixedVertexWork = () => true;
+    const prepare = probe.prepareMixedPlane;
+    let usedMixed = false;
+    probe.prepareMixedPlane = function (...args) {
+      const result = prepare.apply(this, args);
+      usedMixed = Boolean(result);
+      return result;
+    };
+    const gl = backend.canvas.getContext("webgl2")!;
+    const frame = {
+      ...cameraService.getCameraState(),
+      level: scene.$level.peek(),
+      dpr: 2,
+      time: 1.234,
+      dimColor: scene.store.getDimColor(),
+    };
+    const render = () => {
+      scene.layer.performRender();
+      scheduler.performUpdate();
+      backend.draw(frame);
+      return usedMixed;
+    };
+    const pixels = () => {
+      const column = new Uint8Array(190 * 4);
+      gl.readPixels(500, gl.drawingBufferHeight - 360, 1, 190, gl.RGBA, gl.UNSIGNED_BYTE, column);
+      return column;
+    };
+    await new Promise(requestAnimationFrame);
+    const initial = render();
+    const [opaque] = probe.pathGroupsOf.get("opaque-stroke")!;
+    const revision = opaque.lines.ranges.revision;
+    scene.store.update("opaque-stroke", { primitives: [stroke(0.125)] });
+    render();
+    const samePayload = opaque.lines.ranges.revision === revision;
+    const order = probe.stockOrder?.ordered;
+    const plan = probe.mixedPlan?.plan;
+    const original = pixels();
+    graph.api.updateConnection("edge", { targetPortId: "alternate" });
+    await new Promise(requestAnimationFrame);
+    const reconnected = render();
+    const actual = pixels();
+    const sameOrder = Boolean(order) && order === probe.stockOrder?.ordered;
+    const samePlan = Boolean(plan) && plan === probe.mixedPlan?.plan;
+    probe.stockOrder = undefined;
+    probe.mixedPlan = undefined;
+    render();
+    const fresh = pixels();
+    scene.store.update("opaque-stroke", { primitives: [stroke(5)] });
+    const wide = render();
+    scene.store.update("opaque-stroke", { primitives: [stroke(0.125)] });
+    const narrow = render();
+    scene.store.add({
+      id: "cover",
+      x: 0,
+      y: 0,
+      zIndex: -1000000,
+      bounds: { minX: 30, minY: 30, maxX: 70, maxY: 70 },
+      primitives: [{ kind: "rect", x: 30, y: 30, width: 40, height: 40, fill: "#111111" }],
+    });
+    const interleaved = render();
+    scene.store.update("cover", { zIndex: 1000000 });
+    const separated = render();
+    connections.unobservePort("alternate", scene);
+    return {
+      initial,
+      samePayload,
+      reconnected,
+      sameOrder,
+      samePlan,
+      wide,
+      narrow,
+      interleaved,
+      separated,
+      changedStroke: actual.some((value, i) => original[i] !== value),
+      matchesFresh: actual.every((value, i) => fresh[i] === value),
+      error: gl.getError(),
+    };
+  });
+  expect(result).toEqual({
+    initial: true,
+    samePayload: true,
+    reconnected: true,
+    sameOrder: true,
+    samePlan: true,
+    wide: false,
+    narrow: true,
+    interleaved: false,
+    separated: true,
+    changedStroke: true,
+    matchesFresh: true,
+    error: 0,
+  });
+});
+
 test("the mixed connection plane recreates its framebuffer and fixed-time image after context restoration", async ({
   page,
 }) => {

@@ -3,7 +3,6 @@ import { ALL_LEVELS_MASK, isOnLevel } from "../levels";
 
 import type { TInstanceUpload } from "./InstanceRanges";
 import type { TSceneFrame } from "./backendTypes";
-import { CURVE_DETAIL_OFFSET } from "./curveTessellation";
 import { PATH_ELEMENT_FLOATS } from "./encodePaths";
 import type { ElementTable } from "./tables";
 
@@ -21,7 +20,6 @@ type TBounds = {
   maxX: number;
   maxY: number;
   pixelHalfWidth: number;
-  curveChords: number;
   untranslated: boolean;
 };
 type TCohort = TBounds & { minScale: number; maxScale: number; mask: number };
@@ -34,7 +32,6 @@ function emptyBounds(): TBounds {
     maxX: -Infinity,
     maxY: -Infinity,
     pixelHalfWidth: 0,
-    curveChords: 0,
     untranslated: true,
   };
 }
@@ -42,7 +39,7 @@ function emptyBounds(): TBounds {
 function resetBounds(box: TBounds): void {
   box.minX = box.minY = Infinity;
   box.maxX = box.maxY = -Infinity;
-  box.pixelHalfWidth = box.curveChords = 0;
+  box.pixelHalfWidth = 0;
   box.untranslated = true;
 }
 
@@ -58,6 +55,7 @@ export class PathCulling {
   private chunks: TChunk[] = [];
   private readonly origins = new Map<number, TOrigin>();
   private readonly dirty = new Set<number>();
+  private translatedChunks = 0;
   private full = true;
   private count = 0;
   private originRevision = -1;
@@ -65,6 +63,8 @@ export class PathCulling {
   private levelSensitive = false;
   private from = Infinity;
   private to = -Infinity;
+  private preparedView?: TSceneFrame & { extraWidth: number; curveChords?: 8 };
+  private prepared: TRange[] = [];
 
   public invalidate(upload: TInstanceUpload, floats: number): void {
     if (upload.kind === "full") this.full = true;
@@ -81,12 +81,8 @@ export class PathCulling {
     const count = paths.length / INSTANCE_FLOATS;
     const scale = Math.fround(frame.scale);
     const resized = this.count !== count;
-    let visibilityChanged =
-      this.full ||
-      resized ||
-      (this.levelSensitive && this.level !== frame.level) ||
-      scale < this.from ||
-      scale >= this.to;
+    const reselectAll =
+      this.full || (this.levelSensitive && this.level !== frame.level) || scale < this.from || scale >= this.to;
     this.level = frame.level;
     if (this.full) {
       this.chunks = [];
@@ -110,16 +106,20 @@ export class PathCulling {
       }
     }
     this.originRevision = originRevision;
-    if (this.dirty.size > 0) {
-      for (const chunk of this.dirty) this.writeChunk(chunk, paths, elements, data);
-      this.dirty.clear();
-      visibilityChanged = true;
+    if (reselectAll || resized || this.dirty.size) this.preparedView = undefined;
+    for (const chunk of this.dirty) {
+      this.writeChunk(chunk, paths, elements, data);
+      if (!reselectAll) this.selectHull(this.chunks[chunk], scale);
     }
-    if (visibilityChanged) this.selectHulls(scale);
+    this.dirty.clear();
+    if (reselectAll) this.selectHulls(scale);
+    this.untranslated = this.translatedChunks === 0;
   }
 
-  private forgetChunk(index: number): void {
+  private forgetChunk(index: number, remaining?: ReadonlySet<number>): void {
+    if (this.chunks[index]?.untranslated === false) this.translatedChunks--;
     for (const element of this.chunks[index]?.elements ?? []) {
+      if (remaining?.has(element)) continue;
       const origin = this.origins.get(element);
       origin?.chunks.delete(index);
       if (origin?.chunks.size === 0) this.origins.delete(element);
@@ -141,26 +141,59 @@ export class PathCulling {
     this.from = -Infinity;
     this.to = Infinity;
     this.levelSensitive = false;
-    this.untranslated = true;
-    for (const box of this.chunks) {
-      resetBounds(box);
-      for (const cohort of box.cohorts) {
-        for (const boundary of [cohort.minScale, cohort.maxScale]) {
-          if (scale < boundary) this.to = Math.min(this.to, boundary);
-          else this.from = Math.max(this.from, boundary);
-        }
-        if (cohort.mask !== ALL_LEVELS_MASK) this.levelSensitive = true;
-        if (scale < cohort.minScale || scale >= cohort.maxScale || !isOnLevel(cohort.mask, this.level)) continue;
-        box.minX = Math.min(box.minX, cohort.minX);
-        box.minY = Math.min(box.minY, cohort.minY);
-        box.maxX = Math.max(box.maxX, cohort.maxX);
-        box.maxY = Math.max(box.maxY, cohort.maxY);
-        box.pixelHalfWidth = Math.max(box.pixelHalfWidth, cohort.pixelHalfWidth);
-        box.curveChords = Math.max(box.curveChords, cohort.curveChords);
-        box.untranslated &&= cohort.untranslated;
+    this.translatedChunks = 0;
+    for (const box of this.chunks) this.selectHull(box, scale);
+  }
+
+  /** A local edit can tighten the valid scale interval. A removed boundary only causes an early full refresh. */
+  private selectHull(box: TChunk, scale: number): void {
+    resetBounds(box);
+    for (const cohort of box.cohorts) {
+      for (const boundary of [cohort.minScale, cohort.maxScale]) {
+        if (scale < boundary) this.to = Math.min(this.to, boundary);
+        else this.from = Math.max(this.from, boundary);
       }
-      this.untranslated &&= box.untranslated;
+      if (cohort.mask !== ALL_LEVELS_MASK) this.levelSensitive = true;
+      if (scale < cohort.minScale || scale >= cohort.maxScale || !isOnLevel(cohort.mask, this.level)) continue;
+      box.minX = Math.min(box.minX, cohort.minX);
+      box.minY = Math.min(box.minY, cohort.minY);
+      box.maxX = Math.max(box.maxX, cohort.maxX);
+      box.maxY = Math.max(box.maxY, cohort.maxY);
+      box.pixelHalfWidth = Math.max(box.pixelHalfWidth, cohort.pixelHalfWidth);
+      box.untranslated &&= cohort.untranslated;
     }
+    if (!box.untranslated) this.translatedChunks++;
+  }
+
+  /** The identity changes only when clipping or curve detail changes the full physical command ranges. */
+  public preparedRanges(frame: TSceneFrame, extraWidth: number, curveChords?: 8): readonly TRange[] {
+    const view = this.preparedView;
+    if (
+      view &&
+      view.x === frame.x &&
+      view.y === frame.y &&
+      view.scale === frame.scale &&
+      view.width === frame.width &&
+      view.height === frame.height &&
+      view.dpr === frame.dpr &&
+      view.extraWidth === extraWidth &&
+      view.curveChords === curveChords
+    )
+      return this.prepared;
+    const ranges = this.ranges(0, this.count, frame, extraWidth, { curveChords });
+    const previous = this.prepared;
+    if (
+      ranges.length !== previous.length ||
+      ranges.some(
+        (run, i) =>
+          run.first !== previous[i].first ||
+          run.count !== previous[i].count ||
+          run.curveChords !== previous[i].curveChords
+      )
+    )
+      this.prepared = ranges;
+    this.preparedView = { ...frame, extraWidth, curveChords };
+    return this.prepared;
   }
 
   public ranges(
@@ -182,6 +215,17 @@ export class PathCulling {
       options
     );
     return result;
+  }
+
+  /** Record writes replace the affected chunks. Camera-only updates keep these identities. */
+  public visitChunks(first: number, count: number, visit: (chunk: object, first: number, end: number) => void): void {
+    const end = first + count;
+    for (let from = first; from < end; ) {
+      const index = Math.floor(from / CHUNK_SIZE);
+      const to = Math.min(end, (index + 1) * CHUNK_SIZE);
+      visit(this.chunks[index], from, to);
+      from = to;
+    }
   }
 
   /** Filters only this draw's range, keeping its order and merging adjacent spans without allocating draw records. */
@@ -206,11 +250,10 @@ export class PathCulling {
       return;
     }
     const bridgeGap = options?.bridgeGap ?? 0;
-    const minimumChords = options?.curveChords;
+    const curveChords = options?.curveChords;
     const end = first + count;
     let runFirst = first;
     let runEnd = first;
-    let runChords: number | undefined;
     for (let index = Math.floor(first / CHUNK_SIZE); index < Math.ceil(end / CHUNK_SIZE); index++) {
       const box = this.chunks[index];
       if (box.minX > box.maxX || box.minY > box.maxY) continue;
@@ -231,23 +274,22 @@ export class PathCulling {
         continue;
       const from = Math.max(first, index * CHUNK_SIZE);
       const to = Math.min(end, (index + 1) * CHUNK_SIZE);
-      const curveChords = minimumChords === undefined ? undefined : Math.max(minimumChords, box.curveChords);
-      if (runEnd > runFirst && runEnd + bridgeGap >= from && runChords === curveChords) {
+      if (runEnd > runFirst && runEnd + bridgeGap >= from) {
         runEnd = to;
       } else {
-        if (runEnd > runFirst) visit(runFirst, runEnd - runFirst, runChords);
+        if (runEnd > runFirst) visit(runFirst, runEnd - runFirst, curveChords);
         runFirst = from;
         runEnd = to;
-        runChords = curveChords;
       }
     }
-    if (runEnd > runFirst) visit(runFirst, runEnd - runFirst, runChords);
+    if (runEnd > runFirst) visit(runFirst, runEnd - runFirst, curveChords);
   }
 
   private writeChunk(index: number, paths: Float32Array, elements: Float32Array, table: Float32Array): void {
-    this.forgetChunk(index);
+    const previous = this.chunks[index];
     const box: TChunk = { ...emptyBounds(), elements: new Set(), cohorts: [] };
     let cohort: TCohort | undefined;
+    let lastElement = -1;
     const first = index * CHUNK_SIZE;
     const end = Math.min(this.count, first + CHUNK_SIZE);
     for (let instance = first; instance < end; instance++) {
@@ -265,18 +307,22 @@ export class PathCulling {
           box.cohorts.push(cohort);
         }
       }
-      cohort.curveChords = Math.max(cohort.curveChords, paths[p + CURVE_DETAIL_OFFSET]);
       const element = elements[e];
       const ox = table[element * 4];
       const oy = table[element * 4 + 1];
       cohort.untranslated &&= ox * ox + oy * oy === 0;
-      let origin = this.origins.get(element);
-      if (!origin) {
-        origin = { x: ox, y: oy, chunks: new Set() };
-        this.origins.set(element, origin);
+      if (element !== lastElement) {
+        lastElement = element;
+        box.elements.add(element);
+        if (!previous?.elements.has(element)) {
+          let origin = this.origins.get(element);
+          if (!origin) {
+            origin = { x: ox, y: oy, chunks: new Set() };
+            this.origins.set(element, origin);
+          }
+          origin.chunks.add(index);
+        }
       }
-      origin.chunks.add(index);
-      box.elements.add(element);
       const mode = Math.floor(elements[e + 6] / 8);
       // clamp(px / scale, minWorld, maxWorld) <= minWorld + px / scale, likewise for world/minPx.
       const worldHalfWidth = Math.max(0, mode === 1 ? elements[e + 3] : paths[p + 12]) / 2;
@@ -293,6 +339,7 @@ export class PathCulling {
         cohort.maxY = Math.max(cohort.maxY, py + worldHalfWidth);
       }
     }
+    this.forgetChunk(index, box.elements);
     this.chunks[index] = box;
   }
 }

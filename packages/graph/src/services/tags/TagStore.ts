@@ -5,6 +5,14 @@ import type { TEntityId, TEntityType, TTag, TTagIds, TTagMembers, TTagSet } from
 
 const EMPTY_TAGS: TTagSet = new Map();
 
+type TMembership = {
+  values: Map<string, unknown>;
+  /** Insertion positions let notifications follow membership order even when a patch lists its keys backwards. */
+  order: Map<string, number>;
+  nextOrder: number;
+  snapshot?: Map<string, unknown>;
+};
+
 export function entityKey(type: TEntityType, id: TEntityId): string {
   return `${type}\u0000${String(id)}`;
 }
@@ -51,7 +59,7 @@ export class TagStore {
 
   private readonly root = signal<ReadonlySet<TTag<true>>>(new Set());
 
-  private readonly members = new Map<TTag<unknown>, Map<string, unknown>>();
+  private readonly members = new Map<TTag<unknown>, TMembership>();
 
   private readonly entityTags = new Map<string, Map<TTag<unknown>, unknown>>();
 
@@ -77,18 +85,46 @@ export class TagStore {
 
   public add<V>(tag: TTag<V>, members: TTagMembers<V>): void {
     this.assertWritable(tag);
-    const next = new Map(this.members.get(tag) ?? []);
-    for (const [key, value] of normalize(members)) next.set(key, value);
-    this.apply(tag, next);
+    const patch = normalize(members);
+    const current = this.members.get(tag);
+    if (!current) {
+      this.apply(tag, patch);
+      return;
+    }
+    const changed: string[] = [];
+    for (const [key, value] of patch) {
+      if (!current.values.has(key) || !sameValue(current.values.get(key), value)) changed.push(key);
+    }
+    if (!changed.length) return;
+    for (const [key, value] of patch) {
+      if (!current.values.has(key)) current.order.set(key, current.nextOrder++);
+      current.values.set(key, value);
+    }
+    current.snapshot = undefined;
+    changed.sort((a, b) => (current.order.get(a) as number) - (current.order.get(b) as number));
+    this.notify(tag, current.values, changed);
   }
 
   public delete(tag: TTag<unknown>, ids: TTagIds): void {
     this.assertWritable(tag);
-    const next = new Map(this.members.get(tag) ?? []);
+    const current = this.members.get(tag);
+    if (!current) return;
+    const keys = new Set<string>();
     for (const [type, list] of Object.entries(ids)) {
-      for (const id of list ?? []) next.delete(entityKey(type, id));
+      for (const id of list ?? []) {
+        const key = entityKey(type, id);
+        if (current.values.has(key)) keys.add(key);
+      }
     }
-    this.apply(tag, next);
+    if (!keys.size) return;
+    const removed = [...keys].sort((a, b) => (current.order.get(a) as number) - (current.order.get(b) as number));
+    for (const key of removed) {
+      current.values.delete(key);
+      current.order.delete(key);
+    }
+    current.snapshot = undefined;
+    if (!current.values.size) this.members.delete(tag);
+    this.notify(tag, current.values, removed);
   }
 
   public clear(tag: TTag<unknown>): void {
@@ -187,7 +223,10 @@ export class TagStore {
 
   /** Members of a tag by entity key (see entityKey), for devtools and tests. */
   public membersOf<V>(tag: TTag<V>): ReadonlyMap<string, V> {
-    return (this.members.get(tag) ?? new Map()) as ReadonlyMap<string, V>;
+    const current = this.members.get(tag);
+    if (!current) return new Map();
+    // Materialize on inspection so previous snapshots stay immutable through later sparse writes.
+    return (current.snapshot ??= new Map(current.values)) as ReadonlyMap<string, V>;
   }
 
   /** @internal Unbinds every bound tag; the graph calls it on unmount. */
@@ -200,15 +239,24 @@ export class TagStore {
   }
 
   private apply(tag: TTag<unknown>, next: Map<string, unknown>): void {
-    const previous = this.members.get(tag) ?? new Map<string, unknown>();
+    const previous = this.members.get(tag)?.values;
     const changed: string[] = [];
     for (const [key, value] of next) {
-      if (!previous.has(key) || !sameValue(previous.get(key), value)) changed.push(key);
+      if (!previous?.has(key) || !sameValue(previous.get(key), value)) changed.push(key);
     }
-    for (const key of previous.keys()) if (!next.has(key)) changed.push(key);
+    if (previous) for (const key of previous.keys()) if (!next.has(key)) changed.push(key);
     if (changed.length === 0) return;
-    if (next.size > 0) this.members.set(tag, next);
-    else this.members.delete(tag);
+    if (next.size > 0) {
+      const order = new Map<string, number>();
+      for (const key of next.keys()) order.set(key, order.size);
+      this.members.set(tag, { values: next, order, nextOrder: next.size });
+    } else {
+      this.members.delete(tag);
+    }
+    this.notify(tag, next, changed);
+  }
+
+  private notify(tag: TTag<unknown>, next: ReadonlyMap<string, unknown>, changed: readonly string[]): void {
     batch(() => {
       for (const key of changed) {
         const tags = new Map(this.entityTags.get(key) ?? []);

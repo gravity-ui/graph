@@ -1,4 +1,4 @@
-import type { InstanceRanges, TRetainedRange, TStepInstances } from "./InstanceRanges";
+import type { InstanceRanges, TStepInstances } from "./InstanceRanges";
 import { SCENE_DEPTH } from "./depth";
 
 /**
@@ -87,6 +87,13 @@ export type TTranslucentSource = { instances: InstanceRanges; companion?: Instan
 /** One instanced draw call: `count` instances of one source from instance `first`. */
 export type TTranslucentRun = { source: number; first: number; count: number };
 
+/** A view over immutable, canonical runs of one source in physical order. */
+export type TTranslucentPart = {
+  readonly runs: readonly TTranslucentRun[];
+  readonly first: number;
+  readonly end: number;
+};
+
 /** Instances of one source with one draw position `(level, step)`: a contiguous range of its buffer. */
 export type TBucket = { bucket: number; first: number; count: number };
 
@@ -95,20 +102,29 @@ type TSourceSnapshot = {
   subBits: number;
   levelRevision?: number;
   positions: Float64Array;
-  /** The sparse edit updated sorted buckets directly. Rebuild the physical positions before comparing them again. */
-  positionsStale?: boolean;
   buckets: TBucket[];
 };
 
-type TUpperBandSnapshot = {
-  bucket: number;
+type TOrderPage = { bucket: number; page: number; from: number; to: number; part: TTranslucentPart };
+type TPagedSource = { source: InstanceRanges; buckets: TBucket[]; pages: TOrderPage[] };
+type TPageBand = { pages: TOrderPage[]; parts: TTranslucentPart[] };
+type TPainterPosition = { bucket: number; bands: Map<number, TPageBand>; parts: TTranslucentPart[] };
+type TSourceOrder = { source: InstanceRanges; positions: TPainterPosition[]; dense?: TPagedSource };
+type TOrderWindow = {
+  parts: TTranslucentPart[];
+  incoming?: TTranslucentPart;
+  groups: TTranslucentPart[][];
+  tail?: TTranslucentPart;
+};
+type TOrderChunks = {
+  windows: Map<number, TOrderWindow>;
+  dirty: Set<number>;
   subBits: number;
-  /** First upper bucket in each source's sorted list. */
-  cuts: number[];
-  /** First whole upper run in the merged list. A run spanning the boundary is immediately before it. */
-  firstRun: number;
-  /** The upper portion of that spanning run, independent of the lower draws that can change on the next edit. */
-  joined?: TTranslucentRun;
+  sources: TSourceOrder[];
+  parts: readonly TTranslucentPart[];
+  retained: (TRetainedOrder | undefined)[];
+  views: WeakMap<readonly TTranslucentRun[], TTranslucentPart[]>;
+  joins: WeakMap<TTranslucentRun, WeakMap<TTranslucentRun, TTranslucentPart>>;
 };
 
 /** Backend-owned snapshots; weak source keys do not keep retired instance lists alive. */
@@ -117,11 +133,10 @@ export type TTranslucentOrderCache = {
   levelRevision?: number;
   /** All IDs whose levels changed from the previous numeric revision to this one, when known. */
   changedLevelIds?: readonly string[];
-  firstUpperLevel?: number;
-  upper?: TUpperBandSnapshot;
+  /** Consecutive parts of the returned order. Unchanged windows retain their groups across local edits. */
+  partGroups?: readonly (readonly TTranslucentPart[])[];
+  chunks?: TOrderChunks;
   sources?: WeakMap<InstanceRanges, TSourceSnapshot>;
-  lists?: readonly (readonly TBucket[])[];
-  runs?: TTranslucentRun[];
 };
 
 /** The draw position of a step of an element on a level at the depth's sub-order width: levels first, then steps. */
@@ -187,106 +202,8 @@ export function sortBuckets(buckets: readonly TBucket[]): TBucket[] {
   return sorted;
 }
 
-/** First removed span whose end lies after this offset. The removed physical spans are sorted and disjoint. */
-function firstRemoval(removed: readonly TRetainedRange[], offset: number): number {
-  let first = 0;
-  let end = removed.length;
-  while (first < end) {
-    const mid = Math.floor((first + end) / 2);
-    if (removed[mid].offset + removed[mid].count <= offset) first = mid + 1;
-    else end = mid;
-  }
-  return first;
-}
-
-/** Subtract old physical spans and merge the affected owners' new positions into the same canonical order. */
-function patchBuckets(previous: TBucket[], removed: TRetainedRange[], additions: TBucket[]): TBucket[] {
-  removed.sort((a, b) => a.offset - b.offset);
-  additions.sort((a, b) => a.bucket - b.bucket || a.first - b.first);
-  const result: TBucket[] = [];
-  let next = 0;
-  const append = (value: TBucket): void => {
-    const last = result[result.length - 1];
-    // Unchanged fragments are borrowed from the previous schedule. Only replace the two that join.
-    if (last && last.bucket === value.bucket && last.first + last.count === value.first) {
-      result[result.length - 1] = { ...last, count: last.count + value.count };
-    } else result.push(value);
-  };
-  const keep = (value: TBucket): void => {
-    while (next < additions.length) {
-      const added = additions[next];
-      if (added.bucket > value.bucket || (added.bucket === value.bucket && added.first >= value.first)) break;
-      append(added);
-      next++;
-    }
-    append(value);
-  };
-  const min = removed[0]?.offset ?? Infinity;
-  const last = removed[removed.length - 1];
-  const max = last ? last.offset + last.count : -Infinity;
-  for (const item of previous) {
-    const end = item.first + item.count;
-    if (end <= min || item.first >= max) {
-      keep(item);
-      continue;
-    }
-    const first = firstRemoval(removed, item.first);
-    if (first === removed.length || removed[first].offset >= end) {
-      keep(item);
-      continue;
-    }
-    let cursor = item.first;
-    for (let i = first; i < removed.length && removed[i].offset < end; i++) {
-      const cut = removed[i];
-      if (cursor < cut.offset) keep({ bucket: item.bucket, first: cursor, count: cut.offset - cursor });
-      cursor = cut.offset + cut.count;
-    }
-    if (cursor < end) keep({ bucket: item.bucket, first: cursor, count: end - cursor });
-  }
-  while (next < additions.length) append(additions[next++]);
-  return previous.length === result.length && result.every((value, index) => sameBucket(value, previous[index]))
-    ? previous
-    : result;
-}
-
 function sameBucket(a: TBucket, b: TBucket): boolean {
   return a === b || (a.bucket === b.bucket && a.first === b.first && a.count === b.count);
-}
-
-function patchRetainedSource(
-  snapshot: TSourceSnapshot,
-  ranges: InstanceRanges,
-  levelOf: (id: string) => number,
-  levelRevision: number,
-  changed: readonly string[] | undefined
-): TBucket[] | undefined {
-  if (!changed || changed.length > snapshot.positions.length) return undefined;
-  const layout = ranges.layoutRevision;
-  const edit = snapshot.layout === layout ? undefined : ranges.retainedChangeSince(snapshot.layout);
-  if (snapshot.layout !== layout && !edit) return undefined;
-  const ids = new Set(changed);
-  if (edit) ids.add(edit.id);
-  const removed: TRetainedRange[] = [];
-  const additions: TBucket[] = [];
-  for (const id of ids) {
-    const current = ranges.ownerRanges(id);
-    for (const span of edit?.id === id ? edit.previous : current) removed.push(span);
-    if (current.length > 0) {
-      const level = levelOf(id);
-      for (const span of current) {
-        additions.push({ bucket: bucketOf(level, span.step, snapshot.subBits), first: span.offset, count: span.count });
-      }
-    }
-  }
-  if (removed.length || additions.length) {
-    // A full pass is cheaper when at least as many fragments change as the previous schedule contains.
-    if (removed.length + additions.length >= snapshot.buckets.length) return undefined;
-    snapshot.buckets = patchBuckets(snapshot.buckets, removed, additions);
-    snapshot.positionsStale = true;
-  }
-  snapshot.layout = layout;
-  snapshot.levelRevision = levelRevision;
-  return snapshot.buckets;
 }
 
 /** A global level revision need not change this source's actual draw positions. */
@@ -315,15 +232,11 @@ function cachedSourceBuckets(
       snapshot.levelRevision = levelRevision;
       return snapshot.buckets;
     }
-    if (ranges.layoutRetained) {
-      const patched = patchRetainedSource(snapshot, ranges, levelOf, levelRevision, changed);
-      if (patched) return patched;
-    }
   }
 
   const previous = snapshot?.buckets;
   let changed = false;
-  if (!snapshot || snapshot.layout !== layout || snapshot.positionsStale) {
+  if (!snapshot || snapshot.layout !== layout) {
     changed = true;
     let count = 0;
     ranges.forEachRange(() => count++);
@@ -416,84 +329,12 @@ function mergeBucketSpan(
   }
 }
 
-function upperStart(list: readonly TBucket[], bucket: number): number {
-  let first = 0;
-  let end = list.length;
-  while (first < end) {
-    const mid = Math.floor((first + end) / 2);
-    if (list[mid].bucket < bucket) first = mid + 1;
-    else end = mid;
-  }
-  return first;
-}
-
-function sameUpper(list: readonly TBucket[], start: number, old: readonly TBucket[], previous: number): boolean {
-  if (list === old && start === previous) return true;
-  if (list.length - start !== old.length - previous) return false;
-  while (start < list.length) {
-    const a = list[start++];
-    const b = old[previous++];
-    if (a.bucket !== b.bucket || a.first !== b.first || a.count !== b.count) return false;
-  }
-  return true;
-}
-
-/** The upper runs depend only on their sorted bucket triples at each source index, including for shared programs. */
-function mergeBands(lists: TBucket[][], cache: TTranslucentOrderCache, subBits: number): TTranslucentRun[] {
-  if (cache.firstUpperLevel === undefined) {
-    cache.upper = undefined;
-    return mergeBuckets(lists);
-  }
-  const bucket = bucketOf(cache.firstUpperLevel, 0, subBits);
-  const cuts = lists.map((list) => upperStart(list, bucket));
-  const runs: TTranslucentRun[] = [];
-  mergeBucketSpan(
-    lists,
-    lists.map(() => 0),
-    cuts,
-    runs
-  );
-  const firstRun = runs.length;
-  const last = runs[firstRun - 1];
-  const before = last?.count ?? 0;
-  const previous = cache.upper;
-  const oldLists = cache.lists;
-  const oldRuns = cache.runs;
-  if (
-    previous?.bucket === bucket &&
-    previous.subBits === subBits &&
-    oldRuns &&
-    oldLists?.length === lists.length &&
-    lists.every((list, index) => sameUpper(list, cuts[index], oldLists[index], previous.cuts[index]))
-  ) {
-    let index = previous.firstRun;
-    const first = previous.joined ?? oldRuns[index++];
-    if (first) {
-      if (last && last.source === first.source && last.first + last.count === first.first) last.count += first.count;
-      else runs.push(first);
-      for (; index < oldRuns.length; index++) runs.push(oldRuns[index]);
-    }
-  } else {
-    mergeBucketSpan(
-      lists,
-      [...cuts],
-      lists.map((list) => list.length),
-      runs
-    );
-  }
-  const joined =
-    last && last.count !== before
-      ? { source: last.source, first: last.first + before, count: last.count - before }
-      : undefined;
-  cache.upper = { bucket, subBits, cuts, firstRun, joined };
-  return runs;
-}
-
 /** Filters shader-inactive draws, sharing unchanged runs and copying only merges across inactive buffer gaps. */
 export function filterTranslucentRuns(
   input: readonly TTranslucentRun[],
   visible: (source: number, first: number, count: number) => boolean,
-  bridge: (source: number) => boolean = () => true
+  bridge: (source: number) => boolean = () => true,
+  gapVisible = visible
 ): TTranslucentRun[] {
   const runs: TTranslucentRun[] = [];
   let borrowed = false;
@@ -506,7 +347,7 @@ export function filterTranslucentRuns(
       last.source === run.source &&
       gap >= 0 &&
       (gap === 0 || bridge(run.source)) &&
-      !visible(run.source, last.first + last.count, gap)
+      !gapVisible(run.source, last.first + last.count, gap)
     ) {
       if (borrowed) runs[runs.length - 1] = { ...last, count: last.count + gap + run.count };
       else last.count += gap + run.count;
@@ -538,44 +379,591 @@ export function orderTranslucent(
   keyOf: (id: string) => number,
   subBits: number,
   compact = true,
-  visible?: (source: number, first: number, count: number) => boolean,
-  cache?: TTranslucentOrderCache
+  visible?: (source: number, first: number, count: number) => boolean
 ): TTranslucentRun[] {
-  const sortSources = (): void => {
-    const order = (id: string, step: number): number => chunkOrder(levelOf(id), step, keyOf(id), subBits);
-    for (const { instances, companion } of sources) {
-      if (instances.layoutRetained) continue;
-      instances.sortBy(order);
-      companion?.sortBy(order);
-    }
-  };
   const bucketLists = (): TBucket[][] =>
     sources.map((source, index) =>
-      cache && !visible
-        ? cachedSourceBuckets(source.instances, levelOf, subBits, cache)
-        : sortBuckets(
-            sourceBuckets(
-              source.instances,
-              levelOf,
-              subBits,
-              visible && ((first, count) => visible(index, first, count))
-            )
-          )
+      sortBuckets(
+        sourceBuckets(source.instances, levelOf, subBits, visible && ((first, count) => visible(index, first, count)))
+      )
     );
-  if (compact) sortSources();
+  if (compact) sortDenseSources(sources, levelOf, keyOf, subBits);
   let lists = bucketLists();
   if (
     !compact &&
     lists.reduce((sum, list, source) => sum + (sources[source].instances.layoutRetained ? 0 : outOfPlace(list)), 0) >
       MAX_OUT_OF_PLACE
   ) {
-    sortSources();
+    sortDenseSources(sources, levelOf, keyOf, subBits);
     lists = bucketLists();
   }
-  if (!cache || visible) return mergeBuckets(lists);
-  if (cache.runs && cache.lists?.length === lists.length && lists.every((list, index) => list === cache.lists?.[index]))
-    return cache.runs;
-  const runs = mergeBands(lists, cache, subBits);
-  cache.lists = lists;
-  return (cache.runs = runs);
+  return mergeBuckets(lists);
+}
+
+function sortDenseSources(
+  sources: readonly TTranslucentSource[],
+  levelOf: (id: string) => number,
+  keyOf: (id: string) => number,
+  subBits: number
+): void {
+  const order = (id: string, step: number): number => chunkOrder(levelOf(id), step, keyOf(id), subBits);
+  for (const { instances, companion } of sources) {
+    if (instances.layoutRetained) continue;
+    instances.sortBy(order);
+    companion?.sortBy(order);
+  }
+}
+
+/**
+ * Group the physical slots of each draw position. The address boundary stays put through inserts, level moves
+ * and sparse holes, even when almost every range of a source shares one painter position.
+ */
+const ORDER_PAGE_SLOTS = 1024;
+
+function pageOrder(aBucket: number, aPage: number, bBucket: number, bPage: number): number {
+  return aBucket - bBucket || aPage - bPage;
+}
+
+function pagePart(source: number, buckets: TBucket[], from: number, to: number): TTranslucentPart {
+  const runs: TTranslucentRun[] = [];
+  for (let index = from; index < to; index++) {
+    const { first, count } = buckets[index];
+    const previous = runs[runs.length - 1];
+    if (previous && previous.first + previous.count === first) previous.count += count;
+    else runs.push({ source, first, count });
+  }
+  return { runs, first: 0, end: runs.length };
+}
+
+function orderPages(source: InstanceRanges, index: number, buckets: TBucket[], before?: TPagedSource): TPagedSource {
+  if (before?.source !== source) before = undefined;
+  if (before?.buckets === buckets) return before;
+  const pages: TOrderPage[] = [];
+  const old = before?.pages ?? [];
+  let previous = 0;
+  for (let from = 0; from < buckets.length; ) {
+    const { bucket, first } = buckets[from];
+    const page = Math.floor(first / ORDER_PAGE_SLOTS);
+    let to = from + 1;
+    while (to < buckets.length && buckets[to].bucket === bucket && buckets[to].first < (page + 1) * ORDER_PAGE_SLOTS)
+      to++;
+    while (previous < old.length && pageOrder(old[previous].bucket, old[previous].page, bucket, page) < 0) previous++;
+    const candidate = old[previous];
+    let same =
+      before !== undefined &&
+      candidate !== undefined &&
+      pageOrder(candidate.bucket, candidate.page, bucket, page) === 0 &&
+      candidate.to - candidate.from === to - from;
+    if (same && before && candidate) {
+      for (let k = from; k < to; k++) {
+        if (!sameBucket(buckets[k], before.buckets[candidate.from + k - from])) {
+          same = false;
+          break;
+        }
+      }
+    }
+    const part = same && candidate ? candidate.part : pagePart(index, buckets, from, to);
+    pages.push({ bucket, page, from, to, part });
+    from = to;
+  }
+  return { source, buckets, pages };
+}
+
+function viewPart(part: TTranslucentPart, first: number, end: number, state: TOrderChunks): TTranslucentPart {
+  const { runs } = part;
+  let views = state.views.get(runs);
+  if (!views) state.views.set(runs, (views = []));
+  // A boundary can trim the first or last run, or both. Joined seam runs are separate one-run parts.
+  const key = first + (runs.length - end) * 2;
+  return (views[key] ??= { runs, first, end });
+}
+
+function joinPart(a: TTranslucentRun, b: TTranslucentRun, state: TOrderChunks): TTranslucentPart {
+  let right = state.joins.get(a);
+  if (!right) state.joins.set(a, (right = new WeakMap()));
+  let joined = right.get(b);
+  if (!joined) {
+    joined = { runs: [{ source: a.source, first: a.first, count: a.count + b.count }], first: 0, end: 1 };
+    right.set(b, joined);
+  }
+  return joined;
+}
+
+type TRetainedPage = { entries: TBucket[]; order: TOrderPage };
+
+type TRetainedOrder = {
+  layout: number;
+  levelRevision: number | undefined;
+  byFirst: Map<number, TBucket>;
+  physical: Map<number, Map<number, TRetainedPage>>;
+  ordered: TSourceOrder;
+};
+
+function physicalPage(first: number): number {
+  return Math.floor(first / ORDER_PAGE_SLOTS);
+}
+
+function compareOrderPages(a: TOrderPage, b: TOrderPage): number {
+  return pageOrder(a.bucket, a.page, b.bucket, b.page);
+}
+
+// Fixed physical bands preserve compound part identity when a different slot is inserted or deleted.
+const ORDER_BAND_PAGES = 16;
+const SMALL_GROUP_RUNS = 128;
+
+function appendPart(parts: TTranslucentPart[], part: TTranslucentPart, state: TOrderChunks): void {
+  const previous = parts[parts.length - 1];
+  const last = previous?.runs[previous.end - 1];
+  const first = part.runs[part.first];
+  if (last && last.source === first.source && last.first + last.count === first.first) {
+    parts.pop();
+    if (previous.end - previous.first > 1) parts.push(viewPart(previous, previous.first, previous.end - 1, state));
+    parts.push(joinPart(last, first, state));
+    if (part.end - part.first > 1) parts.push(viewPart(part, part.first + 1, part.end, state));
+  } else {
+    parts.push(part);
+  }
+}
+
+function appendGroup(parts: TTranslucentPart[], group: readonly TTranslucentPart[], state: TOrderChunks): void {
+  // Internal seams are already canonical. Only the first part can touch the previous group's last range.
+  appendPart(parts, group[0], state);
+  for (let i = 1; i < group.length; i++) parts.push(group[i]);
+}
+
+function pageBand(pages: TOrderPage[], state: TOrderChunks, previous?: TPageBand): TPageBand {
+  if (previous?.pages.length === pages.length && pages.every((page, i) => page.part === previous.pages[i].part))
+    return previous;
+  const parts: TTranslucentPart[] = [];
+  for (let from = 0; from < pages.length; ) {
+    let to = from + 1;
+    let count = pages[from].part.end;
+    while (to < pages.length && count + pages[to].part.end <= SMALL_GROUP_RUNS) count += pages[to++].part.end;
+    if (to === from + 1) appendPart(parts, pages[from].part, state);
+    else {
+      const runs: TTranslucentRun[] = [];
+      for (let i = from; i < to; i++) {
+        for (const run of pages[i].part.runs) {
+          const last = runs[runs.length - 1];
+          if (last && last.first + last.count === run.first)
+            runs[runs.length - 1] = { ...last, count: last.count + run.count };
+          else runs.push(run);
+        }
+      }
+      appendPart(parts, { runs, first: 0, end: runs.length }, state);
+    }
+    from = to;
+  }
+  return { pages, parts };
+}
+
+function painterPosition(bucket: number, bands: Map<number, TPageBand>, state: TOrderChunks): TPainterPosition {
+  const parts: TTranslucentPart[] = [];
+  for (const key of [...bands.keys()].sort((a, b) => a - b)) appendGroup(parts, bands.get(key)!.parts, state);
+  return { bucket, bands, parts };
+}
+
+function sourceOrder(
+  source: InstanceRanges,
+  pages: TOrderPage[],
+  state: TOrderChunks,
+  before?: TSourceOrder
+): TSourceOrder {
+  const positions: TPainterPosition[] = [];
+  const previous = new Map(before?.positions.map((position) => [position.bucket, position]));
+  for (let i = 0; i < pages.length; ) {
+    const bucket = pages[i].bucket;
+    const old = previous.get(bucket);
+    const bands = new Map<number, TPageBand>();
+    let same = old !== undefined;
+    do {
+      const start = i;
+      const key = Math.floor(pages[i].page / ORDER_BAND_PAGES);
+      do i++;
+      while (i < pages.length && pages[i].bucket === bucket && Math.floor(pages[i].page / ORDER_BAND_PAGES) === key);
+      const band = pageBand(pages.slice(start, i), state, old?.bands.get(key));
+      bands.set(key, band);
+      if (band !== old?.bands.get(key)) same = false;
+    } while (i < pages.length && pages[i].bucket === bucket);
+    positions.push(same && old && old.bands.size === bands.size ? old : painterPosition(bucket, bands, state));
+  }
+  for (const position of positions) {
+    if (previous.get(position.bucket) !== position) state.dirty.add(windowOf(position.bucket, state));
+    previous.delete(position.bucket);
+  }
+  for (const bucket of previous.keys()) state.dirty.add(windowOf(bucket, state));
+  return { source, positions };
+}
+
+type TPageChange = { page: number; next?: TOrderPage };
+
+function firstPosition(positions: TPainterPosition[], bucket: number): number {
+  let lo = 0;
+  let hi = positions.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (positions[mid].bucket < bucket) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function updateBandPages(
+  previous: TPageBand | undefined,
+  edits: TPageChange[],
+  first: number,
+  end: number
+): TOrderPage[] {
+  const pages = previous?.pages.slice() ?? [];
+  let at = 0;
+  for (let i = first; i < end; i++) {
+    const { page, next } = edits[i];
+    while (at < pages.length && pages[at].page < page) at++;
+    if (pages[at]?.page === page) {
+      if (next) pages[at++] = next;
+      else pages.splice(at, 1);
+    } else if (next) pages.splice(at++, 0, next);
+  }
+  return pages;
+}
+
+function patchPositions(order: TSourceOrder, changes: Map<number, TPageChange[]>, state: TOrderChunks): TSourceOrder {
+  if (!changes.size) return order;
+  const positions = order.positions.slice();
+  for (const [bucket, edits] of changes) {
+    state.dirty.add(windowOf(bucket, state));
+    const at = firstPosition(positions, bucket);
+    const old = positions[at]?.bucket === bucket ? positions[at] : undefined;
+    const bands = old?.bands ?? new Map<number, TPageBand>();
+    edits.sort((a, b) => a.page - b.page);
+    for (let i = 0; i < edits.length; ) {
+      const key = Math.floor(edits[i].page / ORDER_BAND_PAGES);
+      const first = i;
+      do i++;
+      while (i < edits.length && Math.floor(edits[i].page / ORDER_BAND_PAGES) === key);
+      const pages = updateBandPages(bands.get(key), edits, first, i);
+      if (pages.length) bands.set(key, pageBand(pages, state));
+      else bands.delete(key);
+    }
+    if (bands.size) {
+      const position = painterPosition(bucket, bands, state);
+      if (old) positions[at] = position;
+      else positions.splice(at, 0, position);
+    } else if (old) positions.splice(at, 1);
+  }
+  return { source: order.source, positions };
+}
+
+const EMPTY_PART: TTranslucentPart = { runs: [], first: 0, end: 0 };
+
+function retainedPage(physical: TRetainedOrder["physical"], entry: TBucket): TRetainedPage {
+  const key = physicalPage(entry.first);
+  let page = physical.get(key);
+  if (!page) physical.set(key, (page = new Map()));
+  let position = page.get(entry.bucket);
+  if (!position) {
+    position = { entries: [], order: { bucket: entry.bucket, page: key, from: 0, to: 0, part: EMPTY_PART } };
+    page.set(entry.bucket, position);
+  }
+  return position;
+}
+
+function finishPage(index: number, page: TRetainedPage): TOrderPage {
+  const { entries, order } = page;
+  return (page.order = {
+    bucket: order.bucket,
+    page: order.page,
+    from: 0,
+    to: entries.length,
+    part: pagePart(index, entries, 0, entries.length),
+  });
+}
+
+function readRetainedSource(
+  source: InstanceRanges,
+  index: number,
+  levelOf: (id: string) => number,
+  subBits: number,
+  levelRevision: number | undefined,
+  state: TOrderChunks,
+  before?: TRetainedOrder
+): TRetainedOrder {
+  const byFirst = new Map<number, TBucket>();
+  const physical = new Map<number, Map<number, TRetainedPage>>();
+  const pages: TOrderPage[] = [];
+  source.forEachRange((id, first, count, step) => {
+    const bucket = bucketOf(levelOf(id), step, subBits);
+    const entry = { bucket, first, count };
+    byFirst.set(first, entry);
+    retainedPage(physical, entry).entries.push(entry);
+  });
+  for (const [key, at] of physical) {
+    for (const [bucket, page] of at) {
+      const old = before?.physical.get(key)?.get(bucket);
+      const { entries } = page;
+      // forEachRange visits physical addresses in order.
+      if (
+        old &&
+        entries.length === old.entries.length &&
+        entries.every((entry, i) => sameBucket(entry, old.entries[i]))
+      )
+        page.order = old.order;
+      else finishPage(index, page);
+      pages.push(page.order);
+    }
+  }
+  return {
+    layout: source.layoutRevision,
+    levelRevision,
+    byFirst,
+    physical,
+    ordered: sourceOrder(source, pages.sort(compareOrderPages), state, before?.ordered),
+  };
+}
+
+function patchRetainedPages(
+  snapshot: TRetainedOrder,
+  source: InstanceRanges,
+  index: number,
+  levelOf: (id: string) => number,
+  subBits: number,
+  levelRevision: number | undefined,
+  changed: readonly string[] | undefined,
+  state: TOrderChunks
+): boolean {
+  if (!changed) return false;
+  const layout = source.layoutRevision;
+  const shapes = snapshot.layout === layout ? undefined : source.retainedChangesSince(snapshot.layout);
+  if (snapshot.layout !== layout && !shapes) return false;
+  const touched = new Set(changed);
+  const replacements = new Map<number, TBucket | undefined>();
+  for (const shape of shapes ?? []) {
+    touched.add(shape.id);
+    for (const span of shape.previous) replacements.set(span.offset, undefined);
+  }
+  for (const id of touched) {
+    const current = source.ownerRanges(id);
+    if (!current.length) continue;
+    const level = levelOf(id);
+    for (const { offset: first, count, step } of current)
+      replacements.set(first, { first, count, bucket: bucketOf(level, step, subBits) });
+  }
+  // Group by the exact former and new painter buckets. Other buckets sharing the same physical page keep their runs.
+  if (replacements.size > ORDER_PAGE_SLOTS && replacements.size * 2 > snapshot.byFirst.size) return false;
+  const dirty = new Set<TRetainedPage>();
+  for (const [first, next] of replacements) {
+    const old = snapshot.byFirst.get(first);
+    if (old && next && sameBucket(old, next)) continue;
+    if (old) {
+      const page = retainedPage(snapshot.physical, old);
+      const entries = page.entries;
+      const at = entries.indexOf(old);
+      entries[at] = entries[entries.length - 1];
+      entries.pop();
+      dirty.add(page);
+    }
+    if (next) {
+      snapshot.byFirst.set(first, next);
+      const page = retainedPage(snapshot.physical, next);
+      page.entries.push(next);
+      dirty.add(page);
+    } else snapshot.byFirst.delete(first);
+  }
+  snapshot.layout = layout;
+  snapshot.levelRevision = levelRevision;
+  const changes = new Map<number, TPageChange[]>();
+  for (const page of dirty) {
+    const { bucket, page: key } = page.order;
+    let order = changes.get(bucket);
+    if (!order) changes.set(bucket, (order = []));
+    if (page.entries.length) {
+      page.entries.sort((a, b) => a.first - b.first);
+      order.push({ page: key, next: finishPage(index, page) });
+    } else {
+      const at = snapshot.physical.get(key);
+      at?.delete(bucket);
+      if (!at?.size) snapshot.physical.delete(key);
+      order.push({ page: key });
+    }
+  }
+  snapshot.ordered = patchPositions(snapshot.ordered, changes, state);
+  return true;
+}
+
+function retainedSourcePages(
+  source: InstanceRanges,
+  index: number,
+  state: TOrderChunks,
+  levelOf: (id: string) => number,
+  cache: TTranslucentOrderCache
+): TSourceOrder {
+  const { subBits } = state;
+  const { levelRevision } = cache;
+  let before = state.retained[index];
+  if (before?.ordered.source !== source) before = undefined;
+  if (before && levelRevision !== undefined) {
+    const sameLevels = before.levelRevision === levelRevision;
+    if (sameLevels && before.layout === source.layoutRevision) return before.ordered;
+    const changed = sameLevels ? [] : before.levelRevision === levelRevision - 1 ? cache.changedLevelIds : undefined;
+    if (patchRetainedPages(before, source, index, levelOf, subBits, levelRevision, changed, state))
+      return before.ordered;
+  }
+  const next = readRetainedSource(source, index, levelOf, subBits, levelRevision, state, before);
+  state.retained[index] = next;
+  return next.ordered;
+}
+
+// Fixed painter windows keep a change near the back from shifting the groups and their boundaries near the front.
+const WINDOW_LEVELS = 8;
+function windowOf(bucket: number, state: TOrderChunks): number {
+  return Math.floor(bucket / (WINDOW_LEVELS * maxStepsOf(state.subBits)));
+}
+
+function windowParts(sources: TSourceOrder[], key: number, state: TOrderChunks): TTranslucentPart[] {
+  const parts: TTranslucentPart[] = [];
+  const width = WINDOW_LEVELS * maxStepsOf(state.subBits);
+  const end = (key + 1) * width;
+  const cursors = sources.map((source) => firstPosition(source.positions, key * width));
+  for (;;) {
+    let source = -1;
+    let bucket = end;
+    for (let i = 0; i < sources.length; i++) {
+      const position = sources[i].positions[cursors[i]];
+      if (position && position.bucket < bucket) {
+        source = i;
+        bucket = position.bucket;
+      }
+    }
+    if (source < 0) return parts;
+    appendGroup(parts, sources[source].positions[cursors[source]++].parts, state);
+  }
+}
+
+function partGroups(parts: TTranslucentPart[], previous?: TTranslucentPart[][]): TTranslucentPart[][] {
+  const groups: TTranslucentPart[][] = [];
+  let runCount = 0;
+  const anchors = new Map(previous?.map((group) => [group[0], group]));
+  for (let at = 0; at < parts.length; ) {
+    const old = anchors.get(parts[at]);
+    if (old?.every((part, i) => parts[at + i] === part)) {
+      groups.push(old);
+      for (const part of old) runCount += part.end - part.first;
+      at += old.length;
+      continue;
+    }
+    const start = at;
+    let runs = 0;
+    do {
+      const part = parts[at++];
+      runs += part.end - part.first;
+    } while (
+      at < parts.length &&
+      at - start < 32 &&
+      runs + parts[at].end - parts[at].first <= 128 &&
+      !anchors.has(parts[at])
+    );
+    groups.push(parts.slice(start, at));
+    runCount += runs;
+  }
+  if (previous?.length && groups.length > 2 * (Math.ceil(parts.length / 32) + Math.ceil(runCount / 128)))
+    return partGroups(parts);
+  return groups;
+}
+
+function materializeParts(
+  sources: TSourceOrder[],
+  state: TOrderChunks,
+  cache: TTranslucentOrderCache
+): readonly TTranslucentPart[] {
+  for (const key of state.dirty) {
+    const old = state.windows.get(key);
+    const parts = windowParts(sources, key, state);
+    if (!parts.length) state.windows.delete(key);
+    else if (!old || parts.length !== old.parts.length || parts.some((part, i) => part !== old.parts[i])) {
+      state.windows.set(key, { parts, groups: old?.groups ?? [] });
+    }
+  }
+  state.dirty.clear();
+  const groups: (readonly TTranslucentPart[])[] = [];
+  let tail: TTranslucentPart | undefined;
+  for (const [, window] of [...state.windows].sort((a, b) => a[0] - b[0])) {
+    if (!window.tail || window.incoming !== tail) {
+      const parts = tail ? [tail] : [];
+      appendGroup(parts, window.parts, state);
+      window.tail = parts.pop();
+      window.incoming = tail;
+      window.groups = partGroups(parts, window.groups);
+    }
+    for (const group of window.groups) groups.push(group);
+    tail = window.tail;
+  }
+  if (tail) {
+    const last = cache.partGroups?.at(-1);
+    groups.push(last?.length === 1 && last[0] === tail ? last : [tail]);
+  }
+  cache.partGroups = groups;
+  // Keep the flat representation used by the unfiltered pass and by existing renderer diagnostics.
+  const parts: TTranslucentPart[] = [];
+  for (const group of groups) for (const part of group) parts.push(part);
+  return parts;
+}
+
+/** Materialize only changed ranges and keep exact raw joins before the visibility filter sees them. */
+export function orderTranslucentChunks(
+  sources: readonly TTranslucentSource[],
+  levelOf: (id: string) => number,
+  keyOf: (id: string) => number,
+  subBits: number,
+  compact: boolean,
+  cache: TTranslucentOrderCache,
+  denseLevelOf = levelOf
+): readonly TTranslucentPart[] {
+  let state = cache.chunks;
+  if (!state || state.subBits !== subBits) {
+    cache.partGroups = [];
+    state = {
+      windows: new Map(),
+      dirty: new Set(),
+      subBits,
+      sources: [],
+      parts: [],
+      retained: [],
+      views: new WeakMap(),
+      joins: new WeakMap(),
+    };
+    cache.chunks = state;
+  }
+  const current = state;
+  const previous = current.sources;
+  const orderAll = (): TSourceOrder[] =>
+    sources.map(({ instances }, index) => {
+      if (instances.layoutRetained) return retainedSourcePages(instances, index, current, levelOf, cache);
+      current.retained[index] = undefined;
+      const before = previous[index]?.source === instances ? previous[index] : undefined;
+      const dense = orderPages(
+        instances,
+        index,
+        cachedSourceBuckets(instances, levelOf, subBits, cache),
+        before?.dense
+      );
+      if (before?.dense === dense) return before;
+      return { ...sourceOrder(instances, dense.pages, current, before), dense };
+    });
+  if (compact) sortDenseSources(sources, denseLevelOf, keyOf, subBits);
+  let next = orderAll();
+  if (
+    !compact &&
+    next.reduce((sum, source) => sum + (source.dense ? outOfPlace(source.dense.buckets) : 0), 0) > MAX_OUT_OF_PLACE
+  ) {
+    sortDenseSources(sources, denseLevelOf, keyOf, subBits);
+    next = orderAll();
+  }
+  for (let i = 0; i < previous.length; i++) {
+    if (previous[i].source !== next[i]?.source)
+      for (const position of previous[i].positions) state.dirty.add(windowOf(position.bucket, state));
+  }
+  current.retained.length = sources.length;
+  if (next.length === previous.length && next.every((source, index) => source === previous[index])) return state.parts;
+  state.sources = next;
+  return (state.parts = materializeParts(next, state, cache));
 }

@@ -414,11 +414,12 @@ test("alternating stock effects share a native draw without changing translucent
     const backend = scene.layer.getBackend();
     if (!backend) throw new Error("Missing backend");
     const probe = backend as typeof backend & {
-      prepareStockPaths(...args: unknown[]): unknown;
+      prepareStockPaths(...args: unknown[]): { plan: { commands: { native?: unknown }[] } } | undefined;
       orderedStockPaths(...args: unknown[]): unknown;
       stockOrder?: unknown;
       stockDraw?: unknown;
-      stockPlan?: { plan?: { commands: { native?: unknown }[] } };
+      preparedGroups: { ordered: readonly unknown[] };
+      stockCommands: { last?: unknown };
     };
     const prepare = probe.prepareStockPaths;
     const order = probe.orderedStockPaths;
@@ -489,18 +490,25 @@ test("alternating stock effects share a native draw without changing translucent
         backend.draw(frame);
         const reference = pixels(),
           before = backend.stats.drawCalls;
-        probe.prepareStockPaths = prepare;
+        let native: number | undefined;
+        probe.prepareStockPaths = function (...args) {
+          const prepared = prepare.apply(this, args);
+          native = prepared?.plan.commands.filter((command) => command.native !== undefined).length;
+          return prepared;
+        };
         probe.orderedStockPaths = order;
         backend.draw(frame);
+        probe.prepareStockPaths = prepare;
         const actual = pixels();
         return {
           scale,
           phase,
           strict: Boolean(probe.stockOrder),
+          hasGroupedCommands: probe.preparedGroups.ordered.length > 0 || Boolean(probe.stockCommands.last),
           before,
           after: backend.stats.drawCalls,
           stock: Boolean(probe.stockDraw),
-          native: probe.stockPlan?.plan?.commands.filter((command) => command.native !== undefined).length,
+          native,
           different: actual.reduce((n, value, i) => n + Number(value !== reference[i]), 0),
           error: gl.getError(),
         };
@@ -510,6 +518,8 @@ test("alternating stock effects share a native draw without changing translucent
   for (const row of result) {
     expect(row.stock).toBe(true);
     expect(row.strict, JSON.stringify(row)).toBe(!["custom", "nonpath", "scoped-custom"].includes(row.phase));
+    if (row.strict)
+      expect(row.hasGroupedCommands, "release the preceding shared schedule on the stock-only path").toBe(false);
     if (row.phase === "scoped-custom") {
       expect(row.native, "the translucent rect always remains a barrier").toBe(row.scale === 0.25 ? 1 : 2);
     }

@@ -1,5 +1,6 @@
 import {
   MIXED_PATH_SOURCE_STRIDE,
+  MixedStockDepthBands,
   canonicalizeMixedSources,
   fullySubpixelPaths,
   mixedPathSchedule,
@@ -89,13 +90,35 @@ describe("mixed connection path planning", () => {
       { tie: 3, chords: 8 },
     ];
     const ranges = sources.map((_, source) => ({ key: 0, sub: 0, tie: 0, source, first: 4, count: 1 }));
+    const physical = ranges.slice();
     canonicalizeMixedSources(sources, ranges);
+    expect(physical.map(({ source }) => source)).toEqual([0, 1, 2]);
     expect(sources).toEqual([
       { tie: 2, chords: 16 },
       { tie: 3, chords: 8 },
       { tie: 3, chords: 16 },
     ]);
     expect(ranges.map(({ source }) => source)).toEqual([2, 0, 1]);
+  });
+
+  it("reuses depth bands and joins their physical endpoints without changing cached spans", () => {
+    const bands = new MixedStockDepthBands<string>();
+    const run = (key: number, first: number, count = 1) => ({ key, sub: 0, tie: 0, source: 0, first, count });
+    const left = run(120, 1),
+      right = run(132, 2),
+      far = run(400, 19);
+    const joined = bands.schedule([far, right, left]);
+    expect(joined).toEqual(mixedPathSchedule([left, right, far]));
+    const moved = [far, { ...right, first: 4 }, left];
+    const split = bands.schedule(moved);
+    expect(split).toEqual(mixedPathSchedule(moved));
+    expect(split?.spans.at(-1)).toBe(joined?.spans.at(-1));
+    expect(joined?.spans[0]).toEqual({ first: 1, count: 2 });
+    const native = { key: 129, sub: 0, tie: 0, first: 0, count: 1, native: "custom" };
+    expect(bands.schedule([...moved, native])).toEqual(mixedPathSchedule([...moved, native]));
+    expect(bands.schedule([right, left])).toEqual(mixedPathSchedule([left, right]));
+    expect(bands.schedule([run(200, MIXED_PATH_SOURCE_STRIDE, 1)])).toBeUndefined();
+    expect(bands.schedule([])).toEqual({ spans: [], commands: [] });
   });
 
   it("uses world and CSS width envelopes to bound effective device-pixel stroke widths", () => {

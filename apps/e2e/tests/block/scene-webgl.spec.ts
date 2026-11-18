@@ -159,8 +159,10 @@ test.describe("Scene blocks with the WebGL renderer", () => {
       type TVisibility = { isShown(...args: unknown[]): boolean };
       const backend = scene.layer.getBackend() as unknown as {
         canvas: HTMLCanvasElement;
-        translucentRuns: object;
+        translucentParts: object;
         orderStamp: readonly number[];
+        preparedGroups: { ordered: readonly unknown[] };
+        activeGroups: readonly unknown[];
         allBatches(): Iterable<object>;
         visibility: WeakMap<object, TVisibility>;
       };
@@ -223,7 +225,7 @@ test.describe("Scene blocks with the WebGL renderer", () => {
       } finally {
         prototype.isShown = original;
       }
-      const runs = backend.translucentRuns;
+      const runs = backend.translucentParts;
       const stamp = backend.orderStamp;
       const states = [];
       for (const target of ["handover-owner", "handover-parent", "part"]) {
@@ -236,22 +238,54 @@ test.describe("Scene blocks with the WebGL renderer", () => {
           states.push({
             target,
             hidden,
-            sameRuns: backend.translucentRuns === runs,
+            sameRuns: backend.translucentParts === runs,
             sameStamp: backend.orderStamp === stamp,
             differentBytes: next.reduce((count, value, index) => count + Number(value !== before[index]), 0),
             pixel: Array.from(next.subarray(0, 4)),
           });
         }
       }
+      const preparedBeforeRemoval = backend.preparedGroups.ordered.length;
+      for (const id of ["lower-path", "handover-child", "upper-path"]) scene.store.delete(id);
+      scene.store.add({
+        id: "remaining-rects",
+        x: 0,
+        y: 0,
+        zIndex: 0,
+        bounds: { minX: 100, minY: 100, maxX: 300, maxY: 200 },
+        primitives: ["rgba(255,0,0,0.5)", "rgba(0,0,255,0.5)"].map((fill) => ({
+          kind: "rect" as const,
+          x: 100,
+          y: 100,
+          width: 200,
+          height: 100,
+          fill,
+        })),
+      });
+      render();
+      const rawGroups = backend.activeGroups;
+      scene.store.update("remaining-rects", { x: 1 });
+      render();
       return {
         edits,
         states,
+        preparedBeforeRemoval,
+        preparedAfterRemoval: backend.preparedGroups.ordered.length,
+        rawGroups: rawGroups.length,
+        sameRawGroups: rawGroups === backend.activeGroups,
+        rawPixel: Array.from(pixels().subarray(0, 4)),
         before: Array.from(before.subarray(0, 4)),
         error: gl.getError(),
         level: scene.$level.value,
       };
     }, styleId);
     expect(result.level).toBe("detailed");
+    expect(result.preparedBeforeRemoval).toBeGreaterThan(0);
+    expect(result.preparedAfterRemoval).toBe(0);
+    expect(result.rawGroups).toBe(0);
+    expect(result.sameRawGroups).toBe(true);
+    for (const [channel, expected] of [64, 0, 128, 192].entries())
+      expect(Math.abs(result.rawPixel[channel] - expected)).toBeLessThanOrEqual(2);
     expect(result.before[1]).toBeGreaterThan(40);
     for (const [index, edit] of result.edits.entries()) {
       expect(edit.calls, `geometry edit ${index}`).toBe(0);
@@ -282,6 +316,7 @@ test.describe("Scene blocks with the WebGL renderer", () => {
       // The translucent pass first draws plain strokes below the custom effect's activity range.
       cameraService.set({ scale: 0.08, x: 0, y: 0 });
       const styleId = scene.store.defineStyle({});
+      const mutedId = scene.store.defineStyle({ parts: { glow: { visible: false } } });
       const glow = defineConnectionEffect({
         extraWidth: 8,
         fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return vec4(color.rgb, 0.5); }",
@@ -308,15 +343,15 @@ test.describe("Scene blocks with the WebGL renderer", () => {
         });
         scene.store.setStyle(`effect-${i}`, styleId);
       }
-      return styleId;
+      return { styleId, mutedId };
     });
     await expect.poll(() => rendererState(page)).toBe("webgl");
     await graph.waitForFrames(3);
-    const result = await page.evaluate((styleId) => {
+    const result = await page.evaluate(({ styleId, mutedId }) => {
       const { scene, scheduler, cameraService } = window.graph;
       const backend = scene.layer.getBackend();
       if (!backend) throw new Error("Missing backend");
-      const probe = backend as typeof backend & { translucentRuns: object; orderStamp: object };
+      const probe = backend as typeof backend & { translucentParts: object; orderStamp: object };
       const gl = backend.canvas.getContext("webgl2");
       if (!gl) throw new Error("WebGL2 unavailable");
       const render = (): void => {
@@ -324,7 +359,7 @@ test.describe("Scene blocks with the WebGL renderer", () => {
         scheduler.performUpdate();
       };
       render();
-      const runs = probe.translucentRuns,
+      const runs = probe.translucentParts,
         stamp = probe.orderStamp,
         encodes = backend.stats.encodes;
       const pixel = (x = 14, y = 21): number[] => {
@@ -346,13 +381,19 @@ test.describe("Scene blocks with the WebGL renderer", () => {
         render();
         return {
           scale,
-          sameRuns: probe.translucentRuns === runs,
+          sameRuns: probe.translucentParts === runs,
           sameStamp: probe.orderStamp === stamp,
           encodes: backend.stats.encodes - encodes,
           levels: backend.stats.translucentLevels,
         };
       });
       const visible = pixel();
+      for (let i = 0; i < 8; i++) scene.store.setStyle(`effect-${i}`, mutedId);
+      render();
+      const muted = { pixel: pixel(), sameOrder: probe.translucentParts === runs };
+      for (let i = 0; i < 8; i++) scene.store.setStyle(`effect-${i}`, styleId);
+      render();
+      const restored = { pixel: pixel(), sameOrder: probe.translucentParts === runs };
       scene.store.replaceStyles(new Map([[styleId, { base: { glow: { visible: false } } }]]));
       render();
       const hidden = { pixel: pixel(), body: pixel(13, 45), levels: backend.stats.translucentLevels };
@@ -361,20 +402,24 @@ test.describe("Scene blocks with the WebGL renderer", () => {
       );
       render();
       const revealed = { pixel: pixel(), levels: backend.stats.translucentLevels };
-      const beforeRaise = probe.translucentRuns;
+      const beforeRaise = probe.translucentParts;
       scene.store.update("effect-0", { zIndex: 300 });
       render();
       return {
         frames,
         visible,
+        muted,
+        restored,
         hidden,
         revealed,
         raised: pixel(),
-        changedOrder: probe.translucentRuns !== beforeRaise,
+        changedOrder: probe.translucentParts !== beforeRaise,
         encodes: backend.stats.encodes - encodes,
         error: gl.getError(),
       };
     }, row);
+    expect(result.muted).toEqual({ pixel: [0, 0, 0, 0], sameOrder: true });
+    expect(result.restored).toEqual({ pixel: result.visible, sameOrder: true });
     expect(result.hidden.levels).toBe(0);
     expect(result.revealed.levels).toBeGreaterThan(0);
     for (const frame of result.frames) {

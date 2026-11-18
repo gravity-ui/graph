@@ -9,10 +9,6 @@ export const CURVE_DEVICE_SCALE = 0.125;
 /** Part of the 1/8-device-pixel displacement budget reserved for camera/projection arithmetic. */
 export const CURVE_PROJECTION_ALLOWANCE = 1 / 32;
 
-/** Unused effect parameter in plain opaque batches; the fragment shader never reads it. */
-export const CURVE_DETAIL_OFFSET = 20;
-
-const BIN_CHORDS = [8, 16] as const;
 const FLOAT_EPSILON = 2 ** -23;
 const GEOMETRY_ALLOWANCE = 0.125 - CURVE_PROJECTION_ALLOWANCE;
 
@@ -90,12 +86,7 @@ function appendCurves(bin: TCurveBin, paths: Float32Array, elements: Float32Arra
 }
 
 /** Stock solid world-width pieces only; other width modes and dashes retain their complete strip. */
-export function partitionCurves(
-  bins: TCurveBins,
-  paths: Float32Array,
-  elements: Float32Array,
-  residentCounts?: readonly number[]
-): void {
+export function partitionCurves(bins: TCurveBins, paths: Float32Array, elements: Float32Array): void {
   for (const bin of bins) bin.count = 0;
   const count = paths.length / INSTANCE_FLOATS;
   let bin = bins[1];
@@ -113,22 +104,6 @@ export function partitionCurves(
     }
   }
   appendCurves(bin, paths, elements, first, count);
-  for (let i = 0; i < bins.length; i++) {
-    const target = bins[i];
-    for (let j = 0; j < target.count; j++) target.paths[j * INSTANCE_FLOATS + CURVE_DETAIL_OFFSET] = BIN_CHORDS[i];
-  }
-  if (!residentCounts || residentCounts[0] + residentCounts[1] !== count) return;
-  // Keep resident slots on equal-size edits. Overflow pieces request their own detail only in their touched chunk.
-  for (let target = 0; target < bins.length; target++) {
-    const to = bins[target];
-    for (let source = 0; source < bins.length && to.count < residentCounts[target]; source++) {
-      const from = bins[source];
-      const move = Math.min(residentCounts[target] - to.count, from.count - residentCounts[source]);
-      if (move <= 0) continue;
-      appendCurves(to, from.paths, from.elements, from.count - move, from.count);
-      from.count -= move;
-    }
-  }
 }
 
 /** Includes float uniforms and a camera/projection allowance; invalid or extreme cameras retain full detail. */

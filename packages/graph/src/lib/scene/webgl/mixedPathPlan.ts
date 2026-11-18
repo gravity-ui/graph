@@ -31,7 +31,12 @@ export function canonicalizeMixedSources<T extends { tie: number; chords: number
   sources.sort((a, b) => a.tie - b.tie || a.chords - b.chords);
   if (sources.every((source, index) => source === original[index])) return;
   const selectors = original.map((source) => sources.indexOf(source));
-  for (const range of ranges) if (range.source !== undefined) range.source = selectors[range.source];
+  // Cached physical pages keep the selectors with which they were collected.
+  for (let i = 0; i < ranges.length; i++) {
+    const range = ranges[i];
+    if (range.source !== undefined && selectors[range.source] !== range.source)
+      ranges[i] = { ...range, source: selectors[range.source] };
+  }
 }
 
 /** Pass only roots. A child follows the root's key and plane by construction. */
@@ -45,6 +50,67 @@ export function separatedConnectionDepths(roots: Iterable<TSceneRootDepth>): boo
     else firstOther = Math.min(firstOther, key);
   }
   return lastConnection !== -Infinity && lastConnection < firstOther;
+}
+
+type TMixedRange<N> = TMixedPathRange | TNativePathRange<N>;
+type TDepthBand<N> = { inputs: TMixedRange<N>[]; spans: TPathIdSpan[]; count: number };
+const DEPTH_BAND_SIZE = 128;
+
+/** Full stock plans receive immutable ranges from physical pages. Only bands with different ranges need sorting. */
+export class MixedStockDepthBands<N> {
+  private bands = new Map<number, TDepthBand<N>>();
+
+  public clear(): void {
+    this.bands.clear();
+  }
+
+  public schedule(input: readonly TMixedRange<N>[]): ReturnType<typeof mixedPathSchedule<N>> {
+    const groups = new Map<number, TMixedRange<N>[]>();
+    let lastKey: number | undefined;
+    let group: TMixedRange<N>[] | undefined;
+    for (const range of input) {
+      if (range.native !== undefined || !Number.isFinite(range.key)) {
+        this.clear();
+        return mixedPathSchedule(input);
+      }
+      const key = Math.floor(range.key / DEPTH_BAND_SIZE);
+      if (!group || key !== lastKey) {
+        lastKey = key;
+        group = groups.get(key);
+        if (!group) {
+          group = [];
+          groups.set(key, group);
+        }
+      }
+      group.push(range);
+    }
+
+    const next = new Map<number, TDepthBand<N>>();
+    const spans: TPathIdSpan[] = [];
+    let count = 0;
+    for (const [key, inputs] of [...groups].sort(([a], [b]) => a - b)) {
+      let band = this.bands.get(key);
+      const previous = band?.inputs;
+      if (!band || inputs.length !== previous?.length || inputs.some((range, i) => range !== previous[i])) {
+        const schedule = mixedPathSchedule(inputs);
+        if (!schedule) return undefined;
+        band = { inputs, spans: schedule.spans, count: schedule.commands[0]?.count ?? 0 };
+      }
+      next.set(key, band);
+      count += band.count;
+      // A run can cross a depth boundary. Joining it must leave the cached band's endpoint intact.
+      const tail = spans[spans.length - 1];
+      const first = band.spans[0];
+      let i = 0;
+      if (tail && first && tail.first + tail.count === first.first) {
+        spans[spans.length - 1] = { first: tail.first, count: tail.count + first.count };
+        i++;
+      }
+      for (; i < band.spans.length; i++) spans.push(band.spans[i]);
+    }
+    this.bands = next;
+    return { spans, commands: count ? [{ first: 0, count }] : [] };
+  }
 }
 
 /** Packs stock addresses while keeping per-program barriers in the original painter order. */

@@ -79,6 +79,11 @@ export class BlockListStore {
 
   public $blocks = signal<BlockState[]>([]);
 
+  /** @internal A publication that needs to reconcile block views. */
+  public readonly $viewRevision = signal(0);
+
+  private viewClassChanged = false;
+
   private batchedGeometryPending = new Map<BlockState["id"], { state: BlockState; geometry: TBlockGeometrySnapshot }>();
 
   private batchedGeometryRaf: number | null = null;
@@ -293,9 +298,20 @@ export class BlockListStore {
     this.batchedGeometryPending.clear();
   }
 
-  protected updateBlocksMap(blocks: Map<BlockState["id"], BlockState> | [BlockState["id"], BlockState][]) {
+  /** @internal A class changed in block data. Reconcile it on the next list publication. */
+  public noteViewClassChange(): void {
+    this.viewClassChanged = true;
+  }
+
+  protected updateBlocksMap(
+    blocks: Map<BlockState["id"], BlockState> | [BlockState["id"], BlockState][],
+    reconcileViews = true
+  ) {
+    const updateViews = reconcileViews || this.viewClassChanged;
+    this.viewClassChanged = false;
     this.$blocksMap.value = new Map(blocks);
     this.$blocks.value = Array.from(this.$blocksMap.value.values());
+    if (updateViews) this.$viewRevision.value = this.$viewRevision.peek() + 1;
   }
 
   /**
@@ -352,13 +368,19 @@ export class BlockListStore {
    * @returns void
    */
   public updateBlocks(blocks: TBlock[]) {
-    this.updateBlocksMap(
-      blocks.reduce((acc, block) => {
-        const state = this.getOrCraeateBlockState(block);
-        acc.set(block.id, state);
-        return acc;
-      }, this.$blocksMap.value)
-    );
+    const map = this.$blocksMap.value;
+    let reconcileViews = blocks.length === 0;
+    blocks.forEach((block) => {
+      const state = this.getOrCraeateBlockState(block);
+      const id = block.id;
+      if (map.get(id) !== state) {
+        map.set(id, state);
+        reconcileViews = true;
+      }
+      // A failed constructor can mount again once its row is corrected.
+      reconcileViews ||= !state.getViewComponent()?.isMounted();
+    });
+    this.updateBlocksMap(map, reconcileViews);
   }
 
   /**

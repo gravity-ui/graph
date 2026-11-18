@@ -104,8 +104,15 @@ export function geometryBounds(primitives: readonly TScenePrimitive[], scale?: n
   return boundsOf(primitives, false, scale);
 }
 
+// The strip vertex shader expands by half a stroke (at least half a device pixel) and one device pixel of AA.
+function pathExtent(width: TSceneSize, scale: number, dpr: number): number {
+  const pixel = 1 / (dpr * scale);
+  return Math.max(resolveSceneSize(width, scale) / 2, pixel / 2) + pixel;
+}
+
 /** Geometry hulls do not change with the camera; only their stroke and halo padding does. */
 export class CachedGeometryBounds {
+  public readonly pathsOnly: boolean;
   private readonly items: {
     primitive: TScenePrimitive;
     hull?: TTileRect;
@@ -116,6 +123,7 @@ export class CachedGeometryBounds {
   }[];
 
   constructor(primitives: readonly TScenePrimitive[]) {
+    this.pathsOnly = primitives.every((primitive) => primitive.kind === "path");
     this.items = primitives.map((primitive) => {
       let bare = primitive;
       let width: TSceneSize | undefined;
@@ -145,13 +153,19 @@ export class CachedGeometryBounds {
   }
 
   /** `scaleOf` also visits text: the caller can include its laid-out bounds separately. */
-  public at(scaleOf: (primitive: TScenePrimitive) => number | undefined): TTileRect | undefined {
+  public at(scaleOf: (primitive: TScenePrimitive) => number | undefined, pathDpr?: number): TTileRect | undefined {
     const box: TTileRect = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
     for (const { primitive, hull, width, reach, halo, haloMinScale } of this.items) {
       const scale = scaleOf(primitive);
       if (scale === undefined || !hull) continue;
-      const pad =
-        (width === undefined ? 0 : resolveSceneSize(width, scale) * reach) + halo / Math.max(scale, haloMinScale);
+      const haloScale = Math.max(scale, haloMinScale);
+      let pad: number;
+      if (pathDpr !== undefined && width !== undefined && primitive.kind === "path") {
+        pad = pathExtent(width, scale, pathDpr);
+        if (halo > 0) pad = Math.max(pad, pathExtent(width, haloScale, pathDpr) + halo / haloScale);
+      } else {
+        pad = (width === undefined ? 0 : resolveSceneSize(width, scale) * reach) + halo / haloScale;
+      }
       joinBox(box, hull.minX, hull.minY, hull.maxX, hull.maxY, pad);
     }
     return box.minX <= box.maxX ? box : undefined;

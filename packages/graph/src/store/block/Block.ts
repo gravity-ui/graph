@@ -255,7 +255,10 @@ export class BlockState<T extends TBlock = TBlock> {
       this.updateAnchors(block.anchors);
     }
 
-    this.$rawState.value = Object.assign({}, this.$rawState.value, block, { id: this.id });
+    const previous = this.$rawState.value;
+    const next = Object.assign({}, previous, block, { id: previous.id });
+    if (next.is !== previous.is) this.store.noteViewClassChange();
+    this.$rawState.value = next;
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 

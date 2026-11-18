@@ -2,6 +2,101 @@ import { MIXED_PATH_SOURCE_STRIDE, mixedPathSchedule } from "./mixedPathPlan";
 import { PathDrawIds, gatheredPathDrawCount } from "./pathDrawIds";
 
 describe("path draw IDs", () => {
+  it("reuses immutable plans but keeps snapshots for mutable callers", () => {
+    const ids = new PathDrawIds();
+    let reads = 0;
+    const first = [
+      {
+        get first() {
+          reads++;
+          return 3;
+        },
+        count: 2,
+      },
+      { first: 20, count: 2 },
+    ];
+    ids.updatePlan(first);
+    reads = 0;
+    expect(ids.updatePlan(first)).toBeUndefined();
+    expect(reads).toBe(0);
+    const second: { first: number; count: number }[] = [{ first: 4, count: 2 }, first[1]];
+    ids.updatePlan(second);
+    expect([...ids.data]).toEqual([4, 5, 20, 21]);
+    ids.update(second, undefined, true);
+    second[0].first = 12;
+    ids.updatePlan(second);
+    expect([...ids.data]).toEqual([12, 13, 20, 21]);
+  });
+
+  it("invalidates an immutable plan when descriptor revisions or source identity changes", () => {
+    const ids = new PathDrawIds();
+    const spans = [{ first: 0, count: 4 }];
+    const groups = {
+      starts: new Uint8Array([1, 0, 0, 0]),
+      revision: 1,
+      pieces: 4 as const,
+    };
+    ids.updatePlan(spans, [groups]);
+    expect([...ids.data]).toEqual([-1]);
+    groups.starts.fill(0);
+    groups.revision++;
+    ids.updatePlan(spans, [groups]);
+    expect([...ids.data]).toEqual([0, 1, 2, 3]);
+    ids.updatePlan(spans, [{ ...groups, starts: new Uint8Array([1, 0, 0, 0]) }]);
+    expect([...ids.data]).toEqual([-1]);
+    ids.updatePlan(spans);
+    expect([...ids.data]).toEqual([0, 1, 2, 3]);
+  });
+
+  it("reuses grouped addresses, with exact deltas across splits, repeated groups, tail reuse and overview", () => {
+    const ids = new PathDrawIds();
+    const flat = new PathDrawIds();
+    let reads = 0;
+    const stable = [
+      {
+        get first() {
+          reads++;
+          return 1;
+        },
+        count: 4,
+      },
+    ];
+    const high = [{ first: 30, count: 3 }];
+    const low = [{ first: 1, count: 2 }];
+    const rest = [{ first: 3, count: 2 }];
+    const overview = { starts: new Uint8Array([0, 1, 0, 0, 0]), revision: 1, pieces: 4 as const };
+    for (const groups of [
+      [stable, high],
+      [low, rest, high],
+      [stable, high, stable],
+      [high, stable],
+      [high],
+      [],
+      [high, stable],
+    ]) {
+      const expected = flat.updatePlan(groups.flat());
+      reads = 0;
+      expect(ids.updateGroups(groups)).toEqual(expected);
+      if (groups[0] === high || groups.length === 3) expect(reads).toBe(0);
+      expect(ids.data).toEqual(flat.data);
+      expect(ids.updateGroups(groups)).toBeUndefined();
+      expect(ids.offset(3)).toBe(3);
+    }
+    const groups = [high, stable],
+      spans = groups.flat();
+    expect(ids.updatePlan(spans, [overview])).toEqual(flat.updatePlan(spans, [overview]));
+    expect(ids.data).toEqual(flat.data);
+    expect(ids.offset(7)).toBe(4);
+    expect(ids.updateGroups(groups)).toEqual(flat.updatePlan(spans));
+    expect(ids.data).toEqual(flat.data);
+    expect(ids.offset(7)).toBe(7);
+    expect(ids.updatePlan([])).toBeUndefined();
+    expect(ids.data).toHaveLength(0);
+    flat.updatePlan([]);
+    expect(ids.updateGroups(groups)).toEqual(flat.updatePlan(spans));
+    expect(ids.data).toEqual(flat.data);
+  });
+
   it("counts gathered path groups without joining across non-path barriers", () => {
     const sources = [0, 0, 0, 1, 1, 0, 0, 2, 2];
     expect(
@@ -63,7 +158,11 @@ describe("path draw IDs", () => {
 
   it("reuses an unchanged compressed prefix across snapshot growth and tail removal", () => {
     const ids = new PathDrawIds();
-    const groups = { starts: new Uint8Array([1, 0, 0, 0]), revision: 1, pieces: 4 as const };
+    const groups = {
+      starts: new Uint8Array([1, 0, 0, 0]),
+      revision: 1,
+      pieces: 4 as const,
+    };
     const prefix = { first: 0, count: 4 };
     ids.update([prefix], [groups]);
     ids.update([prefix, { first: 18, count: 3 }, { first: 30, count: 12 }], [groups]);
@@ -76,7 +175,11 @@ describe("path draw IDs", () => {
 
   it("compacts complete four-piece descriptors within each ordered draw and restores detail across a cut", () => {
     const ids = new PathDrawIds();
-    const source = { starts: new Uint8Array([1, 0, 0, 0, 1, 0, 0, 0]), revision: 1, pieces: 4 as const };
+    const source = {
+      starts: new Uint8Array([1, 0, 0, 0, 1, 0, 0, 0]),
+      revision: 1,
+      pieces: 4 as const,
+    };
     const spans = [
       { first: 0, count: 4 },
       { first: 4, count: 2 },
@@ -97,8 +200,16 @@ describe("path draw IDs", () => {
 
   it("keeps two-piece and four-piece opaque/translucent sources separate through packed boundaries", () => {
     const ids = new PathDrawIds();
-    const full = { starts: new Uint8Array([1, 0, 0, 0]), revision: 1, pieces: 4 as const };
-    const short = { starts: new Uint8Array([1, 0, 1, 0]), revision: 1, pieces: 2 as const };
+    const full = {
+      starts: new Uint8Array([1, 0, 0, 0]),
+      revision: 1,
+      pieces: 4 as const,
+    };
+    const short = {
+      starts: new Uint8Array([1, 0, 1, 0]),
+      revision: 1,
+      pieces: 2 as const,
+    };
     const stride = 2 ** 21;
     const spans = [
       { first: stride, count: 4 },
@@ -115,9 +226,17 @@ describe("path draw IDs", () => {
     const ids = new PathDrawIds();
     const stride = MIXED_PATH_SOURCE_STRIDE;
     const first = stride - 2;
-    const large = { starts: new Uint8Array(stride + 2), revision: 1, pieces: 4 as const };
+    const large = {
+      starts: new Uint8Array(stride + 2),
+      revision: 1,
+      pieces: 4 as const,
+    };
     large.starts[first] = 1;
-    const small = { starts: new Uint8Array([1, 0]), revision: 1, pieces: 2 as const };
+    const small = {
+      starts: new Uint8Array([1, 0]),
+      revision: 1,
+      pieces: 2 as const,
+    };
     const spans =
       mixedPathSchedule([
         { key: 1, sub: 0, tie: 0, source: 0, first, count: 2 },
@@ -137,7 +256,10 @@ describe("path draw IDs", () => {
     spans[0].first = 8;
     expect(ids.update(spans)?.data).toEqual(new Float32Array([8, 9]));
     spans[0].count = 5;
-    expect(ids.update(spans)).toEqual({ byteOffset: 8, data: new Float32Array([10, 11, 12]) });
+    expect(ids.update(spans)).toEqual({
+      byteOffset: 8,
+      data: new Float32Array([10, 11, 12]),
+    });
     expect(ids.data).toEqual(new Float32Array([8, 9, 10, 11, 12]));
   });
 
@@ -152,11 +274,17 @@ describe("path draw IDs", () => {
     ids.update(spans);
     expect(ids.update(spans.slice(0, 2))).toBeUndefined();
     expect(ids.data).toEqual(new Float32Array([10, 11, 2]));
-    expect(ids.update(spans)).toEqual({ byteOffset: 12, data: new Float32Array([30, 31, 40]) });
+    expect(ids.update(spans)).toEqual({
+      byteOffset: 12,
+      data: new Float32Array([30, 31, 40]),
+    });
 
     expect(ids.update([])).toBeUndefined();
     expect(ids.data).toHaveLength(0);
-    expect(ids.update(spans)).toEqual({ byteOffset: 0, data: new Float32Array([10, 11, 2, 30, 31, 40]) });
+    expect(ids.update(spans)).toEqual({
+      byteOffset: 0,
+      data: new Float32Array([10, 11, 2, 30, 31, 40]),
+    });
     expect(ids.update(spans)).toBeUndefined();
   });
 });

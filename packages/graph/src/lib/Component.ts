@@ -10,6 +10,15 @@ export class Component<
   State extends TComponentState = TComponentState,
   Context extends CoreComponentContext = CoreComponentContext,
 > extends CoreComponent<Props, Context> {
+  /** @internal Whether an extension uses its own parent-props lifecycle hooks. */
+  public static hasParentPropsOverrides(extension: Component, base: Component): boolean {
+    return (
+      extension.shouldReceiveParentProps !== base.shouldReceiveParentProps ||
+      extension.setProps !== base.setProps ||
+      extension.propsChanged !== base.propsChanged
+    );
+  }
+
   protected firstIterate = true;
 
   /** willMount() runs once, even when the first frame prepares this component more than once. */

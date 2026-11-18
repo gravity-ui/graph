@@ -42,6 +42,24 @@ describe("ElementTable", () => {
     expect(new ElementTable().originRevision).not.toBe(table.originRevision);
   });
 
+  it("invalidates cached depths when hiding, reordering or reusing a slot", () => {
+    const table = new ElementTable();
+    table.write("a", 0, 0, 1, false, 0);
+    const initial = table.depthRevision;
+    table.write("a", 2, 3, 1, false, 5);
+    expect(table.depthRevision).toBe(initial);
+    table.write("a", 2, 3, 2, false, 5);
+    const reordered = table.depthRevision;
+    expect(reordered).not.toBe(initial);
+    table.write("a", 2, 3, 2, true, 5);
+    const hidden = table.depthRevision;
+    expect(hidden).not.toBe(reordered);
+    table.free("a");
+    table.write("b", 2, 3, 2, false, 5);
+    expect(table.depthRevision).not.toBe(hidden);
+    expect(new ElementTable().depthRevision).not.toBe(table.depthRevision);
+  });
+
   it("reserves backing rows without adding logical or dirty rows", () => {
     const table = new ElementTable();
     for (let i = 0; i <= 2 * TABLE_WIDTH; i++) table.write(`e${i}`, i, -i, 3, false, 2);
@@ -116,8 +134,29 @@ describe("StyleTable", () => {
     expect(alpha(2)).toBe(-1);
     expect(alpha(3)).toBe(HIDDEN_ALPHA);
     expect(alpha(4)).toBe(HIDDEN_ALPHA);
+    const mask = 2 ** slot;
+    expect(Array.from(table.hiddenParts)).toEqual([0, mask, 0, mask, mask]);
     const base = (3 * STYLE_ROW_TEXELS + PART_SLOTS + slot) * 4;
     expect(Array.from(table.data.slice(base, base + 4))).toEqual([1, 0, 0, 1]);
+  });
+
+  it("reserves the overlap of switchable parts while every state still uses its own visibility", () => {
+    const table = new StyleTable();
+    const base = { glow: { visible: false }, halo: { visible: false } };
+    const resting = { base };
+    const running = { base, parts: { glow: { visible: true } } };
+    const otherBase = { base: { glow: { visible: false } } };
+    table.setStyles([{}, resting, running, otherBase]);
+    expect(table.hiddenParts[1]).not.toBe(table.hiddenParts[2]);
+    expect(table.orderHiddenParts[1]).toBe(table.orderHiddenParts[2]);
+    expect(table.hiddenForOrder(1, "glow")).toBe(false);
+    expect(table.hiddenForOrder(1, "halo")).toBe(true);
+    expect(table.hiddenForOrder(3, "glow")).toBe(true);
+
+    table.setStyles([{}, resting, {}, otherBase]);
+    expect(table.hiddenForOrder(1, "glow")).toBe(true);
+    expect(table.hiddenForOrder(1, "halo")).toBe(true);
+    expect(table.hiddenForOrder(1, "unregistered")).toBe(false);
   });
 
   it("leaves a translucent base colour out of the table and keeps visible: false in the override texel", () => {

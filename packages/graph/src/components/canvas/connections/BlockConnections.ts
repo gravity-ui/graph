@@ -6,6 +6,7 @@ import { ESchedulerPriority } from "../../../lib/Scheduler";
 import type { TTileRect } from "../../../lib/culling/TileIndex";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
 import { getFontSize } from "../../../utils/functions/text";
+import { track } from "../../../utils/functions/track";
 import { debounce } from "../../../utils/utils/schedule";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -68,6 +69,8 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
   /** Makes each replacement key unique. */
   private replacementCount = 0;
 
+  private readonly $usesCustomParentProps = signal(false);
+
   /**
    * Debounced update to batch multiple changes into a single render cycle.
    * Uses high priority and single frame interval for responsive updates.
@@ -108,6 +111,15 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
   }
 
   protected subscribe() {
+    const { connectionsList: store, settings } = this.context.graph.rootStore;
+    const viewConnections = computed(() => {
+      const type = settings.$connection.value;
+      if (this.$usesCustomParentProps.value || (type && type.create !== BlockConnection.create)) {
+        return store.$connections.value;
+      }
+      track(store.$viewRevision);
+      return store.$connections.peek();
+    });
     return [
       computed(() => {
         const scale = this.context.graph.$camera.value.scale;
@@ -132,9 +144,9 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
           this.rendererState.value = renderer === "webgl" ? "webgl" : "canvas";
         }
       }),
-      this.context.graph.rootStore.settings.$connectionsSettings.subscribe(() => this.scheduleUpdate()),
-      this.context.graph.rootStore.connectionsList.$connections.subscribe(() => this.scheduleUpdate()),
-      this.context.graph.rootStore.settings.$connection.subscribe(() => this.scheduleUpdate()),
+      settings.$connectionsSettings.subscribe(() => this.scheduleUpdate()),
+      viewConnections.subscribe(() => this.scheduleUpdate()),
+      settings.$connection.subscribe(() => this.scheduleUpdate()),
     ];
   }
 
@@ -161,6 +173,18 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
       };
       return ConnectionCtop.create(props, { key: this.keyOf(connection) });
     });
+  }
+
+  protected override didUpdateChildren(): void {
+    super.didUpdateChildren();
+    const type = this.context.graph.rootStore.settings.$connection.peek();
+    this.$usesCustomParentProps.value =
+      type !== undefined &&
+      type !== BlockConnection &&
+      this.connections.some((state) => {
+        const view = state.getViewComponent();
+        return view && Component.hasParentPropsOverrides(view, BlockConnection.prototype);
+      });
   }
 
   /**

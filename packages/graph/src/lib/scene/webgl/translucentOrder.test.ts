@@ -10,11 +10,12 @@ import {
   maxStepsOf,
   mergeBuckets,
   orderTranslucent,
+  orderTranslucentChunks,
   sortBuckets,
   sourceBuckets,
   splitSteps,
 } from "./translucentOrder";
-import type { TTranslucentOrderCache, TTranslucentRun, TTranslucentSource } from "./translucentOrder";
+import type { TTranslucentOrderCache, TTranslucentPart, TTranslucentRun, TTranslucentSource } from "./translucentOrder";
 
 /** The narrowest sub-order width, which the tests use unless they change it. */
 const BITS = SCENE_DEPTH.MIN_SUB_BITS;
@@ -35,6 +36,10 @@ function writeElement(id: string, writes: [ranges: InstanceRanges, instances: Fl
   present.forEach(([ranges, instances], source) => {
     ranges.setSteps(id, splitSteps(instances, ranges.floats, steps[source]));
   });
+}
+
+function flatten(parts: readonly TTranslucentPart[]): TTranslucentRun[] {
+  return parts.flatMap((part) => part.runs.slice(part.first, part.end));
 }
 
 describe("element steps", () => {
@@ -129,13 +134,12 @@ describe("translucent order", () => {
     const cache: TTranslucentOrderCache = { levelRevision: 0 };
     const levels: Record<string, number> = { a: 0, b: 1 };
     const order = () =>
-      orderTranslucent(
+      orderTranslucentChunks(
         sources,
         (id) => levels[id],
         () => 0,
         BITS,
         false,
-        undefined,
         cache
       );
     const first = order();
@@ -152,12 +156,12 @@ describe("translucent order", () => {
     cache.levelRevision = 1;
     cache.changedLevelIds = ["a"];
     const moved = order();
-    expect(moved).toEqual([
+    expect(flatten(moved)).toEqual([
       { source: 1, first: 0, count: 1 },
       { source: 0, first: 0, count: 2 },
     ]);
     expect(moved).not.toBe(first);
-    expect(visitA).toHaveBeenCalled();
+    expect(visitA).not.toHaveBeenCalled();
     expect(visitB).not.toHaveBeenCalled();
     visitA.mockClear();
     visitB.mockClear();
@@ -179,47 +183,43 @@ describe("translucent order", () => {
     const level = (id: string) => levels.get(id) ?? 0;
     const cache: TTranslucentOrderCache = { levelRevision: 0 };
     const sources = [{ instances: ranges }];
-    const order = () => orderTranslucent(sources, level, () => 0, BITS, true, undefined, cache);
+    const order = () => orderTranslucentChunks(sources, level, () => 0, BITS, true, cache);
     const original = order();
-    const buckets = () => cache.sources?.get(ranges)?.buckets ?? [];
-    const baseline = buckets();
-    const unchanged = baseline.find((bucket) => bucket.first === 15);
+    const unchanged = original.find((part) => part.runs.some((run) => run.first === 14));
     expect(unchanged).toBeDefined();
     const visit = jest.spyOn(ranges, "forEachRange");
     const compare = (): number => {
       visit.mockClear();
       const result = order();
       const scans = visit.mock.calls.length;
-      expect(result).toEqual(orderTranslucent(sources, level, () => 0, BITS, true));
+      expect(flatten(result)).toEqual(orderTranslucent(sources, level, () => 0, BITS, true));
       return scans;
     };
     levels.set("1", 2);
     cache.levelRevision = 1;
     cache.changedLevelIds = ["1"];
     expect(compare()).toBe(0);
-    expect(buckets()).toEqual(
-      expect.arrayContaining([
-        { bucket: 0, first: 0, count: 1 },
-        { bucket: 0, first: 2, count: 1 },
-      ])
-    );
-    expect(buckets().find((bucket) => bucket.first === 15)).toBe(unchanged);
-    expect(baseline[0]).toEqual({ bucket: 0, first: 0, count: 3 });
+    expect(order()).toContain(unchanged);
+    expect(flatten(original)[0]).toEqual({ source: 0, first: 0, count: 3 });
     levels.set("1", 0);
     cache.levelRevision = 2;
     expect(compare()).toBe(0);
-    expect(order()).toEqual(original);
-    expect(buckets()).toEqual(baseline);
+    expect(flatten(order())).toEqual(flatten(original));
 
     ranges.setSteps("1", [
       { step: 0, instances: quads([1, 0], [2, 0]) },
       { step: 2, instances: quads([3, 0]) },
     ]);
     expect(compare()).toBe(0);
-    expect(buckets().find((bucket) => bucket.first === 15)).toBe(unchanged);
-    // Two structural edits exceed the retained journal. A full read must include the new owner in the reused slot.
+    expect(order()).toContain(unchanged);
+    // Sparse changes repair the old and new spans even if an owner changes shape again in a reused slot.
     ranges.delete("1");
     ranges.set("new", quads([4, 0]));
+    ranges.set("new", quads([4, 0], [5, 0]));
+    ranges.set("1", quads([1, 0]));
+    expect(compare()).toBe(0);
+    // Skipping more shape revisions than the journal retains rebuilds from the latest layout.
+    for (let i = 0; i < 80; i++) ranges.set("new", i % 2 ? quads([i, 0]) : quads([i, 0], [i, 0]));
     expect(compare()).toBeGreaterThan(0);
     visit.mockRestore();
   });
@@ -235,7 +235,7 @@ describe("translucent order", () => {
     const cache: TTranslucentOrderCache = { levelRevision: 2 };
     const levels: Record<string, number> = { e: 1, b: 0, added: 0 };
     const level = (id: string) => levels[id];
-    const order = (bits: number = BITS) => orderTranslucent(sources, level, () => 0, bits, false, undefined, cache);
+    const order = (bits: number = BITS) => flatten(orderTranslucentChunks(sources, level, () => 0, bits, false, cache));
     const exact = (bits: number = BITS) => orderTranslucent(sources, level, () => 0, bits, false);
     order();
     // The block moved in the skipped revision. The latest delta includes only the edge.
@@ -268,12 +268,12 @@ describe("translucent order", () => {
     b.set("upperB", quads([4, 0]));
     a.retainLayout();
     b.retainLayout();
-    const cache: TTranslucentOrderCache = { firstUpperLevel: 10 };
+    const cache: TTranslucentOrderCache = {};
     const levels: Record<string, number> = { lowerA: 1, lowerB: 0, upperA: 10, upperB: 11, added: 0 };
     const level = (id: string) => levels[id];
     let sources = [{ instances: a }, { instances: b }];
     const compare = (bits: number = BITS) => {
-      const result = orderTranslucent(sources, level, () => 0, bits, true, undefined, cache);
+      const result = flatten(orderTranslucentChunks(sources, level, () => 0, bits, true, cache));
       expect(result).toEqual(orderTranslucent(sources, level, () => 0, bits, true));
       return result;
     };
@@ -301,10 +301,8 @@ describe("translucent order", () => {
     sources = [{ instances: b }, { instances: a }];
     compare();
     compare(BITS + 1);
-    cache.firstUpperLevel = undefined;
     levels.lowerA = 0;
     compare();
-    expect(cache.upper).toBeUndefined();
   });
 
   it("matches stateless ordering through retained hole reuse, source changes, steps, levels and dense sorting", () => {
@@ -323,7 +321,7 @@ describe("translucent order", () => {
     const level = (id: string) => levels[id];
     const cache = {};
     const compare = (bits: number = BITS) => {
-      const result = orderTranslucent(sources, level, () => 0, bits, true, undefined, cache);
+      const result = flatten(orderTranslucentChunks(sources, level, () => 0, bits, true, cache));
       expect(result).toEqual(orderTranslucent(sources, level, () => 0, bits));
       return result;
     };
@@ -353,11 +351,160 @@ describe("translucent order", () => {
         () => 0,
         BITS,
         false,
-        () => false,
-        cache
+        () => false
       )
     ).toEqual([]);
     compare();
+  });
+
+  it("preserves exact raw joins and reuses untouched materialized ranges through edits", () => {
+    const paths = new InstanceRanges(3);
+    const labels = new InstanceRanges(3);
+    paths.set("left", quads([1, 0]));
+    paths.set("center", quads([2, 0]));
+    paths.set("right", quads([3, 0]));
+    // The same physical run joins across multiple order positions. Other parts are separated by a program.
+    paths.set("middle", quads([4, 0]));
+    paths.set("later", new Float32Array(2304 * 3));
+    paths.set("tail", quads([5, 0]));
+    labels.set("label", quads([6, 0]));
+    paths.retainLayout();
+    labels.retainLayout();
+    let sources = [{ instances: paths }, { instances: labels }];
+    const levels: Record<string, number> = { left: 0, center: 1, right: 2, middle: 3, label: 3, later: 4, tail: 5 };
+    const level = (id: string) => levels[id] ?? 0;
+    const cache: TTranslucentOrderCache = { levelRevision: 0 };
+    const compare = (bits: number = BITS) => {
+      const parts = orderTranslucentChunks(sources, level, () => 0, bits, false, cache);
+      expect(flatten(parts)).toEqual(orderTranslucent(sources, level, () => 0, bits, false));
+      return parts;
+    };
+    const initial = compare();
+    expect(flatten(initial)[0]).toEqual({
+      source: 0,
+      first: 0,
+      count: 4,
+    });
+    const unchanged = initial.find((part) => part.runs[part.first].source === 1);
+    expect(unchanged).toBeDefined();
+    expect(compare()).toBe(initial);
+
+    cache.levelRevision = 1;
+    cache.changedLevelIds = ["center"];
+    levels.center = 5;
+    expect(compare()).toContain(unchanged);
+    cache.levelRevision = 2;
+    levels.center = 1;
+    expect(compare()).toContain(unchanged);
+
+    paths.delete("middle");
+    compare();
+    paths.set("next", quads([7, 0], [8, 0]));
+    compare();
+    compare(BITS + 1);
+    sources = [{ instances: labels }, { instances: paths }];
+    compare();
+  });
+
+  it("groups small draw positions across sparse pages without changing distant visibility gaps", () => {
+    const paths = new InstanceRanges(3);
+    const labels = new InstanceRanges(3);
+    const levels = new Map<string, number>([["label", 1]]);
+    for (let i = 0; i < 8; i++) {
+      paths.set("visible" + i, quads([i, 0]));
+      paths.set("gap" + i, new Float32Array(3 * 1024));
+      levels.set("gap" + i, 3);
+    }
+    paths.retainLayout();
+    labels.set("label", quads([99, 0]));
+    labels.retainLayout();
+    const sources = [{ instances: paths }, { instances: labels }];
+    const cache: TTranslucentOrderCache = { levelRevision: 0 };
+    const level = (id: string) => levels.get(id) ?? 0;
+    const order = () => orderTranslucentChunks(sources, level, () => 0, BITS, false, cache);
+    const initial = order();
+    const part = initial[0];
+    expect(part.runs.slice(part.first, part.end)).toEqual(
+      Array.from({ length: 8 }, (_, i) => ({ source: 0, first: i * 1025, count: 1 }))
+    );
+    levels.set("label", 2);
+    cache.levelRevision = 1;
+    cache.changedLevelIds = ["label"];
+    const moved = order();
+    expect(moved[0]).toBe(part);
+    const exact = orderTranslucent(sources, level, () => 0, BITS, false);
+    expect(flatten(moved)).toEqual(exact);
+    const any = (source: number, first: number, count: number): boolean =>
+      source === 1 || [0, 7 * 1025].some((i) => i >= first && i < first + count);
+    const shown = filterTranslucentRuns(flatten(moved), any);
+    expect(shown).toEqual(filterTranslucentRuns(exact, any));
+    expect(shown[0]).toEqual({ source: 0, first: 0, count: 7 * 1025 + 1 });
+  });
+
+  it("retains the interior of an unaffected painter position during a distant edit", () => {
+    const paths = new InstanceRanges(1);
+    const labels = new InstanceRanges(1);
+    for (let page = 0; page < 160; page++) {
+      paths.set("edge" + page, new Float32Array(1));
+      paths.set("fill" + page, new Float32Array(1023));
+    }
+    paths.retainLayout();
+    labels.set("label", new Float32Array(1));
+    labels.retainLayout();
+    const cache: TTranslucentOrderCache = { levelRevision: 0 };
+    const sources = [{ instances: paths }, { instances: labels }];
+    let labelLevel = 2;
+    const level = (id: string) => (id === "label" ? labelLevel : id.startsWith("fill") ? 1 : 0);
+    const order = () => orderTranslucentChunks(sources, level, () => 0, BITS, false, cache);
+    const initial = order();
+    const interior = initial.find((part) => part.runs.some((run) => run.first === 64 * 1024))!;
+    const read = jest.fn().mockReturnValue(interior.runs);
+    Object.defineProperty(interior, "runs", { get: read });
+    labelLevel++;
+    cache.levelRevision = 1;
+    cache.changedLevelIds = ["label"];
+    const next = order();
+    expect(read).not.toHaveBeenCalled();
+    expect(next).toContain(interior);
+    expect(flatten(next)).toEqual(orderTranslucent(sources, level, () => 0, BITS, false));
+  });
+
+  it("keeps distant painter windows and unaffected positions on the same physical page through addressed edits", () => {
+    const paths = new InstanceRanges(3);
+    const labels = new InstanceRanges(3);
+    const levels = new Map<string, number>();
+    for (let level = 0; level < 80; level++) {
+      for (const [source, ranges] of [paths, labels].entries()) {
+        const id = level + "/" + source;
+        levels.set(id, level);
+        ranges.set(id, quads([level, 0]));
+      }
+    }
+    paths.retainLayout();
+    labels.retainLayout();
+    const sources = [{ instances: paths }, { instances: labels }];
+    const cache: TTranslucentOrderCache = { levelRevision: 0 };
+    const levelOf = (id: string) => levels.get(id) ?? 0;
+    const update = () => {
+      const parts = orderTranslucentChunks(sources, levelOf, () => 0, BITS, false, cache);
+      const groups = cache.partGroups ?? [];
+      expect(groups.flat()).toEqual(parts);
+      expect(flatten(parts)).toEqual(orderTranslucent(sources, levelOf, () => 0, BITS, false));
+      return groups;
+    };
+    const initial = update();
+    const untouched = initial.find((group) => group.some((p) => p.runs[p.first].first === 40));
+    expect(untouched).toBeDefined();
+    for (const level of [70, 2, 71, 2]) {
+      levels.set("2/0", level);
+      cache.levelRevision = (cache.levelRevision ?? 0) + 1;
+      cache.changedLevelIds = ["2/0"];
+      expect(update()).toContain(untouched);
+    }
+    paths.delete("2/0");
+    expect(update()).toContain(untouched);
+    paths.set("reused", quads([22, 0]));
+    expect(update()).toContain(untouched);
   });
 
   it("omits inactive retained ranges before querying levels or building draw positions", () => {

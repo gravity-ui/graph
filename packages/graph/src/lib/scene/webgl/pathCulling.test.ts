@@ -23,6 +23,70 @@ function paths(xs: number[]): { paths: Float32Array; elements: Float32Array; tab
 }
 
 describe("PathCulling", () => {
+  it("retains physical chunks across camera changes and replaces only edited chunks", () => {
+    const data = paths(Array<number>(CHUNK * 2).fill(10));
+    const culling = new PathCulling();
+    const visit = jest.fn();
+    culling.update(data.paths, data.elements, data.table, frame);
+    culling.visitChunks(CHUNK - 2, 5, visit);
+    const [left, right] = visit.mock.calls.map(([chunk]) => chunk);
+    expect(visit.mock.calls).toEqual([
+      [left, CHUNK - 2, CHUNK],
+      [right, CHUNK, CHUNK + 3],
+    ]);
+    const zoom = { ...frame, scale: 2 };
+    culling.update(data.paths, data.elements, data.table, zoom);
+    culling.visitChunks(CHUNK - 2, 5, visit);
+    expect(visit.mock.calls[2][0]).toBe(left);
+    expect(visit.mock.calls[3][0]).toBe(right);
+    const at = CHUNK * INSTANCE_FLOATS;
+    const edited = data.paths.subarray(at, at + 1);
+    edited[0] += 1;
+    culling.invalidate(
+      { kind: "range", spans: [{ data: edited, byteOffset: edited.byteOffset }], bytes: 4 },
+      INSTANCE_FLOATS
+    );
+    culling.update(data.paths, data.elements, data.table, zoom);
+    culling.visitChunks(CHUNK - 2, 5, visit);
+    expect(visit.mock.calls[4][0]).toBe(left);
+    expect(visit.mock.calls[5][0]).not.toBe(right);
+  });
+
+  it("reselects only edited hulls until a new visibility boundary is crossed", () => {
+    const data = paths(Array<number>(CHUNK * 3).fill(10));
+    const culling = new PathCulling();
+    culling.update(data.paths, data.elements, data.table, frame);
+    const full = jest.spyOn(culling as unknown as { selectHulls(scale: number): void }, "selectHulls");
+    const tail = data.elements.subarray(CHUNK * 2 * PATH_ELEMENT_FLOATS);
+    for (let at = 0; at < tail.length; at += PATH_ELEMENT_FLOATS) {
+      tail[at] = 1;
+      tail[at + 4] = 1.5;
+    }
+    data.table.write("e1", 1, 0, 0, false, 0);
+    culling.invalidate(
+      { kind: "range", spans: [{ data: tail, byteOffset: tail.byteOffset }], bytes: tail.byteLength },
+      PATH_ELEMENT_FLOATS
+    );
+    culling.update(data.paths, data.elements, data.table, frame);
+    expect(full).not.toHaveBeenCalled();
+    expect(culling.untranslated).toBe(true);
+    expect(culling.preparedRanges(frame, 0)).toEqual([{ first: 0, count: CHUNK * 2 }]);
+    const zoom = { ...frame, scale: 1.5 };
+    culling.update(data.paths, data.elements, data.table, zoom);
+    expect(full).toHaveBeenCalledTimes(1);
+    expect(culling.untranslated).toBe(false);
+    expect(culling.preparedRanges(zoom, 0)).toEqual([{ first: 0, count: CHUNK * 3 }]);
+    culling.update(
+      data.paths.subarray(0, CHUNK * 2 * INSTANCE_FLOATS),
+      data.elements.subarray(0, CHUNK * 2 * PATH_ELEMENT_FLOATS),
+      data.table,
+      zoom
+    );
+    expect(culling.untranslated).toBe(true);
+    expect(full).toHaveBeenCalledTimes(1);
+    expect(culling.preparedRanges(zoom, 0)).toEqual([{ first: 0, count: CHUNK * 2 }]);
+  });
+
   it("rebuilds only changed suffix chunks on growth and shrink and forgets removed owners", () => {
     const data = paths(Array.from({ length: CHUNK * 4 }, () => 0));
     const culling = new PathCulling();
@@ -73,7 +137,7 @@ describe("PathCulling", () => {
     expect(culling.ranges(CHUNK * 2, CHUNK / 2, frame, 0)).toEqual([{ first: CHUNK * 2, count: CHUNK / 2 }]);
   });
 
-  it("promotes only edited chunks that need more curve detail and merges them again after recovery", () => {
+  it("keeps the source template independent of neighboring records and physical chunk placement", () => {
     const data = paths(Array.from({ length: CHUNK * 3 }, () => 10));
     for (let i = 0; i < CHUNK * 3; i++) data.paths[i * INSTANCE_FLOATS + 20] = 8;
     const at = CHUNK * INSTANCE_FLOATS + 20;
@@ -81,9 +145,7 @@ describe("PathCulling", () => {
     const culling = new PathCulling();
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.ranges(0, CHUNK * 3, frame, 0, { curveChords: 8 })).toEqual([
-      { first: 0, count: CHUNK, curveChords: 8 },
-      { first: CHUNK, count: CHUNK, curveChords: 16 },
-      { first: CHUNK * 2, count: CHUNK, curveChords: 8 },
+      { first: 0, count: CHUNK * 3, curveChords: 8 },
     ]);
     data.paths[at] = 8;
     culling.invalidate(
@@ -117,16 +179,42 @@ describe("PathCulling", () => {
     const visit = jest.fn();
     const options = { bridgeGap: CHUNK, curveChords: 8 } as const;
     culling.forEachRange(CHUNK / 2, CHUNK * 3, frame, 0, visit, options);
-    expect(visit.mock.calls).toEqual([
-      [CHUNK / 2, CHUNK * 2.5, 8],
-      [CHUNK * 3, CHUNK / 2, 16],
-    ]);
+    expect(visit.mock.calls).toEqual([[CHUNK / 2, CHUNK * 3, 8]]);
     visit.mockClear();
     culling.forEachRange(0, 2, { ...frame, scale: 0 }, 0, visit, options);
     expect(visit.mock.calls).toEqual([[0, 2, undefined]]);
     visit.mockClear();
     culling.forEachRange(0, 0, frame, 0, visit, options);
     expect(visit).not.toHaveBeenCalled();
+  });
+
+  it("retains the physical visibility schedule through stable views and equal hull edits", () => {
+    const data = paths(Array.from({ length: CHUNK * 3 }, (_, i) => (i >= CHUNK && i < CHUNK * 2 ? 500 : 10)));
+    data.paths[2 * CHUNK * INSTANCE_FLOATS + 20] = 16;
+    const culling = new PathCulling();
+    culling.update(data.paths, data.elements, data.table, frame);
+    const read = jest.spyOn(culling, "forEachRange");
+    const first = culling.preparedRanges(frame, 0, 8);
+    expect(first).toEqual([
+      { first: 0, count: CHUNK, curveChords: 8 },
+      { first: 2 * CHUNK, count: CHUNK, curveChords: 8 },
+    ]);
+    read.mockClear();
+    expect(culling.preparedRanges({ ...frame, time: 1 }, 0, 8)).toBe(first);
+    expect(read).not.toHaveBeenCalled();
+    expect(culling.preparedRanges({ ...frame, x: 1 }, 0, 8)).toBe(first);
+    data.paths[0] += 2;
+    culling.invalidate({ kind: "full" }, INSTANCE_FLOATS);
+    culling.update(data.paths, data.elements, data.table, frame);
+    expect(culling.preparedRanges(frame, 0, 8)).toBe(first);
+    data.table.write("e0", -450, 0, 0, false, 0);
+    culling.update(data.paths, data.elements, data.table, frame);
+    expect(culling.preparedRanges(frame, 0, 8)).toEqual([{ first: CHUNK, count: CHUNK, curveChords: 8 }]);
+    expect(culling.preparedRanges({ ...frame, scale: NaN }, 0, 8)).toEqual([{ first: 0, count: 3 * CHUNK }]);
+    expect(culling.preparedRanges(frame, 0)).toEqual([{ first: CHUNK, count: CHUNK }]);
+    expect(culling.preparedRanges(frame, 500)).toEqual([{ first: 0, count: 3 * CHUNK }]);
+    culling.update(data.paths.subarray(0, CHUNK * INSTANCE_FLOATS), data.elements, data.table, frame);
+    expect(culling.preparedRanges(frame, 500)).toEqual([{ first: 0, count: CHUNK }]);
   });
 
   it("uses the control hull, stroke width, effect halo and hairline rim at the current scale and DPR", () => {
@@ -306,7 +394,7 @@ describe("PathCulling", () => {
     write.mockRestore();
   });
 
-  it("refreshes inactive owners before their hull becomes visible, preserving detail and origin eligibility", () => {
+  it("refreshes inactive owners before their hull becomes visible, preserving origin eligibility", () => {
     const data = paths([500, 500]);
     data.paths[20] = 8;
     data.paths[INSTANCE_FLOATS + 20] = 16;
@@ -330,7 +418,8 @@ describe("PathCulling", () => {
     culling.update(data.paths, data.elements, data.table, high);
     expect(write).not.toHaveBeenCalled();
     expect(culling.untranslated).toBe(false);
-    expect(culling.ranges(0, 2, high, 0, { curveChords: 8 })).toEqual([{ first: 0, count: 2, curveChords: 16 }]);
+    // The caller observes untranslated=false and requests the exact source template.
+    expect(culling.ranges(0, 2, high, 0)).toEqual([{ first: 0, count: 2 }]);
     culling.update(data.paths, data.elements, data.table, low);
     expect(culling.untranslated).toBe(true);
     expect(culling.ranges(0, 2, low, 0, { curveChords: 8 })).toEqual([]);

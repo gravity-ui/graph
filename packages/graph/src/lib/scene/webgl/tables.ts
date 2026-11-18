@@ -18,6 +18,7 @@ export const HIDDEN_ALPHA = -2;
 export const USE_BASE_ALPHA = -3;
 
 let lastOriginRevision = 0;
+let lastDepthRevision = 0;
 
 /** One texel per element: (originX, originY, elementKey or -1 when hidden, styleId). */
 export class ElementTable {
@@ -29,6 +30,7 @@ export class ElementTable {
   private dirtyMin = Infinity;
   private dirtyMax = -1;
   private originChanges = ++lastOriginRevision;
+  private depthChanges = ++lastDepthRevision;
 
   public get rows(): number {
     return Math.ceil(this.used / TABLE_WIDTH);
@@ -37,6 +39,11 @@ export class ElementTable {
   /** Changes with the stored origins or when the table is replaced. */
   public get originRevision(): number {
     return this.originChanges;
+  }
+
+  /** Includes the hidden sentinel and slot reuse. */
+  public get depthRevision(): number {
+    return this.depthChanges;
   }
 
   public indexOf(id: string): number {
@@ -51,6 +58,12 @@ export class ElementTable {
   public write(id: string, x: number, y: number, key: number, hidden: boolean, styleId: number): void {
     const index = this.indexOf(id);
     this.put(index, x, y, hidden ? -1 : key, styleId);
+  }
+
+  /** Last written style row, even if the store element has already been mutated. */
+  public styleOf(id: string): number {
+    const index = this.slots.get(id);
+    return index === undefined ? 0 : this.data[index * 4 + 3];
   }
 
   public free(id: string): void {
@@ -79,6 +92,7 @@ export class ElementTable {
     }
     this.data[at] = x;
     this.data[at + 1] = y;
+    if (this.data[at + 2] !== key) this.depthChanges = ++lastDepthRevision;
     this.data[at + 2] = key;
     this.data[at + 3] = styleId;
     const row = Math.floor(index / TABLE_WIDTH);
@@ -114,6 +128,9 @@ function writeOpaque(data: Float32Array, at: number, paint: Readonly<TScenePartS
  */
 export class StyleTable {
   public data = new Float32Array(0);
+  public hiddenParts = new Uint16Array(0);
+  /** Parts hidden in every registered state with the same base visibility. */
+  public orderHiddenParts = new Uint16Array(0);
 
   private slots = new Map<string, number>([["none", 0]]);
   private rowCount = 0;
@@ -137,8 +154,12 @@ export class StyleTable {
     return slot;
   }
 
+  /* eslint-disable no-bitwise -- Each bit represents one of the 16 GPU part slots. */
   public setStyles(styles: readonly TSceneStyle[]): void {
     const data = new Float32Array(styles.length * STYLE_ROW_TEXELS * 4);
+    const hiddenParts = new Uint16Array(styles.length);
+    const baseMasks = new Uint16Array(styles.length);
+    const alwaysHidden = new Map<number, number>();
     for (let i = 3; i < data.length; i += 4) data[i] = NO_COLOR_ALPHA;
     styles.forEach((style, row) => {
       const rowAt = row * STYLE_ROW_TEXELS;
@@ -151,18 +172,34 @@ export class StyleTable {
         const base = style.base?.[part];
         const slot = this.slotOf(part);
         const at = (rowAt + slot) * 4;
+        if (base?.visible === false) baseMasks[row] |= 1 << slot;
         // A faded part's colours are baked with its opacity: an override here would paint over them.
         if (override && styleOpacity(style, part) >= 1) writeOpaque(data, at, override);
         if (base) writeOpaque(data, (rowAt + PART_SLOTS + slot) * 4, base);
         // An effectively invisible part hides the whole primitive that has it: the shaders cull it.
-        if ((override?.visible ?? base?.visible) === false) data[at + 3] = HIDDEN_ALPHA;
+        if ((override?.visible ?? base?.visible) === false) {
+          data[at + 3] = HIDDEN_ALPHA;
+          hiddenParts[row] += 2 ** slot;
+        }
         data[dimAt(slot)] = styleDim(style, part);
       }
+      const base = baseMasks[row];
+      alwaysHidden.set(base, (alwaysHidden.get(base) ?? hiddenParts[row]) & hiddenParts[row]);
     });
+    this.orderHiddenParts = baseMasks.map((base) => alwaysHidden.get(base) ?? 0);
     this.data = data;
+    this.hiddenParts = hiddenParts;
     this.rowCount = styles.length;
     this.dirty = true;
   }
+
+  /** A state change may reveal a resident part without changing its place in the painter order. */
+  public hiddenForOrder(row: number, part: string | undefined): boolean {
+    const slot = part === undefined ? 0 : this.slots.get(part) ?? 0;
+    return Boolean((this.orderHiddenParts[row] ?? 0) & (1 << slot));
+  }
+
+  /* eslint-enable no-bitwise */
 
   public takeDirty(): boolean {
     const was = this.dirty;

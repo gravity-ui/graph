@@ -1,6 +1,7 @@
 import { InstanceRanges } from "./InstanceRanges";
 import type { TSceneFrame } from "./backendTypes";
 import { InstanceVisibility } from "./instanceVisibility";
+import type { TVisibilitySpan } from "./instanceVisibility";
 import { STYLE_ROW_TEXELS } from "./tables";
 import { filterTranslucentRuns, orderTranslucent } from "./translucentOrder";
 
@@ -301,6 +302,142 @@ describe("instance visibility cohorts", () => {
     visibility.update(ranges, table, paint, frame(0.3), 3);
     expect(visibility.any(0, 256)).toBe(true);
     expect(ranges.reads).toBe(0);
+  });
+
+  it("rechecks only chunks of a hidden or restyled owner and preserves the other scale boundaries", () => {
+    const ranges = new InstanceRanges(8);
+    for (let owner = 0; owner < 4; owner++) {
+      const data = paths(128);
+      for (let at = 0; at < data.length; at += 8) data[at] = owner;
+      data[4] = 0.15 + owner * 0.025;
+      ranges.set(String(owner), data);
+    }
+    const elements = new Float32Array([0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0]);
+    const visibility = new InstanceVisibility("path");
+    let reads = 0;
+    const observed = new Proxy(elements, {
+      get(target, key) {
+        if (typeof key === "string" && /^\d+$/.test(key)) reads++;
+        return Reflect.get(target, key, target);
+      },
+    });
+    const paint = styles();
+    visibility.update(ranges, observed, paint, frame(0.3), 1);
+    const from = visibility.from;
+    reads = 0;
+    elements[6] = -1;
+    visibility.invalidateOwner(ranges, "1");
+    visibility.update(ranges, observed, paint, frame(0.3), 1);
+    expect(reads).toBeGreaterThan(0);
+    expect(reads).toBeLessThanOrEqual(4);
+    expect(visibility.any(128, 128)).toBe(false);
+    expect(visibility.any(128, 129)).toBe(true);
+    expect(visibility.from).toBe(from);
+    visibility.update(ranges, observed, paint, frame(0.2), 1);
+    expect(visibility.any(384, 1)).toBe(false);
+  });
+
+  it("reports changed active slots even when a dirty chunk keeps its visible count", () => {
+    const ranges = new InstanceRanges(8);
+    const data = paths(384);
+    data[128 * 8 + 6] = 4;
+    ranges.set("paths", data);
+    const visibility = new InstanceVisibility("path"),
+      paint = styles();
+    const update = () => visibility.update(ranges, table, paint, frame(0.2), 1);
+    update();
+    ranges.takeUpload();
+    const before = visibility.visibilityRevision;
+
+    ranges.editSpan("paths", 0, 1, (data, at) => (data[at + 5] = 0.45));
+    visibility.invalidate(ranges.takeUpload(), ranges);
+    update();
+    expect(visibility.visibilityRevision).toBe(before);
+    expect(visibility.changesSince(before)).toEqual([]);
+
+    ranges.editSpan("paths", 128, 5, (data, at) => {
+      data[at + 6] = 2;
+      data[at + 4 * 8 + 6] = 4;
+    });
+    visibility.invalidate(ranges.takeUpload(), ranges);
+    update();
+    expect(visibility.any(128, 1)).toBe(true);
+    expect(visibility.any(132, 1)).toBe(false);
+    const spans = [
+      { first: 128, end: 129 },
+      { first: 132, end: 133 },
+    ];
+    expect(visibility.changesSince(before)).toEqual(spans);
+
+    update();
+    expect(visibility.changesSince(before)).toEqual(spans);
+    const latest = visibility.visibilityRevision;
+    visibility.update(ranges, table, paint, frame(0.2, "detailed"), 1);
+    expect(visibility.changesSince(latest)).toEqual(spans);
+    expect(visibility.changesSince(before)).toBeUndefined();
+  });
+
+  it("reports active tail truncation and rejects proofs across physical sources", () => {
+    const ranges = new InstanceRanges(8);
+    ranges.set("head", paths(140));
+    ranges.set("tail", paths(150));
+    ranges.retainLayout();
+    const visibility = new InstanceVisibility("path"),
+      paint = styles();
+    const update = (source = ranges) => visibility.update(source, table, paint, frame(0.2), 1);
+    update();
+    ranges.takeUpload();
+    const before = visibility.visibilityRevision;
+
+    ranges.delete("tail");
+    const upload = ranges.takeUpload();
+    expect(upload.kind).toBe("none");
+    visibility.invalidate(upload, ranges);
+    update();
+    expect(visibility.changesSince(before)).toEqual([{ first: 140, end: 290 }]);
+
+    const latest = visibility.visibilityRevision;
+    const replacement = new InstanceRanges(8);
+    replacement.set("head", paths(140));
+    update(replacement);
+    expect(visibility.changesSince(latest)).toBeUndefined();
+    expect(visibility.any(139, 1)).toBe(true);
+  });
+
+  it("matches exact physical deltas through retained slot reuse and global predicate changes", () => {
+    const ranges = new InstanceRanges(8);
+    ranges.set("steady", paths(190));
+    ranges.retainLayout();
+    const visibility = new InstanceVisibility("path"),
+      paint = styles(),
+      maxSlots = 512;
+    const measure = (scale: number, level: TSceneFrame["level"], stateRevision: number): boolean[] => {
+      visibility.invalidate(ranges.takeUpload(), ranges);
+      visibility.update(ranges, table, paint, frame(scale, level), stateRevision);
+      const full = new InstanceVisibility("path");
+      full.update(ranges, table, paint, frame(scale, level), stateRevision);
+      const slots = Array.from({ length: maxSlots }, (_, first) => visibility.any(first, 1));
+      expect(slots).toEqual(Array.from({ length: maxSlots }, (_, first) => full.any(first, 1)));
+      return slots;
+    };
+    let previous = measure(0.2, "schematic", 0);
+    for (let i = 1; i <= 45; i++) {
+      const id = `churn${i % 3}`;
+      if (i % 5 > 1) ranges.set(id, paths(1 + ((i * 73) % 97), i % 2 ? 6 : 2));
+      else ranges.delete(id);
+      paint[7] = i % 7 === 0 ? -2 : -1;
+      const revision = visibility.visibilityRevision;
+      const next = measure(i % 6 === 0 ? 0.6 : 0.2, i % 5 === 1 ? "detailed" : "schematic", i);
+      const expected: TVisibilitySpan[] = [];
+      for (let slot = 0; slot < next.length; slot++) {
+        if (next[slot] === previous[slot]) continue;
+        const last = expected.at(-1);
+        if (last?.end === slot) last.end++;
+        else expected.push({ first: slot, end: slot + 1 });
+      }
+      expect(visibility.changesSince(revision)).toEqual(expected);
+      previous = next;
+    }
   });
 
   it("keeps its visibility revision for changed path subs and widths with the same predicates", () => {

@@ -58,6 +58,120 @@ describe("TagStore", () => {
     expect(of.value.get(presence)).toEqual({ color: "#f00" });
   });
 
+  it("retains inspected membership snapshots and signals across shallow-equal and mixed patches", () => {
+    const tags = new TagStore();
+    const first = { color: "red" };
+    const equal = { color: "red" };
+    const changed = { color: "blue" };
+    const one = tags.$of("block", 1);
+    tags.set(presence, { block: new Map([[1, first]]) });
+    const original = tags.membersOf(presence);
+    const initialTags = one.peek();
+    tags.add(presence, { block: new Map([["1", equal]]) });
+    expect(tags.membersOf(presence)).toBe(original);
+    tags.add(presence, {
+      block: new Map([
+        [1, equal],
+        [2, changed],
+      ]),
+    });
+    const mixed = tags.membersOf(presence);
+    expect(mixed.get("block\u00001")).toBe(equal);
+    expect(mixed.get("block\u00002")).toBe(changed);
+    expect(one.peek()).toBe(initialTags);
+    expect(one.peek().get(presence)).toBe(first);
+    expect(original.get("block\u00001")).toBe(first);
+    expect(original.size).toBe(1);
+    tags.delete(presence, { block: [1, "1", 9] });
+    expect(mixed.size).toBe(2);
+    const remaining = tags.membersOf(presence);
+    tags.delete(presence, { block: [1] });
+    expect(tags.membersOf(presence)).toBe(remaining);
+    tags.clear(presence);
+    expect(remaining.size).toBe(1);
+  });
+
+  it("keeps membership and signals unchanged when reading removal IDs fails", () => {
+    const tags = new TagStore();
+    tags.add(running, { block: ["a", "b"] });
+    const seen = tags.membersOf(running);
+    const ids = ["a", "b"];
+    Object.defineProperty(ids, 1, {
+      get: () => {
+        throw new Error("read failed");
+      },
+    });
+    expect(() => tags.delete(running, { block: ids })).toThrow("read failed");
+    expect(tags.membersOf(running)).toBe(seen);
+    tags.add(running, { block: ["c"] });
+    expect([...tags.membersOf(running).keys()]).toEqual(["block\u0000a", "block\u0000b", "block\u0000c"]);
+    expect(tags.peekOf("block", "a").has(running)).toBe(true);
+  });
+
+  it("publishes sparse edits in the same order and batch as a replacement, including reentrant writes", () => {
+    const run = (incremental: boolean) => {
+      const tags = new TagStore();
+      const score = defineTag<number>("score");
+      const members = new Map([
+        ["b", 1],
+        ["a", 2],
+      ]);
+      tags.set(score, { block: members });
+      const events: string[] = [];
+      let editing = false;
+      ["a", "b", "c", "d"].forEach((id) => {
+        tags.$of("block", id).subscribe((values) => {
+          if (!editing) return;
+          events.push(id + String(values.get(score)) + "/" + [...tags.membersOf(score).values()].join());
+          if (id === "c" && values.get(score) === 3) tags.add(score, { block: new Map([["d", 4]]) });
+        });
+      });
+      editing = true;
+      const patch = new Map([
+        ["c", 3],
+        ["a", 20],
+        ["b", 10],
+      ]);
+      if (incremental) tags.add(score, { block: patch });
+      else tags.set(score, { block: new Map([...members, ...patch]) });
+      if (incremental) tags.delete(score, { block: ["a", "c", "a", "b"] });
+      else tags.set(score, { block: new Map([["d", 4]]) });
+      tags.add(score, {
+        block: new Map([
+          ["a", 30],
+          ["b", 40],
+        ]),
+      });
+      tags.set(score, {
+        block: new Map([
+          ["a", 1],
+          ["b", 2],
+          ["d", 3],
+        ]),
+      });
+      if (incremental)
+        tags.add(score, {
+          block: new Map([
+            ["d", 6],
+            ["b", 5],
+            ["a", 4],
+          ]),
+        });
+      else
+        tags.set(score, {
+          block: new Map([
+            ["a", 4],
+            ["b", 5],
+            ["d", 6],
+          ]),
+        });
+      return events;
+    };
+    const full = run(false);
+    expect(full.length).toBeGreaterThan(8);
+    expect(run(true)).toEqual(full);
+  });
+
   it("a bound tag follows its source and rejects direct writes", () => {
     const tags = new TagStore();
     const ids = signal<string[]>(["1"]);

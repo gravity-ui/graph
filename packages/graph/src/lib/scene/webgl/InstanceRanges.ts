@@ -6,6 +6,8 @@ type TRange = { id: string; step: number; offset: number; count: number; dead: b
 export type TRetainedRange = Readonly<Pick<TRange, "step" | "offset" | "count">>;
 type TRetainedShapeChange = { from: number; id: string; previous: readonly TRetainedRange[] };
 const EMPTY_RANGES: readonly TRetainedRange[] = [];
+/** Retain only a small edit history. Readers that fell further behind compute from the live layout. */
+const RETAINED_SHAPE_HISTORY = 64;
 type TFreeSlot = { offset: number; count: number };
 
 /** The instances of one step of an element. */
@@ -112,8 +114,9 @@ export class InstanceRanges {
   private forcedCompactions = 0;
   /** The ranges of each element, by ascending step. */
   private readonly byId = new Map<string, TRange[]>();
-  /** Retained layout keeps old offsets stable. One change is enough to repair an isolated owner's order. */
-  private lastRetainedShape?: TRetainedShapeChange;
+  /** Each retained write records its previous ranges, whose offsets remain stable even after slot reuse. */
+  private readonly retainedShapes: TRetainedShapeChange[] = [];
+  private nextRetainedShape = 0;
   private buffer: Float32Array;
   private used = 0;
   private live = 0;
@@ -136,6 +139,7 @@ export class InstanceRanges {
   private compactAt = COMPACT_SPANS;
   private changes = ++lastRevision;
   private layoutChanges = ++lastRevision;
+  private membershipChanges = 0;
 
   constructor(floatsPerInstance: number) {
     this.floats = floatsPerInstance;
@@ -187,9 +191,31 @@ export class InstanceRanges {
     return this.layoutChanges;
   }
 
-  /** The single retained shape change since this snapshot, if there have been no intervening layout edits. */
-  public retainedChangeSince(revision: number): TRetainedShapeChange | undefined {
-    return this.lastRetainedShape?.from === revision ? this.lastRetainedShape : undefined;
+  /** Changes when an owner enters or leaves this list, independent of its range sizes and offsets. */
+  public get membershipRevision(): number {
+    return this.membershipChanges;
+  }
+
+  /** Exact retained layout edits since a known revision, from oldest to newest. */
+  public retainedChangesSince(revision: number): readonly TRetainedShapeChange[] | undefined {
+    if (revision === this.layoutChanges) return [];
+    const changes: TRetainedShapeChange[] = [];
+    for (let seen = 1; seen <= this.retainedShapes.length; seen++) {
+      const index = (this.nextRetainedShape + RETAINED_SHAPE_HISTORY - seen) % RETAINED_SHAPE_HISTORY;
+      const shape = this.retainedShapes[index];
+      if (shape.from < revision) break;
+      changes.push(shape);
+      if (shape.from === revision) return changes.reverse();
+    }
+    return undefined;
+  }
+
+  private changeLayout(id: string, previous: readonly TRetainedRange[]): void {
+    if (this.retained) {
+      this.retainedShapes[this.nextRetainedShape] = { from: this.layoutChanges, id, previous };
+      this.nextRetainedShape = (this.nextRetainedShape + 1) % RETAINED_SHAPE_HISTORY;
+    }
+    this.layoutChanges = ++lastRevision;
   }
 
   /** An owner's current spans in step order, without settling or walking unrelated retained slots. */
@@ -253,9 +279,9 @@ export class InstanceRanges {
       return;
     }
     this.changes = ++lastRevision;
-    if (this.retained) this.lastRetainedShape = { from: this.layoutChanges, id, previous: current ?? EMPTY_RANGES };
     if (current) this.removeRanges(current);
-    this.layoutChanges = ++lastRevision;
+    else this.membershipChanges++;
+    this.changeLayout(id, current ?? EMPTY_RANGES);
     if (!this.retained) this.reserve(chunks.reduce((sum, chunk) => sum + chunk.instances.length / this.floats, 0));
     this.byId.set(
       id,
@@ -312,10 +338,10 @@ export class InstanceRanges {
     const current = this.byId.get(id);
     if (!current) return;
     this.changes = ++lastRevision;
-    if (this.retained) this.lastRetainedShape = { from: this.layoutChanges, id, previous: current };
-    this.layoutChanges = ++lastRevision;
+    this.changeLayout(id, current);
     this.removeRanges(current);
     this.byId.delete(id);
+    this.membershipChanges++;
   }
 
   /**
