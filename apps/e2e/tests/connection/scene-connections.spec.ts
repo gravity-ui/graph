@@ -4,6 +4,7 @@ import type { Page } from "@playwright/test";
 import type { TMultipointConnection, TPoint } from "@gravity-ui/graph";
 
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
+import { ReactGraphPageObject } from "../../page-objects/ReactGraphPageObject";
 
 type TSample = {
   x: number;
@@ -186,6 +187,65 @@ test("built-in Béziers keep both orientations in the WebGL scene", async ({ pag
 });
 
 for (const renderer of ["canvas", "webgl"] as const) {
+  test(`setEntities restores the fresh snapshot's ports, label and hits in ${renderer}`, async ({ page }) => {
+    const graph = new ReactGraphPageObject(page);
+    const source = { id: "source", is: "Block", x: 60, y: 120, width: 80, height: 40, name: "New source" };
+    const edge = { ...CONNECTION, sourceBlockId: source.id };
+    const settings = { renderer, useBezierConnections: false, showConnectionLabels: true };
+    const final = { blocks: [source, END], connections: [edge], settings };
+    await graph.initialize({
+      blocks: [
+        { ...source, y: 320, name: "Old source", anchors: [{ id: "out", blockId: source.id, type: "OUT" }] },
+        END,
+      ],
+      connections: [{ ...edge, sourcePortId: "source/out", label: "Old label" }],
+      settings,
+    });
+    test.skip(renderer === "webgl" && !(await hasWebGL2(page)), "WebGL2 unavailable");
+    await expectRenderer(page, renderer);
+    await centerOrigin(graph);
+    await expect(page.getByTestId("block-source")).toHaveText("Old source");
+
+    const read = () =>
+      page.evaluate(() => {
+        const { graph, GraphModule } = window;
+        const edgeState = graph.connections.getConnectionState("edge");
+        const view = edgeState?.getViewComponent();
+        if (!edgeState || !(view instanceof GraphModule.BlockConnection)) throw new Error("Missing edge view");
+        return {
+          port: edgeState.$sourcePortId.value,
+          geometry: edgeState.$geometry.value,
+          hasLabel: Boolean(view.getLabelBounds()),
+          anchors: graph.api.getBlockById("source")?.anchors?.map((anchor) => anchor.id) ?? [],
+        };
+      });
+    const old = await read();
+    expect(old).toMatchObject({ port: "source/out", hasLabel: true, anchors: ["out"] });
+    if (!old.geometry) throw new Error("Missing old route");
+    const [start, end] = old.geometry;
+    const oldShaft = { x: (3 * start.x + end.x) / 4, y: (3 * start.y + end.y) / 4 };
+    expect(await connectionHit(page, oldShaft)).toBe(true);
+
+    const rendered = async () => ({
+      ...(await read()),
+      hitsOld: await connectionHit(page, oldShaft),
+      hitsNew: await connectionHit(page, { x: 250, y: 140 }),
+      redPixels: (await sampleScene(page, [SHAFT]))[0],
+    });
+    await graph.setEntities(final);
+    await graph.waitForFrames(3);
+    await expect(page.getByTestId("block-source")).toHaveText("New source");
+    const replaced = await rendered();
+
+    await graph.initialize(final);
+    await expectRenderer(page, renderer);
+    await centerOrigin(graph);
+    const fresh = await rendered();
+    expect(fresh).toMatchObject({ port: "source_output", hasLabel: false, anchors: [], hitsOld: false, hitsNew: true });
+    expect(fresh.redPixels).toBeGreaterThan(12);
+    expect(replaced).toEqual(fresh);
+  });
+
   test(`the ${renderer} scene applies a tagged stroke width at the current zoom`, async ({ page }) => {
     const graph = new GraphPageObject(page);
     await graph.initialize({

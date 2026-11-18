@@ -390,14 +390,22 @@ export class BlockListStore {
    * @returns void
    */
   public setBlocks(blocks: TBlock[]) {
-    const blockStates = blocks.map((block) => this.getOrCraeateBlockState(block));
+    const blockStates = blocks.map((block) => this.getOrCraeateBlockState(block, "replace"));
     this.applyBlocksState(blockStates);
+    // A snapshot can supersede a drag before its coalesced geometry event runs.
+    for (const [id, { state, geometry }] of this.batchedGeometryPending) {
+      const { x, y, width, height } = state.$geometry.peek();
+      if (x !== geometry.x || y !== geometry.y || width !== geometry.width || height !== geometry.height) {
+        this.batchedGeometryPending.delete(id);
+      }
+    }
   }
 
-  protected getOrCraeateBlockState(block: TBlock) {
+  protected getOrCraeateBlockState(block: TBlock, mode: "update" | "replace" = "update") {
     const blockState = this.$blocksMap.value.get(block.id);
     if (blockState) {
-      blockState.updateBlock(block);
+      if (mode === "replace") blockState.replaceBlock(block);
+      else blockState.updateBlock(block);
       return blockState;
     }
     return BlockState.fromTBlock(this, block);

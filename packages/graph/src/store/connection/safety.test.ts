@@ -62,6 +62,43 @@ test("changing endpoint releases old observers and explicit zero port IDs resolv
   expect(graph.connections.getPort(0)).toBeUndefined();
 });
 
+test("replacing a connection snapshot keeps shared port observation until its last endpoint moves", () => {
+  const initial = {
+    id: 0,
+    sourcePortId: 0,
+    targetPortId: 0,
+    label: "old",
+    points: [{ x: 5, y: 10 }],
+    styles: { background: "blue", selectedBackground: "red" },
+  };
+  const graph = new Graph({ connections: [initial] });
+  const state = graph.connections.getConnectionState(0);
+  if (!state) throw new Error("Expected connection");
+  const shared = state.$sourcePortState.value;
+  expect(state.$targetPortState.value).toBe(shared);
+  shared.updatePort({ lookup: false });
+  shared.delegate(new PortState({ id: "delegate", x: 10, y: 20 }));
+
+  const next = { id: 0, sourceBlockId: "a", targetPortId: 0, styles: { background: "green" } };
+  graph.setEntities({ connections: [next] });
+  expect(graph.connections.getConnectionState(0)).toBe(state);
+  expect(state.toJSON()).toStrictEqual(next);
+  const source = state.$sourcePortState.value;
+  expect(source.id).toBe("a_output");
+  expect(shared.observers.has(state)).toBe(true);
+  source.updatePort({ x: 30, y: 40, lookup: false });
+  expect(state.$geometry.value).toEqual([
+    { x: 30, y: 40 },
+    { x: 10, y: 20 },
+  ]);
+
+  graph.setEntities({ connections: [{ id: 0, sourceBlockId: "a", targetBlockId: "b" }] });
+  expect(state.$targetPortState.value.id).toBe("b_input");
+  expect(shared.observers.has(state)).toBe(false);
+  expect(graph.connections.getPort(0)).toBeUndefined();
+  expect(state.$geometry.value).toBeUndefined();
+});
+
 test("destroyed connection cannot retain zero port observer or revive geometry", () => {
   const graph = new Graph({ connections: [{ id: "c", sourcePortId: 0, targetPortId: 0 }] });
   const state = graph.connections.getConnectionState("c");

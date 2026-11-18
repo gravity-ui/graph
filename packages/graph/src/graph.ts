@@ -368,6 +368,7 @@ export class Graph {
     });
   }
 
+  /** Replaces the block and connection data, including rows with existing IDs. An omitted collection is emptied. */
   public setEntities({
     blocks,
     connections,

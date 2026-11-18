@@ -421,6 +421,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.connectedState.$state.value;
   }
 
+  /** @internal Anchors and selection are projected from their own signals. */
+  public override clearRemovedData(previous: object, next: object): void {
+    super.clearRemovedData(previous, next, ["anchors", "selected"]);
+  }
+
   /**
    * The React container's order (decision 9): the dense rank among the blocks shown in HTML, zIndex 0, so graph-react's
    * `zIndex + order` is the rank. A container that watches it counts the block in, and leaves it out when it stops; the
@@ -485,6 +490,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
     const previous = this.connectedState;
     this.connectedState = this.getConnectedState(id);
+    if (previous !== this.connectedState) {
+      // Queued edits belong to the old block, including edits that have never reached this.state.
+      this.__data.nextState = undefined;
+      this.__data.removedStateKeys = undefined;
+    }
     // The ids of another block's state must not be compared with the new list (the first emission below). Those of
     // the same block's last list are: the ports of the anchors a re-add left out are released, as for a list change.
     if (previous.$state.peek().id !== id) {

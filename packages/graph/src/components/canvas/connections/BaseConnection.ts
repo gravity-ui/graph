@@ -162,6 +162,12 @@ export class BaseConnection<
     return this.props.id;
   }
 
+  /** @internal Selection and hover belong to the mounted view. Custom geometry may depend on a removed field. */
+  public override clearRemovedData(previous: object, next: object): void {
+    super.clearRemovedData(previous, next, ["selected", "hovered"]);
+    if (this.__data.removedStateKeys) this.geometryDirty = true;
+  }
+
   protected willMount(): void {
     // Sets GraphComponent's mounted flag (`isMounted()`).
     super.willMount();

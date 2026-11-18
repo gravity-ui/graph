@@ -35,7 +35,7 @@ export class Component<
 
   public state: State;
 
-  protected __data: { nextProps: Props | undefined; nextState: State | undefined } = {
+  protected __data: { nextProps: Props | undefined; nextState: State | undefined; removedStateKeys?: Set<string> } = {
     nextProps: undefined,
     nextState: undefined,
   };
@@ -70,10 +70,15 @@ export class Component<
   }
 
   public getState() {
-    if (this.__data.nextState) {
-      return Object.assign({}, this.state, this.__data.nextState);
+    const next = this.__data.nextState;
+    return next ? this.applyPendingState({ ...this.state }, next) : this.state;
+  }
+
+  private applyPendingState(target: State, next: State): State {
+    if (this.__data.removedStateKeys) {
+      for (const key of this.__data.removedStateKeys) delete target[key];
     }
-    return this.state;
+    return assign(target, next);
   }
 
   protected setState<K extends keyof State>(state: Pick<State, K>) {
@@ -84,6 +89,20 @@ export class Component<
       this.performRender();
     } else {
       assign(data.nextState, state);
+    }
+  }
+
+  /** Queue removals from a complete data snapshot alongside pending component updates. */
+  protected clearRemovedData(previous: object, next: object, retainedKeys: readonly string[]): void {
+    const data = this.__data;
+    for (const key of Object.keys(previous)) {
+      if (Object.prototype.hasOwnProperty.call(next, key) || retainedKeys.includes(key)) continue;
+      if (!data.nextState) {
+        data.nextState = { ...this.state };
+        this.performRender();
+      }
+      delete data.nextState[key];
+      (data.removedStateKeys ??= new Set()).add(key);
     }
   }
 
@@ -112,7 +131,8 @@ export class Component<
 
     if (data.nextState !== undefined) {
       this.stateChanged(data.nextState);
-      assign(this.state, data.nextState);
+      this.applyPendingState(this.state, data.nextState);
+      data.removedStateKeys = undefined;
       data.nextState = undefined;
       updated = true;
     }

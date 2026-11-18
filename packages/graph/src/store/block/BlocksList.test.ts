@@ -83,6 +83,54 @@ describe("BlocksList", () => {
     expect(blockState).toBe(nextBlockState);
   });
 
+  it("replaces omitted block data and anchors in a full snapshot, and keeps them across partial updates", () => {
+    const block = { id: "b", is: "Block", name: "B", x: 0, y: 0, width: 100, height: 50 };
+    const previous = {
+      ...block,
+      group: "old",
+      meta: { status: "failed" },
+      settings: { phantom: true },
+      customField: "old",
+      anchors: [{ id: "out", blockId: block.id, type: EAnchorType.OUT }],
+    };
+    store.setBlocks([previous]);
+    const state = store.getBlockState(block.id);
+    const anchor = state?.getAnchorById("out");
+    expect(anchor).toBeDefined();
+    store.updateBlocksSelection([block.id], true);
+
+    const next = { ...block, x: 75 };
+    store.updateBlocks([next]);
+    expect(store.toJSON()).toEqual([{ ...previous, ...next }]);
+    expect(state?.getAnchorById("out")).toBe(anchor);
+
+    store.setBlocks([next]);
+    expect(store.getBlockState(block.id)).toBe(state);
+    expect(store.toJSON()).toEqual([next]);
+    expect(state?.$anchors.value).toEqual([]);
+    expect(anchor?.isAttached()).toBe(false);
+    expect(state?.selected).toBe(true);
+  });
+
+  it("only emits pending drag geometry that still applies after replacing a snapshot", () => {
+    const a = { id: "a", is: "Block", name: "A", x: 0, y: 0, width: 100, height: 50 };
+    const b = { ...a, id: "b" };
+    store.setBlocks([a, b]);
+    const changed = jest.fn();
+    graph.on("blocks-geometry-change", changed);
+    store.updatePosition(a.id, { x: 10, y: 20 });
+    store.updatePosition(b.id, { x: 10, y: 20 });
+
+    store.setBlocks([
+      { ...a, x: 100 },
+      { ...b, x: 10, y: 20 },
+    ]);
+    store.flushBatchedBlocksGeometryEmit();
+    expect(changed.mock.calls.map(([event]) => event.detail.blocks)).toEqual([
+      [{ id: b.id, x: 10, y: 20, width: b.width, height: b.height }],
+    ]);
+  });
+
   it.todo("should change block position");
   it.todo("should emit event on block change");
   it.todo("should recompute usableRect on change block");

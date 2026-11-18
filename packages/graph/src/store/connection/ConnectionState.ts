@@ -275,13 +275,28 @@ export class ConnectionState<T extends TConnection = TConnection> {
    */
   public updateConnection(connection: Partial<T>): void {
     if (this.$destroyed.value) return;
-    const { styles, id: _id, ...newProps } = connection;
+    const current = this.$rawState.value;
+    this.writeConnection({
+      ...current,
+      ...connection,
+      styles: { ...current.styles, ...connection.styles },
+      id: current.id,
+    });
+  }
 
-    const newStyles = Object.assign({}, this.$rawState.value.styles, styles);
+  /** @internal Set the full authored row while retaining the connection's identity and view. */
+  public replaceConnection(connection: T): void {
+    if (this.$destroyed.value) return;
+    const previous = this.$rawState.value;
+    const next = { ...connection, id: previous.id };
+    this.getViewComponent()?.clearRemovedData(previous, next);
+    this.writeConnection(next);
+  }
 
+  private writeConnection(next: T & { id: TConnectionId }): void {
     const sourceId = this.$sourcePortId.value;
     const targetId = this.$targetPortId.value;
-    this.$rawState.value = Object.assign({}, this.$rawState.value, newProps, { styles: newStyles });
+    this.$rawState.value = next;
     // Shared endpoints must retain observation until neither side uses the old ID.
     const nextIds = new Set([this.$sourcePortId.value, this.$targetPortId.value]);
     for (const id of new Set([sourceId, targetId])) {

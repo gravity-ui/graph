@@ -125,8 +125,8 @@ function MyGraph(): JSX.Element {
 | `api` | `PublicGraphApi` | Public API for graph manipulation |
 | `setSettings` | `(settings: TGraphSettingsPatch) => void` | Update graph settings |
 | `setViewConfiguration` | `(config: NonNullable<HookGraphParams["viewConfiguration"]>) => void` | Update view configuration |
-| `setEntities` | `<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void` | Replace all entities |
-| `updateEntities` | `<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void` | Merge with existing entities |
+| `setEntities` | `<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void` | Replace both collections. Each row supplies the complete data for its ID. Omitting a collection clears it. |
+| `updateEntities` | `<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void` | Merge the supplied rows. Existing entities keep fields omitted from an update. |
 | `addLayer` | `<T extends Constructor<Layer>>(layerCtor: T, props: LayerPublicProps<T>) => InstanceType<T>` | Add a new layer |
 | `zoomTo` | `(target: TGraphZoomTarget, config?: ZoomConfig) => boolean` | Zoom to target |
 | `start` | `() => void` | Start the graph |

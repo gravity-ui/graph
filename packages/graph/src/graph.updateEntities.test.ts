@@ -22,7 +22,7 @@ function frames(): void {
   for (let i = 0; i < 4; i++) globalScheduler.performUpdate();
 }
 
-describe("Graph.updateEntities", () => {
+describe("Graph entity updates", () => {
   let graph: Graph;
 
   function start(blockType = StageBlock, connection = FlowConnection): void {
@@ -56,6 +56,65 @@ describe("Graph.updateEntities", () => {
   afterEach(() => {
     graph.unmount();
     jest.restoreAllMocks();
+  });
+
+  it("removes omitted snapshot fields from retained views, including changes queued before the frame", () => {
+    class CustomConnection extends FlowConnection {
+      public markPreview(): void {
+        this.setState({ preview: true });
+      }
+    }
+    start(StageBlock, CustomConnection);
+    const block = blockView("a");
+    const connection = connectionView("c1") as CustomConnection;
+    const decoratedBlock = { ...stage, meta: { status: "ready" } };
+    const plainEdge = { id: edge.id, sourceBlockId: "a", targetBlockId: "b" };
+    const decoratedEdge = { ...plainEdge, label: "Old label", styles: edge.styles };
+    const snapshot = { blocks, connections: [plainEdge] };
+    const decorated = { blocks: [decoratedBlock, ...blocks.slice(1)], connections: [decoratedEdge] };
+
+    graph.setEntities(decorated);
+    frames();
+    expect(block.state.meta).toEqual(decoratedBlock.meta);
+    expect(connection.state.label).toBe(decoratedEdge.label);
+    connection.markPreview();
+    graph.setEntities(snapshot);
+    expect(block.getState()).not.toHaveProperty("meta");
+    expect(connection.getState()).not.toHaveProperty("label");
+    frames();
+    expect(blockView("a")).toBe(block);
+    expect(connectionView("c1")).toBe(connection);
+    expect(block.state).not.toHaveProperty("meta");
+    expect(connection.state).not.toHaveProperty("styles");
+    expect(connection.state).not.toHaveProperty("label");
+    expect(connection.state.preview).toBe(true);
+
+    graph.setEntities(decorated);
+    graph.setEntities(snapshot);
+    graph.updateEntities({ connections: [{ id: edge.id, label: "New label" }] });
+    frames();
+    expect(block.state).not.toHaveProperty("meta");
+    expect(connection.state.label).toBe("New label");
+    expect(connection.state.styles).not.toHaveProperty("background");
+
+    graph.setEntities(snapshot);
+    graph.setEntities({ blocks, connections: [{ ...plainEdge, label: undefined }] });
+    frames();
+    expect(connection.state).toHaveProperty("label", undefined);
+  });
+
+  it("drops queued data from the old block when two snapshots remove and restore its ID before a frame", () => {
+    start();
+    const retained = blockView("a");
+    graph.updateEntities({ blocks: [{ ...stage, meta: { status: "old" } }] });
+    expect(retained.getState().meta).toEqual({ status: "old" });
+
+    graph.setEntities({ blocks: blocks.slice(1) });
+    graph.setEntities({ blocks });
+    frames();
+
+    expect(blockView("a")).toBe(retained);
+    expect(retained.state).not.toHaveProperty("meta");
   });
 
   it("applies existing rows without delivering unchanged parent props to the entire list", () => {

@@ -190,7 +190,7 @@ export class ConnectionsStore {
     const previous = this.$connectionsMap.value;
     this.$connectionsMap.value = new Map(
       connections.map((connection) => {
-        const c = this.getOrCreateConnection(connection);
+        const c = this.getOrCreateConnection(connection, "replace");
         return [c.id, c];
       })
     );
@@ -200,14 +200,15 @@ export class ConnectionsStore {
     this.$viewRevision.value = this.$viewRevision.peek() + 1;
   }
 
-  protected getOrCreateConnection(connections: TConnection) {
-    const id = ConnectionState.getConnectionId(connections);
+  protected getOrCreateConnection(connection: TConnection, mode: "update" | "replace" = "update") {
+    const id = ConnectionState.getConnectionId(connection);
     const c = this.$connectionsMap.value.get(id);
     if (c) {
-      c.updateConnection(connections);
+      if (mode === "replace") c.replaceConnection(connection);
+      else c.updateConnection(connection);
       return c;
     }
-    return new ConnectionState(this, connections, this.connectionSelectionBucket);
+    return new ConnectionState(this, connection, this.connectionSelectionBucket);
   }
 
   public addConnection(connection: TConnection): TConnectionId {

@@ -251,13 +251,20 @@ export class BlockState<T extends TBlock = TBlock> {
    */
   public updateBlock(block: Partial<T>): void {
     // Update anchors first to ensure they have correct state when geometry changes
-    if (block.anchors) {
-      this.updateAnchors(block.anchors);
-    }
-
+    if (block.anchors) this.updateAnchors(block.anchors);
     const previous = this.$rawState.value;
-    const next = Object.assign({}, previous, block, { id: previous.id });
-    if (next.is !== previous.is) this.store.noteViewClassChange();
+    this.applyBlock(Object.assign({}, previous, block, { id: previous.id }));
+  }
+
+  /** @internal Replaces the data of a retained block when applying a complete snapshot. */
+  public replaceBlock(block: T): void {
+    this.getViewComponent()?.clearRemovedData(this.$state.peek(), block);
+    if (block.anchors || this.$anchorStates.peek().length) this.updateAnchors(block.anchors ?? []);
+    this.applyBlock({ ...block, id: this.$rawState.value.id });
+  }
+
+  private applyBlock(next: T): void {
+    if (next.is !== this.$rawState.value.is) this.store.noteViewClassChange();
     this.$rawState.value = next;
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
