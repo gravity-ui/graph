@@ -400,13 +400,14 @@ function mixedRecordLookup(count: number): string {
  * element or a camera scale outside the path's bounds moves the instance out of the clip volume.
  */
 export const PATH_VERTEX = pathVertex(0);
+export const SAMPLE_PATH_VERTEX = pathVertex(0, true);
 
 /** Link only the sampler slots this mixed draw needs. */
 export function createMixedPathVertex(sourceCount: number): string {
   return pathVertex(sourceCount);
 }
 
-function pathVertex(sourceCount: number): string {
+function pathVertex(sourceCount: number, sampleEdges = false): string {
   return /* glsl */ `#version 300 es
 precision highp float;
 
@@ -507,8 +508,8 @@ void main() {
   float width = sceneSize(vec4(mode, graph_stroke.x, scene_pathIds.w, scene_pathScales.w), graph_camera.z);
   float deviceWidth = width * graph_camera.z * graph_dpr;
   float halfPx = max(deviceWidth, 1.0) * 0.5 / graph_dpr;
-  // One device pixel more than the stroke and its extra width: room for the anti-aliased edge.
-  float extent = halfPx + graph_extraWidth + 1.0 / graph_dpr;
+  // Analytic coverage needs a fringe. A multisampled union uses the physical edge of the strip itself.
+  float extent = halfPx + graph_extraWidth${sampleEdges ? "" : " + 1.0 / graph_dpr"};
   vec2 normal = vec2(-dir.y, dir.x);
   vec2 center = graph_bezier(p0, c1, c2, p3, t);
   // CSS pixels from the center line.
@@ -540,12 +541,17 @@ void main() {
 const PATH_IDENTITY_COLOR = "graph_vInteraction.z * f.selected > 0.5 ? f.selectionColor : graph_vColor";
 
 /** Native groups can suspend their effect without changing the resident stroke or its selection treatment. */
-export const PATH_FRAGMENT = `#version 300 es
-uniform highp float graph_effectEnabled;
+const NATIVE_PATH_FRAGMENT = `uniform highp float graph_effectEnabled;
 ${FRAGMENT_MAIN.replace(
   "vec4 color = effect(f, graph_vColor);",
   `vec4 color = graph_effectEnabled > 0.5 ? effect(f, graph_vColor) : (${PATH_IDENTITY_COLOR});`
 )}`;
+
+export const PATH_FRAGMENT = `#version 300 es
+${NATIVE_PATH_FRAGMENT}`;
+export const SAMPLE_PATH_FRAGMENT = `#version 300 es
+#define GRAPH_STROKE_SAMPLES
+${NATIVE_PATH_FRAGMENT}`;
 
 /** Plain paths use the same identity treatment even when they share an effect program. */
 export const MIXED_PATH_FRAGMENT = `#version 300 es

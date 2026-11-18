@@ -23,6 +23,7 @@ import type { IConnectionLabelOwner } from "./Label";
 import { blockGeometry } from "./geometry";
 import type { TConnectionGeometry, TConnectionGeometryFn } from "./geometry";
 import { distanceToArrow, distanceToSegments } from "./geometry/distance";
+import { turnedPolylineStrokes } from "./geometry/polylineStroke";
 import { stockBezierSegments } from "./geometry/segments";
 import { hasChangedValue } from "./hasChangedValue";
 import { getLabelCoords } from "./labelHelper";
@@ -61,6 +62,7 @@ function snapshotShaft(primitives: TScenePrimitive[]): TScenePrimitive[] {
   if (shaft?.kind === "path" && shaft.part === "line") {
     const segments = shaft.segments.slice();
     if (stockBezierSegments.has(shaft.segments)) stockBezierSegments.add(segments);
+    if (turnedPolylineStrokes.has(shaft.segments)) turnedPolylineStrokes.add(segments);
     primitives[0] = { ...shaft, segments };
   }
   return primitives;
@@ -106,6 +108,7 @@ function samePrimitive(a: TScenePrimitive, b: TScenePrimitive): boolean {
       a.interaction?.selected === b.interaction?.selected &&
       a.interaction?.selectionColor === b.interaction?.selectionColor &&
       stockBezierSegments.has(a.segments) === stockBezierSegments.has(b.segments) &&
+      turnedPolylineStrokes.has(a.segments) === turnedPolylineStrokes.has(b.segments) &&
       sameNumbers(a.segments, b.segments)
     );
   }

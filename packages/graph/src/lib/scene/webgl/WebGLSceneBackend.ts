@@ -12,6 +12,7 @@ import {
 import type { ConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import { dashFlow, pulse } from "../../../components/canvas/connections/effects/library";
 import type { TConnectionEffectScaleRange, TUniformTypes } from "../../../components/canvas/connections/effects/types";
+import { turnedPolylineStrokes } from "../../../components/canvas/connections/geometry/polylineStroke";
 import {
   CURVE_CHORDS,
   INSTANCE_FLOATS,
@@ -73,6 +74,7 @@ import {
 } from "./mixedPathPlan";
 import type { TLowerPathCommand, TMixedPathRange, TNativePathRange, TSubpixelPathWidth } from "./mixedPathPlan";
 import { resizeMixedPlan } from "./mixedPlanResize";
+import { createMultisampleTarget } from "./multisampleTarget";
 import { TranslucentLevels } from "./overlapLevels";
 import { OverviewCurveGroups, overviewCamera } from "./overviewCurves";
 import { PathCulling } from "./pathCulling";
@@ -98,6 +100,8 @@ import {
   RECT_ATTRIBUTES,
   RECT_FRAGMENT,
   RECT_VERTEX,
+  SAMPLE_PATH_FRAGMENT,
+  SAMPLE_PATH_VERTEX,
   STOCK_PATH_FRAGMENT,
   TRIANGLE_ATTRIBUTES,
   TRIANGLE_FRAGMENT,
@@ -196,6 +200,8 @@ type TBatch = {
 
 /** Physical instance offsets until gathering; path commands then address their compact ID stream. */
 type TDraw = { batch: TBatch; first: number; count: number; curveDetail?: number };
+/** Only when an active effect sets fragment depth: retain native union draws so a later piece can reclaim its samples. */
+type TCustomDepth = { opaque: readonly TDraw[]; unions: TDraw[]; withUnions: boolean };
 const MIXED_EFFECT_PROGRAMS = new Set([toConnectionEffect(dashFlow).programKey, toConnectionEffect(pulse).programKey]);
 const PULSE_PROGRAM = toConnectionEffect(pulse).programKey;
 // The extra pass pays off on the measured large fit views. At around 600k vertices the shared pass wins.
@@ -247,6 +253,7 @@ type TPreparedStock = { plan: TStockPlan; draw: TMixedDraw; upload: TUploadKind;
 function stockGroup(group: TPathGroup | undefined): boolean {
   return Boolean(
     group &&
+      !group.strokeUnion &&
       !group.fallback &&
       (!group.effect || (group.effect.extraWidth === 0 && MIXED_EFFECT_PROGRAMS.has(group.effect.programKey)))
   );
@@ -300,6 +307,8 @@ type TTranslucentGlyphs = { instances: Float32Array; subs: Float32Array };
 /** The paths of one pass and one effect instance: a batch per vertex template. */
 type TPathGroup = TConnectionEffectScaleRange & {
   pass: TPass;
+  strokeUnion?: boolean;
+  writesDepth?: boolean;
   programKey?: string;
   effect: TEffect | undefined;
   effectActive: boolean;
@@ -672,6 +681,8 @@ class WebGLSceneBackend implements ISceneBackend {
   private overviewFrame = false;
   private readonly pathBatchGroups = new WeakMap<TBatch, TPathGroup>();
   private readonly mixedDisabled = new Set<string>();
+  private readonly defaultMultisampled: boolean;
+  private multisampleTarget?: { width: number; height: number; target: ReturnType<typeof createMultisampleTarget> };
   private mixedTarget?: Framebuffer;
   private mixedComposite?: Model;
   private mixedTextureUnits?: number;
@@ -817,6 +828,7 @@ class WebGLSceneBackend implements ISceneBackend {
     createdAt: number,
     private readonly requestDraw?: () => void
   ) {
+    this.defaultMultisampled = gl.getParameter(gl.SAMPLES) > 1;
     this.quadTemplate = this.createTemplate(QUAD_TEMPLATE);
     this.lineTemplate = this.createTemplate(createLineTemplate());
     this.curveTemplate = this.createTemplate(createCurveTemplate());
@@ -958,7 +970,13 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     // Resident paths never sort: upload their local changes and prepare exact visibility before building buckets.
     let uploadKind = this.uploadPaths(frame);
-    for (const group of this.pathGroups.values()) this.setEffectUniforms(group, frame.scale);
+    let hasStrokeUnion = false;
+    let hasCustomDepth = false;
+    for (const group of this.pathGroups.values()) {
+      this.setEffectUniforms(group, frame.scale);
+      hasStrokeUnion ||= Boolean(group.strokeUnion && group.users);
+      hasCustomDepth ||= Boolean(group.writesDepth && group.effectActive);
+    }
     this.overviewFrame = this.useOverviewCurves(frame);
     this.frameAnimated = false;
     this.frameDrawCount = 0;
@@ -1058,9 +1076,25 @@ class WebGLSceneBackend implements ISceneBackend {
     this.stats.drawCalls = 0;
     this.stats.instances = 0;
 
+    if (this.multisampleTarget && !hasStrokeUnion) {
+      this.multisampleTarget.target?.destroy();
+      this.multisampleTarget = undefined;
+    }
+    // Native stroke unions need multiple depth samples even when the browser supplies a single-sample canvas.
+    const target =
+      !this.defaultMultisampled &&
+      hasStrokeUnion &&
+      upperTranslucent.some(({ batch }) => this.pathBatchGroups.get(batch)?.strokeUnion)
+        ? this.strokeTarget()
+        : undefined;
     const pass = mixed
       ? this.beginMixedScene(frame, mixed, nativeRuns)
-      : this.device.beginRenderPass({ clearColor: [0, 0, 0, 0], clearDepth: 0, clearStencil: false });
+      : this.device.beginRenderPass({
+          framebuffer: target?.framebuffer,
+          clearColor: [0, 0, 0, 0],
+          clearDepth: 0,
+          clearStencil: false,
+        });
     this.gl.enable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     this.drawPrepared(pass, upperOpaque, frame);
     this.gl.disable(GL_SAMPLE_ALPHA_TO_COVERAGE);
@@ -1074,14 +1108,30 @@ class WebGLSceneBackend implements ISceneBackend {
     // level, step by step, one instanced draw per program and range. Depth orders them against the
     // opaque pass.
     const beforeTranslucent = this.stats.drawCalls;
-    if (stock) this.drawStockPaths(pass, stock, stockNativeRuns, frame);
-    else this.drawPrepared(pass, upperTranslucent, frame);
+    const customDepth: TCustomDepth | undefined =
+      hasStrokeUnion && hasCustomDepth ? { opaque: upperOpaque, unions: [], withUnions: true } : undefined;
+    if (stock) this.drawStockPaths(pass, stock, stockNativeRuns, frame, customDepth);
+    else this.drawPrepared(pass, upperTranslucent, frame, customDepth);
     this.stats.translucentDrawCalls = this.stats.drawCalls - beforeTranslucent + (mixed?.plan.commands.length ?? 0);
     pass.end();
+    target?.resolve();
     this.device.submit();
 
     if (this.frames++ === 0) this.stats.firstFrameMs = performance.now() - start;
     return this.frameAnimated || this.refineTranslucent;
+  }
+
+  private strokeTarget(): ReturnType<typeof createMultisampleTarget> {
+    // luma applies a pending canvas resize when its default framebuffer is acquired.
+    this.device.getDefaultCanvasContext().getCurrentFramebuffer();
+    const { drawingBufferWidth: width, drawingBufferHeight: height } = this.gl;
+    const current = this.multisampleTarget;
+    if (!current || current.width !== width || current.height !== height) {
+      current?.target?.destroy();
+      // A failed allocation still uses the default buffer; retry only when the requested size changes.
+      this.multisampleTarget = { width, height, target: createMultisampleTarget(this.device, this.gl, width, height) };
+    }
+    return this.multisampleTarget?.target;
   }
 
   public dispose(): void {
@@ -1111,6 +1161,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.clearTranslucentCommands();
     this.mixedComposite?.destroy();
     if (this.ownsObjects()) {
+      this.multisampleTarget?.target?.destroy();
       this.mixedTarget?.destroy();
       this.mixedComposite?.vertexArray.destroy();
     }
@@ -1899,11 +1950,18 @@ class WebGLSceneBackend implements ISceneBackend {
   private pathGroupOf(primitive: TPathPrimitive): TPathGroup {
     const effect = primitive.effect ? toConnectionEffect(primitive.effect.effect) : undefined;
     const pass: TPass = effect || isTranslucentPaint(primitive.stroke.color) ? "translucent" : "opaque";
-    return this.pathGroupFor(pass, effect, primitive.effect);
+    const strokeUnion = !effect && pass === "translucent" && turnedPolylineStrokes.has(primitive.segments);
+    return this.pathGroupFor(pass, effect, primitive.effect, strokeUnion);
   }
 
-  private pathGroupFor(pass: TPass, effect: TEffect | undefined, range?: TConnectionEffectScaleRange): TPathGroup {
-    const key = `${pass}|${effect ? connectionEffectId(effect) : "plain"}|${range?.minScale ?? 0}|${range?.maxScale ?? Infinity}`;
+  private pathGroupFor(
+    pass: TPass,
+    effect: TEffect | undefined,
+    range?: TConnectionEffectScaleRange,
+    strokeUnion = false
+  ): TPathGroup {
+    const plainGroup = strokeUnion ? "union" : "plain";
+    const key = `${pass}|${effect ? connectionEffectId(effect) : plainGroup}|${range?.minScale ?? 0}|${range?.maxScale ?? Infinity}`;
     const known = this.pathGroups.get(key);
     if (known) return known;
     const programKey = effect?.programKey;
@@ -1916,7 +1974,7 @@ class WebGLSceneBackend implements ISceneBackend {
       group.lines.plain?.model.setBindings(this.batchBindings(group.lines));
       group.curves.plain?.model.setBindings(this.batchBindings(group.curves));
     }
-    group ??= this.createPathGroup(pass, effect);
+    group ??= this.createPathGroup(pass, effect, strokeUnion);
     group.effect = group.fallback ? undefined : effect;
     group.minScale = range?.minScale;
     group.maxScale = range?.maxScale;
@@ -1928,19 +1986,28 @@ class WebGLSceneBackend implements ISceneBackend {
     return group;
   }
 
-  private createPathGroup(pass: TPass, effect: TEffect | undefined): TPathGroup {
+  private createPathGroup(pass: TPass, effect: TEffect | undefined, strokeUnion: boolean): TPathGroup {
     const id = `path-${pass}-${this.nextPathGroupId++}`;
     const programKey = effect?.programKey;
     let plugin = createPathPlugin(effect);
     let group: TPathGroup = {
       pass,
+      strokeUnion,
+      writesDepth: hasEffectDepthWrites(effect),
       programKey,
       effect: undefined,
       effectActive: false,
       users: 0,
       fallback: false,
-      lines: this.createPathBatch(`${id}-lines`, pass, plugin, this.lineTemplate, createLineTemplate()),
-      curves: this.createPathBatch(`${id}-curves`, pass, plugin, this.curveTemplate, createCurveTemplate()),
+      lines: this.createPathBatch(`${id}-lines`, pass, plugin, this.lineTemplate, createLineTemplate(), strokeUnion),
+      curves: this.createPathBatch(
+        `${id}-curves`,
+        pass,
+        plugin,
+        this.curveTemplate,
+        createCurveTemplate(),
+        strokeUnion
+      ),
     };
     if (effect && (!isLinked(group.lines.model) || !isLinked(group.curves.model))) {
       if (!reportedEffects.has(effect.programKey)) {
@@ -2111,7 +2178,8 @@ class WebGLSceneBackend implements ISceneBackend {
     pass: TPass,
     plugin: ShaderPlugin,
     template: Buffer,
-    templateData: Float32Array
+    templateData: Float32Array,
+    strokeUnion = false
   ): TBatch {
     const buffer = this.createInstanceBuffer(1);
     const elements: TCompanion = {
@@ -2127,17 +2195,19 @@ class WebGLSceneBackend implements ISceneBackend {
       graph_overviewPairs: 0,
       graph_recordWidth: PATH_RECORD_TEXELS,
     };
+    // A plain translucent polyline is one paint operation. At its physical edge MSAA supplies coverage per
+    // sample, and strict depth claims that sample once for this element and primitive, across both stroke batches.
     const model = new Model(this.device, {
       id,
-      vs: PATH_VERTEX,
-      fs: PATH_FRAGMENT,
+      vs: strokeUnion ? SAMPLE_PATH_VERTEX : PATH_VERTEX,
+      fs: strokeUnion ? SAMPLE_PATH_FRAGMENT : PATH_FRAGMENT,
       plugins: [plugin],
       topology: "triangle-strip",
       bufferLayout: PATH_LAYOUT,
       attributes: { graph_template: template, graph_recordId: buffer },
       bindings: { ...this.bindings(PATH_TEXTURES), graph_records: pathRecords.texture },
       uniforms,
-      parameters: PASS_PARAMETERS[pass],
+      parameters: strokeUnion ? { ...PASS_PARAMETERS[pass], depthWriteEnabled: true } : PASS_PARAMETERS[pass],
       vertexCount: templateData.length / 2,
       isInstanced: true,
       instanceCount: 0,
@@ -2636,7 +2706,11 @@ class WebGLSceneBackend implements ISceneBackend {
     const lower = [...lowerOpaque, ...lowerTranslucent];
     const nativeOnlyPaint: TDraw[] = [];
     const lowerPaths: TDraw[] = [];
-    for (const draw of lower) (draw.batch.pathRecords ? lowerPaths : nativeOnlyPaint).push(draw);
+    for (const draw of lower) {
+      // The lower plane has neither per-sample coverage nor scene depth.
+      const canFlatten = draw.batch.pathRecords && !this.pathBatchGroups.get(draw.batch)?.strokeUnion;
+      (canFlatten ? lowerPaths : nativeOnlyPaint).push(draw);
+    }
     if (!lowerPaths.length) return undefined;
 
     const groupOf = new Map<TBatch, TPathGroup>();
@@ -2881,7 +2955,7 @@ class WebGLSceneBackend implements ISceneBackend {
       !this.hasMixedVertexWork(opaque, translucent, false)
     )
       return undefined;
-    this.mixedTextureUnits ??= this.gl.getContextAttributes()?.antialias
+    this.mixedTextureUnits ??= this.defaultMultisampled
       ? (this.gl.getParameter(this.gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) as number)
       : 0;
     if (this.mixedTextureUnits < 3) return undefined;
@@ -3210,7 +3284,8 @@ class WebGLSceneBackend implements ISceneBackend {
     pass: RenderPass,
     { plan, draw, lineRange }: TPreparedStock,
     nativeRuns: readonly TDraw[][],
-    frame: TSceneFrame
+    frame: TSceneFrame,
+    customDepth?: TCustomDepth
   ): void {
     this.setPathSources(draw, plan.sources);
     const vertices = draw.model.vertexCount;
@@ -3224,7 +3299,7 @@ class WebGLSceneBackend implements ISceneBackend {
     };
     let nativeIndex = 0;
     for (const command of plan.commands) {
-      if (command.native) this.drawPrepared(pass, nativeRuns[nativeIndex++], frame);
+      if (command.native) this.drawPrepared(pass, nativeRuns[nativeIndex++], frame, customDepth);
       else {
         const first = draw.ids.offset(command.first);
         const end = draw.ids.offset(command.first + command.count);
@@ -3486,13 +3561,45 @@ class WebGLSceneBackend implements ISceneBackend {
     return kind;
   }
 
-  private drawPrepared(pass: RenderPass, draws: readonly TDraw[], frame: TSceneFrame): void {
-    for (const { batch, first, count, curveDetail } of draws) {
+  private drawPrepared(
+    pass: RenderPass,
+    draws: readonly TDraw[],
+    frame: TSceneFrame,
+    customDepth?: TCustomDepth
+  ): void {
+    for (const draw of draws) {
+      const { batch, first, count, curveDetail } = draw;
       if (count === 0) continue;
+      if (customDepth) {
+        const group = this.pathBatchGroups.get(batch);
+        if (group?.strokeUnion) {
+          if (!customDepth.withUnions) this.replayDepth(pass, frame, customDepth.unions, false);
+          customDepth.withUnions = true;
+          customDepth.unions.push(draw);
+        } else if (group?.writesDepth && group.effectActive && customDepth.withUnions && customDepth.unions.length) {
+          this.replayDepth(pass, frame, customDepth.opaque, true);
+          customDepth.withUnions = false;
+        }
+      }
       const target = batch.uniforms.graph_effectEnabled === 0 && batch.plain ? batch.plain : batch;
       this.pointInstances(target, first);
       this.drawInstances(pass, batch, frame, count, curveDetail, target.model);
     }
+  }
+
+  /** Custom fragment depths see only the opaque pass. The colour buffer keeps its painter order throughout. */
+  private replayDepth(pass: RenderPass, frame: TSceneFrame, draws: readonly TDraw[], opaque: boolean): void {
+    const depthOnly = this.device.beginRenderPass({
+      framebuffer: pass.props.framebuffer,
+      clearColor: false,
+      clearDepth: opaque ? 0 : false,
+      clearStencil: false,
+      parameters: { colorMask: 0 },
+    });
+    if (opaque) this.gl.enable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    this.drawPrepared(depthOnly, draws, frame);
+    if (opaque) this.gl.disable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+    depthOnly.end();
   }
 
   /** Draws `count` instances of the batch from where its attributes point; false when there are none. */

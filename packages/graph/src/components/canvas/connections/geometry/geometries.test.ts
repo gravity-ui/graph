@@ -83,6 +83,17 @@ describe("library geometries", () => {
     expect(bezierMultipointGeometry(input())).toEqual(blockGeometry(input()));
   });
 
+  it("ignores repeated points in the rounded shaft and arrow, including a delegated endpoint on a bend", () => {
+    const start = { x: 0, y: 0 };
+    const bend = { x: 100, y: 0 };
+    const end = { x: 12, y: 24 };
+    const expected = multipointGeometry(input({ points: [start, bend, end] }));
+    expect(expected?.arrow?.closed).toBe(true);
+    const points = Object.freeze([start, start, bend, bend, end, { x: 200, y: 24 }]);
+    expect(multipointGeometry(input({ points, target: end, targetDelegated: true }))).toEqual(expected);
+    expect(multipointGeometry(input({ points: [start, start] }))).toBeUndefined();
+  });
+
   describe.each([
     ["rounded", multipointGeometry],
     ["bezier", bezierMultipointGeometry],

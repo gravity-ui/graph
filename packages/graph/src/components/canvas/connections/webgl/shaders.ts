@@ -84,7 +84,11 @@ void main() {
   float across = abs(graph_vAcross);
   float coverage = clamp((graph_vHalfWidth - across) * graph_dpr + 0.5, 0.0, 1.0);
   // The outer edge of the drawn quad: the stroke's own edge without an extra width.
+#ifdef GRAPH_STROKE_SAMPLES
+  float edge = 1.0;
+#else
   float edge = clamp((graph_vHalfWidth + graph_extraWidth - across) * graph_dpr + 0.5, 0.0, 1.0);
+#endif
   float t = graph_vLength > 0.0 ? clamp(graph_vAlong / graph_vLength, 0.0, 1.0) : 0.0;
   ConnectionFragment f = ConnectionFragment(
     graph_vAlong,
@@ -105,6 +109,9 @@ void main() {
   );
   vec4 color = effect(f, graph_vColor);
   float alpha = clamp(color.a, 0.0, 1.0) * edge * graph_vHairline;
+#ifdef GRAPH_STROKE_SAMPLES
+  if (alpha <= 0.0) discard;
+#endif
   graph_fragColor = vec4(color.rgb * alpha, alpha);
 }
 `;

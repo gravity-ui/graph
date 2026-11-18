@@ -49,9 +49,22 @@ node "$probe_bench/scene-slice.mjs"
 ## 2. Establish the CPU geometry implementation as the reference
 
 - [x] Publish one scene element per built-in connection and use one geometry for rendering, culling and hit-testing. Keep threshold and paint tests for the arrow, labels and same-ID replacement.
-- [x] Supply path, text, rect and filled-triangle primitives. Browser coverage includes opaque and translucent triangle fill. Exact coverage at translucent polyline joins is still open.
+- [x] Supply path, text, rect and filled-triangle primitives. Browser coverage includes opaque and translucent triangle fill, and solid and dashed translucent polyline joins.
 - [x] Move the built-in shaft, arrow and label to the scene. Normal-entry-point browser tests count one live WebGL context, cover context loss and restoration, Canvas switching and export, and verify real group collapse, drag and expansion. Custom imperative Canvas lines retain the Canvas compatibility batch.
 - [x] Record the shared CPU implementation as A. Profile it and remove redundant depth writes, solid path length calculation, opaque scratch copies and unchanged companion uploads. Use the same render data and port dispatch for Canvas and WebGL.
+
+The stock rounded polyline is one paint operation, including turns that retrace an earlier segment. The
+browser regression compares an acute bend, a 180° reversal and repeated coordinates against a single Canvas
+stroke. At 50% opacity, the maximum observed alpha was 255/255 before the fix and 128/255 afterwards.
+It checks dash phase past the turn, picking through a gap, painter order between connections and a crossing
+on a single-sample canvas after resize. See `apps/e2e/tests/connection/scene-polyline-joins.spec.ts`.
+
+On Apple M3 Pro, Chromium/Metal, DPR 2, the 24 frozen ETL 10k/10k and Nirvana images matched before and
+after at four zoom levels and three effect times, with the minimap disabled. At ETL fit, adding one visible
+5 px stock polyline with a reversal took draw calls from 7 before the fix to 9 after it, with 140,085 submitted
+instances in both runs. Over 180 pan frames per version (A/B/B/A), CPU draw p95 was 2.9 → 3.0 ms and browser
+frame interval p95 was 8.8 → 9.2 ms. Frames above 16.7 ms were 0 → 2. Both occurred in the first candidate
+run. These figures measure one additional routed connection in this graph.
 
 ### Measurements and style audit
 

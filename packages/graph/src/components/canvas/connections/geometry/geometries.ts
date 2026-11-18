@@ -2,6 +2,7 @@ import { getTriangleArrowPoints } from "../../../../utils/shapes/triangle";
 import type { TPoint } from "../../../../utils/types/shapes";
 import { generateBezierParams, getArrowCoords } from "../bezierHelpers";
 
+import { markPolylineStroke } from "./polylineStroke";
 import {
   SEGMENT_FLOATS,
   bezierSegment,
@@ -22,13 +23,8 @@ function bezierPiece(from: TPoint, to: TPoint, direction: "horizontal" | "vertic
   return bezierSegment(p0, c1, c2, p3);
 }
 
-function triangleArrow(points: readonly TPoint[]): TConnectionGeometry["arrow"] {
-  const [tip, left, right] = getTriangleArrowPoints(
-    points[points.length - 2],
-    points[points.length - 1],
-    TRIANGLE_HEIGHT,
-    TRIANGLE_BASE
-  );
+function triangleArrow(from: TPoint, to: TPoint): TConnectionGeometry["arrow"] {
+  const [tip, left, right] = getTriangleArrowPoints(from, to, TRIANGLE_HEIGHT, TRIANGLE_BASE);
   return { points: new Float32Array([tip.x, tip.y, left.x, left.y, right.x, right.y]), closed: true };
 }
 
@@ -80,10 +76,14 @@ export const multipointGeometry: TConnectionGeometryFn = (input) => {
   if (points.length === 0) {
     return blockGeometry(input);
   }
-  if (points.length === 1) {
-    return undefined;
-  }
-  return { segments: new Float32Array(roundedPolyline(points, POLYLINE_RADIUS)), arrow: triangleArrow(points) };
+  const end = points[points.length - 1];
+  let previous = points.length - 2;
+  while (previous >= 0 && points[previous].x === end.x && points[previous].y === end.y) previous--;
+  if (previous < 0) return undefined;
+  return {
+    segments: markPolylineStroke(new Float32Array(roundedPolyline(points, POLYLINE_RADIUS)), points),
+    arrow: triangleArrow(points[previous], end),
+  };
 };
 
 export const bezierMultipointGeometry: TConnectionGeometryFn = (input) => {
@@ -106,5 +106,8 @@ export const bezierMultipointGeometry: TConnectionGeometryFn = (input) => {
       numbers.push(...(straight ? lineSegment(from, to) : bezierPiece(from, to, bezierDirection)));
     }
   }
-  return { segments: new Float32Array(numbers), arrow: triangleArrow(points) };
+  return {
+    segments: new Float32Array(numbers),
+    arrow: triangleArrow(points[points.length - 2], points[points.length - 1]),
+  };
 };

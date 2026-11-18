@@ -781,6 +781,12 @@ The scene orders connections by z-index and insertion order. The default connect
 while hovered or selected. The shaft, arrow and labels share that element's depth and hit order. The WebGL
 backend batches their primitives with the rest of the scene.
 
+With a solid or dashed stroke and no shader effect, a translucent `MultipointConnection` paints each covered
+sample once, including at sharp bends,
+self-crossings and reversals. Separate connections blend in scene order. Dashes keep their distance along
+the entire route, and a gap remains part of the connection's hit area. WebGL uses the shared pass for
+these strokes when the route turns.
+
 Plain strokes, `dashFlow` and `pulse` can share a draw while retaining their individual parameters and scale
 ranges. Their animation runs in the shader from the graph clock; mixing these effects does not require rebuilding
 connection geometry. For scenes whose translucent paint consists only of these compatible paths, the backend
