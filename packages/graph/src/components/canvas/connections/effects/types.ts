@@ -17,7 +17,7 @@ export type TConnectionEffectDefinition<U extends TUniformTypes, P> = {
   uniforms?: { [K in keyof U]: { type: U[K]; value: TUniformValue<U[K]> } };
   /** CSS pixels the effect may draw outside each side of the stroke, for glows. Default 0. */
   extraWidth?: number;
-  /** The Path2D stroke while WebGL is unavailable. Default: the stroke without the effect. */
+  /** Optional stroke for the compatibility Canvas batch. Scene Canvas2D rendering and export use the base stroke. */
   fallback?: (stroke: TLineStroke, params: readonly number[]) => TLineStroke;
   /** Typed parameters: packs `use(input)` into the 8 numbers the shader reads. */
   encode?: (input: P) => readonly number[];

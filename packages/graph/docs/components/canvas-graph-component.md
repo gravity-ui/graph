@@ -102,11 +102,11 @@ protected isRenderAllowed(): boolean {
 - Clean offscreen components are skipped entirely. A visible child is still reached through its offscreen parent.
 - A camera move rechecks only components near the viewport edges; visibility is kept between frames.
 - Unknown bounds stay eligible. Set bounds during initialization or data updates, before rendering.
-- Connection batches skip whole chunks outside the viewport, and world-coordinate hit queries remain independent of the viewport.
+- The scene culls built-in connections. The Canvas compatibility batch skips chunks outside the viewport. World-coordinate hit queries work outside the viewport.
 
 Override `isRenderAllowed()` for additional semantic conditions, such as hidden elements or missing
 connection endpoints; `isVisible()` combines it with `isInViewport()` for queries. For connections it also
-decides whether the batch draws the line and arrow. Use `firstIterate`
+controls the visibility of the shaft and arrow in the scene or the Canvas compatibility batch. Use `firstIterate`
 for initialization; `firstRender` stays true until the component is actually painted.
 With `viewportCulling` off, every component is walked (retained components are never walked) and a graph component checks its hit box against the camera itself.
 
@@ -858,8 +858,8 @@ class AnnotatedConnection extends BaseConnection<AnnotatedConnectionProps> {
 }
 ```
 
-Connections drawn by the batch (`BlockConnection`) do not paint in `render()`: their shape is a `static geometry` and
-their look a line class (`static line`), see [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md).
+The scene draws built-in `BlockConnection` instances from their route (`static geometry`) and stroke
+(`static line`). A custom Canvas painter draws through the compatibility batch. See [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md).
 
 ## Performance Tips for GraphComponent
 

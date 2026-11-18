@@ -157,7 +157,7 @@ export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = reado
     return new ConnectionEffect(this.definition);
   }
 
-  /** The Path2D stroke while WebGL is unavailable; `stroke` has no effect. */
+  /** Resolves the plain stroke for a line drawn by the compatibility Canvas batch. */
   public getFallbackStroke(stroke: TLineStroke, params: readonly number[]): TLineStroke {
     return this.definition.fallback ? this.definition.fallback(stroke, params) : stroke;
   }

@@ -12,7 +12,7 @@ arrow and label. `GraphLayer` keeps the component tree, events, hit-testing, dra
 [Block component](../components/block-component.md), [Anchors](../components/anchors.md) and
 [Connections](../connections/webgl-connections.md).
 
-Immediate components and custom Canvas connections still paint on `GraphLayer`. The scene canvas sits above
+Immediate components and connections with custom Canvas painters draw on `GraphLayer`. The scene canvas sits above
 `GraphLayer` and below `ReactLayer`.
 
 The built-in WebGL backend uses one WebGL2 context for the scene. It keeps path geometry and its instance metadata
@@ -196,8 +196,8 @@ const crop = graph.scene.toImage({ rect: { x: 0, y: 0, width: 2000, height: 1000
 
 - **What it draws.** For the current view (no `rect` and no `scale`) the visible layer canvases under the scene come
   first, such as the grid and the `GraphLayer` canvas with legacy Canvas content. Other rects draw the scene, including
-  built-in connections, their arrows and labels. Standard connection labels use the live label layout, including
-  the camera's current visibility threshold.
+  built-in connections, their arrows and labels. Both kinds of export draw the Canvas stroke for a connection with
+  a WebGL effect. Standard connection labels use the live label layout, including the camera's visibility threshold.
 - **`level` alone.** `toImage({ level })` without `rect` and `scale` is still the current view. The layer canvases
   under the scene come as drawn live, at the live level.
   Only the scene is drawn at the requested level. For a picture of the scene alone at another level, pass `rect` (for
@@ -365,8 +365,8 @@ receives (with their `cameraAware` objects), so changing one in place throws a `
 
 - A style row that scales circles or widens strokes (the theme's anchor hover ×1.8, a rule's border `width`) grows the
   element's indexed bounds, so the Canvas 2D viewport query finds what it draws, and so does `query()`. The element's
-  `bounds` (in `query()` views too) stay the ones its component wrote, and so does its hit box: a style `scale`
-  changes the drawing and the culling bounds, not what is hit.
+  `bounds` field in `query()` still reports the component's bounds. A scaled anchor keeps its original hit box.
+  Built-in connections use the styled widths of their shaft and arrow for hit testing at the current zoom.
 - The grown bounds cover what either renderer paints. A circle's border reaches at least half its width past its
   radius, whatever its alignment. An `inside` rect border wider than the rect's shorter side paints past the rect. The
   joins of a path or a polygon reach up to 5 stroke widths from a vertex (Canvas 2D's default miter limit).

@@ -140,7 +140,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private readonly connectionsRendererState = signal<TConnectionsRendererState>("canvas");
 
-  /** What draws the connection lines now; written by the connections component only. */
+  /** Compatibility view of the scene renderer. Use `graph.scene.$renderer` for loading and recovery states. */
   public readonly $connectionsRenderer: ReadonlySignal<TConnectionsRendererState> = this.connectionsRendererState;
 
   constructor(props: TGraphLayerProps) {

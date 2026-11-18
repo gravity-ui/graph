@@ -26,12 +26,10 @@ import "@gravity-ui/graph-react/styles.css";
 
 ## Architecture
 
-The library uses a modular architecture that separates the core rendering engine from React-specific implementations:
-
-- **Core Layer**: Handles canvas rendering, event management, and data structures
-- **GraphCanvas**: A React component that creates and manages the ReactLayer
-
-This separation allows the core library to be framework-agnostic while providing seamless React integration.
+The core scene draws blocks, anchors and built-in connections with Canvas 2D by default. To use WebGL2, pass
+`settings: { renderer: "webgl" }` to `useGraph`. Both use the same geometry for drawing and picking.
+`GraphCanvas` mounts a React layer for visible HTML block views at the detailed zoom level. Connections stay in
+the scene when blocks switch to HTML. See the [scene guide](../system/scene.md).
 
 ## Key Components
 
@@ -83,7 +81,11 @@ import { GraphBlock } from "@gravity-ui/graph-react";
 </GraphBlock>
 ```
 
-The component automatically inherits styles from graph settings but can be customized using CSS variables:
+`GraphBlock` and `GraphBlockAnchor` add a `graph-tag-<name>` class for each entity tag and expose resolved part
+colors as CSS variables. Custom wrappers can read the same values with `useEntityStyle`. See
+[tags and styles](../system/tags-and-styles.md).
+
+The block wrapper also has geometry and theme variables:
 
 ```css
 .custom-block {
@@ -157,41 +159,18 @@ outside `GraphCanvas`'s blocks list, or a view that mounts later than that, can 
 
 ### GraphBlockAnchor
 
-Renders connection points on blocks. The component supports two positioning modes:
+Render each anchor in the HTML block view to keep it visible after the scene hands the block over to HTML.
+With `position="absolute"`, the component centers itself on the anchor's graph position relative to the block.
+The position follows the anchor's port when its scene component is absent. With `position="fixed"`, the anchor
+participates in the HTML layout and the application controls its placement.
 
-1. **fixed** - Anchors are placed at exact coordinates relative to the block:
 ```tsx
-import { GraphBlockAnchor } from "@gravity-ui/graph-react";
-
-<GraphBlockAnchor 
-  graph={graph} 
-  anchor={anchor}
-  position="fixed"
-  className="anchor"
->
-  {(state) => (
-    <div className={state.$selected.value ? 'selected' : ''}>
-      {/* Anchor visuals */}
-    </div>
-  )}
-</GraphBlockAnchor>
-```
-
-2. **auto** - Anchors are automatically positioned based on their type:
-```tsx
-<GraphBlockAnchor 
-  graph={graph} 
-  anchor={anchor}
-  position="auto"
-  className="anchor"
-  // Inputs will be placed on the left, outputs on the right
->
-  {(state) => (
-    <div className={state.$selected.value ? 'selected' : ''}>
-      {/* Anchor visuals */}
-    </div>
-  )}
-</GraphBlockAnchor>
+<GraphBlock graph={graph} block={block}>
+  {block.name}
+  {block.anchors?.map((anchor) => (
+    <GraphBlockAnchor key={anchor.id} graph={graph} anchor={anchor} position="absolute" />
+  ))}
+</GraphBlock>
 ```
 
 Anchor styling also uses CSS variables:
@@ -224,18 +203,20 @@ The library provides a comprehensive set of React hooks for working with the gra
 | `useSchedulerDebounce` | Create debounced function with frame timing |
 | `useSchedulerThrottle` | Create throttled function with frame timing |
 | `useScheduledTask` | Schedule task for frame-based execution |
-| `useSceneChange` | React to scene updates (camera, viewport) |
+| `useSceneChange` | React to camera, scene level and hit-test geometry changes |
+| `useEntityStyle` | Read tag classes and resolved part colors for an HTML view |
 
 For detailed documentation of all hooks, see [React Hooks Reference](hooks.md).
 
 ### Quick Example
 
 ```tsx
-import { useGraph, useGraphEvent, useBlockState } from '@gravity-ui/graph-react';
+import { ECanDrag } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent, useBlockState } from "@gravity-ui/graph-react";
 
 function MyGraph() {
   const { graph, setEntities, start } = useGraph({
-    settings: { canDragBlocks: true },
+    settings: { canDrag: ECanDrag.ALL },
   });
 
   // Subscribe to events
@@ -252,7 +233,7 @@ function MyGraph() {
 
 ## Graph Configuration
 
-The graph can be extensively configured through the `useGraph` hook. See the [full configuration reference](https://gravity-ui.com/components/graph) for details.
+The graph can be extensively configured through the `useGraph` hook. See the [graph settings reference](../system/graph-settings.md) for details.
 
 ## Declarative Components
 
@@ -377,7 +358,6 @@ const config = {
     canZoomCamera: true,
     
     // Block interactions
-    canDragBlocks: true,
     canDrag: ECanDrag.ALL, // ECanDrag.NONE | ECanDrag.ONLY_SELECTED
     
     // Connection settings
@@ -452,20 +432,14 @@ useGraphEvent(graph, "blocks-selection-change",
 });
 ```
 
-### Custom Connection Logic
+### Validating a connection
+
+With `ConnectionEditingLayer` attached, let the layer write valid connections in the addressing mode used by
+their endpoints. To reject a connection, cancel its creation event.
 
 ```tsx
-useGraphEvent(graph, "connection-created", 
-  (connection, event) => {
-    event.preventDefault(); // Prevent default connection
-    
-    // Apply your own connection logic
-    if (validateConnection(connection)) {
-      graph.api.addConnection({
-        ...connection,
-        // Add custom properties
-      });
-    }
+useGraphEvent(graph, "connection-created", (connection, event) => {
+  if (!validateConnection(connection)) event.preventDefault();
 });
 ```
 
@@ -496,20 +470,9 @@ function BlockComponent({ block, graph }: { block: TBlock; graph: Graph }) {
           key={anchor.id}
           graph={graph}
           anchor={anchor}
-          position="fixed"
+          position="absolute"
           className="anchor"
-        >
-          {(state) => (
-            <div className="anchor-content">
-              <div className="anchor-dot" />
-              {state.isConnecting && (
-                <div className="anchor-label">
-                  {anchor.type === 'IN' ? 'Input' : 'Output'}
-                </div>
-              )}
-            </div>
-          )}
-        </GraphBlockAnchor>
+        />
       ))}
     </GraphBlock>
   );
@@ -534,11 +497,7 @@ function CustomGraph() {
         },
       },
     },
-    settings: {
-      canDragCamera: true,
-      canZoomCamera: true,
-      useBezierConnections: true,
-    },
+    settings: { renderer: "webgl" },
   });
 
   // Initialize blocks
@@ -555,9 +514,9 @@ function CustomGraph() {
         anchors: [
           {
             id: 'out1',
+            blockId: 'block1',
             type: 'OUT',
-            x: 200,
-            y: 50,
+            index: 0,
           },
         ],
       },
@@ -572,18 +531,27 @@ function CustomGraph() {
         anchors: [
           {
             id: 'in1',
+            blockId: 'block2',
             type: 'IN',
-            x: 0,
-            y: 50,
+            index: 0,
           },
         ],
       },
     ];
 
-    setEntities({ blocks });
+    setEntities({
+      blocks,
+      connections: [{
+        id: 'edge',
+        sourceBlockId: 'block1',
+        sourceAnchorId: 'out1',
+        targetBlockId: 'block2',
+        targetAnchorId: 'in1',
+      }],
+    });
     start();
-    graph.zoomTo("center", { padding: 100 });
-  }, []);
+    graph.runAfterGraphReady(() => graph.zoomTo("center", { padding: 100 }));
+  }, [graph, setEntities, start]);
 
   // Handle clicks on blocks
   useGraphEvent(graph, "click", ({ target }) => {
@@ -591,7 +559,7 @@ function CustomGraph() {
   });
 
   // Render blocks
-  const renderBlock = useCallback((graph, block) => (
+  const renderBlock = useCallback((graph: Graph, block: TBlock) => (
     <BlockComponent graph={graph} block={block} />
   ), []);
 
@@ -606,8 +574,11 @@ function CustomGraph() {
   );
 }
 
-// Required styles
-const styles = `
+```
+
+Apply these styles in the application stylesheet.
+
+```css
 .custom-graph {
   width: 100%;
   height: 100vh;
@@ -640,19 +611,6 @@ const styles = `
 .anchor.graph-block-anchor-selected {
   border: 2px solid var(--graph-block-anchor-border-selected);
 }
-
-.anchor-label {
-  position: absolute;
-  top: -20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-`;
 ```
 
 This example demonstrates:
@@ -664,5 +622,5 @@ This example demonstrates:
 
 The graph will display:
 - Two blocks with input/output anchors
-- Interactive connection creation
+- A Bézier connection between the two anchors
 - Proper styling and hover effects

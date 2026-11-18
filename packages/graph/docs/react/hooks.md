@@ -29,7 +29,8 @@ This document describes all available React hooks for working with @gravity-ui/g
 - [useScheduledTask](#usescheduledtask) - Schedules task for frame-based execution
 
 ### Scene Hooks
-- [useSceneChange](#usescenechange) - Reacts to scene updates (camera changes, viewport updates)
+- [useSceneChange](#usescenechange) - Reacts to camera, scene level and hit-test changes
+- [useEntityStyle](#useentitystyle) - Exposes entity tag classes and part colors to React
 
 ### Usage Patterns
 - [Combining Hooks](#combining-hooks) - Examples of using multiple hooks together
@@ -53,6 +54,7 @@ import {
   useSchedulerThrottle,
   useScheduledTask,
   useSceneChange,
+  useEntityStyle,
 } from "@gravity-ui/graph-react";
 ```
 
@@ -852,9 +854,17 @@ function BlockMetrics({ graph, blockId }: { graph: Graph; blockId: TBlockId }): 
 
 ## Scene Hooks
 
+### useEntityStyle
+
+`useEntityStyle(graph, { type, id }, target, prefix)` returns `{ className, style }` for a custom HTML view.
+The class names follow the entity's tags. The inline style contains `--<prefix>-<part>-color` variables for
+the colors resolved by the scene's style rules. `GraphBlock` and `GraphBlockAnchor` already apply these to their
+wrappers. See [tags and styles](../system/tags-and-styles.md).
+
 ### useSceneChange
 
-Hook to react to scene updates. The scene is considered updated when the camera changes or when components change their position in the viewport.
+Schedules a callback on mount and when the camera, scene level or hit-test geometry changes. This covers level
+changes caused by new graph constants or a new level strategy while the camera stays still.
 
 This hook is useful for updating UI elements that depend on the visible area of the graph, such as:
 - Minimaps showing the current viewport
@@ -862,8 +872,8 @@ This hook is useful for updating UI elements that depend on the visible area of 
 - Custom overlays that need to update when the view changes
 
 The hook automatically:
-- Subscribes to camera changes
-- Subscribes to hitTest updates (when blocks enter/leave viewport)
+- Subscribes to camera and scene level changes
+- Subscribes to hit-test geometry updates
 - Handles initial state on mount
 - Cleans up subscriptions on unmount
 
@@ -964,10 +974,11 @@ This means:
 
 The hook subscribes to:
 
-1. **`graph.$camera` signal** (via `useSignalLayoutEffect`) — committed camera state after a non-prevented change
-2. **HitTest `update` event** — fires when blocks enter or leave the viewport
+1. `graph.$camera` publishes committed camera changes.
+2. `graph.scene.$level` publishes changes between minimalistic, schematic and detailed.
+3. `graph.hitTest` emits `update` after processing queued changes to hit boxes.
 
-Both paths call the debounced callback on mount and on subsequent updates.
+All three feed the same debounced callback.
 
 #### Use Cases
 
@@ -994,11 +1005,11 @@ import {
   useSignal,
   GraphCanvas,
 } from "@gravity-ui/graph-react";
-import type { TBlockId, TBlockGeometry, BlockState } from "@gravity-ui/graph";
+import { ECanDrag, type TBlockId, type TBlockGeometry, type BlockState } from "@gravity-ui/graph";
 
 function MyGraph(): JSX.Element {
   const { graph, setEntities, start } = useGraph({
-    settings: { canDragBlocks: true },
+    settings: { canDrag: ECanDrag.ALL },
   });
 
   // Track selected block

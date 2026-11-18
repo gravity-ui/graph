@@ -7,7 +7,7 @@ import type { TConnectionGeometry } from "../geometry";
 import { ConnectionLine } from "./ConnectionLine";
 import { GeometryCache, applyArrowStyle, applyLineStyle, getArrowGroup, strokeKey } from "./fallbackPath";
 
-/** Draws a connection with Canvas2D `Path2D`; lines of one group share a style and are drawn in one pass. */
+/** The stock line supplies strokes to the scene. Subclasses draw custom paths and styles in the Canvas2D batch. */
 export class Path2DLine<
   C extends BlockConnection<TConnection> = BlockConnection<TConnection>,
 > extends ConnectionLine<C> {

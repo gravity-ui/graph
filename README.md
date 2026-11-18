@@ -1,6 +1,9 @@
 # Gravity Graph monorepo
 
-This repository contains the Gravity UI Graph packages and their development tooling.
+Gravity UI Graph draws blocks, anchors and built-in connections in one scene using Canvas 2D or WebGL2.
+React applications can render visible blocks as HTML at the detailed zoom level.
+See the [scene guide](packages/graph/docs/system/scene.md) and the
+[connection geometry and styling guide](packages/graph/docs/connections/webgl-connections.md).
 
 ## Packages
 

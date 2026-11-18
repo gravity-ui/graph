@@ -44,7 +44,9 @@ Layers follow a specific initialization and attachment lifecycle that's importan
 
 ## Built-in Layers
 
-The library includes several built-in layers that demonstrate how to extend functionality:
+`GraphLayer` owns the component tree, camera and input handling. Its canvas draws immediate components and
+custom Canvas connection painters. Built-in connections, blocks and anchors draw through
+[the scene](../system/scene.md) on a canvas above it. The optional React layer sits above the scene.
 
 ### ReactLayer
 
@@ -148,8 +150,8 @@ this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${ca
 
 ### React Integration
 
-- React components are rendered into the HTML element of the GraphLayer using `createPortal` in `GraphCanvas.tsx`.
-- The BlocksList component renders React blocks only when the camera is at the detailed zoom level.
+- When `GraphCanvas` receives `renderBlock`, `ReactLayer` renders visible block views into its HTML element through a React portal.
+- The block list follows the detailed level of `graph.scene.$level`. Each scene block hands over once its HTML view has mounted.
 
 ## Creating Custom Layers
 
@@ -300,10 +302,10 @@ Components report bounds in the same coordinates (`setCullingBounds()`, or the h
 `getCullingOptions()` and returns `{ tileSize, getViewport }`; the Layer constructor calls it, so read the
 layer's own fields inside `getViewport`, and call `updateCulling()` after changing what it returns.
 
-Without culling (`"none"`, or the `viewportCulling` setting turned off) there is no viewport culling: a
-layer walks every component (except retained ones, which no walk reaches), a `GraphComponent` paints when the camera sees its hit box, and connection
-batches draw every chunk. The lifecycle rules shared with culled layers still apply: an offscreen component
-is not painted on mount, and visibility is decided after preparation.
+With `culling: "none"` or `viewportCulling: false`, a layer walks every immediate component, a
+`GraphComponent` paints when the camera sees its hit box, and the Canvas compatibility batch draws every chunk.
+The scene separately culls its retained blocks and connections. The lifecycle rules shared with culled layers
+still apply, including the visibility check after preparation and the offscreen mount without paint.
 
 Only a tree root culls, so a layer mounted as a child component passes `culling: "none"`. Such a child layer
 joins its parent's culling: appended under a culled tree, its components are culled by the parent's

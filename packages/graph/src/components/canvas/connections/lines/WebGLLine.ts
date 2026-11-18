@@ -67,8 +67,8 @@ export function arrowSegments(arrow: TConnectionArrow): Float32Array {
 }
 
 /**
- * Draws a connection with WebGL2 from its geometry only: no custom shapes, no Path2D per connection.
- * Hit tests are analytic; a Path2D batch holding the line (the fallback) builds Path2D from the geometry.
+ * Supplies a scene connection's stroke and optional WebGL shader effect. The Canvas2D scene draws its base stroke.
+ * In the compatibility batch, the line builds a Path2D from its geometry and can supply a fallback stroke.
  * A stroke is drawn as it is returned, its arrow and its Path2D fallback included, with one exception: an effect whose
  * stroke still has the selection color `withInteraction()` applied gets the line's own color back and shows the
  * selection itself.

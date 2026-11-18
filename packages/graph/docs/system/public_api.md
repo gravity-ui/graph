@@ -27,7 +27,17 @@ Use `graph.api` to update entities, selection, configuration and camera state. E
 
 Selection strategies use `ESelectionStrategy`; the default is `REPLACE`. Camera configuration is `ZoomConfig` (`transition?: number`, `padding?: number`).
 
-Endpoint-derived connection geometry has no visible path or hitbox while endpoints are unavailable; it resumes when both endpoints resolve. Multipoint connections with at least two explicit points can render independently of endpoints. A deleted state handle cannot select or move a replacement entity with the same ID. Directly constructing a block, anchor, connection or group view for a missing entity throws a binding error; look up the state first when authoring custom components.
+For a full graph snapshot, call `graph.setEntities({ blocks, connections })`. Both collections are replaced.
+Pass the complete data for each row, including rows with existing IDs. A connection whose new snapshot omits
+`label` loses its previous label. Omitting a collection empties it. For incremental changes,
+`graph.updateEntities({ blocks, connections })` merges the supplied rows by ID. Other entities and omitted
+top-level fields on existing rows keep their values.
+
+Built-in connections become drawable and hittable when both endpoint ports and their delegates resolve. A multipoint
+route then uses its stored points, substituting the effective port position at each delegated end. An empty route uses
+the configured straight line or Bézier.
+
+A deleted state handle cannot select or move a replacement entity with the same ID. Directly constructing a block, anchor, connection or group view for a missing entity throws a binding error; look up the state first when authoring custom components.
 
 ```typescript
 const id = graph.api.addBlock({ is: "Block", name: "Example", x: 0, y: 0, width: 100, height: 100 });

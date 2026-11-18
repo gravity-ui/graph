@@ -10,7 +10,7 @@ import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-minimap/styles.css";
 
-const graph = new Graph({ blocks: [] }, document.getElementById("graph")!);
+const graph = new Graph({ blocks: [] }, document.querySelector<HTMLDivElement>("#graph")!);
 graph.addLayer(MiniMapLayer, {
   location: "bottomRight",
   width: 200,

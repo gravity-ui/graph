@@ -61,7 +61,7 @@ or a `Set` encodes as `{}` and a function as nothing, so different values of the
 | `hoveredTag` | each component on itself (`GraphComponent.setHoveredTag`), from the pointer events it gets; see below |
 | `draggingTag` | `DragService`: the participants of the current drag |
 | `dropTargetTag` | the groups transfer layer: a group that accepts the dragged blocks |
-| `connectionSourceTag`, `connectionTargetTag` | defined; the connection editing layer writes them in a later step |
+| `connectionSourceTag`, `connectionTargetTag` | available for applications to set while creating a connection |
 
 `hoveredTag`:
 
@@ -72,8 +72,8 @@ or a `Set` encodes as `{}` and a function as nothing, so different values of the
 - It is for styling only: no library code reads `hoveredTag`, or any tag's membership, to decide behaviour. Events,
   targets, the cursor, hit-testing and menus come from the [event model](event-model.md).
 - One indirect effect: a rule that gives a tagged component a `raise` changes the scene order, and the hit order
-  follows it. So a `hoveredTag → raise` rule changes which component gets clicks where components overlap; the theme
-  has no such rule. A `scale` (the anchor's ×1.8) changes the drawing and the culling bounds, not the hit box.
+  follows it. The default theme raises a hovered or selected built-in connection by one bucket. It scales a hovered
+  anchor by 1.8, which changes its appearance and culling bounds. The anchor keeps its original hit box.
 
 `selected` is no longer a field of `TBlock`, `TConnection` or their `$state`. Read it with `$selected`, `selectedTag` or
 the selection API (`graph.selectionService`).
@@ -167,19 +167,12 @@ is transparent, and the browser composites it over them).
   other. This is not CSS `opacity` on a group, which draws the element first and then fades it as one layer. A block
   at `opacity: 0.5` whose border lies over its body shows the body through the border band: the band is the border at
   0.5 over the body at 0.5 (75% cover), not the border colour at 50%. Group opacity is not available yet.
-- **Drawing.** A faded primitive is drawn in the translucent pass. Wherever translucent primitives overlap, WebGL
-  draws them in scene order across all kinds, as Canvas2D does: the `zIndex` bucket with its `raise`, then the
-  element's order, then the primitive's index in the element. So a faded block's body covers the title of a faded
-  block below it. Faded elements whose bounds do not overlap share draw calls: WebGL groups them into overlap levels
-  (an element is one level above the highest earlier faded element it overlaps) and draws, level by level, one call
-  per kind of primitive (paths, rects, text) and per change of kind inside an element.
+- **Drawing.** Faded primitives blend in scene order across kinds. A faded block's body can cover the title of
+  another faded block below it. Compatible connection strokes can share a draw. The cost depends on the visible
+  order and the types of paint that overlap. See [Draw calls and order](../connections/webgl-connections.md#draw-calls-and-order).
 
-**`dim` or `opacity`.** Use `dim` to fade many elements cheaply, as a focus mode does: it rewrites style table rows,
-re-encodes nothing and keeps the elements opaque. Use `opacity` when what lies under an element must show through: a
-change re-encodes each affected element. On WebGL the faded elements cost a few draw calls unless faded elements
-overlap heavily; a stack of overlapping faded elements costs a few calls per element in the stack. Dragging a faded
-element stays cheap: only it and the faded elements around it are re-levelled, and while it overlaps other faded
-elements the pass can take a few more draw calls.
+Use `dim` to move a colour towards the layer background while keeping its alpha. Use `opacity` to let
+underlying content show through. Changing opacity can move affected primitives to another render pass.
 
 ### Cascade
 
@@ -329,6 +322,14 @@ it sets none and its element `opacity` multiplied by the parent's. So a focus ru
 and children too, while their parts follow their own classes' rules. A child takes no `raise` of its own: it draws in
 its block's bucket.
 
+## Connection parts
+
+For scene connections, target `BlockConnection` or a subclass. The shaft, arrow, label background and text use
+the parts `line`, `arrow`, `labelBackground` and `label`. A tagged line width also changes the hit area.
+Set `parts.line.effect` to `effect.use(input, { minScale, maxScale })` or to `null` to turn it off.
+The optional scale range includes its lower bound and excludes its upper bound. Canvas draws the base stroke.
+See [Connection styles](../connections/webgl-connections.md#scene-styles) for examples.
+
 ## Elements and `explain`
 
 A scene element is styled when it is bound to an entity. Library components do this themselves; code that writes
@@ -349,18 +350,17 @@ without an element, and `graph.scene.$styleGeneration` changes when rules or the
 | the theme changes the dim colour (`canvas.layerBackground`) | redraws; no row is rewritten and no element is re-encoded |
 | `width`, `scale`, `cameraAware`, or a colour with alpha < 1 | re-encodes one element (a translucent colour moves its primitive into the translucent pass) |
 | `opacity` below 1 (element or part), or a colour of a part under it | re-encodes one element: its faded primitives get their colours baked and move into the translucent pass. Opacity 1 or none changes nothing |
-| `raise` | re-encodes nothing; it changes the element's depth key (its child elements' follow). On WebGL a raise renumbers the dense depth keys of the bands it leaves and enters and of the bands between them, O(N) in those bands (to be made incremental with the full WebGL backend) |
+| `raise` | updates the owner's depth key and its children's order without re-encoding geometry. Moving between buckets can also renumber other owners in the affected depth bands. |
 | `scope` with `minScale` / `maxScale` | adds a threshold; crossing it re-resolves the affected rows |
 
 Rows are shared: a thousand blocks with the same class and tags use one row.
 
-## Limits (this step)
+## Limits
 
-- No text size or effects (dash, animation) by tag yet, beyond the `cameraAware` mode; the types do not list them.
-  They come with the full WebGL backend and connections.
-- No group opacity: `opacity` fades each primitive on its own (see `opacity` above).
-- A part's `scale` or `width` grows the element's culling bounds in the live view, not its `bounds` or its hit box. An
-  export's own rules do not grow them, so an export can crop what only they grow (see
+- Text size and static dash patterns come from the text primitive and the connection stroke, respectively.
+- `opacity` fades each primitive individually.
+- A part's `scale` or `width` can grow the live culling bounds. Built-in connections also use the styled shaft
+  and arrow widths for picking. An export can crop geometry grown only by its own rules (see
   [Bounds and styles](scene.md#bounds-and-styles)).
 - A primitive's paint colour and stroke width are optional: with no value of its own and none from a style, the paint
   or the stroke draws nothing.

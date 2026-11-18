@@ -7,7 +7,7 @@ import type { TUniformType } from "./types";
  *
  * Selected, the gaps take the selection color and the dashes keep the line's (comet tails fade into the selection
  * color); hover only widens the line. The effect draws the dash itself, so the base stroke of a line using it has no
- * still `dash`. While WebGL is unavailable the connection draws a still dash with the same pattern.
+ * still `dash`. The Canvas2D scene draws the base stroke. The compatibility Canvas batch uses a still dash.
  *
  * @example
  * getStroke() {

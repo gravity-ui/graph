@@ -46,8 +46,8 @@ class LineArrowItem implements IConnectionBatchItem {
 }
 
 /**
- * Owns the look of one connection and the connection's batch items: the line and its arrow.
- * A subclass picks the renderer and overrides the stroke, the shape or the style.
+ * Supplies the shaft and arrow strokes for one connection. The graph's renderer setting selects the scene backend.
+ * Custom Canvas drawing uses the line and arrow as separate items in the GraphLayer batch.
  */
 export abstract class ConnectionLine<C extends BlockConnection<TConnection> = BlockConnection<TConnection>>
   implements IConnectionBatchItem

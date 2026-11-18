@@ -63,9 +63,8 @@ The batch (`context.batch` of the connections, an `IConnectionBatch`) has these 
 - **`delete(item)`** removes the item.
 - **`has(item)`**, **`markDirty(item)`**, **`markBoundsDirty(item)`** and **`forEachItem(visit)`**.
 
-Connections do not call them. The line registers its items in the connection's constructor, calls `update()` from
-`line.update()`, which the component runs after every change of its state, props or geometry, and deletes them on
-unmount. This ensures that:
+For connections in the compatibility batch, the line registers its items when the component is constructed,
+updates their group and z-level when their inputs change, and removes them on unmount.
 
 - Connections are automatically re-batched when their appearance changes
 - Z-index ordering is maintained (selected/hovered connections appear on top)
@@ -73,19 +72,9 @@ unmount. This ensures that:
 - Memory is cleaned up when connections are destroyed
 
 Items that are not connections can be added to a Path2D batch: they implement `getPath()` and `style(ctx)` (and
-optionally `getPathBounds()`, `isPathVisible()` and `afterRender()`). The WebGL batch draws only connection lines.
-
-## Performance Benefits
-
-The batch rendering system provides significant performance improvements:
-- **Reduced Draw Calls**: Hundreds of similar connections are drawn in single operations
-- **Efficient State Changes**: Canvas context (colors, line styles) is set once per group
-- **Automatic Optimization**: No manual performance tuning required
-- **Scalability**: Handles thousands of connections smoothly
+optionally `getPathBounds()`, `isPathVisible()` and `afterRender()`).
 
 ## Integration in Custom Connections
-
-When extending BlockConnection, the batch system works automatically. However, if you need to customize batching behavior:
 
 A line builds its path once per geometry change (`Path2DLine.createPath(geometry)`) and returns it from `getPath()`
 when a chunk is rebuilt. State, props, endpoint and data changes recompute the geometry and the strokes
@@ -150,8 +139,8 @@ A look that only changes the color, width or dash needs no group override: retur
 
 ### Best Practices
 
-1. **Minimize Group Variations**: Too many unique groups reduce batching efficiency; per-connection styles on large
-   graphs can use `WebGLLine` and `renderer: "webgl"` for declarative styles
+1. **Minimize group variations.** Share groups where their Canvas context state is identical. For per-connection
+   colors or widths, scene styles and the default line work in both renderers.
 2. **Describe the look with `getStroke()`**: its default group follows the stroke; override `style()` and
    `getGroup()` together only for what a stroke cannot say
 3. **Prefer geometries to paths**: a custom `static geometry` is drawn, bounded and hit-tested by both renderers

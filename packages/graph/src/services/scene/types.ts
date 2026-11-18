@@ -163,11 +163,10 @@ export interface IGraphScene {
     options?: { skipText?: boolean; level?: TSceneLevel; drawHidden?: boolean; textPolicy?: TSceneTextPolicy }
   ): void;
   /**
-   * The scene's picture as a new canvas, drawn by the Canvas2D interpreter whatever the renderer. For the current view
-   * (no `rect`, no `scale`) the visible layer canvases under the scene are drawn first; any other rect draws the scene
-   * only. A `level` alone keeps the current view: those canvases come as drawn live, at the live level (connections and
-   * `LegacyCanvasBlock` bodies on the `GraphLayer` canvas), under the scene drawn at the requested level. Throws a
-   * `RangeError` when the output passes the canvas size limits.
+   * Renders the scene, including built-in connections, to a new Canvas2D canvas. A current-view export (no `rect`
+   * or `scale`) also composites the visible layer canvases below the scene. Setting only `level` changes the scene's
+   * detail while those canvases retain their live appearance, including custom Canvas connections and legacy blocks.
+   * Throws a `RangeError` when the output exceeds the canvas size limits.
    *
    * The picture does not depend on where the camera has been: anchor components that blocks create lazily are created
    * for the export when its rect and level need them, and dropped after the draw (also when it throws). Styles are

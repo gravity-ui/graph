@@ -130,6 +130,10 @@ graph.addLayer(AutoGroups, {
 
 **Goal:** A group can **collapse** to a small header: inner blocks are hidden visually, but stay in the store; connections can **attach to the group edges** instead of hidden block ports (via port delegation — see [Connection system](../connections/canvas-connection-system.md)).
 
+When a connection crosses the collapsed group boundary, its visible endpoint follows the delegated port as the group
+moves. On a stock multipoint route the stored `points` stay in world coordinates. Expansion restores the original
+endpoint, including its anchor when the connection uses one.
+
 **Do this:**
 
 1. Use `CollapsibleGroup` as the group `component` in `mapToGroups` (or in manual `setGroups`).

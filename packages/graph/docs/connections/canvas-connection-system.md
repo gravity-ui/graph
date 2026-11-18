@@ -7,7 +7,7 @@ The Connection System allows you to create visual links between blocks in your g
 - **Flexible Connection Types**: Straight lines, bezier curves, and multi-point connections
 - **Visual Customization**: Colors, dash patterns, line thickness, and arrows, from data or from a line class
 - **Interactive Elements**: Hover effects, selection states, and clickable labels
-- **Performance Optimized**: Efficient rendering of thousands of connections, with Canvas2D or WebGL2
+- **Performance Optimized**: Built-in connections share the scene renderer with blocks in Canvas2D or WebGL2
 - **WebGL Effects**: Animated dashes, comets, pulses and custom shader effects on WebGL lines
 - **Anchor Support**: Connect to specific points on blocks or use default connection points
 
@@ -23,7 +23,7 @@ const connection = {
   targetBlockId: "block-2"
 };
 
-graph.setEntities({ connections: [connection] });
+graph.api.addConnection(connection);
 ```
 
 For more precise control, connect to specific anchor points on blocks:
@@ -90,20 +90,20 @@ For advanced use cases, you can manage ports directly using the port management 
 
 ```typescript
 // Claim ownership of a port (for blocks, anchors)
-const port = graph.rootStore.connectionsList.claimPort("block-1_output", ownerComponent);
+const port = graph.connections.claimPort("block-1_output", ownerComponent);
 
 // Release ownership when component is destroyed
-graph.rootStore.connectionsList.releasePort("block-1_output", ownerComponent);
+graph.connections.releasePort("block-1_output", ownerComponent);
 
 // Observe port changes (for connections)
-const port = graph.rootStore.connectionsList.observePort("block-1_output", observerComponent);
+graph.connections.observePort("block-1_output", observerComponent);
 
 // Stop observing when no longer needed
-graph.rootStore.connectionsList.unobservePort("block-1_output", observerComponent);
+graph.connections.unobservePort("block-1_output", observerComponent);
 
 // Check if port exists
-if (graph.rootStore.connectionsList.hasPort("block-1_output")) {
-  const port = graph.rootStore.connectionsList.getPort("block-1_output");
+if (graph.connections.hasPort("block-1_output")) {
+  const port = graph.connections.getPort("block-1_output");
 }
 ```
 
@@ -111,7 +111,10 @@ if (graph.rootStore.connectionsList.hasPort("block-1_output")) {
 
 ### Port Delegation
 
-While delegated, a port mirrors another port’s position; `setPoint()` on the owner is stored and applied again on `undelegate()`. `CollapsibleGroup` uses this so connections attach to group edge ports when collapsed.
+While delegated, a port follows the final delegate's position. Updates to the original port are saved until it is undelegated. Moving the delegate moves the drawn
+connection and its hit area. A collapsed group uses this to attach connections to its edge. A multipoint route keeps its
+stored bends and substitutes the delegated endpoint for its first or last point. Expanding the group restores the
+original route. A connection waits for both effective endpoints to resolve before drawing.
 
 ```typescript
 blockPort.delegate(groupEdgePort);
@@ -150,7 +153,9 @@ const styledConnection = {
 };
 ```
 
-Labels automatically respect zoom levels - they appear only when zoomed in enough for comfortable viewing. The system optimizes performance by grouping connections with similar visual properties for batch rendering.
+The standard `label` appears at the configured zoom threshold. To style visual states across multiple connections,
+add a tag and target the `line`, `arrow`, `labelBackground` or `label` part. A matching rule can override the
+color in the connection data or set a camera-aware width. See [Scene styles](webgl-connections.md#scene-styles).
 
 These fields feed the default stroke of the connection's line class: `styles.background` / `styles.selectedBackground`
 for the color, width 2 (4 hovered or selected), and `dashed` with `styles.dashes` for the dash. A line class that
@@ -162,6 +167,8 @@ overrides `getStroke(state)` decides the color, width and dash from any connecti
 **Interactive Features** are built-in. Connections automatically respond to hover and selection states with visual feedback. Use the selection API to programmatically select connections:
 
 ```typescript
+import { BlockConnection } from "@gravity-ui/graph";
+
 // Select connections and listen to changes
 graph.api.selectConnections(["connection-1"], true);
 graph.on("connection-selection-change", (event) => {
@@ -169,24 +176,27 @@ graph.on("connection-selection-change", (event) => {
 });
 
 // Handle connection clicks
-graph.on("connection-click", (event) => {
-  console.log("Clicked connection:", event.detail.connection.id);
+graph.on("click", ({ detail: { target } }) => {
+  if (target instanceof BlockConnection) console.log("Clicked connection:", target.getEntityId());
 });
 ```
 
 ## Working with Connection Data
 
-Manage connections through the graph API. Add single connections using the connection store, or batch multiple connections for better performance:
+Add one connection with `graph.api.addConnection()` or add and update several in one `graph.updateEntities()`
+call. An existing connection keeps fields omitted from a patch. Use `graph.setEntities({ blocks, connections })`
+when loading a complete graph snapshot. It replaces both collections and clears omitted fields on existing IDs.
+Passing only `connections` to `setEntities` empties the blocks collection.
 
 ```typescript
 // Add single connection
-const connectionId = graph.rootStore.connectionsList.addConnection({
+const connectionId = graph.api.addConnection({
   sourceBlockId: "block-1",
   targetBlockId: "block-2"
 });
 
 // Add multiple connections (preferred for performance)
-graph.setEntities({ 
+graph.updateEntities({
   connections: [
     { id: "conn-1", sourceBlockId: "block-1", targetBlockId: "block-2" },
     { id: "conn-2", sourceBlockId: "block-2", targetBlockId: "block-3" }
@@ -197,36 +207,35 @@ graph.setEntities({
 Update existing connections by modifying their properties. You can change labels, styling, or any other connection data:
 
 ```typescript
-graph.updateConnections([
-  {
-    id: "connection-1",
-    label: "Updated Label",
-    styles: { background: "#4caf50" }
-  }
-]);
+graph.api.updateConnection("connection-1", {
+  label: "Updated Label",
+  styles: { background: "#4caf50" }
+});
 ```
 
 Remove connections either by deleting selected ones or by specifying connection IDs:
 
 ```typescript
 // Delete selected connections
-graph.rootStore.connectionsList.deleteSelectedConnections();
+graph.connections.deleteSelectedConnections();
 
 // Delete specific connections
-const connectionsToDelete = graph.rootStore.connectionsList.getConnections(["conn-1", "conn-2"]);
-graph.rootStore.connectionsList.deleteConnections(connectionsToDelete);
+const connectionsToDelete = graph.connections.getConnections(["conn-1", "conn-2"]);
+graph.connections.deleteConnections(connectionsToDelete);
 ```
 
 ## Advanced Connection Configuration
 
 ### Zoom-Based Visibility
-Labels and arrows automatically respect zoom levels when enabled globally:
+The standard `label` uses `showConnectionLabels` and `connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL`.
+The arrow uses `showConnectionArrows` at every zoom. On a `MultipointConnection`, the additional `labels`
+array supplies explicitly positioned labels with their own rectangles.
 
 ```typescript
 // Enable labels and arrows globally
 graph.updateSettings({
   showConnectionLabels: true,  // Shows only when zoomed in enough
-  showConnectionArrows: true   // Shows only when zoomed in enough
+  showConnectionArrows: true   // Draw the arrow supplied by the geometry
 });
 
 // Connection with label - visibility controlled by zoom and global settings
@@ -240,15 +249,13 @@ const connection = {
 
 ## Performance and Scale
 
-The connection system is optimized for handling large numbers of connections efficiently:
+Built-in lines, Béziers and polylines use the renderer in `graph.updateSettings({ renderer: "webgl" })`
+or the default Canvas2D renderer. Each connection publishes its shaft, arrow and labels in a single scene
+element. Both renderers use its geometry for culling and hit testing. Pan and zoom reuse the route as
+the visible area and level of detail change.
 
-- **Automatic Batching**: Connections with similar visual properties are grouped together for optimal rendering
-- **Two Renderers**: Canvas2D `Path2D` by default; WebGL2 for a connection class whose line is a `WebGLLine`, which
-  pays off for dashes, effects and per-connection styles on large graphs (see
-  [Connection Lines, Geometry and WebGL](webgl-connections.md))
-- **Zoom-Aware Rendering**: Labels appear only when zoomed in
-- **Lazy Updates**: Connection geometry is calculated only when source or target positions change
-- **Efficient Hit Detection**: Smart collision detection for user interactions
+A `WebGLLine` subclass can supply a shader effect in its stroke. A tag rule can also apply a shader effect
+to a stock line. For custom Canvas drawing, see [Connection Lines, Geometry and WebGL](webgl-connections.md).
 
 ### Working with Many Connections
 
@@ -260,12 +267,12 @@ for (let i = 0; i < 1000; i++) {
     id: `conn-${i}`,
     sourceBlockId: `block-${i}`,
     targetBlockId: `block-${i + 1}`,
-    styles: { background: i % 2 ? "#blue" : "#red" }
+    styles: { background: i % 2 ? "#4285f4" : "#e5484d" }
   });
 }
 
 // Single operation for best performance
-graph.setEntities({ connections });
+graph.updateEntities({ connections });
 ```
 
 ## Configuration Examples
@@ -317,10 +324,7 @@ function updateConnectionStatus(connectionId: string, status: "active" | "idle" 
     error: "#f44336"
   };
   
-  graph.updateConnections([{
-    id: connectionId,
-    styles: { background: colors[status] }
-  }]);
+  graph.api.updateConnection(connectionId, { styles: { background: colors[status] } });
 }
 ```
 
@@ -332,19 +336,14 @@ A `BlockConnection` has two pluggable parts, set as statics of its class:
 
 - `static geometry`: the shape, a pure function from the endpoints, `points` and the connection's data to cubic Bézier
   segments and an arrow. Bounds and hit testing follow it.
-- `static line`: how lines are drawn. `Path2DLine` (the default) draws with Canvas2D and may draw any shape;
-  `WebGLLine` draws the geometry with WebGL2 and may carry effects. The line class picks the renderer of the whole
-  graph.
+- `static line` supplies the stroke and arrow style. The stock `Path2DLine` and `WebGLLine` both support
+  scene drawing. Extend `WebGLLine` to derive a scene stroke or shader effect from connection data.
 
-The look (`getStroke()`, `style()`) lives in the line class; the component keeps data, state, interaction, the z-level
-and the label. See [Connection Lines, Geometry and WebGL](webgl-connections.md) for the whole API.
-
-`BlockConnection` and its subclasses are *retained*: the frame does not walk them; the batch draws their lines and
-arrows and the label pass their labels. They update when their data changes (`propsChanged`, `stateChanged`,
-`willIterate`, geometry hooks) and never receive `render()` or other per-frame hooks. Draw labels in
-`renderLabelText()` and other extra content in `afterRender()`, which the Path2D batch runs (WebGL does not); a
-subclass that must draw every frame declares `static override readonly mode = "immediate"`. `BaseConnection` subclasses are walked and
-draw in `render()`. See [Retained components](../migration-guides/v1-to-v2.md#retained-components-connections-outside-the-frame-walk).
+`BlockConnection` is retained. Its scene element updates when its data, style or ports change. A
+`Path2DLine` subclass, a connection that overrides Canvas decoration hooks, or an immediate-mode
+`BlockConnection` uses the GraphLayer Canvas compatibility batch. An immediate component also receives
+per-frame `render()` calls. See [Connection lines](webgl-connections.md#lines) and
+[retained components](../migration-guides/v1-to-v2.md#retained-components-connections-outside-the-frame-walk).
 
 ### Extending BaseConnection
 
@@ -373,13 +372,13 @@ class SimpleLineConnection extends BaseConnection {
 
 ### Extending BlockConnection
 
-For optimized connections with advanced features. BlockConnection automatically handles performance optimization through batch rendering - see [Batch Rendering System](batch-rendering.md) for technical details on how this works internally.
+Use `BlockConnection` for a custom route with the built-in interaction, labels and arrows.
 
 A custom shape is a geometry; a custom look is a line class whose `getStroke(state)` returns the color, width and
 dash:
 
 ```typescript
-import { BlockConnection, Path2DLine, lineSegment } from "@gravity-ui/graph";
+import { BlockConnection, WebGLLine, lineSegment } from "@gravity-ui/graph";
 import type { TBaseConnectionState, TConnectionGeometryFn, TLineStroke } from "@gravity-ui/graph";
 
 // A zigzag through the middle; both renderers draw, bound and hit-test it.
@@ -390,7 +389,7 @@ const zigzagGeometry: TConnectionGeometryFn = ({ source, target }) => {
   return { segments: new Float32Array([...lineSegment(source, a), ...lineSegment(a, b), ...lineSegment(b, target)]) };
 };
 
-class ZigzagLine extends Path2DLine {
+class ZigzagLine extends WebGLLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
     // Hover and selection change the color and the width, as for the default stroke; the dash stays.
     return this.withInteraction({ color: "#4285f4", width: 2, dash: state.dashed ? { pattern: [8, 4] } : undefined }, state);
@@ -403,16 +402,14 @@ class CustomPathConnection extends BlockConnection {
 }
 ```
 
-Connections with one stroke share a style group and are drawn together; the group follows `getStroke()`. A
-`Path2DLine` subclass can also override `createPath(geometry)` for any Canvas2D shape and `style(ctx)` for gradients,
+To use the Canvas compatibility batch, extend `Path2DLine` and override `createPath(geometry)` for any Canvas2D shape and `style(ctx)` for gradients,
 shadows or fills; a `WebGLLine` subclass returns the same strokes, plus effects, from `getStroke()`.
 
 ### Custom Labels and Badges
 
-Labels are drawn by the layer's label pass, after every connection line and arrow and before blocks, by z-level
-(labels of selected and hovered connections on top). Each label is culled by its own rectangle (`labelGeometry`), so a
-label can be drawn while its line is outside the viewport. `BlockConnection` does not draw its label in `afterRender`
-anymore: to replace the standard label, override `renderLabelText()`.
+The stock label and its background share the connection's scene element. For imperative Canvas drawing,
+override `renderLabelText()`. This routes the connection through the GraphLayer compatibility batch. Its label
+pass runs after that batch and culls labels by `labelGeometry`, so a label can draw when the shaft is offscreen.
 
 Prepare custom label bounds in `updateLabelGeometry()`, then draw in `renderLabelText()`. Call `super.updateLabelGeometry(props)` first to obtain the standard label's current position and size, including zoom and label visibility. This example adds a square status badge before the text:
 
@@ -468,9 +465,8 @@ as selection changes, including when the line itself is outside the viewport.
 
 ### Custom Connection with Special Rendering
 
-Animation belongs to WebGL lines: `Path2DLine` never animates, while a `WebGLLine` stroke can carry a library effect
-(`dashFlow` for running dashes and comets, `pulse` for a brightness wave) or a shader effect of your own from
-`defineConnectionEffect()`, drawn for every connection in the batch:
+A scene tag rule or a `WebGLLine` stroke can supply a library effect (`dashFlow` for running dashes and
+comets, `pulse` for a brightness wave) or your own shader from `defineConnectionEffect()`.
 
 ```typescript
 import { BlockConnection, WebGLLine, dashFlow } from "@gravity-ui/graph";
@@ -489,8 +485,7 @@ class CometConnection extends BlockConnection {
 }
 ```
 
-While WebGL is unavailable, Path2D draws the same lines with each effect's fallback stroke (a still dash for
-`dashFlow`), with no animation. See [Effects](webgl-connections.md#effects) for custom shaders, uniforms and
+The scene's Canvas2D renderer draws the base stroke, including when the WebGL context is lost. See [Effects](webgl-connections.md#effects) for custom shaders, uniforms and
 per-connection parameters.
 
 Extra Canvas2D content on top of the line goes into `afterRender(ctx)`, with its bounds from
@@ -537,32 +532,12 @@ Register your custom connection in graph settings:
 import { Graph } from "@gravity-ui/graph";
 
 // Configure graph to use custom connection type
-const graph = new Graph(container, {
-  settings: {
-    connection: CustomPathConnection, // Use your custom class
-    // other settings...
-  }
-});
+const graph = new Graph({ settings: { connection: CustomPathConnection } }, container);
 ```
 
 ### When to Use Custom Connections
 
-- **BaseConnection**: When you need simple custom rendering without performance optimization
-- **BlockConnection**: When you need optimized rendering with batching, arrows, and labels; set `static geometry` for
-  the shape and `static line` for the look
-- **WebGLLine**: When you need animation, effects, dashes or per-connection styles on large graphs
-- **Custom Logic**: When you need special interaction handling
-- **Domain-Specific**: For connections that represent specific concepts in your application
-
-## Best Practices
-
-### Connection Creation
-
-1. **Use batch operations for multiple connections**:
-   ```typescript
-   // Good: Single operation for many connections
-   graph.setEntities({ connections: connectionArray });
-   
-   // Avoid: Individual operations in loops
-   connectionArray.forEach(conn => graph.addConnection(conn));
-   ```
+- Use `BlockConnection` for a scene connection. Set `static geometry` for a custom route.
+- Extend `WebGLLine` for data-dependent scene strokes and effects, or apply a tag style to the built-in line.
+- Extend `Path2DLine` for a Canvas-specific path, gradient or drawing hook. See [Batch Rendering](batch-rendering.md).
+- Extend `BaseConnection` for a component that owns its drawing and hit geometry.

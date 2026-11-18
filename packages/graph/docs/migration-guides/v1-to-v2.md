@@ -41,7 +41,8 @@ The temporary branch and release process is documented separately in
 - Check block listeners of `mouseenter` and `mouseleave`: they now hear their anchors' and children's hover events
   too. Tell them apart with `getEventTarget(event)` or `detail.relatedTarget` (see
   [Events and hover](#events-and-hover)).
-- Take screenshots with `graph.scene.toImage()`: `getGraphCanvas()` no longer holds scene blocks.
+- Take screenshots with `graph.scene.toImage()` to include built-in connections, blocks and anchors.
+- Use `graph.setEntities` for complete snapshots and `graph.updateEntities` for incremental updates. A full snapshot replaces fields even when an ID is reused. See [Public graph API](../system/public_api.md).
 - Scene text sizes are numbers: replace a text `size: { px, minWorld, maxWorld }` with `size: px, cameraAware: {
   minWorld, maxWorld }` (see [Text, primitives and ports](#text-primitives-and-ports)). The `{ world, minPx, maxPx }`
   text form and `TSceneTextSize` are gone; `TSceneSize` keeps both forms for stroke and border widths.
@@ -1006,7 +1007,7 @@ to replace that batch's standard label, or `afterRender()` to draw after the con
 
 `BaseConnection.bBox` of a `BlockConnection` no longer includes the standard label; `getBBox()` still does.
 
-Connection batches group items by grid cell instead of registration order (`connection.PATH2D_CHUNK_TILES`). Where
+The Canvas compatibility batch groups items by grid cell instead of registration order (`connection.PATH2D_CHUNK_TILES`). Where
 two connections of one style overlap, the overlap may be composited twice instead of once, which changes those pixels
 for translucent colors and at anti-aliased crossings. `connection.PATH2D_CHUNK_SIZE` now defaults to 200 (it was 100).
 `BatchPath2DRenderer` is a `BatchScene`: its protected internals (`indexes`, `itemParams`, `getGroup`,
@@ -1023,8 +1024,8 @@ follows this rule only if it accepts `options` and passes them on (or checks `op
 takes only `ctx` decides on its own what the minimap shows.
 
 `viewportCulling: false` turns viewport culling off: every component is walked (retained components are never walked), a
-graph component paints when the camera sees its hit box, connection batches draw every chunk and connection labels are
-drawn when the camera sees their rectangle. The lifecycle rules shared with culling
+graph component paints when the camera sees its hit box, and the Canvas compatibility batch draws every chunk. Its
+label pass draws labels whose rectangles meet the camera view. The scene culls built-in connections independently. The lifecycle rules shared with culling
 still apply (an offscreen component is not painted on mount; visibility is decided after preparation), so the
 switch rules out spatial culling only.
 
@@ -1652,7 +1653,7 @@ the detailed level starts them at the schematic level, or marks anchor ports `sn
 - A style that scales or widens primitives now widens their culling bounds: a hovered anchor at the edge of the view
   is no longer clipped (see [Bounds and styles](../system/scene.md#bounds-and-styles)).
 - Take screenshots with `graph.scene.toImage()` (see [toImage](../system/scene.md#toimage)): `getGraphCanvas()` keeps
-  returning the `GraphLayer` canvas, which no longer holds scene blocks.
+  returning the `GraphLayer` canvas for immediate drawing. The scene canvas holds the built-in connections, blocks and anchors.
 
 ### Custom WebGL backends
 
@@ -1813,8 +1814,9 @@ line with an effect gets its own color back there and the effect shows the selec
 `MultipointConnection` and `BezierMultipointConnection` are `BlockConnection` subclasses with
 `static geometry = multipointGeometry` and `bezierMultipointGeometry`. A custom class can set the same static.
 
-- A multipoint connection whose ports are not resolved has no geometry: it is neither drawn nor hit. In v1 it was
-  drawn from `points` alone.
+- Supply both endpoints, even for a route with explicit `points`. The connection becomes visible and hittable
+  once both ports and their delegates resolve. Delegating one end replaces the corresponding end of the rendered
+  route with the delegate position. Stored points remain available when the delegation ends.
 - The default `Path2DLine` strokes the closed triangle at the end with the line's width (v1 used width 1).
 - The built-in `labels` use the scene's `label` and `labelBackground` parts with both renderers. Connections that
   use the Canvas compatibility batch draw those labels through `afterRender()`.
