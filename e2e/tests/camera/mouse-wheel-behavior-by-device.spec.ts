@@ -67,6 +67,18 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel intents", () => {
     expect(after.scale).toBeCloseTo(before.scale, 10);
   });
 
+  test("accumulates fractional pan deltas and returns to the start when reversed", async () => {
+    const camera = graphPO.camera();
+    await camera.setResolveWheelIntentOverride("pan");
+    await graphPO.page.evaluate(() => window.graph.cameraService.set({ x: 100, y: 100 }));
+
+    for (let i = 0; i < 4; i++) await camera.wheel(-0.5, -0.25);
+    expect(await camera.getState()).toMatchObject({ x: 102, y: 101 });
+
+    for (let i = 0; i < 4; i++) await camera.wheel(0.5, 0.25);
+    expect(await camera.getState()).toMatchObject({ x: 100, y: 100 });
+  });
+
   test("simulated zoom intent + MOUSE_WHEEL_BEHAVIOR scroll: override pan still pans", async () => {
     const camera = graphPO.camera();
     await camera.zoomToCenter();

@@ -82,8 +82,8 @@ export class CameraService extends Emitter {
   }
 
   public resize(newState: Partial<TCameraState>) {
-    const diffX = newState.width - this.state.width;
-    const diffY = newState.height - this.state.height;
+    const diffX = (newState.width ?? this.state.width) - this.state.width;
+    const diffY = (newState.height ?? this.state.height) - this.state.height;
     this.set(newState);
     this.move(diffX, diffY);
   }
@@ -181,12 +181,9 @@ export class CameraService extends Emitter {
   }
 
   public move(dx = 0, dy = 0) {
-    const x = (this.state.x + dx) | 0;
-    const y = (this.state.y + dy) | 0;
-
     this.set({
-      x,
-      y,
+      x: this.state.x + dx,
+      y: this.state.y + dy,
     });
   }
 

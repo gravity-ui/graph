@@ -33,6 +33,21 @@ describe("Graph DOM instance bridge", () => {
   });
 });
 
+describe("Graph camera resize", () => {
+  it("keeps fractional camera coordinates when only one viewport dimension changes", () => {
+    const graph = new Graph({});
+    const camera = graph.cameraService;
+    camera.set({ x: 100.5, y: 50.5, width: 400, height: 300 });
+
+    camera.resize({ width: 440 });
+    expect(camera.getCameraState()).toMatchObject({ x: 140.5, y: 50.5 });
+
+    camera.resize({ height: 280 });
+    expect(camera.getCameraState()).toMatchObject({ x: 140.5, y: 30.5 });
+    graph.unmount();
+  });
+});
+
 describe("Graph export/import and updateBlock integration", () => {
   function createBlock(): TBlock {
     return {
