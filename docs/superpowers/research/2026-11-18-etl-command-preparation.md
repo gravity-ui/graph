@@ -23,7 +23,7 @@ The ABBA sequence used 100 measured retargets per run and fixture, after 30 warm
 | Nirvana API to next rAF | 36.85 / 42.10 | 36.30 / 42.50 |
 | Nirvana backend CPU | 26.75 / 30.30 | 26.45 / 30.20 |
 
-The two candidate ETL runs had ordering medians of 10.60 and 5.90 ms, compared with 15.95 and 16.65 ms in the two reference runs. That spread makes the whole-frame p95 gain smaller than the short initial screen suggested. The remaining CPU budget includes filtering, path address preparation and the rest of the draw. The API-to-rAF measure includes the wait for an animation callback. The display presentation time falls outside that window.
+The two candidate ETL runs had ordering medians of 10.60 and 5.90 ms, compared with 15.95 and 16.65 ms in the two reference runs. The ordering p95 gain was 4.7 ms across the final runs, compared with 10.2 ms in the short initial screen. The remaining CPU budget includes filtering, path address preparation and the rest of the draw. The API-to-rAF measure includes the wait for an animation callback. The display presentation time falls outside that window.
 
 At fit and scale 0.35, the main WebGL framebuffer matched byte-for-byte in all twelve reference-to-candidate comparisons. The test sampled the original endpoint, the moved endpoint and the restored endpoint on both graphs at fixed shader time. It also confirmed actual changed pixels on retarget and exact restoration. HTML compositing falls outside the WebGL comparison.
 

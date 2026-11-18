@@ -104,3 +104,13 @@ The user reported frequent GC and questioned whether the frame work still follow
 - [x] Verify that offscreen paths, hidden effects and effects outside their scale range stop requesting frames. The Chromium Metal and WebKit regression in `apps/e2e/tests/connection/scene-connection-effects.spec.ts` covers all three and restores active paint after a scale change.
 
 The new GC results do not establish legacy Running Dash parity. Full non-path culling remains a measured follow-on, with renderer-specific glyph/halo/float bounds and a draw-fragmentation budget.
+
+## Frame stability gates on real workflows
+
+The [architecture workflow report](../research/2026-11-18-architecture-workflows.md) adds status paint, hot replacement, partial layout updates, navigation and interaction as validation workloads. Measure rAF gaps and deadline misses together with action-to-first-frame, backend CPU and GPU time. Use the actual ETL and Nirvana fixtures, plus the existing port, picking, style and HTML handover checks.
+
+- [x] Isolate steady luma submission through exact WebGL command replay and compare native upload timing on hot replacements.
+- [x] Isolate partial replacements under the same internal Graph batch with complete rows and matching effective changes. Whole-list reconciliation remains the first priority for edit cadence.
+- [x] Count conservative owner and piece candidates on actual ETL and Nirvana path records. The two-level index still needs a measured runtime candidate.
+- [ ] Make edit invalidation follow changed rows and owners. Validate collection notifications, class replacement and snapshot/patch semantics with the actual public workflows.
+- [ ] Validate an atomic and cancellable prepared snapshot handoff on a mounted graph. Measure both frame deadlines during preparation and time until the new layout is usable.
