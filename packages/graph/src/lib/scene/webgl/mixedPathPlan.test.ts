@@ -4,6 +4,7 @@ import {
   canonicalizeMixedSources,
   fullySubpixelPaths,
   mixedPathSchedule,
+  packOrderedPaths,
   separatedConnectionDepths,
 } from "./mixedPathPlan";
 
@@ -55,6 +56,33 @@ describe("mixed connection path planning", () => {
         { first: 0, count: 2 },
         { native, first: 16, count: 2 },
         { first: 2, count: 3 },
+      ],
+    });
+  });
+
+  it("packs preordered draws even when addresses descend and repeats straddle a native barrier", () => {
+    const draws = [
+      { first: 8, count: 1, slot: 0 },
+      { first: 0, count: 2, slot: 0 },
+      { first: 9, count: 1, native: "label" },
+      { first: 2, count: 1, slot: 0 },
+    ];
+    expect(
+      packOrderedPaths(
+        draws,
+        (draw) => draw.slot,
+        (draw) => draw.native
+      )
+    ).toEqual({
+      spans: [
+        { first: 8, count: 1 },
+        { first: 0, count: 2 },
+        { first: 2, count: 1 },
+      ],
+      commands: [
+        { first: 0, count: 3 },
+        { native: "label", first: 9, count: 1 },
+        { first: 3, count: 1 },
       ],
     });
   });

@@ -118,21 +118,38 @@ export function mixedPathSchedule<T>(
   input: readonly (TMixedPathRange | TNativePathRange<T>)[]
 ): { spans: TPathIdSpan[]; commands: TLowerPathCommand<T>[] } | undefined {
   const ordered = [...input].sort((a, b) => a.key - b.key || a.sub - b.sub || a.tie - b.tie || a.first - b.first);
+  return packOrderedPaths(
+    ordered,
+    (range) => range.source,
+    (range) => range.native
+  );
+}
+
+/** Physical commands already in painter order can use the same packing without sorting or adding depth keys. */
+export function packOrderedPaths<D extends TPathIdSpan, T>(
+  ordered: readonly D[],
+  sourceOf: (draw: D, index: number) => number | undefined,
+  nativeOf: (draw: D) => T | undefined
+): { spans: TPathIdSpan[]; commands: TLowerPathCommand<T>[] } | undefined {
   const spans: TPathIdSpan[] = [];
   const commands: TLowerPathCommand<T>[] = [];
   let offset = 0;
-  for (const { first, count, source, native } of ordered) {
+  for (let i = 0; i < ordered.length; i++) {
+    const draw = ordered[i];
+    const { first, count } = draw;
     if (count === 0) continue;
     if (!Number.isInteger(first) || !Number.isInteger(count) || first < 0 || count < 0) return undefined;
     const command = commands[commands.length - 1];
-    if (native !== undefined) {
+    const source = sourceOf(draw, i);
+    if (source === undefined) {
+      const native = nativeOf(draw);
+      if (native === undefined) return undefined;
       if (command?.native === native && command.first + command.count === first) command.count += count;
       else commands.push({ native, first, count });
       continue;
     }
     // The Float32 record selector and physical slot stay exactly representable.
     if (
-      source === undefined ||
       !Number.isInteger(source) ||
       source < 0 ||
       source >= MIXED_PATH_MAX_SOURCES ||

@@ -3,6 +3,7 @@ import type { TTranslucentPart, TTranslucentRun } from "./translucentOrder";
 
 type TSourceVisibility = Pick<InstanceVisibility, "any" | "changesSince" | "visibilityRevision" | "coverage">;
 type TSourceSnapshot = { visibility: TSourceVisibility; revision: number; bridge: boolean };
+type TChanges = readonly (readonly TVisibilitySpan[] | undefined)[];
 type TBounds = TVisibilitySpan & { source: number };
 type TPartView = {
   part: TTranslucentPart;
@@ -129,12 +130,14 @@ function project(
   view: TPartView,
   visibility: TSourceVisibility,
   coverage: TSourceVisibility["coverage"],
-  bridge: boolean
+  bridge: boolean,
+  frameChanges?: TChanges
 ): TTranslucentPart {
   if (view.visibility === visibility && view.bridge === bridge && view.revision !== undefined) {
     if (view.revision === visibility.visibilityRevision) return view.visible;
     if (coverage === "partial") {
-      const changed = visibility.changesSince(view.revision);
+      // A reused block already validated its parts through the previous frame, including skipped revisions.
+      const changed = frameChanges ? frameChanges[view.source] : visibility.changesSince(view.revision);
       if (changed && !intersectsRuns(view, changed, bridge)) {
         view.revision = visibility.visibilityRevision;
         return view.visible;
@@ -166,12 +169,19 @@ function filterBlock(
   views: readonly TPartView[],
   visibility: readonly TSourceVisibility[],
   coverage: readonly TSourceVisibility["coverage"][],
-  bridges: readonly boolean[]
+  bridges: readonly boolean[],
+  frameChanges?: TChanges
 ) {
+  if (views.length === 1) {
+    const view = views[0];
+    const source = view.source;
+    const body = project(view, visibility[source], coverage[source], bridges[source], frameChanges);
+    return body.first === 0 && body.end === body.runs.length ? body.runs : body.runs.slice(body.first, body.end);
+  }
   const runs: TTranslucentRun[] = [];
   for (const view of views) {
     const source = view.source;
-    const body = project(view, visibility[source], coverage[source], bridges[source]);
+    const body = project(view, visibility[source], coverage[source], bridges[source], frameChanges);
     if (body.first === body.end) continue;
     const active = body === view.part ? view.raw : body.runs;
     const head = active[body.first];
@@ -188,7 +198,7 @@ function filterBlock(
   return runs;
 }
 
-function invalidated(bounds: TBounds[], changed: readonly (readonly TVisibilitySpan[] | undefined)[]): boolean {
+function invalidated(bounds: TBounds[], changed: TChanges): boolean {
   for (const bound of bounds) {
     const spans = changed[bound.source];
     if (!spans || (spans.length > 0 && firstOverlap(spans, bound) >= 0)) return true;
@@ -204,7 +214,7 @@ function finishBlock(
   block: TPartBlock,
   body: readonly TTranslucentRun[],
   incoming: TTranslucentRun | undefined,
-  changed: readonly (readonly TVisibilitySpan[] | undefined)[],
+  changed: TChanges,
   visible: (source: number, first: number, count: number) => boolean,
   bridge: boolean
 ): TSeam {
@@ -306,7 +316,8 @@ export class TranslucentVisibility {
       }
       block.raw ??= prepare(block.parts, this.parts);
       if (!block.visible || ((block.sources & changedSources) !== 0 && invalidated(block.raw.bounds, changed))) {
-        block.visible = filterBlock(block.raw.views, visibility, coverage, bridges);
+        const validated = block.visible && block.visible !== EMPTY.runs;
+        block.visible = filterBlock(block.raw.views, visibility, coverage, bridges, validated ? changed : undefined);
       }
       const body = block.visible;
       if (body.length === 0) {

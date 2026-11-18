@@ -406,6 +406,30 @@ describe("translucent order", () => {
     compare();
   });
 
+  it("reuses neighboring raw draws when a retained owner splits or joins a draw within one physical page", () => {
+    const paths = new InstanceRanges(1);
+    const levels = [0, 0, 0, 1, 0, 1, 0, 0, 1, 0];
+    levels.forEach((_, slot) => paths.set(String(slot), new Float32Array(1)));
+    paths.retainLayout();
+    const sources = [{ instances: paths }];
+    const level = (id: string) => levels[Number(id)];
+    const cache: TTranslucentOrderCache = { levelRevision: 0 };
+    const order = () => flatten(orderTranslucentChunks(sources, level, () => 0, BITS, false, cache));
+    const initial = order();
+    const previous = initial.map((run) => ({ ...run }));
+    const neighbors = initial.filter((run) => run.first === 4 || run.first === 6);
+    expect(neighbors).toHaveLength(2);
+    for (const next of [1, 0]) {
+      levels[1] = next;
+      cache.levelRevision = (cache.levelRevision ?? 0) + 1;
+      cache.changedLevelIds = ["1"];
+      const runs = order();
+      expect(runs).toEqual(orderTranslucent(sources, level, () => 0, BITS, false));
+      for (const neighbor of neighbors) expect(runs).toContain(neighbor);
+      expect(initial).toEqual(previous);
+    }
+  });
+
   it("groups small draw positions across sparse pages without changing distant visibility gaps", () => {
     const paths = new InstanceRanges(3);
     const labels = new InstanceRanges(3);

@@ -13,6 +13,7 @@ import { generateBezierParams, getArrowCoords } from "./bezierHelpers";
 import { defineConnectionEffect } from "./effects";
 import { bezierGeometry, multipointGeometry } from "./geometry";
 import type { TConnectionGeometryFn } from "./geometry";
+import { stockBezierSegments } from "./geometry/segments";
 import { Path2DLine, WebGLLine } from "./lines";
 import type { ConnectionLine, TLineStroke, TWebGLStroke } from "./lines";
 import type { TMultipointConnection } from "./types";
@@ -150,6 +151,99 @@ describe("BlockConnection line protocol", () => {
     expect(shaft?.effect).toEqual({ effect, params: [3], minScale: 0.5, maxScale: 1 });
     expect(arrow?.part).toBe("arrow");
     expect(arrow?.effect).toBeUndefined();
+  });
+
+  it("keeps a new effect resource, exact shader params and the stock geometry certificate observable", () => {
+    const definition = { fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }" };
+    let effect = defineConnectionEffect(definition);
+    let param = 0;
+    let certified = true;
+    class ExternalLine extends WebGLLine {
+      public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+        return { ...super.getStroke(state), effect: { effect, params: [param] } };
+      }
+    }
+    class ExternalConnection extends BlockConnection {
+      public static override line = ExternalLine;
+      public static override geometry: TConnectionGeometryFn = (input) => {
+        const shape = bezierGeometry(input);
+        return shape && !certified ? { ...shape, segments: shape.segments.slice() } : shape;
+      };
+    }
+    const mounted = (graph = mount({ connection: ExternalConnection }));
+    const refresh = () => {
+      mounted.api.updateConnection("a", {});
+      frames();
+      return pathsOf(mounted, "a")[0];
+    };
+    const original = refresh();
+    expect(refresh()).toBe(original);
+    effect = defineConnectionEffect(definition);
+    expect(refresh().effect?.effect).toBe(effect);
+    param = -0;
+    expect(refresh().effect?.params?.[0]).toBe(-0);
+    expect(stockBezierSegments.has(original.segments)).toBe(true);
+    certified = false;
+    expect(stockBezierSegments.has(refresh().segments)).toBe(false);
+  });
+
+  it("publishes independent scene values when custom geometry and styles reuse mutable inputs", () => {
+    const segments = new Float32Array([100, 100, 180, 100, 320, 100, 400, 100]);
+    const triangle = new Float32Array([390, 96, 400, 100, 390, 104]);
+    const pattern = [8, 4];
+    const params = [1];
+    const interaction = { hovered: false, selected: false, selectionColor: "#bbb" };
+    const effect = defineConnectionEffect({ fragment: "vec4 effect(ConnectionFragment f, vec4 c) { return c; }" });
+    class ReusingLine extends WebGLLine {
+      public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+        return { ...super.getStroke(state), dash: { pattern }, effect: { effect, params } };
+      }
+      public override getWebGLShape() {
+        const shape = super.getWebGLShape();
+        return shape && { ...shape, interaction };
+      }
+    }
+    class ReusingConnection extends BlockConnection {
+      public static override line = ReusingLine;
+      public static override geometry: TConnectionGeometryFn = () => ({
+        segments,
+        arrow: { points: triangle, closed: true },
+      });
+    }
+    const mounted = (graph = mount({ connection: ReusingConnection }));
+    const refresh = () => {
+      mounted.api.updateConnection("a", {});
+      frames();
+      return pathsOf(mounted, "a")[0];
+    };
+    const before = pathsOf(mounted, "a")[0];
+    segments[2] = 165;
+    expect(before.segments[2]).toBe(180);
+    const moved = refresh();
+    expect(moved.segments[2]).toBe(165);
+    params[0] = 2;
+    expect(moved.effect?.params).toEqual([1]);
+    const styled = refresh();
+    expect(styled.effect?.params).toEqual([2]);
+    pattern[0] = 12;
+    expect(styled.stroke.dash).toEqual([8, 4]);
+    const dashed = refresh();
+    expect(dashed.stroke.dash).toEqual([12, 4]);
+    interaction.selected = true;
+    expect(dashed.interaction?.selected).toBe(false);
+    const selected = refresh();
+    expect(selected.interaction?.selected).toBe(true);
+
+    const key = view(mounted, "a").getSceneKey();
+    const polygon = () => key && mounted.scene.store.get(key.elementId)?.primitives.find((p) => p.kind === "polygon");
+    const oldTriangle = polygon();
+    triangle[0] = 385;
+    expect(oldTriangle?.points[0]).toBe(390);
+    refresh();
+    expect(polygon()?.points[0]).toBe(385);
+
+    pathsOf(mounted, "a")[0].segments[2] = -100;
+    expect(refresh().segments[2]).toBe(165);
   });
 
   it("puts the default shaft and open arrow into each connection's scene element", () => {

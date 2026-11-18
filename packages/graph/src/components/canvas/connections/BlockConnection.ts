@@ -23,6 +23,7 @@ import type { IConnectionLabelOwner } from "./Label";
 import { blockGeometry } from "./geometry";
 import type { TConnectionGeometry, TConnectionGeometryFn } from "./geometry";
 import { distanceToArrow, distanceToSegments } from "./geometry/distance";
+import { stockBezierSegments } from "./geometry/segments";
 import { hasChangedValue } from "./hasChangedValue";
 import { getLabelCoords } from "./labelHelper";
 import { Path2DLine, WebGLLine } from "./lines";
@@ -51,7 +52,66 @@ export type TBlockConnection = {
 const NO_POINTS: readonly TPoint[] = Object.freeze([]);
 
 function sceneStroke(stroke: TLineStroke): TSceneStroke {
-  return { color: stroke.color, width: stroke.width, dash: stroke.dash?.pattern };
+  return { color: stroke.color, width: stroke.width, dash: stroke.dash?.pattern.slice() };
+}
+
+/** Connection geometries may reuse their buffers. The scene owns the shaft until its next published update. */
+function snapshotShaft(primitives: TScenePrimitive[]): TScenePrimitive[] {
+  const shaft = primitives[0];
+  if (shaft?.kind === "path" && shaft.part === "line") {
+    const segments = shaft.segments.slice();
+    if (stockBezierSegments.has(shaft.segments)) stockBezierSegments.add(segments);
+    primitives[0] = { ...shaft, segments };
+  }
+  return primitives;
+}
+
+function sameNumbers(a: ArrayLike<number> | undefined, b: ArrayLike<number> | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
+  return true;
+}
+
+function sameStroke(a: TSceneStroke | undefined, b: TSceneStroke | undefined): boolean {
+  return (
+    a === b ||
+    Boolean(
+      a && b && a.color === b.color && a.align === b.align && Object.is(a.width, b.width) && sameNumbers(a.dash, b.dash)
+    )
+  );
+}
+
+/** Both lists came from this component's standard shaft, arrow and label writer. External primitives always republish. */
+function samePrimitive(a: TScenePrimitive, b: TScenePrimitive): boolean {
+  if (a === b) return true;
+  if (
+    a.kind !== b.kind ||
+    a.part !== b.part ||
+    a.minScale !== b.minScale ||
+    a.maxScale !== b.maxScale ||
+    a.levelMask !== b.levelMask
+  )
+    return false;
+  if (a.kind === "path" && b.kind === "path") {
+    return (
+      sameStroke(a.stroke, b.stroke) &&
+      sameStroke(a.canvasStroke, b.canvasStroke) &&
+      a.effect?.effect === b.effect?.effect &&
+      Object.is(a.effect?.minScale, b.effect?.minScale) &&
+      Object.is(a.effect?.maxScale, b.effect?.maxScale) &&
+      sameNumbers(a.effect?.params, b.effect?.params) &&
+      a.effectShowsSelection === b.effectShowsSelection &&
+      a.interaction?.hovered === b.interaction?.hovered &&
+      a.interaction?.selected === b.interaction?.selected &&
+      a.interaction?.selectionColor === b.interaction?.selectionColor &&
+      stockBezierSegments.has(a.segments) === stockBezierSegments.has(b.segments) &&
+      sameNumbers(a.segments, b.segments)
+    );
+  }
+  if (a.kind === "polygon" && b.kind === "polygon")
+    return a.fill === b.fill && sameStroke(a.stroke, b.stroke) && sameNumbers(a.points, b.points);
+  return !hasChangedValue(a, b) && !hasChangedValue(b, a);
 }
 
 export class BlockConnection<T extends TConnection = TConnection>
@@ -101,6 +161,8 @@ export class BlockConnection<T extends TConnection = TConnection>
   private labelWorldBounds: TPathBounds | undefined;
 
   private sceneKey?: TSceneKey;
+
+  private submittedPrimitives?: readonly TScenePrimitive[];
 
   private unbindSceneStyle?: () => void;
 
@@ -190,20 +252,36 @@ export class BlockConnection<T extends TConnection = TConnection>
       maxY: Math.max(pathBounds[3], label[3]),
     };
     const zIndex = this.zIndex;
+    const standardLabels = this.appendSceneLabels === BlockConnection.prototype.appendSceneLabels;
     if (key) {
       const element = scene.store.get(key.elementId);
-      const orderChanged = element?.zIndex !== zIndex;
-      // A geometry update must not release the element's depth slot or rewrite its visibility texel.
-      scene.store.update(key.elementId, {
-        bounds,
-        primitives,
-        ...(orderChanged ? { zIndex } : {}),
-        ...(element?.hidden ? { hidden: false } : {}),
-      });
+      const patch: Parameters<typeof scene.store.update>[1] = {};
+      if (!element || hasChangedValue(bounds, element.bounds)) patch.bounds = bounds;
+      if (
+        !element ||
+        !standardLabels ||
+        element.primitives !== this.submittedPrimitives ||
+        element.primitives.length !== primitives.length ||
+        !primitives.every((primitive, i) => samePrimitive(primitive, element.primitives[i]))
+      )
+        patch.primitives = snapshotShaft(primitives);
+      if (element?.zIndex !== zIndex) patch.zIndex = zIndex;
+      if (element?.hidden) patch.hidden = false;
+      if (Object.keys(patch).length) scene.store.update(key.elementId, patch);
+      if (patch.primitives) this.submittedPrimitives = standardLabels ? primitives : undefined;
     } else {
       const id = this.getEntityId();
       const elementId = entityKey("connection", id);
-      scene.store.add({ id: elementId, entityType: "connection", x: 0, y: 0, zIndex, bounds, primitives });
+      scene.store.add({
+        id: elementId,
+        entityType: "connection",
+        x: 0,
+        y: 0,
+        zIndex,
+        bounds,
+        primitives: snapshotShaft(primitives),
+      });
+      this.submittedPrimitives = standardLabels ? primitives : undefined;
       this.sceneKey = { elementId, sub: 0 };
       this.unbindSceneStyle = scene.bindStyle(
         elementId,
@@ -256,9 +334,9 @@ export class BlockConnection<T extends TConnection = TConnection>
         stroke: sceneStroke(webgl?.stroke ?? strokes.shaft),
         canvasStroke: webgl?.effect ? sceneStroke(strokes.shaft) : undefined,
         effect: webgl?.effect
-          ? { effect: webgl.effect, params: webgl.params ?? [], ...webgl.effectScaleRange }
+          ? { effect: webgl.effect, params: webgl.params?.slice() ?? [], ...webgl.effectScaleRange }
           : undefined,
-        interaction: webgl?.interaction ?? this.getSceneInteraction(state),
+        interaction: { ...(webgl?.interaction ?? this.getSceneInteraction(state)) },
         effectShowsSelection: webgl?.effectShowsSelection,
       },
     ];
@@ -270,7 +348,7 @@ export class BlockConnection<T extends TConnection = TConnection>
         for (let i = 2; i + 3 < points.length; i += 2) {
           const triangle =
             points.length === 6
-              ? points
+              ? points.slice()
               : new Float32Array([points[0], points[1], points[i], points[i + 1], points[i + 2], points[i + 3]]);
           primitives.push({ kind: "polygon", part: "arrow", points: triangle, fill: stroke.color });
         }
@@ -758,6 +836,7 @@ export class BlockConnection<T extends TConnection = TConnection>
     this.unbindSceneStyle?.();
     if (this.sceneKey) this.context.graph.scene.store.delete(this.sceneKey.elementId);
     this.sceneKey = undefined;
+    this.submittedPrimitives = undefined;
     super.unmount();
     this.line.dispose();
     this.context.labels.delete(this.labelShape);

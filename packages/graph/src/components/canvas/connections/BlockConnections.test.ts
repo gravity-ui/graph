@@ -93,6 +93,41 @@ describe("connection drawing ownership", () => {
     expect(graph.scene.store.get(entityKey("connection", "edge"))).toBeUndefined();
   });
 
+  it("publishes only changed derived fields, including after a direct scene edit", () => {
+    const graph = mount(StyledConnection);
+    const id = entityKey("connection", "edge");
+    const state = graph.connections.getConnectionState("edge");
+    const initial = graph.scene.store.get(id);
+    if (!state || !initial) throw new Error("Expected the connection and its scene element");
+    const notified = jest.fn();
+    const unsubscribe = state.$state.subscribe(notified);
+    notified.mockClear();
+    const update = jest.spyOn(graph.scene.store, "update");
+    const patches = () => update.mock.calls.filter(([key]) => key === id).map(([, patch]) => Object.keys(patch));
+    const bounds = initial.bounds;
+    const primitives = initial.primitives;
+    graph.api.updateConnection("edge", { label: "Route" });
+    frames();
+    expect(notified).toHaveBeenCalled();
+    expect(patches()).toEqual([]);
+    expect(initial.primitives).toBe(primitives);
+
+    graph.api.updateConnection("edge", { styles: { background: "#8844cc" } });
+    frames();
+    expect(patches()).toEqual([["primitives"]]);
+    expect(initial.bounds).toBe(bounds);
+    const styled = initial.primitives;
+    graph.scene.store.update(id, { bounds: { ...bounds, minX: bounds.minX - 1 }, primitives: [], hidden: true });
+    update.mockClear();
+    graph.api.updateConnection("edge", { label: "Route" });
+    frames();
+    expect(initial.hidden).toBe(false);
+    expect(initial.bounds).toEqual(bounds);
+    expect(initial.primitives).toEqual(styled);
+    expect(patches()).toEqual([expect.arrayContaining(["bounds", "primitives", "hidden"])]);
+    unsubscribe();
+  });
+
   it("lets a tag override a data stroke without republishing the geometry", () => {
     const graph = mount();
     const id = entityKey("connection", "edge");

@@ -1,6 +1,6 @@
 import { InstanceRanges } from "./InstanceRanges";
 import type { TSceneFrame } from "./backendTypes";
-import { InstanceVisibility } from "./instanceVisibility";
+import { InstanceVisibility, OpaqueVisibility } from "./instanceVisibility";
 import type { TVisibilitySpan } from "./instanceVisibility";
 import { STYLE_ROW_TEXELS } from "./tables";
 import { filterTranslucentRuns, orderTranslucent } from "./translucentOrder";
@@ -337,6 +337,117 @@ describe("instance visibility cohorts", () => {
     expect(visibility.any(384, 1)).toBe(false);
   });
 
+  it("checks only addressed cohorts and repairs cross-chunk queries after reversed table edits", () => {
+    const ranges = new InstanceRanges(8);
+    const elements = new Float32Array(512 * 4);
+    for (let owner = 0; owner < 512; owner++) {
+      ranges.set(String(owner), [owner, 0, 1, 0, 0.1, 0.5, 7, 0]);
+      elements[owner * 4 + 2] = -1;
+    }
+    const reads = new Set<number>();
+    const observed = new Proxy(elements, {
+      get(target, key) {
+        if (typeof key === "string" && /^\d+$/.test(key)) reads.add(Math.floor(Number(key) / 4));
+        return Reflect.get(target, key, target);
+      },
+    });
+    const visibility = new InstanceVisibility("path");
+    const paint = styles();
+    visibility.update(ranges, observed, paint, frame(0.2), 1);
+    reads.clear();
+    const revision = visibility.visibilityRevision;
+    for (const owner of [406, 209, 207]) {
+      elements[owner * 4 + 2] = 1;
+      visibility.invalidateOwner(ranges, String(owner));
+    }
+    visibility.update(ranges, observed, paint, frame(0.2), 1);
+    expect([...reads]).toEqual([207, 209, 406]);
+    expect(visibility.changesSince(revision)).toEqual([
+      { first: 207, end: 208 },
+      { first: 209, end: 210 },
+      { first: 406, end: 407 },
+    ]);
+    expect(visibility.any(2, 396)).toBe(true);
+    for (const owner of [209, 207]) {
+      elements[owner * 4 + 2] = -1;
+      visibility.invalidateOwner(ranges, String(owner));
+    }
+    visibility.update(ranges, observed, paint, frame(0.2), 1);
+    expect(visibility.any(2, 396)).toBe(false);
+    expect(visibility.any(406, 1)).toBe(true);
+  });
+
+  it("drops invalidations beyond a temporary tail removed before the next visibility update", () => {
+    const ranges = new InstanceRanges(8);
+    const visibility = new InstanceVisibility("path");
+    const paint = styles();
+    ranges.set("old", paths(128));
+    visibility.update(ranges, table, paint, frame(0.2), 1);
+    ranges.takeUpload();
+    const revision = visibility.visibilityRevision;
+    ranges.set("temporary", paths(128));
+    visibility.invalidateOwner(ranges, "temporary");
+    ranges.delete("temporary");
+    visibility.invalidate(ranges.takeUpload(), ranges);
+    visibility.update(ranges, table, paint, frame(0.2), 1);
+    expect(visibility.changesSince(revision)).toEqual([]);
+    expect(visibility.coverage).toBe("all");
+  });
+
+  it("clips pending owner edits to the surviving chunks when a predicate also changes", () => {
+    const ranges = new InstanceRanges(8),
+      visibility = new InstanceVisibility("path"),
+      paint = styles();
+    ranges.set("head", paths(128));
+    ranges.set("tail", paths(130));
+    visibility.update(ranges, table, paint, frame(0.2), 1);
+    ranges.takeUpload();
+    visibility.invalidateOwner(ranges, "tail");
+    ranges.delete("tail");
+    ranges.editSpan("head", 5, 1, (row, at) => {
+      row[at + 6] = 4;
+    });
+    visibility.invalidate(ranges.takeUpload(), ranges);
+    const rev = visibility.visibilityRevision;
+    visibility.update(ranges, table, paint, frame(0.2), 1);
+    expect(visibility.changesSince(rev)).toEqual([
+      { first: 5, end: 6 },
+      { first: 128, end: 258 },
+    ]);
+    expect(visibility.any(5, 1)).toBe(false);
+    expect(visibility.any(6, 1)).toBe(true);
+  });
+
+  it("keeps constant-time range answers across page boundaries, global LOD changes and source replacement", () => {
+    const ranges = new InstanceRanges(8),
+      visibility = new InstanceVisibility("path"),
+      paint = styles();
+    const page = 64 * 128;
+    visibility.update(ranges, table, paint, frame(0.2), 1);
+    expect(visibility.coverage).toBe("none");
+    ranges.set("start", paths(page - 1, 0));
+    ranges.set("border", paths(2, 2));
+    ranges.set("gap", paths(page - 1, 0));
+    ranges.set("tail", paths(1, 4));
+    visibility.update(ranges, table, paint, frame(0.2), 1);
+    expect(visibility.any(0, page - 1)).toBe(false);
+    expect(visibility.any(0, 2 * page)).toBe(true);
+    expect(visibility.any(page, 1)).toBe(true);
+    expect(visibility.any(page + 1, page)).toBe(false);
+    visibility.update(ranges, table, paint, frame(0.2, "detailed"), 1);
+    expect(visibility.any(0, 2 * page)).toBe(false);
+    expect(visibility.any(1, 2 * page)).toBe(true);
+    const replacement = new InstanceRanges(8);
+    replacement.set("border", paths(1, 4));
+    visibility.update(replacement, table, paint, frame(0.2, "detailed"), 1);
+    expect(visibility.coverage).toBe("all");
+    expect(visibility.any(1, 2 * page)).toBe(false);
+    replacement.delete("border");
+    visibility.update(replacement, table, paint, frame(0.2, "detailed"), 1);
+    expect(visibility.coverage).toBe("none");
+    expect(visibility.any(0, 2 * page)).toBe(false);
+  });
+
   it("reports changed active slots even when a dirty chunk keeps its visible count", () => {
     const ranges = new InstanceRanges(8);
     const data = paths(384);
@@ -473,4 +584,53 @@ describe("instance visibility cohorts", () => {
     visibility.update(ranges, table, paint, frame(0.2), 4);
     expect(visibility.any(128, 1)).toBe(true);
   });
+});
+
+describe("opaque batch visibility", () => {
+  it.each([
+    ["rect", 28, 25, 27],
+    ["triangle", 12, 10, 3],
+    ["glyph", 27, 24, 26],
+  ] as const)(
+    "rechecks a reused %s slot, both sides of a zoom boundary, and hidden owners and paint",
+    (kind, stride, scales, mask) => {
+      const data = new Float32Array(stride),
+        ranges = new ObservedRanges(stride);
+      const owners = table.slice(),
+        paint = styles(),
+        visibility = new OpaqueVisibility(kind);
+      data[2] = 1;
+      if (kind === "rect") data[3] = 2;
+      data[scales] = 0.1;
+      data[scales + 1] = 0.5;
+      data[mask] = 2;
+      data[0] = 1;
+      ranges.set("hidden", data);
+      data[0] = 0;
+      ranges.set("winner", data);
+      const any = (scale: number, state = 0, level: TSceneFrame["level"] = "schematic") =>
+        visibility.any(ranges, owners, paint, frame(scale, level), state);
+      expect(any(0.1)).toBe(true);
+      ranges.delete("winner");
+      data[0] = 1;
+      ranges.set("replacement", data);
+      expect(any(0.1)).toBe(false);
+      owners[6] = 1;
+      expect(any(0.1, 1)).toBe(true);
+      paint[kind === "rect" ? 11 : 7] = -2;
+      expect(any(0.1, 2)).toBe(false);
+      paint.fill(-1);
+      expect(any(0.1, 3)).toBe(true);
+      expect(any(0.5, 3)).toBe(false);
+      ranges.reads = 0;
+      expect(any(0.6, 4)).toBe(false);
+      expect(ranges.reads).toBe(0);
+      expect(any(0.2, 4, "detailed")).toBe(false);
+      expect(any(0.1, 4)).toBe(true);
+      ranges.edit("replacement", (row) => {
+        row[mask] = 4;
+      });
+      expect(any(0.1, 4, "detailed")).toBe(true);
+    }
+  );
 });

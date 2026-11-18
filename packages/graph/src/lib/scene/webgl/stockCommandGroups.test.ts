@@ -126,6 +126,27 @@ describe("stock command groups", () => {
     expect(flatPlan(cache.update(valid, classify))).toEqual(reference(valid, classify));
   });
 
+  it("uses the short strip only across consecutive groups of lines in the same stock draw", () => {
+    const cache = new StockCommandGroups<TBatch, TSource>();
+    const line = { records: sources[0].records, chords: 1 };
+    const groups = [
+      many,
+      [draw(a, 5, 60)],
+      [draw(native, 0)],
+      [draw(a, 0, 40)],
+      [draw(a, 40, 50)],
+      [draw(b, 0)],
+      [draw(a, 90, 75)],
+    ];
+    const plan = cache.update(groups, (batch) => (batch === a ? line : classify(batch)));
+    if (!plan || plan === "fallback") throw new Error("Expected a stock plan");
+    expect(plan.lineRange).toEqual({ first: many.length + 60, count: 90 });
+    const curves = cache.update(groups, classify);
+    if (!curves || curves === "fallback") throw new Error("Expected a stock plan");
+    expect(curves.lineRange).toBeUndefined();
+    expect(plan.lineRange?.count).toBe(90);
+  });
+
   it("matches the flat scheduler through reordering, local edits and mixed group sizes", () => {
     const cache = new StockCommandGroups<TBatch, TSource>();
     let seed = 391;

@@ -150,6 +150,26 @@ describe("cached visibility of translucent order parts", () => {
     expect(readEnd.mock.calls.length).toBeLessThan(runs.length);
   });
 
+  it("keeps an untouched part validated while the whole group skips visibility revisions", () => {
+    const cache = new TranslucentVisibility();
+    const source = new Visibility();
+    const runs = [2, 8, 128, 160].map((first) => ({ source: 0, first, count: 1 }));
+    const input = [part(runs[0], runs[1]), part(runs[2], runs[3])];
+    const draw = () => cache.update(input, [source], [false], [input]).flat();
+    source.visible.add(8);
+    source.visible.add(160);
+    expect(draw()).toEqual([runs[1], runs[3]]);
+
+    for (const outside of [300, 400]) {
+      source.update(outside);
+      draw();
+    }
+    source.any.mockClear();
+    source.update(2);
+    expect(draw()).toEqual([runs[0], runs[1], runs[3]]);
+    expect(source.any.mock.calls.every(([first]) => first < 128)).toBe(true);
+  });
+
   it("seeks directly to a distant part in a long journal of visibility changes", () => {
     const cache = new TranslucentVisibility();
     const source = new Visibility();

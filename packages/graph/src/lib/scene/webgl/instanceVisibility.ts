@@ -6,6 +6,7 @@ import { STYLE_ROW_TEXELS } from "./tables";
 
 type TKind = "path" | "rect" | "triangle" | "glyph";
 export const VISIBILITY_CHUNK_SIZE = 128;
+const CHUNKS_PER_PAGE = 64;
 export type TVisibilitySpan = { first: number; end: number };
 const NO_CHANGES: readonly TVisibilitySpan[] = [];
 const LAYOUT = {
@@ -48,17 +49,19 @@ export class InstanceVisibility {
   private full = true;
   private readonly dirty = new Set<number>();
   private readonly dirtyState = new Set<number>();
+  private readonly dirtyOwners = new Map<number, number>();
   private chunks: TChunk[] = [];
   private prefix = new Uint32Array(1);
+  private readonly pages: { offset: number; count: number; from: number; to: number }[] = [];
+  private visibleCount = 0;
   public from = -Infinity;
   public to = Infinity;
 
   constructor(private readonly kind: TKind) {}
 
   public get coverage(): "none" | "partial" | "all" {
-    const active = this.prefix[this.prefix.length - 1];
-    if (active === 0) return "none";
-    return active === this.count ? "all" : "partial";
+    if (this.visibleCount === 0) return "none";
+    return this.visibleCount === this.count ? "all" : "partial";
   }
 
   /**
@@ -86,10 +89,8 @@ export class InstanceVisibility {
 
   /** An owner changed its table predicates without changing its resident instance data. */
   public invalidateOwner(ranges: InstanceRanges, id: string): void {
-    for (const { offset, count } of ranges.ownerRanges(id)) {
-      const end = Math.ceil((offset + count) / VISIBILITY_CHUNK_SIZE);
-      for (let chunk = Math.floor(offset / VISIBILITY_CHUNK_SIZE); chunk < end; chunk++) this.dirtyState.add(chunk);
-    }
+    for (const { offset, count } of ranges.ownerRanges(id))
+      this.dirtyOwners.set(offset, Math.max(offset + count, this.dirtyOwners.get(offset) ?? 0));
   }
 
   public update(
@@ -101,24 +102,46 @@ export class InstanceVisibility {
   ): void {
     const sourceChanged = this.source !== ranges;
     const changed = sourceChanged || this.revision !== ranges.revision;
+    const previousChunks = this.chunks.length;
     const predicatesChanged = changed && this.read(ranges, sourceChanged);
     const trimmedSpans = this.activityChanges.length;
     const scale = Math.fround(frame.scale);
     const all = !this.sameVisibilityState(scale, frame.level, stateRevision);
-    if (!all && !sourceChanged && !predicatesChanged && this.dirtyState.size === 0) return;
+    if (!all && !sourceChanged && !predicatesChanged && this.dirtyOwners.size === 0) return;
     this.stateRevision = stateRevision;
     this.level = frame.level;
     const level = frame.level === undefined ? 0 : LEVEL_BIT[frame.level];
-    this.from = -Infinity;
-    this.to = Infinity;
-    for (let chunk = 0; chunk < this.chunks.length; chunk++) {
-      if (all || this.dirtyState.has(chunk)) this.updateChunk(chunk, scale, level, table, styles, !sourceChanged);
-      const { from, to, count } = this.chunks[chunk];
-      this.from = Math.max(this.from, from);
-      this.to = Math.min(this.to, to);
-      this.prefix[chunk + 1] = this.prefix[chunk] + count;
+    if (all || sourceChanged || predicatesChanged) {
+      if (all || sourceChanged) {
+        for (let i = 0; i < this.chunks.length; i++) this.updateChunk(i, scale, level, table, styles, !sourceChanged);
+      } else {
+        for (const [first, end] of this.dirtyOwners) {
+          const last = Math.ceil(Math.min(end, this.count) / VISIBILITY_CHUNK_SIZE);
+          for (let i = Math.floor(first / VISIBILITY_CHUNK_SIZE); i < last; i++) this.dirtyState.add(i);
+        }
+        // Changes are published in physical order even when the uploads and table edits arrived out of order.
+        for (const i of [...this.dirtyState].sort((a, b) => a - b))
+          this.updateChunk(i, scale, level, table, styles, true);
+      }
+      const full = all || sourceChanged || this.chunks.length !== previousChunks;
+      this.updatePages(full ? undefined : this.dirtyState, true);
+    } else {
+      // A table edit cannot move scale boundaries. Update its cohorts in physical order for the change journal.
+      const sorted = [...this.dirtyOwners].sort((a, b) => a[0] - b[0]);
+      for (let at = 0; at < sorted.length; ) {
+        const [first, limit] = sorted[at++];
+        let end = limit;
+        while (at < sorted.length && sorted[at][0] <= end) end = Math.max(end, sorted[at++][1]);
+        const lastChunk = Math.ceil(Math.min(end, this.count) / VISIBILITY_CHUNK_SIZE);
+        for (let i = Math.floor(first / VISIBILITY_CHUNK_SIZE); i < lastChunk; i++) {
+          this.updateOwners(i, first, end, scale, level, table, styles);
+        }
+      }
+      for (const i of this.dirtyState) this.writeNext(i);
+      if (this.dirtyState.size) this.updatePages(this.dirtyState, false);
     }
     this.dirtyState.clear();
+    this.dirtyOwners.clear();
     if (sourceChanged || this.activityChanges.length > 0) {
       this.visibilityRevision++;
       // The removed tail was recorded before rechecking earlier slots.
@@ -128,6 +151,48 @@ export class InstanceVisibility {
       this.publishedChanges = sourceChanged ? undefined : this.activityChanges.slice();
       this.activityChanges.length = 0;
     }
+  }
+
+  /** Prefixes are page-local. Even if an edit changes every later offset, only one number per later page moves. */
+  private updatePages(dirty: ReadonlySet<number> | undefined, bounds: boolean): void {
+    this.pages.length = Math.ceil(this.chunks.length / CHUNKS_PER_PAGE);
+    const pages = dirty ? new Set(Array.from(dirty, (i) => Math.floor(i / CHUNKS_PER_PAGE))) : this.pages.keys();
+    for (const index of pages) {
+      const page = (this.pages[index] ??= { offset: 0, count: 0, from: -Infinity, to: Infinity });
+      page.count = 0;
+      if (bounds) {
+        page.from = -Infinity;
+        page.to = Infinity;
+      }
+      const end = Math.min((index + 1) * CHUNKS_PER_PAGE, this.chunks.length);
+      for (let i = index * CHUNKS_PER_PAGE; i < end; i++) {
+        const chunk = this.chunks[i];
+        page.count += chunk.count;
+        this.prefix[i + 1] = page.count;
+        if (bounds) {
+          page.from = Math.max(page.from, chunk.from);
+          page.to = Math.min(page.to, chunk.to);
+        }
+      }
+    }
+    this.visibleCount = 0;
+    if (bounds) {
+      this.from = -Infinity;
+      this.to = Infinity;
+    }
+    for (const page of this.pages) {
+      page.offset = this.visibleCount;
+      this.visibleCount += page.count;
+      if (bounds) {
+        this.from = Math.max(this.from, page.from);
+        this.to = Math.min(this.to, page.to);
+      }
+    }
+  }
+
+  /** Number visible up to and including a complete chunk. */
+  private throughChunk(index: number): number {
+    return this.pages[Math.floor(index / CHUNKS_PER_PAGE)].offset + this.prefix[index + 1];
   }
 
   public any(first: number, count: number): boolean {
@@ -140,7 +205,10 @@ export class InstanceVisibility {
     const last = Math.floor((end - 1) / VISIBILITY_CHUNK_SIZE);
     if (last === start) return false;
     // Whole middle chunks use the prefix; the last partial chunk needs only its first active offset.
-    return this.prefix[last] > this.prefix[start + 1] || this.chunks[last].next[0] < end - last * VISIBILITY_CHUNK_SIZE;
+    return (
+      this.throughChunk(last - 1) > this.throughChunk(start) ||
+      this.chunks[last].next[0] < end - last * VISIBILITY_CHUNK_SIZE
+    );
   }
 
   private isShown(cohort: TCohort, scale: number, level: number, table: Float32Array, styles: Float32Array): boolean {
@@ -296,6 +364,37 @@ export class InstanceVisibility {
     return changed;
   }
 
+  private updateOwners(
+    index: number,
+    first: number,
+    end: number,
+    scale: number,
+    level: number,
+    table: Float32Array,
+    styles: Float32Array
+  ): void {
+    const chunk = this.chunks[index];
+    const cohorts = chunk.cohorts;
+    let lo = 0;
+    let hi = cohorts.length;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (cohorts[mid].end <= first) lo = mid + 1;
+      else hi = mid;
+    }
+    let changed = false;
+    for (let i = lo; i < cohorts.length && cohorts[i].first < end; i++) {
+      const cohort = cohorts[i];
+      const active = this.isShown(cohort, scale, level, table, styles);
+      if (active === cohort.active) continue;
+      this.recordSpan(cohort.first, cohort.end);
+      chunk.count += active ? cohort.end - cohort.first : cohort.first - cohort.end;
+      cohort.active = active;
+      changed = true;
+    }
+    if (changed) this.dirtyState.add(index);
+  }
+
   private updateChunk(
     index: number,
     scale: number,
@@ -354,5 +453,72 @@ export class InstanceVisibility {
         next.fill(nearest, first, end);
       }
     }
+  }
+}
+
+/** An opaque batch draws as a whole: one shader-visible instance is enough to submit it. */
+export class OpaqueVisibility {
+  private witness = 0;
+  private absent?: { revision: number; level: number; from: number; to: number; state?: number };
+
+  constructor(private readonly kind: Exclude<TKind, "path">) {}
+
+  public any(
+    ranges: InstanceRanges,
+    table: Float32Array,
+    styles: Float32Array,
+    frame: TSceneFrame,
+    state: number
+  ): boolean {
+    const scale = Math.fround(frame.scale);
+    if (Number.isNaN(scale)) return false;
+    const level = frame.level === undefined ? 0 : LEVEL_BIT[frame.level];
+    const absent = this.absent;
+    if (
+      absent &&
+      absent.revision === ranges.revision &&
+      absent.level === level &&
+      scale >= absent.from &&
+      scale < absent.to &&
+      (absent.state === undefined || absent.state === state)
+    )
+      return false;
+
+    const data = ranges.data,
+      stride = ranges.floats;
+    const { scales, mask } = LAYOUT[this.kind];
+    let from = -Infinity,
+      to = Infinity,
+      eligible = false;
+    // Start at the previous winner. A reused physical slot must satisfy today's complete predicate.
+    let next = Math.min(this.witness, data.length);
+    for (let offset = 0; offset < data.length; offset += stride) {
+      const at = next === data.length ? 0 : next;
+      next = at + stride;
+      if (level && Math.floor((data[at + mask] % 8) / level) % 2 !== 1) continue;
+      const min = data[at + scales],
+        max = data[at + scales + 1];
+      if (!(min < max)) continue;
+      if (scale < min) to = Math.min(to, min);
+      else if (scale >= max) from = Math.max(from, max);
+      else {
+        const owner = data[at] * 4;
+        const row = table[owner + 3] * STYLE_ROW_TEXELS * 4;
+        if (
+          table[owner + 2] >= 0 &&
+          !(styles[row + data[at + 2] * 4 + 3] < -1.5) &&
+          (this.kind !== "rect" || !(styles[row + data[at + 3] * 4 + 3] < -1.5))
+        ) {
+          this.witness = at;
+          return true;
+        }
+        eligible = true;
+        from = Math.max(from, min);
+        to = Math.min(to, max);
+      }
+    }
+    // When the camera alone excludes every slot, owner and style changes cannot make the batch visible.
+    this.absent = { revision: ranges.revision, level, from, to, state: eligible ? state : undefined };
+    return false;
   }
 }

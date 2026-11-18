@@ -16,6 +16,110 @@ async function initialize(page: Page): Promise<GraphPageObject> {
   return graph;
 }
 
+test("sparse edits upload the two changed lines and restore the WebGL unpack state", async ({ page }) => {
+  await initialize(page);
+  const result = await page.evaluate(() => {
+    const { scene, scheduler, cameraService } = window.graph;
+    const backend = scene.layer.getBackend();
+    const gl = backend?.canvas.getContext("webgl2");
+    if (!backend || !gl) throw new Error("Missing WebGL backend");
+    const primitive = (index: number, color: string) => ({
+      kind: "path" as const,
+      segments: new Float32Array(
+        window.GraphModule.lineSegment({ x: 20, y: 10 + index * 8 }, { x: 100, y: 10 + index * 8 })
+      ),
+      stroke: { color, width: 4 },
+    });
+    for (let i = 0; i < 32; i++) {
+      scene.store.add({
+        id: `sparse-${i}`,
+        x: 0,
+        y: 0,
+        zIndex: 0,
+        bounds: { minX: 20, minY: 8 + i * 8, maxX: 100, maxY: 12 + i * 8 },
+        primitives: [primitive(i, "#0000ff")],
+      });
+    }
+    cameraService.set({ x: 0, y: 0, scale: 1 });
+    const render = () => {
+      scene.layer.performRender();
+      scheduler.performUpdate();
+    };
+    render();
+    type Batch = { pathRecords?: object; ranges: { revision: number; ownerRanges(id: string): unknown[] } };
+    const internal = backend as unknown as {
+      frameUploadWrites: number;
+      allBatches(): Iterable<Batch>;
+      uploadPathRecords(batch: Batch, records: object, companion: object): unknown;
+    };
+    const batch = [...internal.allBatches()].find((b) => b.pathRecords && b.ranges.ownerRanges("sparse-1").length);
+    if (!batch) throw new Error("Missing resident lines");
+    const upload = internal.uploadPathRecords;
+    const initialRevision = batch.ranges.revision;
+    const unpackBuffer = gl.createBuffer();
+    const before = [gl.UNPACK_ALIGNMENT, gl.UNPACK_ROW_LENGTH, gl.UNPACK_IMAGE_HEIGHT];
+    const unusual = [8, 71, 19];
+    let restored: number[] = [];
+    let bufferCleared = false;
+    let regions = 0;
+    // Prime immediately before the path write: another batch's texture upload can clear the PBO earlier in the frame.
+    internal.uploadPathRecords = function (next, records, companion) {
+      if (next !== batch || next.ranges.revision === initialRevision || restored.length)
+        return upload.call(this, next, records, companion);
+      const previous = before.map((key) => gl.getParameter(key) as number);
+      gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, unpackBuffer);
+      before.forEach((key, i) => gl.pixelStorei(key, unusual[i]));
+      try {
+        const beforeWrites = this.frameUploadWrites;
+        const kind = upload.call(this, next, records, companion);
+        regions = this.frameUploadWrites - beforeWrites;
+        restored = before.map((key) => gl.getParameter(key) as number);
+        bufferCleared = gl.getParameter(gl.PIXEL_UNPACK_BUFFER_BINDING) === null;
+        return kind;
+      } finally {
+        before.forEach((key, i) => gl.pixelStorei(key, previous[i]));
+        gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
+      }
+    };
+    try {
+      scene.store.update("sparse-1", { primitives: [primitive(1, "#ff0000")] });
+      scene.store.update("sparse-30", { primitives: [primitive(30, "#00ff00")] });
+      render();
+      const frame = cameraService.getCameraState();
+      const dpr = gl.drawingBufferWidth / frame.width;
+      backend.draw({ ...frame, dpr, time: 0, dimColor: scene.store.getDimColor() });
+      const pixels = [1, 15, 30].map((i) => {
+        const rgba = new Uint8Array(4);
+        gl.readPixels(
+          Math.floor((frame.x + 60 * frame.scale) * dpr),
+          gl.drawingBufferHeight - 1 - Math.floor((frame.y + (10 + i * 8) * frame.scale) * dpr),
+          1,
+          1,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          rgba
+        );
+        return Array.from(rgba);
+      });
+      return { restored, bufferCleared, regions, error: gl.getError(), pixels };
+    } finally {
+      internal.uploadPathRecords = upload;
+      gl.deleteBuffer(unpackBuffer);
+    }
+  });
+  expect(result).toEqual({
+    restored: [8, 71, 19],
+    bufferCleared: true,
+    regions: 2,
+    error: 0,
+    pixels: [
+      [255, 0, 0, 255],
+      [0, 0, 255, 255],
+      [0, 255, 0, 255],
+    ],
+  });
+});
+
 test("adding one path record after two full texture rows only uploads the local edit", async ({ page }) => {
   await initialize(page);
   const { initialBytes, editBytes, error } = await page.evaluate(() => {

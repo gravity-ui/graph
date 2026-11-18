@@ -1,15 +1,21 @@
-import { MIXED_PATH_MAX_SOURCES, mixedPathSchedule } from "./mixedPathPlan";
+import { MIXED_PATH_MAX_SOURCES, packOrderedPaths } from "./mixedPathPlan";
 import type { TLowerPathCommand } from "./mixedPathPlan";
 import type { TPathDrawGroups, TPathDrawSpan } from "./pathDrawIds";
 
 type TDraw<B> = { batch: B; first: number; count: number; curveDetail?: number };
 type TGroups<B> = readonly (readonly TDraw<B>[])[];
-type TPacked<B> = { spans: TPathDrawSpan[]; commands: TLowerPathCommand<B>[] };
-type TPlan<B, S> = TPacked<B> & { sources: (S & { tie: number })[]; spanGroups: TPathDrawGroups };
+type TPacked<B> = { linesOnly?: boolean; spans: TPathDrawSpan[]; commands: TLowerPathCommand<B>[] };
+type TPlan<B, S> = {
+  sources: (S & { tie: number })[];
+  spans: TPathDrawSpan[];
+  commands: TLowerPathCommand<B>[];
+  spanGroups: TPathDrawGroups;
+  lineRange?: TPathDrawSpan;
+};
 type TFragment<B> = {
   bindings: TDraw<B>[];
   bindingOf: number[];
-  selectors: number[];
+  selectors: (number | undefined)[];
   ordinary: number;
   packed?: TPacked<B>;
 };
@@ -58,6 +64,9 @@ function joinSpans<B>(groups: readonly TPacked<B>[]): TPathDrawSpan[] {
 function assemble<B, S>(packed: readonly TPacked<B>[], sources: S[], ordinary: number): TPlan<B, S> | undefined {
   const commands: TLowerPathCommand<B>[] = [];
   let offset = 0;
+  let lineStart = 0;
+  let longestStart = 0;
+  let longestCount = 0;
   for (const group of packed) {
     for (const command of group.commands) {
       const previous = commands[commands.length - 1];
@@ -67,12 +76,18 @@ function assemble<B, S>(packed: readonly TPacked<B>[], sources: S[], ordinary: n
       } else commands.push(command.native === undefined ? { first, count: command.count } : command);
       if (command.native === undefined) offset += command.count;
     }
+    if (!group.linesOnly) lineStart = offset;
+    else if (offset - lineStart > longestCount) {
+      longestStart = lineStart;
+      longestCount = offset - lineStart;
+    }
   }
   if (commands.length + 16 > ordinary) return undefined;
   let spans: TPathDrawSpan[] | undefined;
   return {
     sources: sources.map((source, tie) => ({ ...source, tie })),
     commands,
+    lineRange: longestCount ? { first: longestStart, count: longestCount } : undefined,
     spanGroups: packed.map((group) => group.spans),
     get spans() {
       return (spans ??= joinSpans(packed));
@@ -106,10 +121,12 @@ export class StockCommandGroups<B extends { pathRecords?: unknown }, S extends {
       ordinary += fragment.ordinary - Number(sameOrdinary(previous, draws[0]));
       previous = draws[draws.length - 1];
 
+      let linesOnly = true;
       for (let i = 0; i < fragment.bindings.length; i++) {
         const { batch, curveDetail } = fragment.bindings[i];
         const source = batch.pathRecords ? classify(batch, curveDetail) : undefined;
-        let slot = -1;
+        linesOnly &&= source?.chords === 1;
+        let slot: number | undefined;
         if (source) {
           slot = sources.findIndex((other) => other.records === source.records && other.chords === source.chords);
           if (slot < 0) {
@@ -127,13 +144,10 @@ export class StockCommandGroups<B extends { pathRecords?: unknown }, S extends {
       }
       if (!fragment.packed) {
         reuse = false;
-        fragment.packed = mixedPathSchedule(
-          draws.map((draw, i) => {
-            const slot = fragment.selectors[fragment.bindingOf[i]];
-            const { first, count } = draw;
-            const range = { key: i, sub: 0, tie: 0, first, count };
-            return slot === -1 ? { ...range, native: draw.batch } : { ...range, source: slot };
-          })
+        fragment.packed = packOrderedPaths(
+          draws,
+          (_, i) => fragment.selectors[fragment.bindingOf[i]],
+          (draw) => draw.batch
         );
         if (!fragment.packed) {
           this.last = undefined;
@@ -141,6 +155,7 @@ export class StockCommandGroups<B extends { pathRecords?: unknown }, S extends {
         }
       }
       // A later selector change replaces the fragment schedule; this plan retains the original.
+      fragment.packed.linesOnly = linesOnly;
       packed.push(fragment.packed);
     }
     const last = this.last;

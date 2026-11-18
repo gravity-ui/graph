@@ -113,6 +113,7 @@ type TSourceOrder = { source: InstanceRanges; positions: TPainterPosition[]; den
 type TOrderWindow = {
   parts: TTranslucentPart[];
   incoming?: TTranslucentPart;
+  body?: TTranslucentPart[];
   groups: TTranslucentPart[][];
   tail?: TTranslucentPart;
 };
@@ -489,12 +490,12 @@ function joinPart(a: TTranslucentRun, b: TTranslucentRun, state: TOrderChunks): 
   return joined;
 }
 
-type TRetainedPage = { entries: TBucket[]; order: TOrderPage };
+type TRetainedPage = { entries: TTranslucentRun[]; order: TOrderPage };
 
 type TRetainedOrder = {
   layout: number;
   levelRevision: number | undefined;
-  byFirst: Map<number, TBucket>;
+  bucketAt: Map<number, number>;
   physical: Map<number, Map<number, TRetainedPage>>;
   ordered: TSourceOrder;
 };
@@ -656,26 +657,55 @@ function patchPositions(order: TSourceOrder, changes: Map<number, TPageChange[]>
 
 const EMPTY_PART: TTranslucentPart = { runs: [], first: 0, end: 0 };
 
-function retainedPage(physical: TRetainedOrder["physical"], entry: TBucket): TRetainedPage {
-  const key = physicalPage(entry.first);
+function retainedPage(physical: TRetainedOrder["physical"], first: number, bucket: number): TRetainedPage {
+  const key = physicalPage(first);
   let page = physical.get(key);
   if (!page) physical.set(key, (page = new Map()));
-  let position = page.get(entry.bucket);
+  let position = page.get(bucket);
   if (!position) {
-    position = { entries: [], order: { bucket: entry.bucket, page: key, from: 0, to: 0, part: EMPTY_PART } };
-    page.set(entry.bucket, position);
+    position = { entries: [], order: { bucket, page: key, from: 0, to: 0, part: EMPTY_PART } };
+    page.set(bucket, position);
   }
   return position;
 }
 
-function finishPage(index: number, page: TRetainedPage): TOrderPage {
+function firstSlot(entries: TTranslucentRun[], first: number): number {
+  let lo = 0;
+  let hi = entries.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (entries[mid].first < first) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function finishPage(page: TRetainedPage): TOrderPage {
   const { entries, order } = page;
+  // An isolated owner range is already a draw. Only joined neighbors need another object.
+  const previous = order.part.runs;
+  let prior = 0;
+  const runs: TTranslucentRun[] = [];
+  for (let i = 0; i < entries.length; ) {
+    const entry = entries[i++];
+    let end = entry.first + entry.count;
+    while (i < entries.length && entries[i].first === end) end += entries[i++].count;
+    if (end === entry.first + entry.count) runs.push(entry);
+    else {
+      while (prior < previous.length && previous[prior].first < entry.first) prior++;
+      const old = previous[prior];
+      const count = end - entry.first;
+      runs.push(
+        old?.first === entry.first && old.count === count ? old : { source: entry.source, first: entry.first, count }
+      );
+    }
+  }
   return (page.order = {
     bucket: order.bucket,
     page: order.page,
     from: 0,
     to: entries.length,
-    part: pagePart(index, entries, 0, entries.length),
+    part: { runs, first: 0, end: runs.length },
   });
 }
 
@@ -688,14 +718,13 @@ function readRetainedSource(
   state: TOrderChunks,
   before?: TRetainedOrder
 ): TRetainedOrder {
-  const byFirst = new Map<number, TBucket>();
+  const bucketAt = new Map<number, number>();
   const physical = new Map<number, Map<number, TRetainedPage>>();
   const pages: TOrderPage[] = [];
   source.forEachRange((id, first, count, step) => {
     const bucket = bucketOf(levelOf(id), step, subBits);
-    const entry = { bucket, first, count };
-    byFirst.set(first, entry);
-    retainedPage(physical, entry).entries.push(entry);
+    bucketAt.set(first, bucket);
+    retainedPage(physical, first, bucket).entries.push({ source: index, first, count });
   });
   for (const [key, at] of physical) {
     for (const [bucket, page] of at) {
@@ -705,17 +734,17 @@ function readRetainedSource(
       if (
         old &&
         entries.length === old.entries.length &&
-        entries.every((entry, i) => sameBucket(entry, old.entries[i]))
-      )
-        page.order = old.order;
-      else finishPage(index, page);
-      pages.push(page.order);
+        entries.every((entry, i) => entry.first === old.entries[i].first && entry.count === old.entries[i].count)
+      ) {
+        at.set(bucket, old);
+        pages.push(old.order);
+      } else pages.push(finishPage(page));
     }
   }
   return {
     layout: source.layoutRevision,
     levelRevision,
-    byFirst,
+    bucketAt,
     physical,
     ordered: sourceOrder(source, pages.sort(compareOrderPages), state, before?.ordered),
   };
@@ -749,25 +778,23 @@ function patchRetainedPages(
       replacements.set(first, { first, count, bucket: bucketOf(level, step, subBits) });
   }
   // Group by the exact former and new painter buckets. Other buckets sharing the same physical page keep their runs.
-  if (replacements.size > ORDER_PAGE_SLOTS && replacements.size * 2 > snapshot.byFirst.size) return false;
+  if (replacements.size > ORDER_PAGE_SLOTS && replacements.size * 2 > snapshot.bucketAt.size) return false;
   const dirty = new Set<TRetainedPage>();
   for (const [first, next] of replacements) {
-    const old = snapshot.byFirst.get(first);
-    if (old && next && sameBucket(old, next)) continue;
-    if (old) {
-      const page = retainedPage(snapshot.physical, old);
-      const entries = page.entries;
-      const at = entries.indexOf(old);
-      entries[at] = entries[entries.length - 1];
-      entries.pop();
+    const bucket = snapshot.bucketAt.get(first);
+    if (bucket !== undefined) {
+      const page = retainedPage(snapshot.physical, first, bucket);
+      const at = firstSlot(page.entries, first);
+      if (next?.bucket === bucket && next.count === page.entries[at].count) continue;
+      page.entries.splice(at, 1);
       dirty.add(page);
     }
     if (next) {
-      snapshot.byFirst.set(first, next);
-      const page = retainedPage(snapshot.physical, next);
-      page.entries.push(next);
+      snapshot.bucketAt.set(first, next.bucket);
+      const page = retainedPage(snapshot.physical, first, next.bucket);
+      page.entries.splice(firstSlot(page.entries, first), 0, { source: index, first, count: next.count });
       dirty.add(page);
-    } else snapshot.byFirst.delete(first);
+    } else snapshot.bucketAt.delete(first);
   }
   snapshot.layout = layout;
   snapshot.levelRevision = levelRevision;
@@ -777,8 +804,7 @@ function patchRetainedPages(
     let order = changes.get(bucket);
     if (!order) changes.set(bucket, (order = []));
     if (page.entries.length) {
-      page.entries.sort((a, b) => a.first - b.first);
-      order.push({ page: key, next: finishPage(index, page) });
+      order.push({ page: key, next: finishPage(page) });
     } else {
       const at = snapshot.physical.get(key);
       at?.delete(bucket);
@@ -886,26 +912,28 @@ function materializeParts(
   state.dirty.clear();
   const groups: (readonly TTranslucentPart[])[] = [];
   let tail: TTranslucentPart | undefined;
+  const bodies: TTranslucentPart[][] = [];
   for (const [, window] of [...state.windows].sort((a, b) => a[0] - b[0])) {
-    if (!window.tail || window.incoming !== tail) {
+    if (!window.body || window.incoming !== tail) {
       const parts = tail ? [tail] : [];
       appendGroup(parts, window.parts, state);
       window.tail = parts.pop();
       window.incoming = tail;
       window.groups = partGroups(parts, window.groups);
+      window.body = parts;
     }
     for (const group of window.groups) groups.push(group);
+    bodies.push(window.body);
     tail = window.tail;
   }
   if (tail) {
+    bodies.push([tail]);
     const last = cache.partGroups?.at(-1);
     groups.push(last?.length === 1 && last[0] === tail ? last : [tail]);
   }
   cache.partGroups = groups;
-  // Keep the flat representation used by the unfiltered pass and by existing renderer diagnostics.
-  const parts: TTranslucentPart[] = [];
-  for (const group of groups) for (const part of group) parts.push(part);
-  return parts;
+  // Each window already has its canonical body, including the incoming seam and excluding its outgoing tail.
+  return bodies.flat();
 }
 
 /** Materialize only changed ranges and keep exact raw joins before the visibility filter sees them. */

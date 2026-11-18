@@ -2,7 +2,7 @@ import { Buffer, Texture, getAttributeInfosFromLayouts, luma } from "@luma.gl/co
 import type { BufferLayout, Device, Framebuffer, RenderPass, RenderPipelineParameters } from "@luma.gl/core";
 import { DynamicBuffer, Model } from "@luma.gl/engine";
 import type { ShaderPlugin } from "@luma.gl/shadertools";
-import { WEBGLBuffer, WEBGLVertexArray, webgl2Adapter } from "@luma.gl/webgl";
+import { WEBGLBuffer, WEBGLTexture, WEBGLVertexArray, webgl2Adapter, withGLParameters } from "@luma.gl/webgl";
 import { untracked, effect as watch } from "@preact/signals-core";
 
 import {
@@ -58,7 +58,7 @@ import { GLYPH_FLOATS, GLYPH_SUB_FLOATS, encodeText, writeTextGlyphs } from "./e
 import type { TTextEncodeInput, TTextGlyphPlaces } from "./encodeText";
 import { TRIANGLE_FLOATS, encodeTriangles, isFilledTriangle } from "./encodeTriangles";
 import { GlyphAtlas, glyphRun } from "./glyphs";
-import { InstanceVisibility } from "./instanceVisibility";
+import { InstanceVisibility, OpaqueVisibility } from "./instanceVisibility";
 import { CachedGeometryBounds, MIN_CAMERA_SCALE, geometryBounds } from "./levelBounds";
 import { firstOverlappingOwnerRange, updateMixedOwnerRanges } from "./mixedOwnerRanges";
 import type { TMixedOwnerRange, TMixedOwnerSnapshot } from "./mixedOwnerRanges";
@@ -165,6 +165,7 @@ const COMPANION_SUB_FLOAT: Record<TCompanion["kind"], number> = { elements: SUB_
 
 /** Per-element instances of one program and pass, their GPU buffer and the model that draws them. */
 type TBatch = {
+  opaqueVisibility?: OpaqueVisibility;
   ranges: InstanceRanges;
   buffer: DynamicBuffer;
   /** Path and glyph batches: the companion list of the instances (`TCompanion`), kept in step with `ranges`. */
@@ -239,8 +240,9 @@ type TMixedDraw = TInstancePointerTarget & {
 type TPreparedMixed = { plan: TMixedPlan; draw: TMixedDraw; target: Framebuffer; upload: TUploadKind };
 type TStockPlan = Pick<TMixedPlan, "sources" | "spans" | "commands"> & {
   spanGroups?: TPathDrawGroups;
+  lineRange?: TPathDrawSpan;
 };
-type TPreparedStock = { plan: TStockPlan; draw: TMixedDraw; upload: TUploadKind };
+type TPreparedStock = { plan: TStockPlan; draw: TMixedDraw; upload: TUploadKind; lineRange?: TPathDrawSpan };
 
 function stockGroup(group: TPathGroup | undefined): boolean {
   return Boolean(
@@ -645,6 +647,7 @@ class WebGLSceneBackend implements ISceneBackend {
   private scheduleRevision = 0;
   /** External shader visibility inputs; geometry and numeric painter keys do not change these predicates. */
   private visibilityStateRevision = 0;
+  private opaqueOwnerRevision = 0;
   private readonly visibilityOwners = new Set<string>();
   private mixedRootsSeparated?: boolean;
   private readonly mixedResizes: TMixedResize<TBatch>[] = [];
@@ -697,6 +700,7 @@ class WebGLSceneBackend implements ISceneBackend {
   private readonly translucentVisibility = new TranslucentVisibility();
   private activeGroups: readonly (readonly TTranslucentRun[])[] = [];
   private readonly preparedGroups = new PreparedTranslucentDraws<TBatch>();
+  private readonly groupVertexCounts = new WeakMap<readonly TDraw[], number>();
   private readonly groupCounts = new StockDrawGroups();
   private activeDrawGroups = 0;
   private activeOwners: ReturnType<typeof translucentRunOwners> = [];
@@ -943,6 +947,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.depth.renumber();
     this.subs = 2 ** this.depth.subBits;
     if (this.visibilityOwners.size) {
+      this.opaqueOwnerRevision++;
       for (const batch of this.allBatches()) {
         const visibility = this.visibility.get(batch);
         if (!visibility) continue;
@@ -972,6 +977,14 @@ class WebGLSceneBackend implements ISceneBackend {
     let translucentDraws = this.translucentFrameDraws;
     this.cullingDrawCount = 0;
     for (const batch of this.passBatches("opaque")) {
+      if (!batch.pathRecords && batch.ranges.count) {
+        batch.opaqueVisibility ??= new OpaqueVisibility(
+          batch.companion?.kind === "subs" ? "glyph" : batch.ranges.floats === TRIANGLE_FLOATS ? "triangle" : "rect"
+        );
+        const stateRevision = this.opaqueOwnerRevision + this.visibilityStateRevision;
+        if (!batch.opaqueVisibility.any(batch.ranges, this.table.data, this.styles.data, frame, stateRevision))
+          continue;
+      }
       this.appendVisibleDraws(opaqueDraws, batch, frame, 0, batch.ranges.count);
     }
     opaqueDraws.length = this.cullingDrawCount;
@@ -2792,7 +2805,18 @@ class WebGLSceneBackend implements ISceneBackend {
     connectionOnly: boolean
   ): boolean {
     let remaining = MIN_MIXED_CONNECTION_VERTICES;
-    for (const draws of [opaque, translucent]) {
+    const grouped = !connectionOnly && translucent !== this.translucentFrameDraws;
+    const lists = grouped ? [opaque, ...this.preparedGroups.ordered] : [opaque, translucent];
+    for (const draws of lists) {
+      // Prepared groups keep their instance counts and curve detail. Connection ownership may change independently.
+      const cache = grouped && draws !== opaque ? this.groupVertexCounts : undefined;
+      const cached = cache?.get(draws);
+      if (cached !== undefined) {
+        remaining -= cached;
+        if (remaining <= 0) return true;
+        continue;
+      }
+      const before = remaining;
       for (const draw of draws) {
         const { batch } = draw;
         if (!batch.pathRecords) continue;
@@ -2801,6 +2825,7 @@ class WebGLSceneBackend implements ISceneBackend {
         remaining -= vertices * (connectionOnly ? this.connectionInstances(draw) : draw.count);
         if (remaining <= 0) return true;
       }
+      cache?.set(draws, before - remaining);
     }
     return false;
   }
@@ -2850,7 +2875,12 @@ class WebGLSceneBackend implements ISceneBackend {
     translucent: readonly TDraw[]
   ): TPreparedMixed | undefined {
     // Reject light workloads before inspecting ownership or allocating the target.
-    if (!this.pathGroupsOf.size || !this.hasMixedVertexWork(opaque, translucent, false)) return undefined;
+    if (
+      this.mixedRootsSeparated === false ||
+      !this.pathGroupsOf.size ||
+      !this.hasMixedVertexWork(opaque, translucent, false)
+    )
+      return undefined;
     this.mixedTextureUnits ??= this.gl.getContextAttributes()?.antialias
       ? (this.gl.getParameter(this.gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) as number)
       : 0;
@@ -3173,23 +3203,38 @@ class WebGLSceneBackend implements ISceneBackend {
       draw.buffer.write(changed.data, changed.byteOffset);
       this.countUpload(changed.data.byteLength);
     }
-    return { plan, draw, upload };
+    return { plan, draw, upload, lineRange: overview ? undefined : plan.lineRange };
   }
 
   private drawStockPaths(
     pass: RenderPass,
-    { plan, draw }: TPreparedStock,
+    { plan, draw, lineRange }: TPreparedStock,
     nativeRuns: readonly TDraw[][],
     frame: TSceneFrame
   ): void {
     this.setPathSources(draw, plan.sources);
+    const vertices = draw.model.vertexCount;
+    // A line needs just the first four strip vertices. Bound the extra submissions to two for the entire plan.
+    const split =
+      lineRange && lineRange.count * (vertices - 4) >= MIN_MIXED_CONNECTION_VERTICES ? lineRange : undefined;
+    const submit = (first: number, end: number): void => {
+      if (first === end) return;
+      this.pointInstances(draw, first);
+      this.drawInstances(pass, draw, frame, end - first);
+    };
     let nativeIndex = 0;
     for (const command of plan.commands) {
       if (command.native) this.drawPrepared(pass, nativeRuns[nativeIndex++], frame);
       else {
         const first = draw.ids.offset(command.first);
-        this.pointInstances(draw, first);
-        this.drawInstances(pass, draw, frame, draw.ids.offset(command.first + command.count) - first);
+        const end = draw.ids.offset(command.first + command.count);
+        if (split && first <= split.first && split.first + split.count <= end) {
+          submit(first, split.first);
+          draw.model.setVertexCount(4);
+          submit(split.first, split.first + split.count);
+          draw.model.setVertexCount(vertices);
+          submit(split.first + split.count, end);
+        } else submit(first, end);
       }
     }
   }
@@ -3583,9 +3628,31 @@ class WebGLSceneBackend implements ISceneBackend {
       payload = { kind: "full" };
     }
     const writes = pathRecordWrites(batch.ranges.data, companion.ranges.data, payload, elements, records.texture.width);
-    for (const { data, ...region } of writes) {
-      records.texture.writeData(data, region);
-      this.countUpload(data.byteLength);
+    const texture = records.texture;
+    if (writes.length > 1 && texture instanceof WEBGLTexture) {
+      const gl = this.gl;
+      // These RGBA32F rectangles are tightly packed. All regions of this texture share their unpack state.
+      gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
+      withGLParameters(
+        gl,
+        { [gl.UNPACK_ALIGNMENT]: 1, [gl.UNPACK_ROW_LENGTH]: 0, [gl.UNPACK_IMAGE_HEIGHT]: 0, nocatch: false },
+        () => {
+          gl.bindTexture(gl.TEXTURE_2D, texture.handle);
+          try {
+            for (const { x, y, width, height, data } of writes) {
+              gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, width, height, gl.RGBA, gl.FLOAT, data, 0);
+              this.countUpload(data.byteLength);
+            }
+          } finally {
+            gl.bindTexture(gl.TEXTURE_2D, null);
+          }
+        }
+      );
+    } else {
+      for (const { data, ...region } of writes) {
+        texture.writeData(data, region);
+        this.countUpload(data.byteLength);
+      }
     }
     return UPLOAD_COST[payload.kind] >= UPLOAD_COST[elements.kind] ? payload.kind : elements.kind;
   }

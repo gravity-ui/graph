@@ -98,6 +98,71 @@ async function anchorPoint(page: Page, blockId: string, anchorId: string): Promi
 }
 
 test.describe("Scene blocks with the WebGL renderer", () => {
+  test("skips wholly hidden opaque fills and glyphs and draws them again at their visible scale", async ({ page }) => {
+    const graph = new GraphPageObject(page);
+    await graph.initialize({ ...CONFIG, blocks: [] });
+    test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+    await expect.poll(() => rendererState(page)).toBe("webgl");
+    const result = await page.evaluate(() => {
+      const { scene, cameraService, scheduler } = window.graph;
+      const backend = scene.layer.getBackend();
+      if (!backend) throw new Error("Missing backend");
+      type Batch = { ranges: { count: number } };
+      const { glyphs, rects, triangles, opaqueFrameDraws } = backend as unknown as {
+        glyphs: { opaque: Batch };
+        rects: { opaque: Batch };
+        triangles: { opaque: Batch };
+        opaqueFrameDraws: { batch: Batch }[];
+      };
+      const batches = [rects.opaque, triangles.opaque, glyphs.opaque];
+      const visible = () => {
+        scene.layer.performRender();
+        scheduler.performUpdate();
+        return batches.map((batch) => opaqueFrameDraws.some((draw) => draw.batch === batch));
+      };
+      for (const [index, id] of ["one", "two"].entries()) {
+        scene.store.add({
+          id,
+          x: 100 * index,
+          y: 0,
+          zIndex: index,
+          bounds: { minX: 0, minY: 0, maxX: 100, maxY: 100 },
+          primitives: [
+            { kind: "rect", x: 10, y: 10, width: 20, height: 20, fill: "#ff0000", minScale: 0.3 },
+            { kind: "polygon", points: new Float32Array([35, 10, 55, 10, 45, 30]), fill: "#00ff00", minScale: 0.3 },
+            {
+              kind: "text",
+              x: 10,
+              y: 40,
+              width: 100,
+              text: "Live",
+              family: "sans-serif",
+              size: 16,
+              lineHeight: 20,
+              color: "#0000ff",
+              minScale: 0.3,
+            },
+          ],
+        });
+      }
+      cameraService.set({ scale: 0.5, x: 0, y: 0 });
+      const showing = visible();
+      const resident = batches.map((batch) => batch.ranges.count);
+      cameraService.set({ scale: 0.1, x: 0, y: 0 });
+      const outOfScale = visible();
+      cameraService.set({ scale: 0.5, x: 0, y: 0 });
+      scene.store.update("one", { hidden: true });
+      const partial = visible();
+      scene.store.update("two", { hidden: true });
+      const allHidden = visible();
+      scene.store.update("one", { hidden: false });
+      return { showing, resident, outOfScale, partial, allHidden, restored: visible() };
+    });
+    expect(result.resident.every((count) => count >= 2)).toBe(true);
+    for (const state of [result.showing, result.partial, result.restored]) expect(state).toEqual([true, true, true]);
+    for (const state of [result.outOfScale, result.allHidden]) expect(state).toEqual([false, false, false]);
+  });
+
   test("retains visibility after geometry edits and refreshes hidden owners, nesting and parts", async ({ page }) => {
     const graph = new GraphPageObject(page);
     await graph.initialize({ ...CONFIG, blocks: [] });
