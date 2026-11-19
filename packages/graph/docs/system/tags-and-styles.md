@@ -123,7 +123,7 @@ remove(); // removes exactly these rules
 | `root` | These graph-wide tags are on. |
 | `scope` | Where the rule applies, like a media query: `levels` (scene levels) and `minScale` / `maxScale` (`[min, max)`). |
 | `priority` | Higher applies later and wins, over theme and user rules alike; at equal priority theme rules come first, then registration order. Default 0. |
-| `style` | `{ parts?, raise?, dim?, opacity?, motion?, outline? }`, or a function of the entity's tag values returning the same. |
+| `style` | `{ parts?, raise?, dim?, opacity?, motion? }`, or a function of the entity's tag values returning the same. |
 
 A part value (`TScenePartStyle`) is `color`, `visible`, `width` (stroke or border), `scale` (circle radius factor),
 `dim`, `opacity`, `cameraAware` (the mode of the part's texts) and `effect` (WebGL paths). `raise` is added to the element's `zIndex` bucket
@@ -148,29 +148,6 @@ applies the same motion to its background, border and content while `GraphBlockA
 Switching between the scene and HTML preserves the progress of the animation, including its resting position
 after it ends. See [Bounce or shake on hover](../components/block-component.md#bounce-or-shake-on-hover)
 and [the interactive example](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-block-hover--bounce-and-shake).
-
-**`outline`** sets the color and world-unit stroke width of the exterior contour of a block and its visible circular
-anchors. An optional `outline.halo: { color, width }` adds a soft static edge. Its width is the reach beyond the rim, in world units. The last matching rule that sets `outline` wins. Use `null` to disable an earlier outline. The same tag,
-root, level and scale filters apply as for other block styles. This rule outlines selected blocks at schematic and
-detailed zoom.
-
-```ts
-import { CanvasBlock, selectedTag } from "@gravity-ui/graph";
-
-graph.scene.styles.add([
-  {
-    target: CanvasBlock,
-    tags: [selectedTag],
-    scope: { levels: ["schematic", "detailed"] },
-    style: { outline: { color: "#2860ba", width: 3 } },
-  },
-]);
-```
-
-While the outline applies, it replaces the stock rectangular border. Canvas 2D, WebGL and React `GraphBlock` use
-the same rule. See [Outline a block and its anchors](../components/block-component.md#outline-a-block-and-its-anchors)
-for the supported shapes and [Block styles / Selection outline](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-block-outline--selected)
-to compare renderers.
 
 **`cameraAware`** (`true` or `false`) turns the camera-aware mode of the part's texts on or off (see
 [Text primitives](scene.md#text-primitives)): on, a text's `size` is in screen pixels and the text re-fits its box as

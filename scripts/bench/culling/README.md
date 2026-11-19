@@ -87,10 +87,10 @@ pnpm --filter @gravity-ui/graph-storybook exec storybook dev -p 6017
 Run the selection benchmark from the worktree root in another terminal.
 
 ```sh
-node scripts/bench/etl-block-highlight.mjs /tmp/etl-highlight.json 3
+node scripts/bench/etl-selection-drag.mjs /tmp/etl-selection-drag.json 3
 ```
 
-The runner compares four highlight modes on Canvas and WebGL with Live, HTML cards and the minimap off.
+The runner compares group selection and drag on Canvas and WebGL with Live, HTML cards and the minimap off.
 It selects the 19 stages in pipeline `p01`, then drags the selection with pointer input at 60 Hz.
 The JSON separates the selection action (`select`), its following frame (`selectionPresent`) and the drag.
 For a slow drag, compare the browser frame interval (`p95`), synchronous scene update (`scene95`) and time

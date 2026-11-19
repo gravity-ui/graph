@@ -131,30 +131,6 @@ describe("Block in the scene", () => {
     expect(graph.scene.compareOrder(view("a"), view("b"))).toBeGreaterThan(0);
   });
 
-  it("tracks a selected block's outline while moving, restyling and deselecting it", () => {
-    graph.api.selectBlocks(["a"], true);
-    const remove = graph.scene.styles.add([
-      {
-        target: Block,
-        tags: [selectedTag],
-        style: { outline: { color: "#1234ab", width: 3 } },
-      },
-    ]);
-    const outline = (id: string) =>
-      graph.scene.store.childrenOf(entityKey("block", id)).find((child) => child.entityType === "block-outline");
-    frames();
-    const paths = outline("a")?.primitives;
-    expect(paths?.[0]).toMatchObject({ kind: "path", stroke: { color: "#1234ab", width: 3 } });
-    expect(outline("b")).toBeUndefined();
-    graph.api.updateBlock({ id: "a", x: 350 });
-    frames();
-    expect(outline("a")?.x).toBe(350);
-    expect(outline("a")?.primitives).toBe(paths);
-    remove();
-    frames();
-    expect(outline("a")).toBeUndefined();
-  });
-
   it("puts a dragged block in the theme's raised bucket", () => {
     // The dragging tag follows DragService's state.
     const idle = graph.dragService.$state.value;

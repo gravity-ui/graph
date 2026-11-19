@@ -1,5 +1,5 @@
 // Run against an already running Storybook, from the worktree root:
-// node scripts/bench/etl-block-highlight.mjs /tmp/etl-outline.json [repetitions]
+// node scripts/bench/etl-selection-drag.mjs /tmp/etl-selection-drag.json [repetitions]
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { setTimeout as wait } from "node:timers/promises";
@@ -9,7 +9,6 @@ const [output, repeatCount = "3"] = process.argv.slice(2);
 if (!output) throw new Error("Pass an output JSON path");
 const rounds = Number(repeatCount);
 assert(Number.isInteger(rounds) && rounds > 0);
-const modes = ["off", "base", "outline", "outline-and-halo"];
 const sceneURL = "http://localhost:6017/iframe.html?id=canvas-sceneeffects--etl-at-scale&viewMode=story";
 const scenario = {
   sceneURL,
@@ -266,109 +265,87 @@ const browser = await chromium.launch({
 const results = [];
 try {
   for (let round = 0; round < rounds; round++) {
-    for (let i = 0; i < modes.length; i++) {
-      const mode = modes[(i + round) % modes.length];
-      for (const renderer of i % 2 ? ["webgl", "canvas"] : ["canvas", "webgl"]) {
-        const page = await browser.newPage({ viewport: scenario.viewport, deviceScaleFactor: scenario.dpr });
-        const errors = [];
-        page.on("pageerror", (e) => errors.push(e.message));
-        await page.addInitScript(installSampler);
-        const args = {
-          blockCount: 10000,
-          connectionCount: 10000,
-          renderer,
-          view: "pipeline",
-          html: "!false",
-          minimap: "!false",
-          live: "!false",
-          blockHighlight: mode,
-        };
-        await page.goto(
-          sceneURL +
-            "&args=" +
-            Object.entries(args)
-              .map(([k, v]) => k + ":" + v)
-              .join(";")
-        );
-        await page.waitForFunction(findGraph, renderer, { timeout: 120000 });
-        await page.waitForTimeout(1200);
-        const config = await page.evaluate(setup);
-        assert.equal(await page.locator("[data-block-highlight]").getAttribute("data-block-highlight"), mode);
-        assert.equal(config.ids.length, 19);
-        assert(config.inside && !config.layers.some((id) => id.includes("MiniMap")));
-        await page.evaluate(selectFrames, 3);
-        await page.evaluate(() => {
-          window.benchIntervals.length = 0;
-        });
-        await page.evaluate(selectFrames, scenario.selectionActions);
-        await page.evaluate(() => window.benchSelect(true));
-        await page.waitForTimeout(180);
-        const paints = await page.evaluate(() => {
-          const g = window.benchGraph;
-          const entries = [];
-          g.scene.store.forEach((el) => {
-            if (el.entityType === "block-outline") entries.push(el.primitives.length);
-          });
-          const member = g.rootStore.blocksList.$blocks.peek().find((b) => b.$selected.peek());
-          const owner = g.scene.store.get(member.getViewComponent().getSceneElementId());
-          return {
-            entries,
-            outline: g.scene.store.getStyles()[owner.styleId].outline ?? null,
-            selected: g.selectionService.$selectedComponents.peek().length,
-          };
-        });
-        assert.equal(paints.selected, 19);
-        assert.equal(Boolean(paints.outline?.halo), mode === "outline-and-halo");
-        if (mode === "off" || mode === "base") assert.equal(paints.entries.length, 0);
-        else assert.equal(paints.entries.length, 19);
-        const { delta, sourceMs, steps } = await drag(page, ...scenario.pointerDeltaCSS);
-        const result = await page.evaluate(() => ({
-          samples: window.benchIntervals,
-          moves: window.benchMoves,
-          inputs: window.benchInputs,
-        }));
-        assert.equal(result.samples.filter((r) => r.phase === "select").length, 30);
-        const dragSamples = result.samples.filter((r) => r.phase === "drag");
-        const totalTime = (key) => dragSamples.reduce((sum, r) => sum + r[key], 0);
-        assert(dragSamples.length >= 2 && result.moves >= 2 && result.moves <= steps);
-        assert(Math.abs(totalTime("interval") - totalTime("elapsed")) < 40, "rAF clocks disagree over the drag");
-        assert(totalTime("elapsed") > 850 && totalTime("elapsed") < 1600 && sourceMs < 1600, "input timing drift");
-        assert.deepEqual(errors, []);
-        if (results.length) {
-          assert.deepEqual(config.ids, results[0].config.ids);
-          assert.deepEqual(config.handle, results[0].config.handle);
-          assert.deepEqual(config.camera, results[0].config.camera);
-          assert.deepEqual(delta, results[0].delta);
-        }
-        results.push({ round, renderer, mode, config, delta, sourceMs, steps, paints, ...result });
-        const metrics = Object.fromEntries(
-          ["select", "selectionPresent", "drag"].map((phase) => [
-            phase,
-            summary(result.samples.filter((r) => r.phase === phase)),
-          ])
-        );
-        writeFileSync(output, JSON.stringify({ browser: browser.version(), scenario, results }));
-        console.log(JSON.stringify({ round, renderer, mode, delta, moves: result.moves, ...metrics }));
-        await page.close();
+    for (const renderer of round % 2 ? ["webgl", "canvas"] : ["canvas", "webgl"]) {
+      const page = await browser.newPage({ viewport: scenario.viewport, deviceScaleFactor: scenario.dpr });
+      const errors = [];
+      page.on("pageerror", (e) => errors.push(e.message));
+      await page.addInitScript(installSampler);
+      const args = {
+        blockCount: 10000,
+        connectionCount: 10000,
+        renderer,
+        view: "pipeline",
+        html: "!false",
+        minimap: "!false",
+        live: "!false",
+      };
+      await page.goto(
+        sceneURL +
+          "&args=" +
+          Object.entries(args)
+            .map(([k, v]) => k + ":" + v)
+            .join(";")
+      );
+      await page.waitForFunction(findGraph, renderer, { timeout: 120000 });
+      await page.waitForTimeout(1200);
+      const config = await page.evaluate(setup);
+      assert.equal(config.ids.length, 19);
+      assert(config.inside && !config.layers.some((id) => id.includes("MiniMap")));
+      await page.evaluate(selectFrames, 3);
+      await page.evaluate(() => {
+        window.benchIntervals.length = 0;
+      });
+      await page.evaluate(selectFrames, scenario.selectionActions);
+      await page.evaluate(() => window.benchSelect(true));
+      await page.waitForTimeout(180);
+      assert.equal(
+        await page.evaluate(() => window.benchGraph.selectionService.$selectedComponents.peek().length),
+        config.ids.length
+      );
+      const { delta, sourceMs, steps } = await drag(page, ...scenario.pointerDeltaCSS);
+      const result = await page.evaluate(() => ({
+        samples: window.benchIntervals,
+        moves: window.benchMoves,
+        inputs: window.benchInputs,
+      }));
+      assert.equal(result.samples.filter((r) => r.phase === "select").length, 30);
+      const dragSamples = result.samples.filter((r) => r.phase === "drag");
+      const totalTime = (key) => dragSamples.reduce((sum, r) => sum + r[key], 0);
+      assert(dragSamples.length >= 2 && result.moves >= 2 && result.moves <= steps);
+      assert(Math.abs(totalTime("interval") - totalTime("elapsed")) < 40, "rAF clocks disagree over the drag");
+      assert(totalTime("elapsed") > 850 && totalTime("elapsed") < 1600 && sourceMs < 1600, "input timing drift");
+      assert.deepEqual(errors, []);
+      if (results.length) {
+        assert.deepEqual(config.ids, results[0].config.ids);
+        assert.deepEqual(config.handle, results[0].config.handle);
+        assert.deepEqual(config.camera, results[0].config.camera);
+        assert.deepEqual(delta, results[0].delta);
       }
+      results.push({ round, renderer, config, delta, sourceMs, steps, ...result });
+      const metrics = Object.fromEntries(
+        ["select", "selectionPresent", "drag"].map((phase) => [
+          phase,
+          summary(result.samples.filter((r) => r.phase === phase)),
+        ])
+      );
+      writeFileSync(output, JSON.stringify({ browser: browser.version(), scenario, results }));
+      console.log(JSON.stringify({ round, renderer, delta, moves: result.moves, ...metrics }));
+      await page.close();
     }
   }
   const pooled = [];
   for (const renderer of ["canvas", "webgl"]) {
-    for (const mode of modes) {
-      const cases = results.filter((r) => r.mode === mode && r.renderer === renderer);
-      const samples = cases.flatMap((r) => r.samples);
-      const inputs = cases.flatMap((r) => r.inputs).sort((a, b) => a - b);
-      const input95 = +inputs[Math.ceil(inputs.length * 0.95) - 1].toFixed(3);
-      for (const phase of ["select", "selectionPresent", "drag"]) {
-        pooled.push({
-          renderer,
-          mode,
-          phase,
-          ...summary(samples.filter((r) => r.phase === phase)),
-          ...(phase === "drag" ? { input95 } : {}),
-        });
-      }
+    const cases = results.filter((r) => r.renderer === renderer);
+    const samples = cases.flatMap((r) => r.samples);
+    const inputs = cases.flatMap((r) => r.inputs).sort((a, b) => a - b);
+    const input95 = +inputs[Math.ceil(inputs.length * 0.95) - 1].toFixed(3);
+    for (const phase of ["select", "selectionPresent", "drag"]) {
+      pooled.push({
+        renderer,
+        phase,
+        ...summary(samples.filter((r) => r.phase === phase)),
+        ...(phase === "drag" ? { input95 } : {}),
+      });
     }
   }
   writeFileSync(output, JSON.stringify({ browser: browser.version(), scenario, pooled, results }));

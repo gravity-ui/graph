@@ -265,58 +265,6 @@ Perspective or an ancestor that independently animates its rotation or scale can
 Switch renderers or turn on the HTML view in [Bounce and Shake](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-block-hover--bounce-and-shake).
 The [story source](../../../../apps/storybook/src/stories/canvas/blockHover/blockHover.stories.tsx) shows the rules and the React markup.
 
-### Outline a block and its anchors
-
-To select a block with one stroke around its body and visible circular anchors, add a rule to the stock block.
-
-```ts
-import { CanvasBlock, selectedTag } from "@gravity-ui/graph";
-
-const removeOutline = graph.scene.styles.add([
-  { target: CanvasBlock, tags: [selectedTag], style: { outline: { color: "#2860ba", width: 3 } } },
-]);
-```
-
-The stroke follows the outside of the rectangle and circles. Where an anchor meets the body there is a single
-continuous edge. Where two anchors overlap the outline follows their combined shape. A detached anchor gets
-its own closed contour. A view that shows only the body gets a rectangular outline. The width is measured in world
-units, so the stroke zooms with the block. The outline shares the block's drawing order. Ports, links, selection
-and hit testing keep using their usual geometry.
-
-The same rule applies in Canvas 2D, WebGL and the React `GraphBlock` view. When an HTML anchor grows on hover
-or the graph raises it, its arc grows to match. For custom React content, keep the rectangular face in
-`GraphBlock` and render the circular ports with `GraphBlockAnchor`. The HTML outline follows the wrapper and visible round anchors. All three renderers use the face's circular corner
-radii. Decorative children, square ports, and arbitrary SVG or CSS silhouettes need their own outline if they
-define the shape of your component. At very sharp intersections,
-such as a port almost touching the body, WebGL caps the tip at ten half-widths. Canvas and SVG bevel that tip.
-
-For a small static halo on hover and selection, add `halo` to the outline in the matching rules:
-
-```ts
-import { CanvasBlock, hoveredTag, selectedTag } from "@gravity-ui/graph";
-
-graph.scene.styles.add([
-  {
-    target: CanvasBlock,
-    tags: [hoveredTag],
-    style: { outline: { color: "#5787c8", width: 3, halo: { color: "rgba(26, 51, 86, .18)", width: 5 } } },
-  },
-  {
-    target: CanvasBlock,
-    tags: [selectedTag],
-    style: { outline: { color: "#2860ba", width: 3, halo: { color: "rgba(26, 51, 86, .26)", width: 5 } } },
-  },
-]);
-```
-
-The selection rule comes last so selection keeps its colour under the pointer. The halo extends its `width`
-beyond each edge of the rim in world units. Two translucent bands use the same contour as the rim, including
-its rounded corners and protruding anchors. The halo stays still while the pointer rests on the block.
-
-Call `removeOutline()` to unregister the rule. A higher-priority rule with `outline: null` turns the outline off and
-restores the block's normal border. Select either block or hover its ports in
-[Block styles / Selection outline](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-block-outline--selected).
-
 ## Order, selection and drag
 
 - A block's element is in bucket `block.DEFAULT_Z_INDEX` (200). The theme raises it by 1 while it is selected or

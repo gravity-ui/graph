@@ -97,7 +97,7 @@ const fontFamily = '"YS Text", "Helvetica Neue", Helvetica, Arial, sans-serif';
 const secondaryText = "#6b7280";
 const radius = 12;
 const stripeWidth = 8;
-/** The original selection glow, also used by the HTML card in the comparison mode. */
+/** The HTML card uses the same yellow for its selected border and shadow. */
 const STAGE_SELECTION_COLOR = "#ffcc00";
 
 /** Path widths are in world units. Each zoom range keeps the status strokes legible inside the card. */
@@ -393,42 +393,16 @@ export const stageRules: TStyleRule<typeof StageBlock>[] = [
       };
     },
   },
+  { target: StageBlock, tags: [hoveredTag], style: { parts: { border: { color: "#5787c8" } } } },
+  {
+    target: StageBlock,
+    tags: [selectedTag],
+    style: {
+      parts: {
+        border: { color: STAGE_SELECTION_COLOR, width: { px: 2.5, minWorld: 3, maxWorld: 20 } },
+        glow: { visible: true },
+      },
+    },
+  },
   { target: StageBlock, tags: [dimmedTag], style: { dim: 0.75 } },
 ];
-
-export type TStageHighlight = "off" | "base" | "outline" | "outline-and-halo";
-
-/** Keep a legible stroke and a small shadow in the same zoom ranges as the stage's status effects. */
-const highlightBands: { scope: TStyleRule<typeof StageBlock>["scope"]; width: number; reach: number }[] = [
-  { scope: { levels: ["minimalistic"], maxScale: 0.1 }, width: 12, reach: 12 },
-  { scope: { levels: ["minimalistic"], minScale: 0.1 }, width: 4, reach: 4 },
-  { scope: { levels: ["schematic", "detailed"] }, width: 3, reach: 5 },
-];
-
-export function stageHighlightRules(mode: TStageHighlight): TStyleRule<typeof StageBlock>[] {
-  if (mode === "off" || mode === "base") {
-    return [
-      {
-        target: StageBlock,
-        tags: [selectedTag],
-        style: {
-          parts: { glow: { visible: mode === "off" }, border: { width: { px: 2.5, minWorld: 3, maxWorld: 20 } } },
-        },
-      },
-    ];
-  }
-  // Selection wins while the pointer is over a selected stage.
-  return highlightBands.flatMap(({ scope, width, reach }) =>
-    [
-      { tag: hoveredTag, color: "#5787c8", shadow: "rgba(26, 51, 86, 0.18)" },
-      { tag: selectedTag, color: "#2860ba", shadow: "rgba(26, 51, 86, 0.26)" },
-    ].map(({ tag, color, shadow }) => ({
-      target: StageBlock,
-      tags: [tag],
-      scope,
-      style: {
-        outline: { color, width, halo: mode === "outline-and-halo" ? { color: shadow, width: reach } : undefined },
-      },
-    }))
-  );
-}

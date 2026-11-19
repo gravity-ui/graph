@@ -32,11 +32,7 @@ function stopGraphEvent(event: React.SyntheticEvent): void {
   event.stopPropagation();
 }
 
-/**
- * The status effects of the card, the CSS twins of the scene's: only the current status mounts its element. Two
- * differences from the scene: running shows the marching border only, without the throughput particles; and the
- * original selection mode uses a static box-shadow. GraphBlock draws the combined outline in the other modes.
- */
+/** Each status mounts its own HTML effect. A running stage shows a marching border. */
 const StatusEffect = ({ status, block }: { status: TStageStatus; block: TStageBlock }): React.JSX.Element | null => {
   switch (status) {
     case "running":

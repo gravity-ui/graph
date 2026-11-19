@@ -175,32 +175,6 @@ describe("React wrappers", () => {
     cleanup();
   });
 
-  it("mounts the outline in the selected block's z-index container and restores its border for outline: null", () => {
-    const { graph, container, cleanup } = setup();
-    const face = wrapper(container, "p1");
-    const siblingClass = () => face.nextElementSibling?.getAttribute("class");
-    act(() => {
-      graph.scene.styles.add([
-        { target: Block, tags: [selectedTag], style: { outline: { color: "#2860ba", width: 3 } } },
-      ]);
-      graph.selectionService.select("block", ["p1"], ESelectionStrategy.REPLACE);
-    });
-    expect(siblingClass()).toBe("graph-block-outline");
-    expect(face.style.borderColor).toBe("transparent");
-    let removeOverride: () => void;
-    act(() => {
-      removeOverride = graph.scene.styles.add([{ target: Block, priority: 1, style: { outline: null } }]);
-    });
-    expect(siblingClass()).toBeUndefined();
-    expect(face.style.borderColor).toBe("");
-    act(() => removeOverride());
-    expect(siblingClass()).toBe("graph-block-outline");
-    act(() => graph.selectionService.select("block", ["c1"], ESelectionStrategy.REPLACE));
-    expect(siblingClass()).toBeUndefined();
-    expect(wrapper(container, "c1").nextElementSibling?.getAttribute("class")).toBe("graph-block-outline");
-    cleanup();
-  });
-
   it("subscribes only the styled block and applies the scene's current offset before paint", () => {
     const { graph, container, cleanup } = setup();
     const running = defineTag("motion-test");

@@ -136,7 +136,6 @@ export type {
 export type {
   TSceneCameraAware,
   TSceneMotion,
-  TSceneOutline,
   TScenePartStyle,
   TScenePrimitive,
   TSceneSize,
@@ -147,8 +146,6 @@ export type {
   TSceneStyleChange,
   TSceneTextPolicy,
 } from "./lib/scene/types";
-/** @internal Shared with the React block view. */
-export { blockOutlineSegments, blockOutlineStrokes } from "./lib/scene/blockOutline";
 export type { ISceneBackendModule, TSceneBackendStats, TSceneTextFrame } from "./lib/scene/webgl/backendTypes";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";

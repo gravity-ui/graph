@@ -80,13 +80,6 @@ export type TScenePartStyle = {
   effect?: Readonly<TConnectionEffectUse> | null;
 };
 
-/** Exterior stroke of a rectangular block and its visible round anchors. Width is in world units. */
-type TOutlineStroke = Readonly<{ color: string; width: number }>;
-export type TSceneOutline = TOutlineStroke & {
-  /** A soft stroke beneath the rim. Width is the reach beyond either edge of the rim, in world units. */
-  readonly halo?: TOutlineStroke;
-};
-
 /** Visual motion for a scene block. `"none"` clears motion from an earlier rule. */
 export type TSceneMotion = "bounce" | "shake" | "none";
 
@@ -103,7 +96,6 @@ export type TSceneStyle = Readonly<{
   raise?: number;
   /** Translates the drawn block without changing its layout coordinates. */
   motion?: TSceneMotion;
-  outline?: TSceneOutline | null;
   /** The dim of every part that sets none (`TScenePartStyle.dim`) and of primitives without a part. */
   dim?: number;
   /**

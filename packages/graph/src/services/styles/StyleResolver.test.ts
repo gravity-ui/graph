@@ -85,20 +85,6 @@ describe("StyleResolver", () => {
     expect(store.getStyles()[id]).toBe(before);
   });
 
-  it("replaces the rectangular border only while a block outline rule is active", () => {
-    const { resolver, sheet } = setup();
-    class Block extends Target {
-      public static entityType = "block";
-    }
-    const outline = { color: "#234567", width: 3 };
-    const tagged = new Map([[hoveredTag, true]]) as never;
-    sheet.add([{ target: Block, tags: [hoveredTag], style: { outline } }]);
-    expect(resolver.styleFor(Block, tagged)).toMatchObject({ outline, parts: { border: { visible: false } } });
-    expect(resolver.styleFor(Block, new Map()).outline).toBeUndefined();
-    sheet.add([{ target: Block, priority: 5, style: { outline: null } }]);
-    expect(resolver.styleFor(Block, tagged).parts?.border?.visible).toBeUndefined();
-  });
-
   it("cascades hover motion independently of raise and updates the cached row when a rule is removed", () => {
     const { sheet, resolver } = setup();
     const hovered = new Map([[hoveredTag, true]]);

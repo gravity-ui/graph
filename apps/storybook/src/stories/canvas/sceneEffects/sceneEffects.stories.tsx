@@ -21,13 +21,12 @@ import {
   STAGE_STATUSES,
   createStageBlock,
   isStageBlock,
-  stageHighlightRules,
   stageRules,
   stageStatusColors,
   stageStatusEffects,
   stageStatusLabels,
 } from "./stageBlock";
-import type { TStageHighlight, TStageStatus } from "./stageBlock";
+import type { TStageStatus } from "./stageBlock";
 
 import "@gravity-ui/graph-minimap/styles.css";
 import "@gravity-ui/uikit/styles/styles.css";
@@ -94,7 +93,6 @@ type TEtlAtScaleArgs = {
   focusOnFailures: boolean;
   view: (typeof ETL_VIEWS)[number];
   cameraMotion: "manual" | TEtlCameraMotion;
-  blockHighlight: TStageHighlight;
   levelTransitions: boolean;
   selectionGlow: number;
   effectMinScale: number;
@@ -111,7 +109,6 @@ const etlDefaults: TEtlAtScaleArgs = {
   focusOnFailures: false,
   view: "fit",
   cameraMotion: "manual",
-  blockHighlight: "outline-and-halo",
   levelTransitions: false,
   selectionGlow: 0.6,
   effectMinScale: 0.1,
@@ -163,7 +160,6 @@ const EtlAtScaleApp = ({
   focusOnFailures,
   view,
   cameraMotion,
-  blockHighlight,
   levelTransitions,
   selectionGlow,
   effectMinScale,
@@ -222,8 +218,6 @@ const EtlAtScaleApp = ({
     start();
     return remove;
   }, [graph, data, simulation, components, setEntities, start]);
-
-  useEffect(() => graph.scene.styles.add(stageHighlightRules(blockHighlight)), [graph, blockHighlight]);
 
   useEffect(() => {
     // Changing effect classes also reloads the original entities above.
@@ -321,7 +315,7 @@ const EtlAtScaleApp = ({
             </Flex>
           ))}
         </Flex>
-        <div data-block-highlight={blockHighlight} style={{ flex: 1, minHeight: 400, position: "relative" }}>
+        <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
           <GraphCanvas graph={graph} className="graph-canvas" renderBlock={html ? renderStage : undefined} />
           <SceneLoadingOverlay graph={graph} />
         </div>
@@ -384,24 +378,9 @@ EtlAtScale.argTypes = {
     options: ["manual", "zoom", "pan"],
     control: { type: "select", labels: { manual: "Manual", zoom: "Zoom cycle", pan: "Circular pan" } },
   },
-  blockHighlight: {
-    name: "Block highlight",
-    table: { category: "Appearance" },
-    options: ["off", "base", "outline", "outline-and-halo"],
-    control: {
-      type: "select",
-      labels: {
-        off: "Original selection",
-        base: "Base selection",
-        outline: "Outline",
-        "outline-and-halo": "Outline and halo",
-      },
-    },
-  },
   selectionGlow: {
-    name: "Original selection glow",
+    name: "Selection glow",
     table: { category: "Appearance" },
-    if: { arg: "blockHighlight", eq: "off" },
     control: { type: "range", min: 0, max: 1.5, step: 0.05 },
   },
   effectMinScale: {
@@ -420,8 +399,7 @@ EtlAtScale.parameters = {
         "Camera motion can run a 20-second zoom cycle from 0.05 to 0.9 and back around a central pipeline, " +
         "or pan in a circle at the current scale over 16 seconds. Stages have different numbers of " +
         "input and output anchors, with room for every port in the scene blocks and HTML cards. " +
-        "Hover or select a stage to outline its body and ports. Block highlight compares the original selection, " +
-        "the base selection without glow, the outline alone, and the outline with a soft halo. Hover over a connection to highlight its route. Enable Minimap in Controls to show the graph overview. " +
+        "Select a stage to highlight it. Hover over a connection to highlight its route. Enable Minimap in Controls to show the graph overview. " +
         "In the overview, throughput particles appear only while WebGL animates them. Below Effect min scale, " +
         "status outlines and running flows become steady. Enable Level transitions to reveal stage labels, throughput and the HTML status chip gradually as you zoom in. " +
         "The stage keeps its status tint through zoom and HTML handoff. " +

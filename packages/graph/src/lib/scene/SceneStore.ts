@@ -18,7 +18,6 @@ import type {
   TSceneChange,
   TSceneElement,
   TSceneMotion,
-  TSceneOutline,
   TScenePrimitive,
   TSceneStyle,
   TSceneStyleChange,
@@ -29,10 +28,6 @@ export type TSceneElementInput = Omit<TSceneElement, "order" | "styleId" | "hidd
   hidden?: boolean;
   childOrder?: number;
 };
-
-function sameStroke(a: TSceneOutline | null | undefined, b: TSceneOutline | null | undefined): boolean {
-  return a === b || (a?.width === b?.width && a?.color === b?.color);
-}
 
 /** The dim colour of a store until it is set: the default theme's layer background (`initGraphColors`). */
 const DEFAULT_DIM_COLOR = "#f9f9f9";
@@ -865,11 +860,6 @@ export class SceneStore {
   /** What an element has to redo when its row changes from `previous` to `next`. */
   private styleFields(previous: TSceneStyle | undefined, next: TSceneStyle | undefined): Set<keyof TSceneElement> {
     const fields = new Set<keyof TSceneElement>();
-    const before = previous?.outline;
-    const after = next?.outline;
-    if (before !== after && (!sameStroke(before, after) || !sameStroke(before?.halo, after?.halo))) {
-      fields.add("styleId");
-    }
     if (styleEncodeKey(previous) !== styleEncodeKey(next)) fields.add("primitives");
     if (styleRaise(previous) !== styleRaise(next)) fields.add("zIndex");
     return fields;

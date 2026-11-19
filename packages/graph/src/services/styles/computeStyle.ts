@@ -36,26 +36,6 @@ function mergePart(into: TScenePartStyle | undefined, value: TScenePartStyle): T
 
 type TElementValues = Omit<TRuleStyle<TStyleTarget>, "parts">;
 
-function applyElementValues(element: TElementValues, style: TElementValues, target: TStyleTarget): void {
-  if (style.raise !== undefined) element.raise = style.raise;
-  if (style.dim !== undefined) element.dim = style.dim;
-  if (style.opacity !== undefined) element.opacity = style.opacity;
-  if (style.motion !== undefined) element.motion = style.motion;
-  if (style.outline !== undefined && "entityType" in target && target.entityType === "block") {
-    const outline = style.outline;
-    if (outline && Number.isFinite(outline.width) && outline.width > 0) {
-      const { color, width, halo } = outline;
-      element.outline = Object.freeze(
-        halo && Number.isFinite(halo.width) && halo.width > 0
-          ? { color, width, halo: Object.freeze({ ...halo }) }
-          : { color, width }
-      );
-    } else {
-      element.outline = null;
-    }
-  }
-}
-
 function freezeParts(parts: Record<string, TScenePartStyle>): Readonly<Record<string, Readonly<TScenePartStyle>>> {
   for (const value of Object.values(parts)) Object.freeze(value);
   return Object.freeze(parts);
@@ -92,9 +72,11 @@ export function computeStyle(input: {
     for (const [part, value] of Object.entries(style.parts ?? {}) as [string, TScenePartStyle | undefined][]) {
       if (value) into[part] = mergePart(into[part], value);
     }
-    applyElementValues(element, style, input.target);
+    if (style.raise !== undefined) element.raise = style.raise;
+    if (style.dim !== undefined) element.dim = style.dim;
+    if (style.opacity !== undefined) element.opacity = style.opacity;
+    if (style.motion !== undefined) element.motion = style.motion;
   }
-  if (element.outline) parts.border = { ...parts.border, visible: false };
   // Computed styles are frozen (spec §7.5): renderers and React may keep references to them.
   const style: TSceneStyle = Object.freeze({ base: freezeParts(base), parts: freezeParts(parts), ...element });
   return { style, matched };

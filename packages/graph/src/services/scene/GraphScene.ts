@@ -29,11 +29,9 @@ import { TagStore, entityKey } from "../tags/TagStore";
 import type { TEntityAddress, TEntityId, TEntityType, TTagSet } from "../tags/types";
 import { cameraWorldViewport } from "../visibilityCulling";
 
-import { BlockOutlines } from "./BlockOutlines";
 import { DelegatedRanks } from "./DelegatedRanks";
 import { SceneClock } from "./SceneClock";
 import { afterScenePaint } from "./afterScenePaint";
-import { exportBlockOutlines } from "./exportBlockOutlines";
 import { isSceneKeyed } from "./sceneKey";
 import { createSceneLevel } from "./sceneLevel";
 import type {
@@ -122,8 +120,6 @@ export class GraphScene implements IGraphScene {
 
   /** @internal The element store; plan 3's components write to it. */
   public readonly store = new SceneStore();
-
-  private readonly blockOutlines = new BlockOutlines(this.store);
 
   /** @internal React ranks (spec §10). */
   public readonly delegatedRanks: DelegatedRanks;
@@ -261,12 +257,8 @@ export class GraphScene implements IGraphScene {
   constructor(private readonly graph: Graph) {
     // The graph's frame task runs every frame while started and calls flush(), so nothing needs waking.
     this.delegatedRanks = new DelegatedRanks(this.store, noop);
-    const stopElements = this.store.subscribe((change) => {
-      this.blockOutlines.changed(change);
-      this.noteChange(change);
-    });
+    const stopElements = this.store.subscribe((change) => this.noteChange(change));
     const stopStyles = this.store.subscribeStyles((change) => {
-      if (change === "replace") this.blockOutlines.stylesChanged();
       // A rule, level or root-tag change rewrites rows of any type, and the dim colour paints them all.
       if (change === "replace" || change === "dim") this.everyTypeChanged = true;
     });
@@ -386,7 +378,6 @@ export class GraphScene implements IGraphScene {
       this.motionPreference ??= globalThis.matchMedia?.("(prefers-reduced-motion: reduce)");
       this.store.advanceBlockMotions(this.clock.now(), this.motionPreference?.matches ?? false);
     }
-    this.blockOutlines.flush(this.$scale.peek());
     const camera = this.graph.$camera.peek();
     const level = this.$level.peek();
     Component.update(this.layer);
@@ -770,7 +761,6 @@ export class GraphScene implements IGraphScene {
 
   public query(rect: TRect, options: TSceneQueryOptions = {}): readonly TSceneElementView[] {
     const tileRect = { minX: rect.x, minY: rect.y, maxX: rect.x + rect.width, maxY: rect.y + rect.height };
-    this.blockOutlines.flush(this.$scale.peek());
     const includeHidden = options.includeHidden ?? false;
     const types = options.entityTypes;
     const found = this.store.query(tileRect, options.level, undefined, includeHidden);
@@ -959,15 +949,14 @@ export class GraphScene implements IGraphScene {
     // The rows as they compute at the export's level and scale, which need not be the live ones; children whose parent
     // row needs composition only there draw with rows added for the export.
     const { styles, childRows } = this.store.stylesWith(this.resolver.stylesAt(level, scale));
-    const elements = exportBlockOutlines(
-      this.store,
-      tileRect,
-      level,
-      scale,
-      styles,
-      childRows,
-      this.blockOutlines.owns
-    );
+    const found = this.store.query(tileRect, level, styles);
+    const elements =
+      childRows.size === 0
+        ? found
+        : found.map((element) => {
+            const styleId = childRows.get(element.id);
+            return styleId === undefined ? element : { ...element, styleId };
+          });
     // Texts lay out at the export's scale under the setting, as the renderer would draw them there.
     const textPolicy = this.$textPolicy.peek();
     drawElements(ctx, elements, scale, { styles, dimColor: this.store.getDimColor(), level, textPolicy });

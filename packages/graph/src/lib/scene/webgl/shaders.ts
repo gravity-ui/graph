@@ -530,7 +530,7 @@ void main() {
     // Solid closed contours store the tangent component of each endpoint miter in the distance fields.
     float k = t == 0.0 ? graph_stroke.z : t == 1.0 ? graph_stroke.w : 0.0;
     normal += dir * k;
-    // A near-tangent port can nearly reverse the stroke. Bound its shared miter instead of emitting a spike.
+    // A sharp turn can nearly reverse the stroke. Limit the shared miter to avoid a spike.
     if (abs(k) > ${Math.sqrt(MITER_LIMIT ** 2 - 1)}) normal = normalize(normal) * ${MITER_LIMIT}.0;
   }
   vec2 center = graph_bezier(p0, c1, c2, p3, t);

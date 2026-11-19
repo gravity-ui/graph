@@ -11,7 +11,6 @@ import React, {
 
 import { CanvasBlock, ESchedulerPriority, Graph, TBlock, TStyleTarget } from "@gravity-ui/graph";
 
-import { BlockOutline } from "./BlockOutline";
 import { useSchedulerDebounce, useSignalEffect } from "./hooks";
 import { useBlockState } from "./hooks/useBlockState";
 import { useEntityStyle } from "./hooks/useEntityStyle";
@@ -217,8 +216,6 @@ function GraphBlockInner<T extends TBlock>(
       reset();
     };
   }, [graph, block.id, hasMotion, viewState]);
-  const outline = entityStyle.outline;
-  const hasOutline = outline && Number.isFinite(outline.width) && outline.width > 0;
   const selected = state?.$selected.value;
 
   const wrapperClassNames = useMemo(() => {
@@ -231,13 +228,9 @@ function GraphBlockInner<T extends TBlock>(
 
   return (
     <div className={containerClassNames} ref={setContainerRef}>
-      <div
-        className={wrapperClassNames}
-        style={hasOutline ? { ...entityStyle.style, borderColor: "transparent" } : entityStyle.style}
-      >
+      <div className={wrapperClassNames} style={entityStyle.style}>
         {children}
       </div>
-      {hasOutline && <BlockOutline outline={outline} />}
     </div>
   );
 }

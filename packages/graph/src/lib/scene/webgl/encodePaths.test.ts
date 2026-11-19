@@ -1,7 +1,6 @@
 import { dashFlow } from "../../../components/canvas/connections/effects";
 import { lineSegment } from "../../../components/canvas/connections/geometry/segments";
 import { INSTANCE_FLOATS } from "../../../components/canvas/connections/webgl/encode";
-import { blockOutlineSegments } from "../blockOutline";
 import type { TScenePrimitive } from "../types";
 
 import { PATH_ELEMENT_FLOATS, createPathScratch, encodePaths } from "./encodePaths";
@@ -56,8 +55,14 @@ describe("encodePaths", () => {
     }
   });
 
-  it("keeps finite joins and a bounded miter when a protruding anchor nearly touches the body", () => {
-    const [segments] = blockOutlineSegments(100, 40, [{ x: 109.9999, y: 20, r: 10 }]);
+  it("keeps finite joins and a bounded miter when a closed contour nearly reverses direction", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 1, y: 1 },
+      { x: 0, y: 40 },
+    ];
+    const segments = new Float32Array(points.flatMap((p, i) => lineSegment(p, points[(i + 1) % points.length])));
     const contour: TScenePrimitive = { kind: "path", closed: true, segments, stroke: { width: 4 } };
     const out = encodePaths([contour], 0, 6, slotOf);
     const slopes: number[] = [];
@@ -68,11 +73,7 @@ describe("encodePaths", () => {
     // This case exercises the cap in the shader instead of a regular miter.
     expect(Math.max(...slopes.map(Math.abs))).toBeGreaterThan(10);
     // At DPR 1 the shader's maximum reach is 10 * (2px half width + 1px AA).
-    const bounds = new CachedGeometryBounds([contour]).at(() => 1, 1)!;
-    expect(bounds.minX).toBe(-30);
-    expect(bounds.maxX).toBeLessThanOrEqual(150);
-    expect(bounds.minY).toBe(-30);
-    expect(bounds.maxY).toBe(70);
+    expect(new CachedGeometryBounds([contour]).at(() => 1, 1)).toEqual({ minX: -30, maxX: 130, minY: -30, maxY: 70 });
   });
 
   it("joins only the boundary pieces of a subdivided Bézier to the closing line", () => {

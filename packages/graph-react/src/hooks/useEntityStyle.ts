@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { CSSProperties } from "react";
 
-import type { Graph, TEntityAddress, TSceneMotion, TSceneOutline, TStyleTarget } from "@gravity-ui/graph";
+import type { Graph, TEntityAddress, TSceneMotion, TStyleTarget } from "@gravity-ui/graph";
 
 import { useSignal } from "./useSignal";
 
@@ -15,7 +15,7 @@ export function useEntityStyle(
   entity: TEntityAddress,
   target: TStyleTarget,
   prefix: string
-): { className: string; style: CSSProperties; motion?: TSceneMotion; outline?: TSceneOutline | null } {
+): { className: string; style: CSSProperties; motion?: TSceneMotion } {
   const tags = useSignal(graph.scene.tags.$of(entity.type, entity.id));
   const generation = useSignal(graph.scene.$styleCascadeGeneration);
   return useMemo(() => {
@@ -34,7 +34,6 @@ export function useEntityStyle(
       className: classes.join(" "),
       style: variables as CSSProperties,
       motion: computed.motion,
-      outline: computed.outline,
     };
     // The cascade generation also covers unbound HTML targets. An equivalent level keeps the memo.
   }, [graph, target, prefix, tags, generation, entity.type]);
