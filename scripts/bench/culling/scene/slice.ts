@@ -37,6 +37,7 @@ import type { TSceneRendererState } from "GRAPH_SRC/services/scene/types";
 import type { TScenePrimitive, TSceneStyle } from "GRAPH_SRC/lib/scene/types";
 import type { InstanceRanges } from "GRAPH_SRC/lib/scene/webgl/InstanceRanges";
 import { spaceKerning } from "GRAPH_SRC/lib/scene/webgl/glyphs";
+import type { TTranslucentPart } from "GRAPH_SRC/lib/scene/webgl/translucentOrder";
 
 type TPixel = [number, number, number, number];
 
@@ -1406,7 +1407,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     };
     const internals = backend as unknown as {
       rects: Record<"translucent", TBatchView>;
-      translucentRuns: { source: number; first: number; count: number }[];
+      translucentParts: readonly TTranslucentPart[];
       translucentBatches: unknown[];
     };
     const white = [255, 255, 255];
@@ -1569,9 +1570,11 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
       // 4. The previous frame drew rects from instances 1 and 2. Grow the translucent rect buffer past its capacity in
       //    one frame: the draws that start inside it must still read the right instances.
       const rects = internals.rects.translucent;
-      const runsBefore = internals.translucentRuns.filter(
-        (run) => internals.translucentBatches[run.source] === rects && run.first > 0
-      ).length;
+      const offsetRectRuns = () =>
+        internals.translucentParts
+          .flatMap(({ runs, first, end }) => runs.slice(first, end))
+          .filter((run) => internals.translucentBatches[run.source] === rects && run.first > 0);
+      const runsBefore = offsetRectRuns().length;
       const capacity = rects.buffer.byteLength / (28 * 4);
       const generation = rects.buffer.generation;
       const extra = capacity - rects.ranges.count + 16;
@@ -1596,9 +1599,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
       const [lx, ly] = smallAt(extra - 1);
       const firstSmall = againstCanvas2D(161, 331, 4, 4);
       const lastSmall = againstCanvas2D(lx + 1, ly + 1, 4, 4);
-      const runsAfter = internals.translucentRuns.filter(
-        (run) => internals.translucentBatches[run.source] === rects && run.first > 0
-      );
+      const runsAfter = offsetRectRuns();
       const grownWorst = Math.max(grownBodies.worst, firstSmall.worst, lastSmall.worst);
       record(
         "C16",
@@ -2377,14 +2378,21 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
   type TRangesView = Pick<InstanceRanges, "data" | "floats" | "revision" | "forEachRange">;
   /** A luma DynamicBuffer: its current WebGL buffer reads back synchronously. */
   type TGpuView = { buffer: { readSyncWebGL(byteOffset: number, byteLength: number): Uint8Array } };
-  type TCompanionView = { kind: "elements" | "subs"; ranges: TRangesView; buffer: TGpuView };
-  type TBatchView = { model: { id: string }; ranges: TRangesView; buffer: TGpuView; companion?: TCompanionView };
+  type TCompanionView = { kind: "elements" | "subs"; ranges: TRangesView; buffer?: TGpuView };
+  type TBatchView = {
+    model: { id: string };
+    ranges: TRangesView;
+    buffer: TGpuView;
+    companion?: TCompanionView;
+    pathRecords?: { texture: { readDataSyncWebGL(): ArrayBuffer } };
+  };
   type TBackendView = {
     allBatches(): Iterable<TBatchView>;
     glyphs: { opaque: TBatchView };
     table: { indexOf(id: string): number };
     stats: { translucentLevels: number };
-    uploadRanges(ranges: TRangesView, buffer: TGpuView): string;
+    uploadRanges(ranges: TRangesView, buffer: TGpuView, ...tracking: unknown[]): string;
+    uploadPathRecords(batch: TBatchView, ...records: unknown[]): string;
   };
   const backendView = (): TBackendView => {
     const backend = layer.getBackend();
@@ -2392,23 +2400,22 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     return backend as unknown as TBackendView;
   };
   /**
-   * Every list of every batch: its label, its floats, its GPU buffer and whether each instance starts with its index.
+   * Every list of every batch, and whether its first float is an element table index.
    */
-  const listsOf = (
-    backend: TBackendView
-  ): { label: string; ranges: TRangesView; gpu: TGpuView; indexed: boolean }[] => {
-    const lists: { label: string; ranges: TRangesView; gpu: TGpuView; indexed: boolean }[] = [];
+  type TListView = { label: string; ranges: TRangesView; batch: TBatchView; indexed: boolean };
+  const listsOf = (backend: TBackendView): TListView[] => {
+    const lists: TListView[] = [];
     let at = 0;
     for (const batch of backend.allBatches()) {
       const key = `${at++}:${batch.model.id}`;
-      lists.push({ label: `${key}i`, ranges: batch.ranges, gpu: batch.buffer, indexed: true });
+      lists.push({ label: `${key}i`, ranges: batch.ranges, batch, indexed: !batch.pathRecords });
       // A path's element data starts each instance with its element index; a glyph's sub list holds the sub alone.
       const { companion } = batch;
       if (companion) {
         lists.push({
           label: `${key}${companion.kind === "subs" ? "s" : "e"}`,
           ranges: companion.ranges,
-          gpu: companion.buffer,
+          batch,
           indexed: companion.kind === "elements",
         });
       }
@@ -2438,34 +2445,57 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     }
     return parts.join("\n");
   };
-  /** The lists whose GPU buffer does not hold their CPU floats (read back with getBufferSubData), after a draw. */
+  /** Reads the resident buffers and path textures and compares every used float, bit for bit, after a draw. */
   const gpuDiffers = (): string[] => {
     const differs: string[] = [];
-    for (const { label, ranges, gpu } of listsOf(backendView())) {
+    const pathData = new Map<TBatchView, Uint32Array>();
+    for (const { label, ranges, batch } of listsOf(backendView())) {
       const { data } = ranges;
       if (data.byteLength === 0) continue;
-      const cpu = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-      const read = gpu.buffer.readSyncWebGL(0, data.byteLength);
-      if (read.some((byte, i) => byte !== cpu[i])) differs.push(label);
+      const payload = ranges === batch.ranges;
+      if (batch.pathRecords && batch.companion) {
+        const records = pathData.get(batch) ?? new Uint32Array(batch.pathRecords.texture.readDataSyncWebGL());
+        pathData.set(batch, records);
+        const bits = new Uint32Array(data.buffer, data.byteOffset, data.length);
+        const stride = batch.ranges.floats + batch.companion.ranges.floats;
+        const offset = payload ? 0 : batch.ranges.floats;
+        const same = bits.every((word, i) => {
+          const record = Math.floor(i / ranges.floats);
+          return word === records[record * stride + offset + (i % ranges.floats)];
+        });
+        if (!same) differs.push(label);
+      } else {
+        const gpu = payload ? batch.buffer : batch.companion?.buffer;
+        if (!gpu) throw new Error(`Missing GPU buffer for ${label}`);
+        const cpu = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+        const read = gpu.buffer.readSyncWebGL(0, data.byteLength);
+        if (cpu.some((byte, i) => byte !== read[i])) differs.push(label);
+      }
     }
     return differs;
   };
-  /** The upload kind of each list in the draws of `draw` (`uploadRanges`), by label; lists not uploaded are absent. */
+  /** Records uploads of both attribute buffers and the interleaved path textures. */
   const uploadsOf = (draw: () => void): Map<string, string> => {
     const backend = backendView();
     const labels = new Map<TRangesView, string>(listsOf(backend).map(({ label, ranges }) => [ranges, label]));
     const kinds = new Map<string, string>();
     const own = backend as unknown as Record<string, unknown>;
-    const original = backend.uploadRanges;
-    own.uploadRanges = function (this: TBackendView, ranges: TRangesView, buffer: TGpuView): string {
-      const kind = original.call(this, ranges, buffer);
+    const track = (ranges: TRangesView, kind: string): string => {
       if (kind !== "none") kinds.set(labels.get(ranges) ?? "?", kind);
       return kind;
+    };
+    const { uploadRanges, uploadPathRecords } = backend;
+    backend.uploadRanges = function (ranges, buffer, ...tracking) {
+      return track(ranges, uploadRanges.call(this, ranges, buffer, ...tracking));
+    };
+    backend.uploadPathRecords = function (batch, ...records) {
+      return track(batch.ranges, uploadPathRecords.call(this, batch, ...records));
     };
     try {
       draw();
     } finally {
       delete own.uploadRanges;
+      delete own.uploadPathRecords;
     }
     return kinds;
   };
@@ -2525,7 +2555,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
      * keep nothing, a re-sub the subs only, an encode both.
      */
     glyphs?: "none" | "subs" | "all";
-    /** `stats.translucentLevels` after the step. */
+    /** Overlap levels contributed by the case's own zIndex band after the step. */
     levels?: number;
   };
   const runCase = async (
@@ -2541,7 +2571,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
         store.add({
           id: member.id + suffix,
           parent: member.parent === undefined ? undefined : member.parent + suffix,
-          zIndex: 200,
+          zIndex: 910,
           x: 0,
           y: y + dy,
           bounds: elementBounds(primitives),
@@ -2554,7 +2584,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     };
     const lines: string[] = [];
     let pass = true;
-    // Translucent elements of earlier checks may still be in the scene: the levels are counted over them too.
+    // The backend sums levels across zIndex bands, including C16's resident faded grid.
     readRegion(0, 0, 1, 1);
     const baseline = backendView().stats.translucentLevels;
     addAll("", 0);
@@ -2569,7 +2599,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
         const uploads = uploadsOf(() => readRegion(0, 0, 1, 1));
         const written = glyphWriteOf(revisions);
         const gpuStale = gpuDiffers();
-        const levels = backendView().stats.translucentLevels;
+        const levels = backendView().stats.translucentLevels - baseline;
         const incremental = members.map((member) => signatureOf(member.id));
         addAll("~ref", 0);
         readRegion(0, 0, 1, 1);
@@ -2591,7 +2621,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
             (gpuOk ? "" : ` (stale: ${gpuStale.join(" ")})`) +
             (step.glyphs === undefined ? "" : `, glyphs written=${written} (want ${step.glyphs})`) +
             `, glyph uploads ${glyphUploadsText(uploads)}${uploadsOk ? "" : " (not the writes)"}` +
-            (step.levels === undefined ? "" : `, levels=${levels} (want ${step.levels}; ${baseline} before the case)`) +
+            (step.levels === undefined ? "" : `, case levels=${levels} (want ${step.levels})`) +
             where
         );
       }
