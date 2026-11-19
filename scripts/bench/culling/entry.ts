@@ -537,13 +537,13 @@ async function settle(options: { scale: number }) {
   return state.graph?.cameraService.getCameraState();
 }
 
-/** Counts Path2D fills and strokes (batch chunks) in one frame at the measured view, outside the timed frames. */
-async function count(options: { scale: number }): Promise<{ strokes: number; fills: number }> {
+/** Counts retained paths and direct rectangle paints in one frame, outside the timing samples. */
+async function count(options: { scale: number }): Promise<{ strokes: number; fills: number; strokeRects: number; fillRects: number }> {
   const graph = state.graph;
   if (!graph) throw new Error("setup() first");
   const proto = CanvasRenderingContext2D.prototype;
-  const { stroke, fill } = proto;
-  const counts = { strokes: 0, fills: 0 };
+  const { stroke, fill, strokeRect, fillRect } = proto;
+  const counts = { strokes: 0, fills: 0, strokeRects: 0, fillRects: 0 };
   proto.stroke = function (this: CanvasRenderingContext2D, ...args: unknown[]): void {
     if (args[0] instanceof Path2D) counts.strokes++;
     Reflect.apply(stroke, this, args);
@@ -552,6 +552,14 @@ async function count(options: { scale: number }): Promise<{ strokes: number; fil
     if (args[0] instanceof Path2D) counts.fills++;
     Reflect.apply(fill, this, args);
   } as unknown as typeof proto.fill;
+  proto.strokeRect = function (...args) {
+    counts.strokeRects++;
+    strokeRect.apply(this, args);
+  };
+  proto.fillRect = function (...args) {
+    counts.fillRects++;
+    fillRect.apply(this, args);
+  };
   try {
     centerAt(options.scale);
     const previous = state.samples.length;
@@ -560,6 +568,8 @@ async function count(options: { scale: number }): Promise<{ strokes: number; fil
   } finally {
     proto.stroke = stroke;
     proto.fill = fill;
+    proto.strokeRect = strokeRect;
+    proto.fillRect = fillRect;
   }
   return counts;
 }

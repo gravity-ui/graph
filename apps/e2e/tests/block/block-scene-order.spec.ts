@@ -1,6 +1,56 @@
 import { expect, test } from "@playwright/test";
+import type { TScenePrimitive } from "@gravity-ui/graph";
 
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
+
+test("a polygon outline keeps its interior transparent in either paint order", async ({ page }) => {
+  const graph = new GraphPageObject(page);
+  await graph.initialize({ settings: { renderer: "canvas" } });
+  await graph.evaluate((graph) => {
+    class Polygons extends window.GraphModule.CanvasBlock {
+      protected override schematic(): readonly TScenePrimitive[] {
+        const square = (x: number, fill?: string): TScenePrimitive => ({
+          kind: "polygon",
+          points: new Float32Array([x, 0, x + 20, 0, x + 20, 20, x, 20]),
+          fill,
+          stroke: { color: "#000", width: 2 },
+        });
+        const shapes = [square(0, "red"), square(30)];
+        return this.props.id === "forward" ? shapes : shapes.reverse();
+      }
+    }
+    graph.updateSettings({ blockComponents: { Polygons } });
+    graph.setEntities({
+      blocks: ["forward", "reverse"].map((id, i) => ({
+        id,
+        is: "Polygons",
+        name: id,
+        x: 5,
+        y: 5 + i * 30,
+        width: 50,
+        height: 20,
+      })),
+    });
+  });
+  await graph.waitForFrames(2);
+  const pixels = await graph.evaluate((graph) => {
+    return [5, 35].map((y) => {
+      const image = graph.scene.toImage({
+        rect: { x: 0, y, width: 60, height: 20 },
+        scale: 1,
+        pixelRatio: 1,
+        level: "schematic",
+      });
+      const ctx = image.getContext("2d")!;
+      return [15, 45].map((x) => Array.from(ctx.getImageData(x, 10, 1, 1).data));
+    });
+  });
+  const interiors = [
+    [255, 0, 0, 255],
+    [0, 0, 0, 0],
+  ];
+  expect(pixels).toEqual([interiors, interiors]);
+});
 
 test.describe("Blocks in the scene: hit order", () => {
   let graphPO: GraphPageObject;

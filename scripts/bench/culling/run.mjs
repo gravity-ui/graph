@@ -309,8 +309,11 @@ for (const scene of scenes) {
             cells.push(cell);
           }
         }
-        // strokes and fills count Path2D calls only: WebGL draws none of them.
-        if (result.draws && !isWebGL) cells.push(`strokes ${result.draws.strokes} fills ${result.draws.fills}`);
+        // Canvas paint calls are counted outside the timed frames.
+        if (result.draws && !isWebGL) {
+          const { strokes, fills, strokeRects, fillRects } = result.draws;
+          cells.push(`Path2D strokes ${strokes} fills ${fills}, rectangle strokes ${strokeRects} fills ${fillRects}`);
+        }
         console.log(
           `${scene.padEnd(10)} scale=${String(scale).padEnd(5)} ${view.padEnd(4)} ${name.padEnd(10)}${renderer ? ` [${renderer}]` : ""}`,
           cells.join(" | ")

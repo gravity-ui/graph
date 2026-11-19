@@ -197,7 +197,7 @@ async function setup(options: {
   width: number;
   height: number;
   scale: number;
-  /** Interpreter only: ends a path run after this many paths and polygons (drawElements' maxRun). */
+  /** Interpreter only: ends a path run after this many opaque paths (drawElements' maxRun). */
   maxRun?: number;
   /** WebGL only: a style with this `opacity` on every block element. */
   blockOpacity?: number;

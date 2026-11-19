@@ -9,7 +9,7 @@ import { drawElements } from "./drawPrimitives";
 
 export type TSceneCanvasLayerProps = LayerProps & {
   store: SceneStore;
-  /** Passed to drawElements(): ends a path run after this many paths and polygons; unbounded by default. */
+  /** Passed to drawElements(): ends a path run after this many opaque paths; unbounded by default. */
   maxRun?: number;
   /** Cached path batches, each drawn after the store elements whose zIndex is not above its own. */
   batches?: readonly ScenePathBatch[];

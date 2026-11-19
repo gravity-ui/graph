@@ -441,7 +441,7 @@ describe("graph.scene", () => {
       ],
     });
     graph.scene.drawInterpreted(ctx, [view], 1, { level: "schematic" });
-    expect(ctx.__getDrawCalls().filter((call) => call.type === "fill")).toHaveLength(1);
+    expect(ctx.__getDrawCalls().filter((call) => call.type === "fillRect")).toHaveLength(1);
   });
 
   it("dispose is idempotent", () => {
@@ -476,7 +476,7 @@ describe("graph.scene", () => {
     it("draws rects and text, and skipText leaves only the text out", () => {
       graph = new Graph({}, document.createElement("div"));
       const ctx = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
-      const fill = jest.spyOn(ctx, "fill");
+      const fill = jest.spyOn(ctx, "fillRect");
       const fillText = jest.spyOn(ctx, "fillText");
 
       graph.scene.drawInterpreted(ctx, [textElement()], 1);
@@ -957,7 +957,7 @@ describe("bindStyle and explain", () => {
     expect(fields.some((changed) => changed.includes("primitives"))).toBe(true);
     const ctx = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
     const fills: unknown[] = [];
-    const fill = jest.spyOn(ctx, "fill").mockImplementation(() => fills.push(ctx.fillStyle));
+    const fill = jest.spyOn(ctx, "fillRect").mockImplementation(() => fills.push(ctx.fillStyle));
     drawElements(ctx, element ? [element] : [], 1, { styles: graph.scene.store.getStyles() });
     expect(fills).toEqual(["rgba(255, 0, 0, 0.4)"]);
     fill.mockRestore();

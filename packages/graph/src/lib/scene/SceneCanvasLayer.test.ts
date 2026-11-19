@@ -106,7 +106,7 @@ describe("SceneCanvasLayer", () => {
     layer.attachLayer(document.createElement("div"));
     const ctx = layer.context.ctx as CanvasRenderingContext2D;
     const calls: string[] = [];
-    jest.spyOn(ctx, "fill").mockImplementation(() => {
+    jest.spyOn(ctx, "fillRect").mockImplementation(() => {
       calls.push("fill");
     });
     jest.spyOn(ctx, "stroke").mockImplementation(() => {
@@ -166,7 +166,7 @@ describe("SceneCanvasLayer", () => {
       layer.attachLayer(document.createElement("div"));
       const ctx = layer.context.ctx as CanvasRenderingContext2D;
       const painted: string[] = [];
-      jest.spyOn(ctx, "fill").mockImplementation(() => {
+      jest.spyOn(ctx, "fillRect").mockImplementation(() => {
         painted.push(`e${(ctx.fillStyle as string).slice(3, 5)}`);
       });
       jest.spyOn(ctx, "stroke").mockImplementation(() => {
@@ -236,7 +236,7 @@ describe("SceneCanvasLayer", () => {
       layer.attachLayer(document.createElement("div"));
       const ctx = layer.context.ctx as CanvasRenderingContext2D;
       const painted: string[] = [];
-      jest.spyOn(ctx, "fill").mockImplementation(() => {
+      jest.spyOn(ctx, "fillRect").mockImplementation(() => {
         painted.push(`e${(ctx.fillStyle as string).slice(3, 5)}`);
       });
       jest.spyOn(ctx, "stroke").mockImplementation(() => {

@@ -137,19 +137,18 @@ describe("scene primitives", () => {
     expect(values("strokeStyle")).toEqual(["rgba(255, 255, 255, 0.4)"]);
   });
 
-  it("does not merge paths of different opacities into one run", () => {
+  it("composites every translucent path over the path below it", () => {
     const ctx = createContext();
     const stroke = jest.spyOn(ctx, "stroke");
     const faded = (id: string): TSceneElement => ({ ...line(id), styleId: 1 });
     const styles = [{}, { opacity: 0.5 }];
     expect(drawElements(ctx, [line("a"), faded("b"), faded("c"), line("d")], 1, { styles })).toBe(4);
-    // a | b c | d: the faded paths share a run, but never with an opaque one.
-    expect(stroke).toHaveBeenCalledTimes(3);
+    expect(stroke).toHaveBeenCalledTimes(4);
     const colors = ctx
       .__getEvents()
       .filter((event) => event.type === "strokeStyle")
       .map((event) => event.props.value);
-    expect(colors).toEqual(["#112233", "rgba(17, 34, 51, 0.5)", "#112233"]);
+    expect(colors).toEqual(["#112233", "rgba(17, 34, 51, 0.5)", "rgba(17, 34, 51, 0.5)", "#112233"]);
   });
 
   it("skips a part a style hides and keeps the primitive without a style", () => {
@@ -157,9 +156,9 @@ describe("scene primitives", () => {
     const rect = { kind: "rect" as const, part: "glow", x: 0, y: 0, width: 4, height: 4, fill: "#f00" };
     const hidden = element({ styleId: 1, primitives: [rect] });
     expect(drawElements(ctx, [hidden], 1, { styles: [{}, { parts: { glow: { visible: false } } }] })).toBe(0);
-    expect(ctx.__getDrawCalls().filter((call) => call.type === "fill")).toHaveLength(0);
+    expect(ctx.__getDrawCalls().filter((call) => call.type === "fillRect")).toHaveLength(0);
     drawElements(ctx, [element({ primitives: [rect] })], 1, { styles: [{}, { parts: { glow: { visible: false } } }] });
-    expect(ctx.__getDrawCalls().filter((call) => call.type === "fill")).toHaveLength(1);
+    expect(ctx.__getDrawCalls().filter((call) => call.type === "fillRect")).toHaveLength(1);
   });
 
   it("hides a part by a base rule's visible: false unless the state layer shows it", () => {
@@ -174,14 +173,17 @@ describe("scene primitives", () => {
   it("draws no stroke whose width is unset after styling, and takes the base width", () => {
     const ctx = createContext();
     const stroke = jest.spyOn(ctx, "stroke");
+    const border = jest.spyOn(ctx, "strokeRect");
     const rect = { kind: "rect" as const, part: "border", x: 0, y: 0, width: 4, height: 4, border: { color: "#000" } };
     const path = { kind: "path" as const, part: "line", segments: SEGMENTS, stroke: { color: "#123" } };
     drawElements(ctx, [element({ primitives: [rect, path] })], 1);
     expect(stroke).not.toHaveBeenCalled();
+    expect(border).not.toHaveBeenCalled();
     drawElements(ctx, [element({ styleId: 1, primitives: [rect, path] })], 1, {
       styles: [{}, { base: { border: { width: 2 }, line: { width: 3 } } }],
     });
-    expect(stroke).toHaveBeenCalledTimes(2);
+    expect(stroke).toHaveBeenCalledTimes(1);
+    expect(border).toHaveBeenCalledTimes(1);
     const widths = ctx
       .__getEvents()
       .filter((event) => event.type === "lineWidth")
@@ -206,12 +208,12 @@ describe("scene primitives", () => {
     roundRect.mockRestore();
   });
 
-  it("draws rects without a radius with rect, so they draw in a context without roundRect", () => {
+  it("draws square bodies and their inset borders without roundRect", () => {
     const ctx = createContext();
     // A browser without CanvasRenderingContext2D.roundRect.
     Object.defineProperty(ctx, "roundRect", { value: undefined, configurable: true });
-    const fill = jest.spyOn(ctx, "fill");
-    const stroke = jest.spyOn(ctx, "stroke");
+    const fill = jest.spyOn(ctx, "fillRect");
+    const stroke = jest.spyOn(ctx, "strokeRect");
     const border = { color: "#000", width: 4, align: "inside" as const };
     const plain = { kind: "rect" as const, x: 0, y: 0, width: 40, height: 20, fill: "#fff", border };
     expect(() =>
@@ -227,9 +229,32 @@ describe("scene primitives", () => {
     ).not.toThrow();
     expect(fill).toHaveBeenCalledTimes(3);
     expect(stroke).toHaveBeenCalledTimes(3);
-    expect((fill.mock.calls[0][0] as Path2D).rect).toHaveBeenCalledWith(100, 50, 40, 20);
-    expect((stroke.mock.calls[0][0] as Path2D).rect).toHaveBeenCalledWith(102, 52, 36, 16);
+    expect(fill).toHaveBeenCalledWith(100, 50, 40, 20);
+    expect(stroke).toHaveBeenCalledWith(102, 52, 36, 16);
   });
+
+  it.each([{ radius: 0 }, { radius: [0, 0, 0, 0] }])(
+    "expands an explicit zero radius with an outside border ($radius)",
+    ({ radius }) => {
+      const ctx = createContext();
+      const roundRect = jest.spyOn(Path2D.prototype, "roundRect");
+      const rect = {
+        kind: "rect" as const,
+        x: 10,
+        y: 20,
+        width: 40,
+        height: 20,
+        radius,
+        border: { color: "#123", width: 12, align: "outside" as const },
+      };
+      try {
+        drawElements(ctx, [element({ primitives: [rect] })], 1);
+        expect(roundRect).toHaveBeenCalledWith(4, 14, 52, 32, typeof radius === "number" ? 6 : [6, 6, 6, 6]);
+      } finally {
+        roundRect.mockRestore();
+      }
+    }
+  );
 
   it("reuses rectangle geometry across paints and refreshes changed insets and origins", () => {
     const ctx = createContext();
@@ -290,7 +315,7 @@ describe("scene primitives", () => {
   it("flushes a path run before a later shape so the draw order holds", () => {
     const ctx = createContext();
     const stroke = jest.spyOn(ctx, "stroke");
-    const fill = jest.spyOn(ctx, "fill");
+    const fill = jest.spyOn(ctx, "fillRect");
     const block = element({
       id: "block",
       primitives: [{ kind: "rect", x: 0, y: 0, width: 10, height: 10, fill: "#fff" }],
@@ -302,22 +327,76 @@ describe("scene primitives", () => {
     expect(fill.mock.invocationCallOrder[0]).toBeLessThan(stroke.mock.invocationCallOrder[1]);
   });
 
-  it("fills a polygon run once and strokes it with the paths of the same style", () => {
+  it.each([true, false])(
+    "fills only the painted polygon when its neighbour is unfilled (filled first: %s)",
+    (filledFirst) => {
+      const ctx = createContext();
+      const fill = jest.spyOn(ctx, "fill");
+      const stroke = jest.spyOn(ctx, "stroke");
+      const outline = { color: "#123", width: 2 };
+      const polygon = (x: number, color?: string): TScenePrimitive => ({
+        kind: "polygon",
+        points: new Float32Array([x, 0, x + 4, 2, x, 4]),
+        stroke: outline,
+        fill: color,
+      });
+      const filled = polygon(10, "#abc");
+      const empty = polygon(40);
+      drawElements(ctx, [element({ primitives: filledFirst ? [filled, empty] : [empty, filled] })], 1);
+      expect(fill).toHaveBeenCalledTimes(1);
+      const path = fill.mock.calls[0][0] as Path2D;
+      expect(path.moveTo).toHaveBeenCalledTimes(1);
+      expect(path.moveTo).toHaveBeenCalledWith(10, 0);
+      expect(stroke).toHaveBeenCalledTimes(2);
+      expect(stroke.mock.invocationCallOrder[0] < fill.mock.invocationCallOrder[0]).toBe(!filledFirst);
+    }
+  );
+
+  it("paints each polygon separately so opposite windings cannot cancel or cover a later stroke", () => {
     const ctx = createContext();
     const stroke = jest.spyOn(ctx, "stroke");
     const fill = jest.spyOn(ctx, "fill");
-    const arrow = new Float32Array([0, 0, 4, 2, 0, 4]);
-    const connection = (id: string): TSceneElement =>
-      element({
-        id,
-        primitives: [
-          { kind: "path", segments: SEGMENTS, stroke: { color: "#123", width: 2 } },
-          { kind: "polygon", points: arrow, fill: "#123", stroke: { color: "#123", width: 2 } },
-        ],
-      });
-    drawElements(ctx, [connection("a"), connection("b")], 1);
-    expect(fill).toHaveBeenCalledTimes(1);
-    expect(stroke).toHaveBeenCalledTimes(1);
+    const outline = { color: "#123", width: 2 };
+    const polygon = (points: number[]): TScenePrimitive => ({
+      kind: "polygon",
+      points: new Float32Array(points),
+      stroke: outline,
+      fill: "#abc",
+    });
+    drawElements(ctx, [element({ primitives: [polygon([0, 0, 4, 2, 0, 4]), polygon([0, 4, 4, 2, 0, 0])] })], 1);
+    expect(fill).toHaveBeenCalledTimes(2);
+    expect(stroke).toHaveBeenCalledTimes(2);
+    expect(fill.mock.invocationCallOrder[0]).toBeLessThan(stroke.mock.invocationCallOrder[0]);
+    expect(stroke.mock.invocationCallOrder[0]).toBeLessThan(fill.mock.invocationCallOrder[1]);
+    expect(fill.mock.invocationCallOrder[1]).toBeLessThan(stroke.mock.invocationCallOrder[1]);
+  });
+
+  it("reuses a series of opaque paths until its geometry, origin or style changes", () => {
+    const ctx = createContext();
+    const paths = Array.from({ length: 154 }, (_, i) => ({ ...line(String(i)), order: i }));
+    const options = { styles: [{}, { opacity: 0.5 }] };
+    const addPath = jest.spyOn(Path2D.prototype, "addPath");
+    try {
+      drawElements(ctx, paths, 1, options);
+      const first = addPath.mock.calls.map(([path]) => path);
+      expect(first).toHaveLength(2);
+      addPath.mockClear();
+      drawElements(ctx, paths, 2, options);
+      expect(addPath.mock.calls.map(([path]) => path)).toEqual(first);
+      addPath.mockClear();
+      paths[1].x = 4;
+      drawElements(ctx, paths, 2, options);
+      expect(addPath.mock.calls[0][0]).not.toBe(first[0]);
+      expect(addPath.mock.calls[1][0]).toBe(first[1]);
+      addPath.mockClear();
+      paths[2].primitives = line("replacement").primitives;
+      paths[150].styleId = 1;
+      drawElements(ctx, paths, 2, options);
+      expect(addPath).toHaveBeenCalledTimes(1);
+      expect(addPath.mock.calls[0][0]).not.toBe(first[0]);
+    } finally {
+      addPath.mockRestore();
+    }
   });
 
   it("draws a primitive only on the levels of its mask", () => {

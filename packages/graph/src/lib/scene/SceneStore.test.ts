@@ -156,6 +156,30 @@ describe("SceneStore", () => {
     expect(ids()).toEqual(["earlier", "edge", "unbounded", "later"]);
   });
 
+  it("preserves candidate order during geometry edits and picks up elements moving into the region", () => {
+    const store = new SceneStore(100);
+    const dot = element("a", 1);
+    store.add(dot);
+    store.add({ ...dot, id: "b", x: 30 });
+    store.add({ ...dot, id: "offscreen", x: 500 });
+    const rect = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
+    const query = jest.spyOn(store, "query");
+    const ids = () => store.queryForCanvas(rect, 1, "schematic").map(({ id }) => id);
+    expect(ids()).toEqual(["a", "b"]);
+    expect(ids()).toEqual(["a", "b"]);
+    store.update("a", { x: 130, primitives: [...dot.primitives] });
+    expect(ids()).toEqual(["b"]);
+    store.update("a", { x: 0 });
+    expect(ids()).toEqual(["a", "b"]);
+    expect(query).toHaveBeenCalledTimes(2);
+    store.update("offscreen", { x: 50 });
+    expect(ids()).toEqual(["a", "b", "offscreen"]);
+    store.update("b", { primitives: [] });
+    expect(ids()).toEqual(["a", "offscreen"]);
+    store.update("b", { primitives: dot.primitives });
+    expect(ids()).toEqual(["a", "b", "offscreen"]);
+  });
+
   it("updates the cached Canvas query for a grown styled bound and a changed level", () => {
     const store = new SceneStore();
     const dot: TScenePrimitive = { kind: "circle", part: "body", cx: 0, cy: 0, r: 1, levelMask: LEVEL_BIT.schematic };

@@ -4,7 +4,7 @@ import { TileIndex } from "../culling/TileIndex";
 import type { TTileRect } from "../culling/TileIndex";
 import { isDevelopmentBuild } from "../detachedWarning";
 
-import { LEVEL_BIT, levelMaskOfPrimitives } from "./levels";
+import { LEVEL_BIT, isOnLevel, levelMaskOfPrimitives } from "./levels";
 import {
   bakeElementStyle,
   composeChildStyle,
@@ -229,7 +229,12 @@ function compareOwners(a: TNode, b: TNode): number {
 type TCanvasQuery = {
   scale: number;
   level: TSceneLevel | undefined;
-  region?: { rect: TTileRect; elements: readonly TSceneElement[]; bounds: Float64Array };
+  region?: {
+    rect: TTileRect;
+    elements: readonly TSceneElement[];
+    bounds: Float64Array;
+    offsets: Map<TSceneElement, number>;
+  };
 };
 
 /** Research prototype (E2): the elements of a scene, found by world rect and returned in draw order. */
@@ -783,7 +788,7 @@ export class SceneStore {
     return found;
   }
 
-  /** @internal Reuses draw order during a Canvas pan. Any scene or style change drops the candidates. */
+  /** @internal Reuses nearby elements in draw order as the camera pans or their geometry moves. */
   public queryForCanvas(rect: TTileRect, scale: number, level?: TSceneLevel): readonly TSceneElement[] {
     const { minX, minY, maxX, maxY } = rect;
     const width = maxX - minX;
@@ -832,21 +837,29 @@ export class SceneStore {
   private canvasQueryRegion(rect: TTileRect, level: TSceneLevel | undefined): NonNullable<TCanvasQuery["region"]> {
     const elements = this.query(rect, level);
     const bounds = new Float64Array(elements.length * 4);
-    for (let i = 0, at = 0; i < elements.length; i++, at += 4) {
+    const offsets = new Map<TSceneElement, number>();
+    for (let i = 0; i < elements.length; i++) {
       const element = elements[i];
-      const { minX, minY, maxX, maxY } = this.requireNode(element.id).drawn ?? element.bounds;
-      const x0 = element.x + minX;
-      const y0 = element.y + minY;
-      const x1 = element.x + maxX;
-      const y1 = element.y + maxY;
-      // TileIndex includes records with non-finite or inverted bounds in every query.
-      const bounded = Number.isFinite(x0 + y0 + x1 + y1) && x0 <= x1 && y0 <= y1;
-      bounds[at] = bounded ? x0 : -Infinity;
-      bounds[at + 1] = bounded ? y0 : -Infinity;
-      bounds[at + 2] = bounded ? x1 : Infinity;
-      bounds[at + 3] = bounded ? y1 : Infinity;
+      const at = 4 * i;
+      offsets.set(element, at);
+      this.writeCanvasBounds(this.requireNode(element.id), bounds, at);
     }
-    return { rect, elements, bounds };
+    return { rect, elements, bounds, offsets };
+  }
+
+  private writeCanvasBounds(node: TNode, bounds: Float64Array, at: number): void {
+    const { element } = node;
+    const local = node.drawn ?? element.bounds;
+    const x0 = element.x + local.minX;
+    const y0 = element.y + local.minY;
+    const x1 = element.x + local.maxX;
+    const y1 = element.y + local.maxY;
+    // TileIndex includes records with non-finite or inverted bounds in every query.
+    const bounded = Number.isFinite(x0 + y0 + x1 + y1) && x0 <= x1 && y0 <= y1;
+    bounds[at] = bounded ? x0 : -Infinity;
+    bounds[at + 1] = bounded ? y0 : -Infinity;
+    bounds[at + 2] = bounded ? x1 : Infinity;
+    bounds[at + 3] = bounded ? y1 : Infinity;
   }
 
   /** What an element has to redo when its row changes from `previous` to `next`. */
@@ -1151,7 +1164,22 @@ export class SceneStore {
   }
 
   private emit(change: TSceneChange): void {
-    this.canvasQuery = undefined;
+    const cache = this.canvasQuery;
+    if (
+      cache &&
+      change.type === "update" &&
+      change.fields &&
+      [...change.fields].every((key) => key === "x" || key === "y" || key === "primitives" || key === "bounds")
+    ) {
+      const region = cache.region;
+      if (region) {
+        const at = region.offsets.get(change.element);
+        const node = this.requireNode(change.element.id);
+        // Existing candidates keep their order. The exact filter also handles moves out of the region.
+        if (at !== undefined && isOnLevel(node.levels, cache.level)) this.writeCanvasBounds(node, region.bounds, at);
+        else cache.region = undefined;
+      }
+    } else this.canvasQuery = undefined;
     this.listeners.forEach((listener) => listener(change));
   }
 

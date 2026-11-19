@@ -1,5 +1,6 @@
 import type { TSceneLevel } from "../../services/scene/types";
 
+import { readColorRgba } from "./colorAlpha";
 import { isOnLevel } from "./levels";
 import { resolveSceneSize } from "./size";
 import { applyStyle } from "./style";
@@ -34,6 +35,30 @@ function insetRadius(radius: number | readonly number[] | undefined, inset: numb
   return radius.map((value) => Math.max(0, value - inset));
 }
 
+/** Square and non-degenerate rectangles have direct Canvas commands equivalent to their paths. */
+function drawSquareRect(
+  ctx: CanvasRenderingContext2D,
+  rect: TRectPrimitive,
+  x: number,
+  y: number,
+  scale: number
+): boolean {
+  const radius = rect.radius;
+  if (typeof radius === "number" ? radius !== 0 : radius?.some((value) => value !== 0)) return false;
+  const inset = rect.border ? strokeInset(rect.border, scale) : 0;
+  // Outsetting an explicit zero radius rounds the border; an omitted radius stays square.
+  if (radius !== undefined && inset < 0) return false;
+  if (!(rect.width > Math.max(0, 2 * inset) && rect.height > Math.max(0, 2 * inset))) return false;
+  if (rect.fill) {
+    ctx.fillStyle = rect.fill;
+    ctx.fillRect(x, y, rect.width, rect.height);
+  }
+  if (rect.border && applyStroke(ctx, rect.border, scale)) {
+    ctx.strokeRect(x + inset, y + inset, rect.width - 2 * inset, rect.height - 2 * inset);
+  }
+  return true;
+}
+
 function drawRect(
   ctx: CanvasRenderingContext2D,
   rect: TRectPrimitive,
@@ -42,6 +67,7 @@ function drawRect(
   y: number,
   scale: number
 ): void {
+  if (drawSquareRect(ctx, rect, x, y, scale)) return;
   let paths: TRectPaths | undefined;
   if (typeof Path2D.prototype.roundRect === "function") {
     paths = rectPaths.get(source);
@@ -183,6 +209,16 @@ function drawShape(
     case "rect":
       drawRect(ctx, primitive, source, ox + primitive.x, oy + primitive.y, scale);
       return;
+    case "polygon": {
+      const path = new Path2D();
+      appendPolygon(path, primitive.points, ox, oy);
+      if (primitive.fill) {
+        ctx.fillStyle = primitive.fill;
+        ctx.fill(path);
+      }
+      if (primitive.stroke && applyStroke(ctx, primitive.stroke, scale)) ctx.stroke(path);
+      return;
+    }
     case "circle": {
       ctx.beginPath();
       ctx.arc(ox + primitive.cx, oy + primitive.cy, primitive.r, 0, 2 * Math.PI);
@@ -214,22 +250,12 @@ function drawShape(
   }
 }
 
-/** Consecutive paths and polygons of one stroke style, drawn with one fill and one stroke. */
-type TRun = {
-  key: string;
-  stroke?: TSceneStroke;
-  fill?: string;
-  strokePath: Path2D;
-  fillPath: Path2D;
-  /** Paths and polygons in the run. */
-  size: number;
-};
+/** Consecutive opaque paths with the same stroke. */
+type TRun = { key: string; stroke: TSceneStroke; path: Path2D; size: number };
 
 export type TDrawElementsOptions = {
   /**
-   * Ends a run after this many paths and polygons: a positive integer, or `Infinity` / `undefined` for unbounded (the
-   * default). Any other value throws a RangeError. Chromium's Path2D.closePath() costs time in proportion to the path
-   * built so far, so one run of thousands of polygons costs quadratic time.
+   * Maximum consecutive opaque paths per stroke. A positive integer, Infinity, or undefined (unbounded).
    */
   maxRun?: number;
   /** Style overrides by `element.styleId`; see `TSceneStyle`. */
@@ -251,12 +277,31 @@ function isPrimitiveDrawn(primitive: TScenePrimitive, scale: number, options: TD
   return isPrimitiveVisible(primitive, scale, options.level);
 }
 
-/**
- * Whether a path or polygon of this stroke key and fill starts a new run instead of joining `run`: another stroke
- * style, a full run, or a polygon fill other than the run's.
- */
-function endsRun(run: TRun, key: string, fill: string | undefined, maxRun: number): boolean {
-  return run.key !== key || run.size >= maxRun || (fill !== undefined && run.fill !== undefined && run.fill !== fill);
+type TPaint = { source: TScenePrimitive; primitive: TScenePrimitive };
+type TPaints = {
+  style?: TSceneStyle;
+  dimColor?: string;
+  paints: readonly TPaint[];
+};
+
+// Styles change on tag/theme updates; the primitive list changes on geometry edits. Neither changes during a pan.
+const elementPaints = new WeakMap<readonly TScenePrimitive[], TPaints>();
+
+function paintsOf(
+  primitives: readonly TScenePrimitive[],
+  style: TSceneStyle | undefined,
+  dimColor: string | undefined
+): readonly TPaint[] {
+  const cached = elementPaints.get(primitives);
+  if (cached && cached.style === style && cached.dimColor === dimColor) return cached.paints;
+  const paints: TPaint[] = [];
+  for (const source of primitives) {
+    const painted = source.kind === "path" && source.canvasStroke ? { ...source, stroke: source.canvasStroke } : source;
+    const primitive = applyStyle(painted, style, dimColor);
+    if (primitive) paints.push({ source, primitive });
+  }
+  elementPaints.set(primitives, { style, dimColor, paints });
+  return paints;
 }
 
 function resolveMaxRun(maxRun: number | undefined): number {
@@ -296,14 +341,106 @@ export function appendPolygon(path: Path2D, points: Float32Array, ox: number, oy
   path.closePath();
 }
 
-/**
- * Draws visible primitives of the elements in the given order. Paths and polygons of one stroke style that follow each
- * other form a run, drawn with one `fill` of all its polygons and then one `stroke` of all its paths and polygon
- * outlines. Inside a run the order is therefore not kept: every polygon fill lies under every stroke of the run, also
- * under the stroke of a path that came before the polygon. Any other primitive ends the run first, so the order between
- * runs and the other primitives is kept. A style's `opacity` and `dim` are applied to the colours (`applyStyle`), so
- * paths of a different opacity have a different stroke key and never share a run.
- */
+type TPathSpan = {
+  dimColor?: string;
+  members: {
+    element: TSceneElement;
+    primitives: readonly TScenePrimitive[];
+    style?: TSceneStyle;
+    x: number;
+    y: number;
+  }[];
+  run: TRun;
+};
+
+// Keep only the spans used by the last paint of this canvas. Chunk boundaries follow scene order so a path
+// entering the viewport or changing during a drag does not invalidate the rest of a long series of connections.
+const canvasSpans = new WeakMap<CanvasRenderingContext2D, Map<TSceneElement, TPathSpan>>();
+const SPAN_SIZE = 128;
+
+/** A CSS colour whose opacity cannot be established needs its own paint at crossings. */
+function isOpaque(color: string): boolean {
+  return readColorRgba(color)?.[3] === 1;
+}
+
+function pathSpanEnd(elements: readonly TSceneElement[], start: number): number {
+  const bucket = Math.floor(elements[start].order / SPAN_SIZE);
+  let end = start + 1;
+  while (
+    end < elements.length &&
+    end - start < SPAN_SIZE &&
+    Math.floor(elements[end].order / SPAN_SIZE) === bucket &&
+    elements[end].primitives[0]?.kind === "path"
+  ) {
+    end++;
+  }
+  return end;
+}
+
+function samePathSpan(
+  previous: TPathSpan,
+  elements: readonly TSceneElement[],
+  start: number,
+  end: number,
+  options: TDrawElementsOptions
+): boolean {
+  return (
+    previous.dimColor === options.dimColor &&
+    previous.members.length === end - start &&
+    previous.members.every((member, i) => {
+      const element = elements[start + i];
+      return (
+        member.element === element &&
+        !element.hidden &&
+        element.primitives === member.primitives &&
+        options.styles?.[element.styleId] === member.style &&
+        element.x === member.x &&
+        element.y === member.y
+      );
+    })
+  );
+}
+
+function opaquePathSpan(
+  elements: readonly TSceneElement[],
+  start: number,
+  end: number,
+  options: TDrawElementsOptions,
+  previous: TPathSpan | undefined
+): TPathSpan | undefined {
+  if (end - start < 2) return undefined;
+  if (previous && samePathSpan(previous, elements, start, end, options)) return previous;
+  const members: TPathSpan["members"] = [];
+  let run: TRun | undefined;
+  for (let i = start; i < end; i++) {
+    const element = elements[i];
+    if (element.hidden) return undefined;
+    const style = options.styles?.[element.styleId];
+    // These spans can be used at any zoom and level. The ordinary path handles scale-dependent geometry and visibility.
+    for (const { primitive } of paintsOf(element.primitives, style, options.dimColor)) {
+      if (
+        primitive.kind !== "path" ||
+        primitive.minScale !== undefined ||
+        primitive.maxScale !== undefined ||
+        primitive.levelMask !== undefined ||
+        !primitive.stroke?.color ||
+        typeof primitive.stroke.width !== "number" ||
+        !isOpaque(primitive.stroke.color)
+      ) {
+        return undefined;
+      }
+      const key = strokeKey(primitive.stroke, 1);
+      if (run && run.key !== key) return undefined;
+      run ??= { key, stroke: primitive.stroke, path: new Path2D(), size: 0 };
+      appendSegments(run.path, primitive.segments, element.x, element.y, primitive.closed);
+      run.size++;
+    }
+    members.push({ element, x: element.x, y: element.y, primitives: element.primitives, style });
+  }
+  return run ? { run, members, dimColor: options.dimColor } : undefined;
+}
+
+/** Draws visible primitives in scene order. Only consecutive opaque strokes may share a paint. */
 export function drawElements(
   ctx: CanvasRenderingContext2D,
   elements: readonly TSceneElement[],
@@ -311,45 +448,53 @@ export function drawElements(
   options: TDrawElementsOptions = {}
 ): number {
   const maxRun = resolveMaxRun(options.maxRun);
+  const compositeOpaque = ctx.globalAlpha === 1 && ctx.globalCompositeOperation === "source-over";
   let run: TRun | undefined;
   let drawn = 0;
+  const cached = canvasSpans.get(ctx);
+  let next: Map<TSceneElement, TPathSpan> | undefined;
+  const useSpans = compositeOpaque && maxRun === Infinity && elements.length >= SPAN_SIZE;
+  let nextSpan = 0;
   const flush = (): void => {
     if (!run) return;
-    if (run.fill) {
-      ctx.fillStyle = run.fill;
-      ctx.fill(run.fillPath);
-    }
-    if (run.stroke && applyStroke(ctx, run.stroke, scale)) {
-      ctx.stroke(run.strokePath);
-    }
+    if (applyStroke(ctx, run.stroke, scale)) ctx.stroke(run.path);
     run = undefined;
+  };
+  const strokePath = (stroke: TSceneStroke, key: string, size: number): Path2D => {
+    if (run && (run.key !== key || run.size + size > maxRun)) flush();
+    run ??= { key, stroke, path: new Path2D(), size: 0 };
+    run.size += size;
+    return run.path;
+  };
+  const drawPath = (primitive: Extract<TScenePrimitive, { kind: "path" }>, x: number, y: number): void => {
+    const stroke = primitive.stroke;
+    if (!stroke?.color || stroke.width === undefined) return;
+    const path = strokePath(stroke, strokeKey(stroke, scale), 1);
+    appendSegments(path, primitive.segments, x, y, primitive.closed);
+    if (!compositeOpaque || !isOpaque(stroke.color)) flush();
   };
   for (let e = 0; e < elements.length; e++) {
     const element = elements[e];
     if (element.hidden && !options.drawHidden) continue;
+    if (useSpans && e >= nextSpan && element.primitives[0]?.kind === "path") {
+      nextSpan = pathSpanEnd(elements, e);
+      const span = opaquePathSpan(elements, e, nextSpan, options, cached?.get(element));
+      if (span) {
+        strokePath(span.run.stroke, span.run.key, span.run.size).addPath(span.run.path);
+        drawn += span.run.size;
+        (next ??= new Map()).set(element, span);
+        e = nextSpan - 1;
+        continue;
+      }
+    }
     const style = options.styles?.[element.styleId];
-    for (let p = 0; p < element.primitives.length; p++) {
-      const source = element.primitives[p];
-      if (!isPrimitiveDrawn(source, scale, options)) continue;
-      const painted =
-        source.kind === "path" && source.canvasStroke ? { ...source, stroke: source.canvasStroke } : source;
-      const primitive = applyStyle(painted, style, options.dimColor);
-      if (!primitive) continue;
+    const paints = paintsOf(element.primitives, style, options.dimColor);
+    for (let p = 0; p < paints.length; p++) {
+      const { source, primitive } = paints[p];
+      if (!isPrimitiveDrawn(primitive, scale, options)) continue;
       drawn++;
-      if (primitive.kind === "path" || primitive.kind === "polygon") {
-        const stroke = primitive.stroke;
-        const fill = primitive.kind === "polygon" ? primitive.fill : undefined;
-        const key = strokeKey(stroke, scale);
-        if (run && endsRun(run, key, fill, maxRun)) flush();
-        if (!run) run = { key, stroke, strokePath: new Path2D(), fillPath: new Path2D(), size: 0 };
-        run.size++;
-        if (primitive.kind === "path") {
-          appendSegments(run.strokePath, primitive.segments, element.x, element.y, primitive.closed);
-        } else {
-          run.fill = fill;
-          appendPolygon(run.fillPath, primitive.points, element.x, element.y);
-          if (stroke) appendPolygon(run.strokePath, primitive.points, element.x, element.y);
-        }
+      if (primitive.kind === "path") {
+        drawPath(primitive, element.x, element.y);
         continue;
       }
       flush();
@@ -357,5 +502,7 @@ export function drawElements(
     }
   }
   flush();
+  if (next) canvasSpans.set(ctx, next);
+  else canvasSpans.delete(ctx);
   return drawn;
 }

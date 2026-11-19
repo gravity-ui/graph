@@ -26,8 +26,8 @@ mounting), `--shuffle` (register connections in a seeded random order), `--shots
 screenshots), `--headed`, `--chunk-size N` and `--cell-tiles N` (set `connection.PATH2D_CHUNK_SIZE` and
 `connection.PATH2D_CHUNK_TILES` for every variant; `--chunk-size 1` strokes every connection alone, which compares
 culling without the blending of overlaps inside a chunk), `--labels` (draw connection labels; Nirvana connections
-have labels). Each canvas result line ends with the Path2D strokes and fills of one frame at the measured view,
-counted after the timed frames; WebGL columns do not print them, because they count Path2D calls only.
+have labels). Each Canvas result reports `stroke(Path2D)` and `fill(Path2D)` separately from `strokeRect` and `fillRect` for one
+frame at the measured view. Counting happens after the timed frames.
 
 `--renderers canvas,webgl` (default `canvas`): every variant x renderer is a column named `variant/renderer`, and
 the first column is the pixel reference. The API is detected per variant from the bundle's exports:
@@ -196,11 +196,10 @@ raster then cost main-thread time that a hardware canvas does not. `--gpu` launc
 (`channel: "chromium"`, ANGLE Metal on macOS, no SwiftShader fallback). The second line of the output names the WebGL
 renderer, so every run says which one it used.
 
-`--run-cap N` passes `maxRun` to the interpreter's `drawElements()`: a run of same-style paths and polygons is drawn
-after N of them. The column is then named `interpreter-capN`. A list such as `--run-cap none,200` measures one
-interpreter column per value; `none` is the unbounded default. Each value must be `none` or a positive integer, and
-none may repeat. The cap exists because Chromium's `Path2D.closePath()` costs time in proportion to the path built so
-far: one run with all connection arrows of a zoomed-out frame costs quadratic time.
+`--run-cap N` limits each stroke to N consecutive opaque paths with the same style. A list such as
+`--run-cap none,200` measures one interpreter column per value, with `none` as the unbounded default.
+Each value must be `none` or a positive integer and appear only once. The capped column is named `interpreter-capN`.
+The interpreter paints each polygon and translucent path in scene order.
 
 `cached` (E2b, `--renderers walk,interpreter,cached`) is the interpreter with the connections held in a
 `ScenePathBatch` (`zIndex: 1`, cell 8192, chunk 200) instead of the store. The batch caches chunk paths per grid cell

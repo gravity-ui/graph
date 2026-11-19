@@ -225,7 +225,14 @@ for (const renderer of ["canvas", "webgl"] as const) {
       graph.scene.styles.add([{ target: GraphModule.BlockConnection, tags: [upper], style: { raise: 1 } }]);
       graph.scene.tags.add(upper, { connection: ["overlay"] });
     });
-    for (const scale of [1, 0.5]) {
+    for (const [scale, sameColor] of [
+      [1, false],
+      [0.5, false],
+      [0.5, true],
+    ] as const) {
+      if (sameColor) {
+        await graph.evaluate((graph, edge) => graph.updateEntities({ connections: [edge] }), { ...red, id: "overlay" });
+      }
       await graph.evaluate((graph, scale) => graph.cameraService.set({ x: 0, y: 0, scale }), scale);
       await graph.waitForFrames(3);
       const samples = await page.evaluate(
@@ -246,8 +253,8 @@ for (const renderer of ["canvas", "webgl"] as const) {
         { scale, width: viewport.width }
       );
       for (const pixel of samples) {
-        // Blue over red. The second sample is on the retraced portion of both logical paths.
-        const expected = [85, 0, 170, 192];
+        // Each connection contributes its opacity once, including on their retraced portions.
+        const expected = sameColor ? [255, 0, 0, 192] : [85, 0, 170, 192];
         expect
           .soft(Math.max(...pixel.map((value, i) => Math.abs(value - expected[i]))), `actual RGBA ${pixel}`)
           .toBeLessThanOrEqual(2);
