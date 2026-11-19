@@ -7,6 +7,26 @@ const SUBPIXEL_GUARD = 1 - 2 ** -16;
 type TSceneRootDepth = { key: number; entityType?: string; hidden?: boolean };
 type TPathIdSpan = { first: number; count: number };
 
+/** At most eight sources share the packed address stream. */
+export function isSplitPathSource(mask: number, source: number): boolean {
+  return Math.floor(mask / 2 ** source) % 2 === 1;
+}
+
+/** Packed spans can run across two adjacent source tables. Count their physical records for strip selection. */
+export function mixedSourceCounts(spans: readonly TPathIdSpan[], sources: number): number[] {
+  const counts = Array<number>(sources).fill(0);
+  for (const { first, count } of spans) {
+    const end = first + count;
+    for (let slot = first; slot < end; ) {
+      const source = Math.floor(slot / MIXED_PATH_SOURCE_STRIDE);
+      const next = Math.min(end, (source + 1) * MIXED_PATH_SOURCE_STRIDE);
+      counts[source] += next - slot;
+      slot = next;
+    }
+  }
+  return counts;
+}
+
 type TPathOrderPosition = TPathIdSpan & {
   /** The root's current SceneDepth key and the encoded absolute sub of this primitive. */
   key: number;

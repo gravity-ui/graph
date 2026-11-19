@@ -1,5 +1,5 @@
 import type { TInstanceSpan } from "./InstanceRanges";
-import { MIXED_PATH_SOURCE_STRIDE } from "./mixedPathPlan";
+import { MIXED_PATH_SOURCE_STRIDE, isSplitPathSource } from "./mixedPathPlan";
 import type { OverviewCurveGroups } from "./overviewCurves";
 
 type TOverviewSource = Pick<OverviewCurveGroups, "starts" | "revision" | "pieces">;
@@ -43,15 +43,16 @@ export class PathDrawIds {
   private sources: (TOverviewSource | undefined)[] = [];
   private revisions: (number | undefined)[] = [];
   private offsets = new Uint32Array(0);
-  private compact = false;
+  private remapped = false;
   private packed = false;
+  private splitSources = 0;
   private grouped?: TPathDrawGroups;
   private groupVersion = 0;
   private readonly addressGroups = new WeakMap<readonly TPathDrawSpan[], TAddressGroup>();
 
   /** Native draws and mixed program barriers always start and end at span boundaries. */
   public offset(canonical: number): number {
-    return this.compact ? this.offsets[canonical] : canonical;
+    return this.remapped ? this.offsets[canonical] : canonical;
   }
 
   public get data(): Float32Array {
@@ -98,7 +99,7 @@ export class PathDrawIds {
     this.grouped = groups;
     this.input = undefined;
     this.spanCount = -1;
-    this.compact = false;
+    this.remapped = false;
     this.count = offset;
     return from < to ? { byteOffset: from * 4, data: this.values.subarray(from, to) } : undefined;
   }
@@ -113,17 +114,19 @@ export class PathDrawIds {
   /** Planner-owned arrays never mutate; retain their identity only for the packed plan entry point. */
   public updatePlan(
     spans: readonly TPathDrawSpan[],
-    sources?: readonly (TOverviewSource | undefined)[]
+    sources?: readonly (TOverviewSource | undefined)[],
+    splitSources = 0
   ): TInstanceSpan | undefined {
     if (!sources?.some(Boolean)) sources = undefined;
     if (
+      this.splitSources === splitSources &&
       this.input === spans &&
       this.packed &&
       (sources?.length ?? 0) === this.sources.length &&
       (!sources || sources.every((source, i) => source === this.sources[i] && source?.revision === this.revisions[i]))
     )
       return undefined;
-    const changed = this.update(spans, sources, true);
+    const changed = this.update(spans, sources, true, splitSources);
     this.input = spans;
     return changed;
   }
@@ -132,7 +135,8 @@ export class PathDrawIds {
   public update(
     spans: readonly TPathDrawSpan[],
     sources?: readonly (TOverviewSource | undefined)[],
-    packed = false
+    packed = false,
+    splitSources = 0
   ): TInstanceSpan | undefined {
     if (this.grouped) {
       this.grouped = undefined;
@@ -141,6 +145,7 @@ export class PathDrawIds {
     this.input = undefined;
     if (!sources?.some(Boolean)) sources = undefined;
     const sameSources =
+      this.splitSources === splitSources &&
       packed === this.packed &&
       (sources?.length ?? 0) === this.sources.length &&
       (!sources || sources.every((source, i) => source === this.sources[i] && source?.revision === this.revisions[i]));
@@ -166,32 +171,33 @@ export class PathDrawIds {
       }
       count += size;
     }
-    this.reserve(count);
+    this.reserve(splitSources ? count * 2 : count);
     const snapshotSize = spans.length * 2;
     if (snapshotSize > this.spanSnapshot.length) {
       const snapshot = new Uint32Array(Math.max(snapshotSize, this.spanSnapshot.length * 2));
       snapshot.set(this.spanSnapshot.subarray(0, firstSpan * 2));
       this.spanSnapshot = snapshot;
     }
-    this.compact = Boolean(sources);
+    this.remapped = Boolean(sources || splitSources);
+    this.splitSources = splitSources;
     this.packed = packed;
     if (!sameSources) {
       this.sources = sources?.slice() ?? [];
       this.revisions = sources?.map((source) => source?.revision) ?? [];
     }
-    if (sources && this.offsets.length <= count) {
+    if (this.remapped && this.offsets.length <= count) {
       const offsets = new Uint32Array(Math.max(count + 1, this.offsets.length * 2));
       offsets.set(this.offsets.subarray(0, canonical + 1));
       this.offsets = offsets;
     }
-    let from = count;
+    let from = Infinity;
     let to = 0;
     for (let span = firstSpan; span < spans.length; span++) {
       const { first, count: size } = spans[span];
       this.spanSnapshot[span * 2] = first;
       this.spanSnapshot[span * 2 + 1] = size;
       const end = first + size;
-      if (!sources) {
+      if (!this.remapped) {
         // Entirely canonical plans use the original linear gather with no descriptor or offset lookups.
         for (let address = first; address < end; address++, offset++) {
           if (offset >= this.count || this.values[offset] !== address) {
@@ -210,28 +216,34 @@ export class PathDrawIds {
         const source = packed ? Math.floor(address / MIXED_PATH_SOURCE_STRIDE) : 0;
         const base = packed ? source * MIXED_PATH_SOURCE_STRIDE : 0;
         const stop = packed ? Math.min(end, base + MIXED_PATH_SOURCE_STRIDE) : end;
-        const groups = sources[source];
+        const groups = sources?.[source];
         const starts = groups?.starts;
         const pieces = groups?.pieces ?? 1;
+        const split = isSplitPathSource(splitSources, source);
         while (address < stop) {
-          let id = address;
+          const slot = address - base;
+          // Each half of a sixteen-chord strip uses eight chords. Its low address bit picks the half.
+          let id = split ? base + slot * 2 : address;
           if (starts && starts[address - base] && address + pieces <= stop) {
-            id = -1 - address;
+            id = -1 - id;
             address += pieces;
           } else {
             address++;
           }
-          if (offset >= this.count || this.values[offset] !== id) {
-            from = Math.min(from, offset);
-            to = offset + 1;
-            this.values[offset] = id;
+          // An overview group keeps its negative tag on both halves.
+          for (let half = 0; half < (split ? 2 : 1); half++, offset++) {
+            const value = id < 0 ? id - half : id + half;
+            if (offset >= this.count || this.values[offset] !== value) {
+              from = Math.min(from, offset);
+              to = offset + 1;
+              this.values[offset] = value;
+            }
           }
-          offset++;
         }
       }
     }
     this.count = offset;
-    if (sources) this.offsets[canonical] = offset;
+    if (this.remapped) this.offsets[canonical] = offset;
     this.spanCount = spans.length;
     return from < to ? { byteOffset: from * 4, data: this.values.subarray(from, to) } : undefined;
   }

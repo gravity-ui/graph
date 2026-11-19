@@ -374,8 +374,13 @@ const MIXED_RECORD_ADDRESS = /* glsl */ `
   graph_vStockEffect = float((flags >> 6) & 1);
   int groupShift = (flags & 128) != 0 ? 1 : 2;
   int chordShift = (kind == 8 ? 3 : 4) - groupShift;
+  int slot = packedSlot & ${MIXED_PATH_SOURCE_STRIDE - 1};
+  if ((flags & 256) != 0) {
+    chord += (slot & 1) * 8;
+    slot >>= 1;
+  }
   int piece = min(chord >> chordShift, (1 << groupShift) - 1);
-  int record = ((packedSlot & ${MIXED_PATH_SOURCE_STRIDE - 1}) + (overview ? piece : 0)) * 10;
+  int record = (slot + (overview ? piece : 0)) * 10;
   graph_recordBase = ivec2(record % rowWidth, record / rowWidth);
   // Records each occupy ten contiguous texels from the start of a physical row.
   record = 0;
@@ -501,7 +506,7 @@ void main() {
   }
   float t = ${
     sourceCount
-      ? "kind == 1 ? (gl_VertexID < 2 ? 0.0 : 1.0) : min(1.0, graph_template.x * (kind == 8 ? 2.0 : 1.0))"
+      ? "kind == 1 ? (gl_VertexID < 2 ? 0.0 : 1.0) : min(1.0, float(chord) * (kind == 8 ? 0.125 : 0.0625))"
       : "graph_template.x * graph_curveStep"
   };
   if (overview) t = min(1.0, float(chord - (piece << chordShift)) / float(1 << chordShift));

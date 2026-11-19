@@ -64,7 +64,9 @@ import {
   MixedStockDepthBands,
   canonicalizeMixedSources,
   fullySubpixelPaths,
+  isSplitPathSource,
   mixedPathSchedule,
+  mixedSourceCounts,
   separatedConnectionDepths,
 } from "./mixedPathPlan";
 import type { TLowerPathCommand, TMixedPathRange, TNativePathRange, TSubpixelPathWidth } from "./mixedPathPlan";
@@ -244,12 +246,14 @@ type TMixedPlan = {
   upperOpaque: TDraw[];
   upperTranslucent: TDraw[];
   nativeOnlyPaint: TDraw[];
+  sourceCounts: number[];
 };
 type TMixedDraw = TInstancePointerTarget & {
   programKey: string;
   uniforms: TUniforms;
   buffer: DynamicBuffer;
   ids: PathDrawIds;
+  splitSources?: number;
 };
 type TPreparedMixed = { plan: TMixedPlan; draw: TMixedDraw; target: Framebuffer; upload: TUploadKind };
 type TStockPlan = Pick<TMixedPlan, "sources" | "spans" | "commands"> & {
@@ -2932,6 +2936,7 @@ class WebGLSceneBackend implements ISceneBackend {
       effect: stock?.effect,
       effectUniforms: stock?.curves.uniforms,
       sources: work.sources,
+      sourceCounts: mixedSourceCounts(schedule.spans, work.sources.length),
       widths: work.widths,
       upperOpaque,
       upperTranslucent,
@@ -3132,6 +3137,30 @@ class WebGLSceneBackend implements ISceneBackend {
     return groups;
   }
 
+  /**
+   * An eight-chord submission removes 16 unused vertices from every short strip. Splitting a long
+   * strip repeats its shared edge (two vertices), preserving every triangle and its painter order.
+   * Count short strips after the largest possible overview compaction, long ones before any compaction.
+   */
+  private splitMixedSources(plan: TMixedPlan, overview?: readonly (OverviewCurveGroups | undefined)[]): number {
+    let split = 0;
+    let saved = 0;
+    for (let i = 0; i < plan.sources.length; i++) {
+      const { chords, records } = plan.sources[i];
+      const count = plan.sourceCounts[i];
+      if (chords === 16) {
+        // The phase bit shares the physical slot field with the original record address.
+        if (records.texture.width * records.texture.height > (MIXED_PATH_SOURCE_STRIDE / 2) * PATH_RECORD_TEXELS)
+          return 0;
+        split += 2 ** i;
+        saved -= 2 * count;
+      } else {
+        saved += (16 * count) / (overview?.[i]?.pieces ?? 1);
+      }
+    }
+    return saved >= MIN_MIXED_CONNECTION_VERTICES ? split : 0;
+  }
+
   private prepareMixedPlane(
     frame: TSceneFrame,
     opaque: readonly TDraw[],
@@ -3181,7 +3210,9 @@ class WebGLSceneBackend implements ISceneBackend {
         return undefined;
       }
     }
-    let changed = draw.ids.updatePlan(plan.spans, this.combinedOverview(plan.sources));
+    const overview = this.combinedOverview(plan.sources);
+    draw.splitSources = this.splitMixedSources(plan, overview);
+    let changed = draw.ids.updatePlan(plan.spans, overview, draw.splitSources);
     let upload: TUploadKind = changed ? "range" : "none";
     if (draw.ids.data.byteLength > draw.buffer.byteLength) {
       draw.buffer.resize({ byteLength: Math.max(draw.ids.data.byteLength, draw.buffer.byteLength * 2) });
@@ -3276,7 +3307,10 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     if (!patches.length) return plan;
     const schedule = resizeMixedPlan(plan.spans, plan.commands, patches, true);
-    return schedule && { ...plan, ...schedule };
+    if (!schedule) return undefined;
+    const sourceCounts = plan.sourceCounts.slice();
+    for (const patch of patches) sourceCounts[patch.source] += patch.after - patch.before;
+    return { ...plan, ...schedule, sourceCounts };
   }
 
   /** A shared stock program needs painter order, but no spatial overlap search to batch it. */
@@ -3576,13 +3610,14 @@ class WebGLSceneBackend implements ISceneBackend {
       bindings[`graph_records${index}`] = texture;
       widths[index] = texture.width;
       kinds[index] =
+        (isSplitPathSource(draw.splitSources ?? 0, index) ? 256 : 0) +
         chords +
         (group.effectActive ? 0 : 32) +
         (group.effect?.programKey === PULSE_PROGRAM ? 64 : 0) +
         (records.overview?.pieces === 2 ? 128 : 0);
     });
     draw.model.setBindings(bindings);
-    draw.model.setVertexCount((Math.max(...sources.map(({ chords }) => chords)) + 1) * 2);
+    draw.model.setVertexCount(draw.splitSources ? 18 : (Math.max(...sources.map(({ chords }) => chords)) + 1) * 2);
     Object.assign(draw.uniforms, {
       graph_extraWidth: 0,
       graph_widths0: widths.slice(0, 4),

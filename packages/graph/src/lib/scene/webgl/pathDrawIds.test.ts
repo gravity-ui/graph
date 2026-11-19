@@ -2,6 +2,41 @@ import { MIXED_PATH_SOURCE_STRIDE, mixedPathSchedule } from "./mixedPathPlan";
 import { PathDrawIds, gatheredPathDrawCount } from "./pathDrawIds";
 
 describe("path draw IDs", () => {
+  it("preserves draw boundaries and signed overview groups when splitting sixteen-chord sources", () => {
+    const ids = new PathDrawIds();
+    const stride = MIXED_PATH_SOURCE_STRIDE;
+    const compact = { starts: new Uint8Array([1, 0, 0, 0, 0]), revision: 0, pieces: 4 as const };
+    const spans = [
+      { first: 7, count: 1 },
+      { first: stride, count: 5 },
+      { first: 8, count: 1 },
+    ];
+    ids.updatePlan(spans, [undefined, compact], 2);
+    expect([...ids.data]).toEqual([7, -1 - stride, -2 - stride, stride + 8, stride + 9, 8]);
+    expect([0, 1, 6, 7].map((point) => ids.offset(point))).toEqual([0, 1, 5, 6]);
+    expect(ids.updatePlan(spans, [undefined, compact], 2)).toBeUndefined();
+
+    compact.starts.fill(0);
+    compact.revision++;
+    ids.updatePlan(spans, [undefined, compact], 2);
+    expect([...ids.data]).toEqual([7, ...Array.from({ length: 10 }, (_, i) => stride + i), 8]);
+    expect(ids.offset(6)).toBe(11);
+    ids.updatePlan(spans);
+    expect([...ids.data]).toEqual([7, stride, stride + 1, stride + 2, stride + 3, stride + 4, 8]);
+    expect(ids.offset(6)).toBe(6);
+  });
+
+  it("keeps split addresses exact through a change of painter order and a physical source boundary", () => {
+    const ids = new PathDrawIds();
+    const stride = MIXED_PATH_SOURCE_STRIDE;
+    const tail = { first: 7 * stride + stride / 2 - 1, count: 1 };
+    ids.updatePlan([{ first: stride - 1, count: 3 }, tail], undefined, 2 ** 1 + 2 ** 7);
+    expect([...ids.data]).toEqual([stride - 1, stride, stride + 1, stride + 2, stride + 3, 2 ** 24 - 2, 2 ** 24 - 1]);
+    const change = ids.updatePlan([tail, { first: stride, count: 2 }], undefined, 2 ** 1 + 2 ** 7);
+    expect(change?.byteOffset).toBe(0);
+    expect([...ids.data]).toEqual([2 ** 24 - 2, 2 ** 24 - 1, stride, stride + 1, stride + 2, stride + 3]);
+  });
+
   it("reuses immutable plans but keeps snapshots for mutable callers", () => {
     const ids = new PathDrawIds();
     let reads = 0;

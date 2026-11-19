@@ -4,11 +4,25 @@ import {
   canonicalizeMixedSources,
   fullySubpixelPaths,
   mixedPathSchedule,
+  mixedSourceCounts,
   packOrderedPaths,
   separatedConnectionDepths,
 } from "./mixedPathPlan";
 
 describe("mixed connection path planning", () => {
+  it("counts packed runs that cross a physical source boundary", () => {
+    const stride = MIXED_PATH_SOURCE_STRIDE;
+    expect(
+      mixedSourceCounts(
+        [
+          { first: stride - 1, count: 5 },
+          { first: 3 * stride, count: 2 },
+        ],
+        4
+      )
+    ).toEqual([1, 4, 0, 2]);
+  });
+
   it("requires existing scene order to place connection roots below every other visible root", () => {
     const connection = { key: 7, entityType: "connection" };
     const background = { key: 6, entityType: "custom-background" };
