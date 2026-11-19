@@ -24,7 +24,7 @@ function mountRetained({ Component, CoreComponent }) {
 const frameWarning = "the frame never calls its";
 const devMessages = [
   frameWarning,
-  "Level methods are pure functions",
+  "a level method read",
   "BlockConnection no longer calls",
   "so it never creates their anchors",
   "defineConnectionEffect() or clone() is called",
