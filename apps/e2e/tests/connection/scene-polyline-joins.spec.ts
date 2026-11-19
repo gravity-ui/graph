@@ -22,7 +22,8 @@ async function measure(page: Page, dashed: boolean, reversal: boolean) {
       const scene = graph.scene;
       scene.layer.performRender();
       graph.scheduler.performUpdate();
-      const canvas = scene.$renderer.value === "webgl" ? scene.layer.getBackend()?.canvas : scene.layer.getCanvas();
+      const webgl = scene.$renderer.value === "webgl";
+      const canvas = webgl ? scene.layer.getBackend()?.canvas : scene.layer.getCanvas();
       if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Missing scene canvas");
       const dpr = canvas.width / viewport.width;
       const { width, height } = canvas;
@@ -38,9 +39,29 @@ async function measure(page: Page, dashed: boolean, reversal: boolean) {
       ctx.lineWidth = strokeWidth;
       ctx.setLineDash(dashed ? dash : []);
       ctx.stroke(GraphModule.createSegmentsPath(shape.segments));
-      const expected = ctx.getImageData(0, 0, width, height).data;
+      const native = ctx.getImageData(0, 0, width, height).data;
+      let expected = native;
+      if (webgl && dashed) {
+        // A native dashed outline can fold inside a tight bend and cut a hole in the preceding straight.
+        // These segments meet tangentially or retrace. Paint their coverage once, carrying the dash phase.
+        const metric = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        const segments = shape.segments;
+        ctx.clearRect(0, 0, viewport.width, viewport.height);
+        ctx.strokeStyle = "red";
+        for (let i = 0; i < segments.length; i += 8) {
+          const piece = segments.subarray(i, i + 8);
+          const d = `M ${piece[0]} ${piece[1]} C ${piece.subarray(2).join(" ")}`;
+          ctx.stroke(new Path2D(d));
+          metric.setAttribute("d", d);
+          ctx.lineDashOffset += metric.getTotalLength();
+        }
+        ctx.globalCompositeOperation = "source-in";
+        ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+        ctx.fillRect(0, 0, viewport.width, viewport.height);
+        expected = ctx.getImageData(0, 0, width, height).data;
+      }
       const alpha = (x: number, y: number) => actual[(y * width + x) * 4 + 3];
-      const ref = (x: number, y: number) => expected[(y * width + x) * 4 + 3];
+      const ref = (x: number, y: number, pixels = expected) => pixels[(y * width + x) * 4 + 3];
       let peak = 0;
       let overdrawnPixels = 0;
       let missingInterior = 0;
@@ -66,8 +87,8 @@ async function measure(page: Page, dashed: boolean, reversal: boolean) {
       for (let x = 220; x < 415; x++) {
         const px = x * dpr;
         const py = 220 * dpr;
-        const on = ref(px, py);
-        if (ref(px - 2 * dpr, py) !== on || ref(px + 2 * dpr, py) !== on) continue;
+        const on = ref(px, py, native);
+        if (ref(px - 2 * dpr, py, native) !== on || ref(px + 2 * dpr, py, native) !== on) continue;
         if (on >= 124) dashHits++;
         else if (on === 0) {
           gapHits++;
@@ -87,6 +108,8 @@ async function measure(page: Page, dashed: boolean, reversal: boolean) {
         peak,
         overdrawnPixels,
         isolatedShaft: alpha(85 * dpr, 100 * dpr),
+        // At DPR 2 both pixel squares fit inside the incoming straight before the final rounded bend.
+        incomingShaft: [214.25, 214.75].map((y) => alpha(Math.floor(155.75 * dpr), Math.floor(y * dpr))),
         hitsDashGap: gapHits > 0 && graph.getElementOverPoint({ x: gapX, y: 220 }) === view,
         missingInterior,
         strayInterior,
@@ -163,6 +186,11 @@ for (const renderer of ["canvas", "webgl"] as const) {
         expect.soft(clean.peak, "one half-opacity stroke").toBeLessThanOrEqual(130);
         expect.soft(clean.overdrawnPixels).toBe(0);
         expect(Math.abs(clean.isolatedShaft - 128), "isolated 50% shaft").toBeLessThanOrEqual(1);
+        if (renderer === "webgl" && dashed && turn === "acute") {
+          for (const alpha of clean.incomingShaft) {
+            expect(Math.abs(alpha - 128), "incoming dash stays covered inside the bend").toBeLessThanOrEqual(1);
+          }
+        }
         expect.soft(clean.missingInterior, "missing interior of native stroke").toBe(0);
         expect.soft(clean.strayInterior, "paint outside native stroke").toBe(0);
         expect.soft(clean.phaseErrors, "dash/gap interiors after the turns").toBe(0);

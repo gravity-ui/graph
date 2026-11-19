@@ -816,7 +816,9 @@ while hovered or selected. The shaft, arrow and labels share that element's dept
 backend batches their primitives with the rest of the scene.
 
 With a solid or dashed stroke and no shader effect, a translucent `MultipointConnection` paints each covered
-sample once, including at sharp bends, self-crossings and reversals. Separate connections blend in scene order. Dashes keep their distance along
+sample once, including at sharp bends, self-crossings and reversals. If a dash ends on a bend tighter than half the
+stroke width, WebGL preserves coverage from the incoming segment. Some Canvas 2D rasterizers leave a small gap
+on the inside of that bend. Separate connections blend in scene order. Dashes keep their distance along
 the entire route, and a gap remains part of the connection's hit area. WebGL uses the shared pass for
 these strokes when the route turns.
 
