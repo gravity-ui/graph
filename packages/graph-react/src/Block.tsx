@@ -13,7 +13,7 @@ import { CanvasBlock, ESchedulerPriority, Graph, TBlock, TStyleTarget } from "@g
 
 import { BlockOutline } from "./BlockOutline";
 import { useSchedulerDebounce, useSignalEffect } from "./hooks";
-import { useBlockState, useBlockViewState } from "./hooks/useBlockState";
+import { useBlockState } from "./hooks/useBlockState";
 import { useEntityStyle } from "./hooks/useEntityStyle";
 import { useSignal } from "./hooks/useSignal";
 import { applyBlockContainerLayout } from "./utils/applyBlockContainerLayout";
@@ -119,7 +119,7 @@ function GraphBlockInner<T extends TBlock>(
     { priority: ESchedulerPriority.LOW, frameTimeout: 150 }
   );
 
-  const viewState = useBlockViewState(graph, block);
+  const viewState = useSignal(state?.$viewComponent);
   const [interactive, setInteractive] = useState(viewState?.isInteractive() ?? false);
 
   /**

@@ -131,6 +131,8 @@ async function setup(page: Page): Promise<void> {
   await graphPO.initialize({ blocks: BLOCKS, settings: { useBlocksAnchors: true, canDrag: "all" } });
   // Canvas anchors are interactive below the detailed (React) zoom level.
   await graphPO.camera().zoomToScale(0.5);
+  // Keep the drag outside the edge auto-pan zone so both anchors stay under the recorded pointer path.
+  await graphPO.camera().panBy(0, 100);
 }
 
 async function dragAnchors(): Promise<void> {

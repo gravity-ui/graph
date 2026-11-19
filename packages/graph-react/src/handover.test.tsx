@@ -68,6 +68,36 @@ test("canvasVisible keeps the scene drawing until the HTML view is ready", () =>
   graph.unmount();
 });
 
+test("a mounted GraphBlock hands over the replacement view when the same id is added again", () => {
+  const graph = setup(1);
+  const currentView = () => graph.rootStore.blocksList.getBlockState(block.id)?.getViewComponent();
+  const oldView = currentView();
+  const card = render(
+    <GraphBlock graph={graph} block={block}>
+      content
+    </GraphBlock>
+  );
+  frame(graph);
+  expect(oldView?.isHeldByHtml()).toBe(true);
+
+  act(() => graph.setEntities({ blocks: [] }));
+  frame(graph);
+  expect(card.queryByText("content")).toBeNull();
+  expect(oldView?.isHeldByHtml()).toBe(false);
+
+  act(() => graph.setEntities({ blocks: [{ ...block, x: 73 }] }));
+  frame(graph);
+  frame(graph);
+  expect(currentView()).not.toBe(oldView);
+  expect(currentView()?.isHeldByHtml()).toBe(true);
+  expect(card.getByText("content")).toBeTruthy();
+  expect(hidden(graph)).toBe(true);
+  card.unmount();
+  frame(graph);
+  expect(hidden(graph)).toBe(false);
+  graph.unmount();
+});
+
 test("autoHideCanvas={false} without canvasVisible keeps the canvas drawn and registers the view (D4)", () => {
   const graph = setup(1);
   const view = render(
