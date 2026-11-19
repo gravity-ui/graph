@@ -1,3 +1,4 @@
+import { HAS_NODE_ENV } from "../utils/development";
 import { GraphClassConstructor } from "../utils/types/classes";
 
 import { DetachedUpdates } from "./DetachedUpdates";
@@ -6,7 +7,7 @@ import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
 import type { TTileRect } from "./culling/TileIndex";
 import type { TTreeCullingOptions } from "./culling/TreeCulling";
-import { isDevelopmentBuild, warnDetachedFrameHooks } from "./detachedWarning";
+import { warnDetachedFrameHooks } from "./detachedWarning";
 
 export type ComponentOptions<Instance> = {
   readonly key?: string | number;
@@ -171,9 +172,7 @@ export class CoreComponent<
     if (detached && !parent) {
       throw new Error(`${this.constructor.name} is retained: mount it as a child of a component in a tree`);
     }
-    // Development builds only: bundlers replace the NODE_ENV expression inside isDevelopmentBuild and drop the check
-    // from production builds; where `process` does not exist the check counts as production and is skipped.
-    if (detached && isDevelopmentBuild()) warnDetachedFrameHooks(this.constructor);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && detached) warnDetachedFrameHooks(this.constructor);
 
     this.__comp = {
       parent,
@@ -468,7 +467,7 @@ export class CoreComponent<
         descriptorsToMount.push({ key, descriptor });
       }
     });
-    if (isDevelopmentBuild()) reportDuplicateKeys(this, nextKeys);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") reportDuplicateKeys(this, nextKeys);
 
     previousKeys.forEach((key) => {
       const child = this.__comp.children.get(key);

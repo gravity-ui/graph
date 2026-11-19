@@ -1,14 +1,13 @@
 import { validateConnectionEffectScaleRange } from "../../components/canvas/connections/effects/ConnectionEffect";
 import type { TSceneLevel } from "../../services/scene/types";
+import { HAS_NODE_ENV } from "../../utils/development";
 import { TileIndex } from "../culling/TileIndex";
 import type { TTileRect } from "../culling/TileIndex";
-import { isDevelopmentBuild } from "../detachedWarning";
 
 import { LEVEL_BIT, isOnLevel, levelMaskOfPrimitives } from "./levels";
 import {
   bakeElementStyle,
   composeChildStyle,
-  ignoresCameraAware,
   inheritsElementStyle,
   styleEncodeKey,
   styleGeometryKey,
@@ -22,6 +21,7 @@ import type {
   TSceneStyle,
   TSceneStyleChange,
 } from "./types";
+import { checkChildOrder, turnsCameraAwareOn, warnIgnoredCameraAware, warnUnboundedWidth } from "./utils/storeWarnings";
 import { paintedGeometryBounds } from "./webgl/levelBounds";
 
 export type TSceneElementInput = Omit<TSceneElement, "order" | "styleId" | "hidden" | "childOrder"> & {
@@ -69,10 +69,15 @@ export type TSceneExportStyles = {
  * their `cameraAware` objects, since the WebGL backend compares texts by identity and retains them after encoding.
  */
 function preparePrimitives(primitives: readonly TScenePrimitive[]): void {
-  const freezeText = isDevelopmentBuild();
   for (const primitive of primitives) {
     if (primitive.kind === "path" && primitive.effect) validateConnectionEffectScaleRange(primitive.effect);
-    if (!freezeText || primitive.kind !== "text" || Object.isFrozen(primitive)) continue;
+    if (
+      !HAS_NODE_ENV ||
+      process.env.NODE_ENV === "production" ||
+      primitive.kind !== "text" ||
+      Object.isFrozen(primitive)
+    )
+      continue;
     if (typeof primitive.cameraAware === "object") Object.freeze(primitive.cameraAware);
     Object.freeze(primitive);
   }
@@ -87,86 +92,10 @@ function validateStyleEffects(style: TSceneStyle): void {
   }
 }
 
-/** Element types and parts already warned about by `warnIgnoredCameraAware`. */
-const ignoredCameraAware = new Set<string>();
-
-/**
- * Development builds: one warning per element type and part whose drawn row has a `cameraAware: true` that a text of
- * the element does not take (`ignoresCameraAware`: a heightless text that does not declare `cameraAware`). The type is
- * the element id's first segment (`entityKey`). The primitives are checked first, the build last: in a production
- * build the check costs a test per primitive.
- */
-function warnIgnoredCameraAware(element: TSceneElement, style: TSceneStyle | undefined): void {
-  if (!style) return;
-  for (const primitive of element.primitives) {
-    if (!ignoresCameraAware(primitive, style)) continue;
-    const type = element.id.split("\u0000")[0];
-    const key = `${type}\u0000${primitive.part}`;
-    if (ignoredCameraAware.has(key) || !isDevelopmentBuild()) continue;
-    ignoredCameraAware.add(key);
-    console.warn(
-      `Scene element type "${type}", part "${primitive.part}": a style's cameraAware: true is not applied to a text ` +
-        "without a height (its element's bounds would not cover it); give the text a height, or declare cameraAware " +
-        "on the primitive"
-    );
-  }
-}
-
-/** Whether a row sets `cameraAware: true` on some part, in its base or its state values. */
-function turnsCameraAwareOn(style: TSceneStyle): boolean {
-  for (const values of [style.base, style.parts]) {
-    if (!values) continue;
-    for (const part in values) {
-      if (values[part]?.cameraAware === true) return true;
-    }
-  }
-  return false;
-}
-
 function sameRect(a: TTileRect | undefined, b: TTileRect | undefined): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
   return a.minX === b.minX && a.minY === b.minY && a.maxX === b.maxX && a.maxY === b.maxY;
-}
-
-/**
- * The forms of a row width that is unbounded in world units: `{ px }` without `maxWorld` and `{ world }` with a
- * positive `minPx`. At the minimum camera scale (0.01) their world width is px / 0.01 and minPx / 0.01.
- */
-type TUnboundedWidth = "px" | "minPx";
-
-const UNBOUNDED_WIDTH_WARNINGS: ReadonlyMap<TUnboundedWidth, string> = new Map([
-  [
-    "px",
-    "A style rule sets a { px } width without maxWorld: the culling bounds of elements drawn with it take that " +
-      "width at the minimum camera scale (px / 0.01 world units). Give the width a maxWorld.",
-  ],
-  [
-    "minPx",
-    "A style rule sets a { world } width with a minPx: the culling bounds of elements drawn with it take that width " +
-      "at the minimum camera scale (minPx / 0.01 world units). Use a smaller minPx, or a width without one.",
-  ],
-]);
-
-/** Whether a row sets a width of the unbounded form in its base or its state values. */
-function hasUnboundedWidth(style: TSceneStyle, form: TUnboundedWidth): boolean {
-  for (const values of [style.base, style.parts]) {
-    if (!values) continue;
-    for (const part of Object.keys(values)) {
-      const width = values[part]?.width;
-      if (typeof width !== "object") continue;
-      if (form === "px" ? "px" in width && width.maxWorld === undefined : "world" in width && (width.minPx ?? 0) > 0) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-/** A development error for a child order that is not an integer of at least 0; such an order still sorts. */
-function checkChildOrder(id: string, childOrder: number | undefined): void {
-  if (childOrder === undefined || (Number.isInteger(childOrder) && childOrder >= 0) || !isDevelopmentBuild()) return;
-  console.error(`Scene element ${id}: childOrder ${childOrder} is not an integer of at least 0`);
 }
 
 /**
@@ -252,9 +181,6 @@ export class SceneStore {
   /** Ids of freed style rows, reused by defineStyle. */
   private readonly freeStyles: number[] = [];
 
-  /** The forms of unbounded row widths already reported (`warnUnboundedWidth`, once per store and form). */
-  private readonly warnedUnboundedWidths = new Set<TUnboundedWidth>();
-
   /** Elements by the style row they draw with (`styleId`); row 0 is not tracked. */
   private readonly styleUsers = new Map<number, Set<string>>();
 
@@ -310,7 +236,7 @@ export class SceneStore {
     if (this.nodes.has(input.id)) {
       throw new Error(`Scene element ${input.id} already exists`);
     }
-    checkChildOrder(input.id, input.childOrder);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") checkChildOrder(input.id, input.childOrder);
     let upNode: TNode | undefined;
     if (input.parent !== undefined) {
       upNode = this.nodes.get(input.parent);
@@ -428,7 +354,7 @@ export class SceneStore {
    */
   public defineStyle(style: TSceneStyle): number {
     validateStyleEffects(style);
-    this.warnUnboundedWidth(style);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") warnUnboundedWidth(this, style);
     const freed = this.freeStyles.pop();
     if (freed !== undefined) {
       this.styles = Object.freeze(this.styles.map((row, id) => (id === freed ? style : row)));
@@ -535,7 +461,7 @@ export class SceneStore {
     if (changes.length === 0) return;
     this.styles = Object.freeze(next);
     for (const [id, previous, style] of changes) {
-      this.warnUnboundedWidth(style);
+      if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") warnUnboundedWidth(this, style);
       if (previous.motion !== style.motion) {
         this.styleUsers.get(id)?.forEach((elementId) => this.setBlockMotion(this.requireNode(elementId), style.motion));
       }
@@ -547,7 +473,7 @@ export class SceneStore {
         });
       }
       // A rule added or changed after binding can turn camera-aware text on where a text does not take it.
-      if (turnsCameraAwareOn(style)) {
+      if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && turnsCameraAwareOn(style)) {
         this.styleUsers.get(id)?.forEach((elementId) => {
           const element = this.get(elementId);
           if (element) warnIgnoredCameraAware(element, style);
@@ -590,7 +516,7 @@ export class SceneStore {
    */
   public freeStyle(styleId: number): void {
     if (styleId <= 0 || styleId >= this.styles.length || this.freeStyles.includes(styleId)) return;
-    if (isDevelopmentBuild() && (this.styleUsers.get(styleId)?.size ?? 0) > 0) {
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && (this.styleUsers.get(styleId)?.size ?? 0) > 0) {
       console.warn(
         `Scene style row ${styleId} is freed while elements still use it; they draw with the next style defined ` +
           "in its place"
@@ -612,14 +538,13 @@ export class SceneStore {
       if (styleId === 0) this.ownStyles.delete(id);
       else this.ownStyles.set(id, styleId);
       this.applyChildStyle(element, true);
-      // What is nested in it composes with its new drawn row; `childrenOf` lists parents before what is nested in them.
-      this.childrenOf(id).forEach((nested) => this.applyChildStyle(nested, true));
-      warnIgnoredCameraAware(element, this.styles[element.styleId]);
-      return;
+    } else {
+      this.useRow(node, styleId, true);
     }
-    this.useRow(node, styleId, true);
+    // Nested rows compose with their new parent style in parent-first order.
     this.childrenOf(id).forEach((child) => this.applyChildStyle(child, true));
-    warnIgnoredCameraAware(element, this.styles[element.styleId]);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
+      warnIgnoredCameraAware(element, this.styles[element.styleId]);
   }
 
   /** The element's zIndex bucket with the raise of its style; a child's is its root's. */
@@ -649,14 +574,15 @@ export class SceneStore {
   public update(id: string, patch: TElementPatch): void {
     const node = this.requireNode(id);
     const { element } = node;
-    checkChildOrder(id, patch.childOrder);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") checkChildOrder(id, patch.childOrder);
     if (patch.primitives !== undefined) preparePrimitives(patch.primitives);
     const motion = this.motions.get(node);
     if (motion) patch = this.positionDuringMotion(node, motion, patch);
     Object.assign(element, patch);
     if (patch.primitives !== undefined) {
       node.levels = levelMaskOfPrimitives(patch.primitives);
-      warnIgnoredCameraAware(element, this.styles[element.styleId]);
+      if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
+        warnIgnoredCameraAware(element, this.styles[element.styleId]);
     }
     // New primitives or bounds bake the grown bounds again, only while the row grows something.
     const reshaped = patch.primitives !== undefined || patch.bounds !== undefined;
@@ -1129,21 +1055,6 @@ export class SceneStore {
     if (sameRect(drawn, node.drawn)) return false;
     node.drawn = drawn;
     return true;
-  }
-
-  /**
-   * Development builds: one warning per store and form about a row width that is unbounded in world units, a `{ px }`
-   * width without `maxWorld` or a `{ world }` width with a positive `minPx`. The culling bounds of the elements drawn
-   * with it take that width at the minimum camera scale (`paintedGeometryBounds`): px / 0.01 or minPx / 0.01 world
-   * units.
-   */
-  private warnUnboundedWidth(style: TSceneStyle): void {
-    if (this.warnedUnboundedWidths.size === UNBOUNDED_WIDTH_WARNINGS.size || !isDevelopmentBuild()) return;
-    UNBOUNDED_WIDTH_WARNINGS.forEach((message, form) => {
-      if (this.warnedUnboundedWidths.has(form) || !hasUnboundedWidth(style, form)) return;
-      this.warnedUnboundedWidths.add(form);
-      console.warn(message);
-    });
   }
 
   /** Indexes the element by its bounds, or by the bounds its row grows them to (`restyle`). */

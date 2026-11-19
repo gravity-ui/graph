@@ -4,25 +4,32 @@ import type { ReadonlySignal } from "@preact/signals-core";
 import type { TComponentState } from "../../../lib/Component";
 import type { CoreComponent, TComponentMode } from "../../../lib/CoreComponent";
 import type { TTileRect } from "../../../lib/culling/TileIndex";
-import { isDevelopmentBuild } from "../../../lib/detachedWarning";
 import type { SceneStore } from "../../../lib/scene/SceneStore";
 import { EMPTY_BOUNDS, elementBounds } from "../../../lib/scene/elementBounds";
-import { isOnLevel, levelMaskOf, levelMaskOfPrimitives } from "../../../lib/scene/levels";
-import { runLevelMethods } from "../../../lib/scene/purity";
-import type { TSceneElement, TScenePrimitive, TSceneSize } from "../../../lib/scene/types";
+import { isOnLevel, levelMaskOfPrimitives } from "../../../lib/scene/levels";
+import type { TSceneElement, TScenePrimitive } from "../../../lib/scene/types";
 import type { HitBoxData } from "../../../services/HitTest";
 import type { ISceneKeyed, TSceneKey } from "../../../services/scene/sceneKey";
 import type { ITextMeasurer, TSceneElementView, TSceneLevel } from "../../../services/scene/types";
 import type { TStyleTarget } from "../../../services/styles/types";
 import { entityKey } from "../../../services/tags/TagStore";
+import { HAS_NODE_ENV } from "../../../utils/development";
 import { measureText } from "../../../utils/functions/text";
 import { track } from "../../../utils/functions/track";
 import type { TPoint, TRect } from "../../../utils/types/shapes";
 import { GraphComponent } from "../GraphComponent";
 import type { GraphComponentContext, TGraphComponentProps } from "../GraphComponent";
 
-import { encodeLevels } from "./encodeLevels";
-import { freezeView, samePrimitives, sameView } from "./viewData";
+import {
+  checkLookLessHitBox,
+  checkScenePrimitives,
+  encodeLevelsWithDiagnostics,
+  reportElementIdConflict,
+  reportMissingParent,
+  reportMissingSuper,
+} from "./utils/diagnostics";
+import { declaredHitMask, encodeLevels } from "./utils/encodeLevels";
+import { samePrimitives, sameView } from "./utils/viewData";
 
 /** The parent element of a child element and the child's place among its siblings (spec §5.2). */
 export type TSceneParent = { readonly elementId: string; readonly order: number };
@@ -48,7 +55,6 @@ type TElementPatch = Partial<
 >;
 
 let anonymousElements = 0;
-const reported = new Set<string>();
 
 /** The output of an element without primitives, and of one whose level methods never ran without an error. */
 const EMPTY_LEVELS: TLevelOutput = Object.freeze({
@@ -78,6 +84,9 @@ export const sceneComponentStats = {
   writeMs: 0,
   levelRuns: 0,
   writes: 0,
+  start(): number | undefined {
+    return this.enabled ? performance.now() : undefined;
+  },
   reset(): void {
     this.levelMs = 0;
     this.writeMs = 0;
@@ -85,82 +94,6 @@ export const sceneComponentStats = {
     this.writes = 0;
   },
 };
-
-/** A development message once per class and kind. */
-function reportOnce(owner: string, kind: string, message: string, level: "warn" | "error"): void {
-  const key = `${owner}\u0000${kind}`;
-  if (reported.has(key)) return;
-  reported.add(key);
-  if (level === "error") console.error(message);
-  else console.warn(message);
-}
-
-/** A class without a `static hitLevels` declaration, in `declaredHitMasks` (a level mask is never negative). */
-const UNDECLARED = -1;
-
-/** `static hitLevels` as a level mask per class, `UNDECLARED` without a declaration (never changed later). */
-const declaredHitMasks = new WeakMap<object, number>();
-
-function declaredHitMask(klass: typeof SceneComponent): number | undefined {
-  let mask = declaredHitMasks.get(klass);
-  if (mask === undefined) {
-    const declared = klass.hitLevels;
-    mask = declared === undefined ? UNDECLARED : levelMaskOf(declared);
-    declaredHitMasks.set(klass, mask);
-  }
-  return mask === UNDECLARED ? undefined : mask;
-}
-
-function isUnboundedPx(size: TSceneSize | undefined): boolean {
-  return typeof size === "object" && "px" in size && size.maxWorld === undefined;
-}
-
-/** The camera-aware stroke width of a primitive. */
-function strokeWidthOf(primitive: TScenePrimitive): TSceneSize | undefined {
-  switch (primitive.kind) {
-    case "rect":
-    case "circle":
-      return primitive.border?.width;
-    case "path":
-      return primitive.stroke.width;
-    case "polygon":
-      return primitive.stroke?.width;
-    default:
-      return undefined;
-  }
-}
-
-/**
- * Whether a primitive's bounds take its size at the minimum camera scale: a `{ px }` stroke width without `maxWorld`,
- * or a heightless camera-aware text without `maxWorld` (a text with a height is clipped to its box, which bounds it).
- */
-function hasUnboundedSize(primitive: TScenePrimitive): boolean {
-  if (primitive.kind === "text") {
-    const mode = primitive.cameraAware;
-    const unbounded = mode === true || (typeof mode === "object" && mode.maxWorld === undefined);
-    return unbounded && primitive.height === undefined;
-  }
-  return isUnboundedPx(strokeWidthOf(primitive));
-}
-
-/**
- * Development checks of an element's primitives (spec §3.2, review M1). The primitive count has no limit of its own:
- * the depth's sub-order width follows the widest element (`watchSceneLimits` names the scene that outgrows the depth).
- */
-function checkScenePrimitives(owner: string, primitives: readonly TScenePrimitive[]): void {
-  if (primitives.some((primitive) => primitive.part === "none")) {
-    reportOnce(owner, "none", `${owner}: the part name "none" is reserved for primitives without a part`, "error");
-  }
-  if (primitives.some(hasUnboundedSize)) {
-    reportOnce(
-      owner,
-      "px",
-      `${owner}: a stroke width { px } without maxWorld, or a camera-aware text without a height and without ` +
-        "maxWorld; its bounds take its size at the minimum camera scale",
-      "warn"
-    );
-  }
-}
 
 /** The fields of a written element that the next write changes; undefined when it changes none. */
 function elementPatch(written: TWritten, next: TWritten): TElementPatch | undefined {
@@ -259,7 +192,7 @@ export abstract class SceneComponent<
   private writesChild = false;
 
   /** Whether a hit box was set (`setHitBox`, from `getHitRect` or by hand) and not removed since. */
-  private hasHitBox = false;
+  private declare hasHitBox?: boolean;
 
   /** The hit barrier (`isHitBarrier`) at the last write; undefined before the first. */
   private syncedBarrier?: boolean;
@@ -441,13 +374,15 @@ export abstract class SceneComponent<
   /** Sets the hit box as every graph component; development builds check a look-less child's declaration. */
   public override setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void {
     super.setHitBox(minX, minY, maxX, maxY, force);
-    this.hasHitBox = true;
-    this.checkLookLessHitBox();
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") {
+      this.hasHitBox = true;
+      checkLookLessHitBox(this.constructor as typeof SceneComponent, this.written, true);
+    }
   }
 
   public override removeHitBox(): void {
     super.removeHitBox();
-    this.hasHitBox = false;
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") this.hasHitBox = false;
   }
 
   /**
@@ -495,7 +430,6 @@ export abstract class SceneComponent<
 
   protected willMount(): void {
     super.willMount();
-    const owner = this.constructor.name;
     this.walked = (this.constructor as typeof SceneComponent).mode === "immediate";
     let lastView: TView | undefined;
     const view = computed((): TView | undefined => {
@@ -506,11 +440,11 @@ export abstract class SceneComponent<
         next = this.getViewData();
       } catch (error) {
         // The signals read before the throw stay tracked: a change of one of them reads the view data again.
-        reportHookError(owner, "getViewData()", "the level methods keep the last view data", error);
+        reportHookError(this.constructor.name, "getViewData()", "the level methods keep the last view data", error);
         return lastView;
       }
       if (lastView !== undefined && sameView(lastView, next)) return lastView;
-      lastView = freezeView(next);
+      lastView = HAS_NODE_ENV && process.env.NODE_ENV !== "production" ? Object.freeze(next) : next;
       return lastView;
     });
     this.sceneView = view;
@@ -556,15 +490,7 @@ export abstract class SceneComponent<
     const trigger = this.sceneTrigger;
     const levels = this.sceneLevels;
     if (!trigger || !levels) {
-      if (isDevelopmentBuild()) {
-        const owner = this.constructor.name;
-        reportOnce(
-          owner,
-          "willMount",
-          `${owner}.willMount() did not call super.willMount(): its scene element is never written`,
-          "error"
-        );
-      }
+      if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") reportMissingSuper(this.constructor.name);
       return;
     }
     const current = trigger.peek();
@@ -651,25 +577,6 @@ export abstract class SceneComponent<
   }
 
   /**
-   * A development warning, once per class: a look-less child with a hit box, from `getHitRect` or set by hand (as
-   * `Anchor` does), is hit only on the levels its class declares, so without `hitLevels` it is never hit. Checked once
-   * both are known, after a write and after a hit box is set, whichever comes last.
-   */
-  private checkLookLessHitBox(): void {
-    const written = this.written;
-    if (!this.hasHitBox || written?.parent === undefined || written.primitives.length > 0) return;
-    const klass = this.constructor as typeof SceneComponent;
-    if (declaredHitMask(klass) !== undefined || !isDevelopmentBuild()) return;
-    reportOnce(
-      klass.name,
-      "hitLevels",
-      `${klass.name}: a look-less child with a hit box is hit only on the levels it declares; declare them ` +
-        '(`public static override hitLevels = ["schematic"];`) where the look it stands for is shown',
-      "warn"
-    );
-  }
-
-  /**
    * Writes a sub-component's hit mask after a write (none written: 0); a later change asks GraphLayer to find the
    * target again. The first add only sets it (`initial`): a component that mounts under a still pointer is found at the
    * next pointer move, and the anchors a camera move creates lazily must not turn that move into a retarget (settled
@@ -735,29 +642,18 @@ export abstract class SceneComponent<
   }
 
   private runLevels(view: TView): TLevelOutput {
-    const start = sceneComponentStats.enabled ? performance.now() : 0;
-    const owner = this.constructor.name;
+    const start = HAS_NODE_ENV && process.env.NODE_ENV !== "production" ? sceneComponentStats.start() : undefined;
     let output: TLevelOutput;
     try {
-      const primitives = runLevelMethods(owner, () =>
-        encodeLevels(
-          {
-            minimalistic: this.minimalistic?.bind(this),
-            schematic: this.schematic?.bind(this),
-            detailed: this.detailed?.bind(this),
-          },
-          view,
-          isDevelopmentBuild()
-            ? (level): void =>
-                reportOnce(
-                  owner,
-                  "levelMask",
-                  `${owner}.${level}() returned a primitive with levelMask; the scene sets it from the level method`,
-                  "error"
-                )
-            : undefined
-        )
-      );
+      const methods = {
+        minimalistic: this.minimalistic?.bind(this),
+        schematic: this.schematic?.bind(this),
+        detailed: this.detailed?.bind(this),
+      };
+      const primitives =
+        HAS_NODE_ENV && process.env.NODE_ENV !== "production"
+          ? encodeLevelsWithDiagnostics(this.constructor.name, methods, view)
+          : encodeLevels(methods, view);
       const previous = this.lastLevels;
       output =
         previous && samePrimitives(previous.primitives, primitives)
@@ -765,11 +661,11 @@ export abstract class SceneComponent<
           : { primitives, bounds: primitives.length ? elementBounds(primitives) : EMPTY_BOUNDS };
     } catch (error) {
       // Its origin, bucket and hidden state still update; the next view change or invalidate() runs them again.
-      reportHookError(owner, "a level method", "the scene element keeps its last primitives", error);
+      reportHookError(this.constructor.name, "a level method", "the scene element keeps its last primitives", error);
       output = this.lastLevels ?? EMPTY_LEVELS;
     }
     this.lastLevels = output;
-    if (sceneComponentStats.enabled) {
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && start !== undefined) {
       sceneComponentStats.levelMs += performance.now() - start;
       sceneComponentStats.levelRuns++;
     }
@@ -777,7 +673,7 @@ export abstract class SceneComponent<
   }
 
   private syncSceneElement(trigger: TSceneTrigger<TView>, levels: TLevelOutput): void {
-    const start = sceneComponentStats.enabled ? performance.now() : 0;
+    const start = HAS_NODE_ENV && process.env.NODE_ENV !== "production" ? sceneComponentStats.start() : undefined;
     const store = this.context.graph.scene.store;
     const id = this.getSceneElementId();
     const parent = this.getSceneParent();
@@ -800,9 +696,8 @@ export abstract class SceneComponent<
     if (written && store.get(id) && written.parent === next.parent) {
       const patch = elementPatch(written, next);
       if (!patch) return;
-      if (patch.primitives !== undefined && isDevelopmentBuild()) {
-        checkScenePrimitives(this.constructor.name, next.primitives);
-      }
+      if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
+        checkScenePrimitives(this.constructor.name, patch.primitives);
       store.update(id, patch);
       this.written = next;
       if (patch.childOrder !== undefined) this.sceneKey = { elementId: id, sub: 0 };
@@ -811,14 +706,15 @@ export abstract class SceneComponent<
       if (geometry) this.syncHitRect(next);
       if (patch.primitives !== undefined) {
         this.syncHitMask(next);
-        this.checkLookLessHitBox();
+        if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
+          checkLookLessHitBox(this.constructor as typeof SceneComponent, next, this.hasHitBox);
       }
     } else if (!this.addSceneElement(store, id, next)) {
       // Nothing written: no look of its own is hit.
       this.syncHitMask(undefined);
       return;
     }
-    if (sceneComponentStats.enabled) {
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && start !== undefined) {
       sceneComponentStats.writeMs += performance.now() - start;
       sceneComponentStats.writes++;
     }
@@ -829,22 +725,13 @@ export abstract class SceneComponent<
    * the id (a development error names both classes) or the parent element is missing.
    */
   private addSceneElement(store: SceneStore, id: string, next: TWritten): boolean {
-    const owner = this.constructor.name;
     if (store.get(id)) {
       const holder = store.writerOf(id);
       if (holder !== this) {
         this.written = undefined;
         this.sceneKey = undefined;
-        const name = holder?.constructor.name ?? "another writer";
-        if (isDevelopmentBuild()) {
-          reportOnce(
-            owner,
-            `id\u0000${name}`,
-            `${owner}: scene element ${JSON.stringify(id)} already belongs to ${name}; ${owner} does not write it. ` +
-              "Give each component its own element id (override createSceneElementId() when entity ids repeat).",
-            "error"
-          );
-        }
+        if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
+          reportElementIdConflict(this.constructor.name, id, holder);
         return false;
       }
       store.delete(id);
@@ -852,10 +739,11 @@ export abstract class SceneComponent<
     this.written = undefined;
     this.sceneKey = undefined;
     if (next.parent !== undefined && !store.get(next.parent)) {
-      reportOnce(owner, "parent", `${owner}: its parent element ${next.parent} is not in the scene`, "error");
+      reportMissingParent(this.constructor.name, next.parent);
       return false;
     }
-    if (isDevelopmentBuild()) checkScenePrimitives(owner, next.primitives);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
+      checkScenePrimitives(this.constructor.name, next.primitives);
     store.add(
       {
         id,
@@ -878,7 +766,8 @@ export abstract class SceneComponent<
     this.bindSceneStyle(id);
     this.syncHitRect(next);
     // A hit box set before the first write (by hand, as `Anchor` does) is checked once the look is known.
-    this.checkLookLessHitBox();
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
+      checkLookLessHitBox(this.constructor as typeof SceneComponent, next, this.hasHitBox);
     if (this.adds++ > 0) this.rewriteChildren();
     return true;
   }

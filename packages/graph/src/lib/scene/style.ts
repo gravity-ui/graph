@@ -1,8 +1,8 @@
 import { ConnectionEffect } from "../../components/canvas/connections/effects/ConnectionEffect";
 import type { TConnectionEffectUse } from "../../components/canvas/connections/effects/types";
 
-import { fadeColor, mixColor, parseColorAlpha } from "./colorAlpha";
 import type { TScenePartStyle, TScenePrimitive, TSceneStroke, TSceneStyle } from "./types";
+import { fadeColor, mixColor, parseColorAlpha } from "./utils/colorAlpha";
 
 type TPaintSlot = "border" | "fill" | "color" | "stroke";
 

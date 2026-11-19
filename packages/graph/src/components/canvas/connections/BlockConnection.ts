@@ -1,9 +1,8 @@
 import intersects from "intersects";
 
 import type { TComponentMode } from "../../../lib/CoreComponent";
-import { isDevelopmentBuild } from "../../../lib/detachedWarning";
-import { resolveSceneSize } from "../../../lib/scene/size";
 import type { TScenePrimitive, TSceneStroke, TSceneStyle } from "../../../lib/scene/types";
+import { resolveSceneSize } from "../../../lib/scene/utils/size";
 import { largestSize } from "../../../lib/scene/webgl/levelBounds";
 import { HitBoxData } from "../../../services/HitTest";
 import type { TSceneKey } from "../../../services/scene/sceneKey";
@@ -11,6 +10,7 @@ import { ESelectionStrategy } from "../../../services/selection/types";
 import type { TStyleParts, TStyleTarget } from "../../../services/styles/types";
 import { entityKey } from "../../../services/tags/TagStore";
 import { TConnection } from "../../../store/connection/ConnectionState";
+import { HAS_NODE_ENV } from "../../../utils/development";
 import { isMetaKeyEvent } from "../../../utils/functions";
 import { cachedMeasureText } from "../../../utils/renderers/text";
 import { TPoint, TRect } from "../../../utils/types/shapes";
@@ -23,17 +23,17 @@ import type { IConnectionLabelOwner } from "./Label";
 import { blockGeometry } from "./geometry";
 import type { TConnectionGeometry, TConnectionGeometryFn } from "./geometry";
 import { distanceToArrow, distanceToSegments } from "./geometry/distance";
-import { turnedPolylineStrokes } from "./geometry/polylineStroke";
 import { stockBezierSegments } from "./geometry/segments";
-import { hasChangedValue } from "./hasChangedValue";
+import { turnedPolylineStrokes } from "./geometry/utils/polylineStroke";
 import { getLabelCoords } from "./labelHelper";
 import { SceneLine } from "./lines";
 import type { ConnectionLine, TConnectionLineClass, TLineStroke } from "./lines";
 import { getSelectionColor } from "./lines/ConnectionLine";
 import { arrowSegments } from "./lines/SceneLine";
 import type { TLineInteraction } from "./lines/types";
-import { warnRemovedConnectionMethods } from "./removedMethods";
 import type { TMultipointConnection } from "./types";
+import { hasChangedValue } from "./utils/hasChangedValue";
+import { warnRemovedConnectionMethods } from "./utils/removedMethods";
 
 export type TConnectionProps = TBaseConnectionProps & {
   useBezier: boolean;
@@ -186,7 +186,8 @@ export class BlockConnection<T extends TConnection = TConnection>
   constructor(props: TConnectionProps, parent: BlockConnections) {
     super(props, parent);
     this.addEventListener("click", this);
-    if (isDevelopmentBuild()) warnRemovedConnectionMethods(this.constructor, BlockConnection);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
+      warnRemovedConnectionMethods(this.constructor, BlockConnection);
 
     const LineClass = (this.constructor as typeof BlockConnection).line;
     // The line class checks the connection type on its side (see TConnectionLineClass); the connection is this one.

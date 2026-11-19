@@ -2,8 +2,7 @@ import { batch } from "@preact/signals-core";
 
 import { Component } from "../../../lib/Component";
 import type { TComponentMode } from "../../../lib/CoreComponent";
-import { isDevelopmentBuild } from "../../../lib/detachedWarning";
-import { SCENE_LEVELS, isOnLevel, levelMaskOf, levelMaskOfPrimitives } from "../../../lib/scene/levels";
+import { levelMaskOf } from "../../../lib/scene/levels";
 import type { TScenePrimitive } from "../../../lib/scene/types";
 import { DragContext, DragDiff } from "../../../services/drag";
 import type { TSceneLevel } from "../../../services/scene/types";
@@ -11,10 +10,13 @@ import type { TStyleParts } from "../../../services/styles/types";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { PortState } from "../../../store/connection/port/Port";
+import { HAS_NODE_ENV } from "../../../utils/development";
 import type { TPoint, TRect } from "../../../utils/types/shapes";
 import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { SceneComponent } from "../scene/SceneComponent";
+
+import { checkAnchorLook } from "./utils/anchorWarnings";
 
 export type TAnchorId = string | number;
 export type TAnchor = {
@@ -56,11 +58,6 @@ export type TAnchorClass = (new (props: TAnchorProps, parent: Component) => Anch
   Pick<typeof Anchor, "SIZE" | "LINE_WIDTH" | "LOOK_EXTENT" | "CREATION_LEVELS" | "create">;
 
 const NO_PRIMITIVES: readonly TScenePrimitive[] = Object.freeze([]);
-
-/** Anchor classes already warned about, per development check (`Anchor.checkLook`). */
-const warnedLevelFields = new WeakSet<object>();
-const warnedExtents = new WeakSet<object>();
-const warnedCreationLevels = new WeakSet<object>();
 
 /**
  * An anchor of a block (decision 2): a retained scene component that owns a child element of its block's element, so
@@ -165,9 +162,6 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
   private unsubscribeAnchorState?: () => void;
 
   private shift = 0;
-
-  /** Whether the development checks of its created element ran (`checkLook`). */
-  private lookChecked = false;
 
   constructor(props: T, parent: Component) {
     super(props, parent);
@@ -278,51 +272,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
 
   protected override willIterate(): void {
     super.willIterate();
-    // Once its element exists: its first update writes it.
-    if (!this.lookChecked && isDevelopmentBuild()) this.checkLook();
-  }
-
-  /**
-   * Development checks of a created anchor, once per class each: a level method defined as an instance property
-   * (a style warning only: exports treat every subclass as drawing, see `drawsOnLevel`), and a look that reaches past
-   * the class's `LOOK_EXTENT`.
-   */
-  private checkLook(): void {
-    const element = this.getSceneElementView();
-    const bounds = element?.bounds;
-    if (!element || !bounds) return;
-    this.lookChecked = true;
-    const klass = this.constructor as typeof Anchor;
-    const name = klass.name || "An anchor class";
-    const drawn = levelMaskOfPrimitives(element.primitives);
-    const created = Anchor.creationLevelsOf(klass);
-    const missing = SCENE_LEVELS.filter((level) => isOnLevel(drawn, level) && !isOnLevel(created, level));
-    if (drawn > 0 && missing.length > 0 && !warnedCreationLevels.has(klass)) {
-      warnedCreationLevels.add(klass);
-      console.warn(
-        `${name}: its anchors draw on the ${missing.join(" and ")} level, but ${name}.CREATION_LEVELS omits it: ` +
-          "blocks do not create them there, so the look shows there only after the camera visited another level. " +
-          `Declare \`public static override CREATION_LEVELS = [${SCENE_LEVELS.map((l) => `"${l}"`).join(", ")}];\`.`
-      );
-    }
-    for (const level of SCENE_LEVELS) {
-      if (!Object.prototype.hasOwnProperty.call(this, level) || warnedLevelFields.has(klass)) continue;
-      warnedLevelFields.add(klass);
-      console.warn(
-        `${name}: ${level} is an instance property, not a prototype method. Anchor level methods should be methods: ` +
-          "a subclass cannot call super.<level>() from a property, and graph.scene.toImage() treats every subclass " +
-          "as drawing on every level (Anchor.drawsOnLevel), so exports create temporary anchors for it."
-      );
-    }
-    const reach = Math.max(-bounds.minX, -bounds.minY, bounds.maxX, bounds.maxY);
-    if (reach <= klass.LOOK_EXTENT || warnedExtents.has(klass)) return;
-    warnedExtents.add(klass);
-    console.warn(
-      `${name}: its anchors' look reaches ${reach} world units from their point, past ${name}.LOOK_EXTENT ` +
-        `(${klass.LOOK_EXTENT}). graph.scene.toImage() searches that far around its rect for blocks without anchor ` +
-        "components, so it can leave these anchors out. Declare the reach on the class: " +
-        `\`public static override LOOK_EXTENT = ${Math.ceil(reach)};\`.`
-    );
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") checkAnchorLook(this);
   }
 
   protected computeShift(state = this.state, props = this.props) {

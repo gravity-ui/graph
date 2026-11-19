@@ -6,18 +6,12 @@ import { isOnLevel, unionLevelMasks } from "../../../lib/scene/levels";
 import type { TSceneExportRequest, TSceneLevel } from "../../../services/scene/types";
 import { BlockState } from "../../../store/block/Block";
 import { TGraphSettingsConfig } from "../../../store/settings";
+import { HAS_NODE_ENV } from "../../../utils/development";
 import { track } from "../../../utils/functions/track";
+import { STOCK_ANCHORS, anchorLimitsOf } from "../anchors/utils/anchorLayout";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
-import {
-  Block,
-  anchorLevelsOf,
-  anchorOverflowOf,
-  anchorReachOf,
-  resetAnchorLevels,
-  resetAnchorOverflow,
-  resetAnchorReach,
-} from "./Block";
+import { Block } from "./Block";
 
 /**
  * @internal Bench counters of the lazy anchors' view test (Task 17c): how often it ran, its time, and how many blocks
@@ -135,7 +129,7 @@ export class Blocks extends Component {
    */
   private prepareExport(request: TSceneExportRequest): (() => void) | undefined {
     const graph = this.context.graph;
-    if (exportAnchorStats.enabled) exportAnchorStats.reset();
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && exportAnchorStats.enabled) exportAnchorStats.reset();
     if (!graph.rootStore.settings.getConfigFlag("useBlocksAnchors")) return undefined;
     const created: Block[] = [];
     // Drops them all; the first failure is thrown, the later ones are logged.
@@ -170,7 +164,7 @@ export class Blocks extends Component {
       }
       throw error;
     }
-    if (exportAnchorStats.enabled) {
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && exportAnchorStats.enabled) {
       exportAnchorStats.blocks = created.length;
       exportAnchorStats.anchors = created.reduce((sum, block) => sum + block.connectedState.$anchors.peek().length, 0);
     }
@@ -212,25 +206,28 @@ export class Blocks extends Component {
 
   /**
    * The camera's view test of the lazy anchors (user decision, 2026-11-14): at a level on which the graph's blocks
-   * create anchors (`anchorLevelsOf`: the anchor classes' `CREATION_LEVELS`), every block the camera shows creates its
+   * create anchors (the anchor classes' `CREATION_LEVELS`), every block the camera shows creates its
    * anchor components (`Block.requestAnchors`). It reuses the hit-test index, so it costs
    * one search of the view per camera change. Blocks that mount, move or are shown check themselves in their update.
    */
   protected createAnchorsInView(level: TSceneLevel): void {
     const graph = this.context.graph;
-    if (!isOnLevel(anchorLevelsOf(graph), level) || !graph.rootStore.settings.getConfigFlag("useBlocksAnchors")) return;
-    const start = anchorViewStats.enabled ? performance.now() : 0;
+    const limits = anchorLimitsOf(graph);
+    if (!isOnLevel(limits.levels, level) || !graph.rootStore.settings.getConfigFlag("useBlocksAnchors")) return;
+    const start =
+      HAS_NODE_ENV && process.env.NODE_ENV !== "production" && anchorViewStats.enabled ? performance.now() : 0;
     let requested = 0;
     const { relativeX, relativeY, relativeWidth, relativeHeight } = this.context.camera.getCameraState();
     if (relativeWidth <= 0 || relativeHeight <= 0) {
       // A camera without a size counts as showing every block (Block.shouldCreateAnchors).
       for (const block of this.blocks) {
-        if (block.getViewComponent()?.requestAnchors()) requested++;
+        const created = block.getViewComponent()?.requestAnchors();
+        if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") requested += Number(created === true);
       }
     } else {
       // Widened by the farthest anchor point outside its block and by the farthest reach of an anchor's look: a block
       // whose anchors alone are in view, or only their dots at the view's edge, is found too.
-      const out = anchorOverflowOf(this.context.graph) + anchorReachOf(this.context.graph);
+      const out = limits.overflow + Math.max(STOCK_ANCHORS.reach, limits.reach);
       const items = this.context.graph.hitTest.testBox({
         minX: -relativeX - out,
         minY: -relativeY - out,
@@ -238,10 +235,12 @@ export class Blocks extends Component {
         maxY: -relativeY + relativeHeight + out,
       });
       for (const item of items) {
-        if (item instanceof Block && item.requestAnchors()) requested++;
+        if (!(item instanceof Block)) continue;
+        const created = item.requestAnchors();
+        if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && created) requested++;
       }
     }
-    if (anchorViewStats.enabled) {
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && anchorViewStats.enabled) {
       anchorViewStats.runs++;
       anchorViewStats.ms += performance.now() - start;
       anchorViewStats.requested += requested;
@@ -271,8 +270,8 @@ export class Blocks extends Component {
     if (!this.blocksChanged) return;
     this.blocksChanged = false;
     let overflow = 0;
-    let reach = 0;
-    let levels = 0;
+    let reach = STOCK_ANCHORS.reach;
+    let levels = STOCK_ANCHORS.levels;
     let usesCustomParentProps = false;
     for (const state of this.blocks) {
       const block = state.getViewComponent();
@@ -282,9 +281,10 @@ export class Blocks extends Component {
       levels = unionLevelMasks(levels, block.getAnchorLevels());
       usesCustomParentProps ||= Component.hasParentPropsOverrides(block, Block.prototype);
     }
-    resetAnchorOverflow(this.context.graph, overflow);
-    resetAnchorReach(this.context.graph, reach);
-    resetAnchorLevels(this.context.graph, levels);
+    const limits = anchorLimitsOf(this.context.graph);
+    limits.overflow = overflow;
+    limits.reach = reach;
+    limits.levels = levels;
     this.$usesCustomParentProps.value = usesCustomParentProps;
   }
 

@@ -8,8 +8,7 @@ import { Component } from "../../../lib/Component";
 import { CoreComponent } from "../../../lib/CoreComponent";
 import type { ChildDescriptor } from "../../../lib/CoreComponent";
 import type { TTileRect } from "../../../lib/culling/TileIndex";
-import { isDevelopmentBuild } from "../../../lib/detachedWarning";
-import { LEVEL_BIT, isOnLevel, unionLevelMasks } from "../../../lib/scene/levels";
+import { isOnLevel, unionLevelMasks } from "../../../lib/scene/levels";
 import type { TScenePrimitive } from "../../../lib/scene/types";
 import { DragContext, DragDiff } from "../../../services/drag";
 import type { TSceneLevel } from "../../../services/scene/types";
@@ -20,6 +19,7 @@ import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
 import { PortState } from "../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
+import { HAS_NODE_ENV } from "../../../utils/development";
 import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
 import { track } from "../../../utils/functions/track";
 import { TPoint, TRect } from "../../../utils/types/shapes";
@@ -28,9 +28,13 @@ import type { EventedComponent } from "../EventedComponent/EventedComponent";
 import { TGraphComponentProps } from "../GraphComponent";
 import { Anchor } from "../anchors";
 import type { TAnchor, TAnchorClass } from "../anchors";
+import { STOCK_ANCHORS, anchorLimitsOf, describeAnchorClasses } from "../anchors/utils/anchorLayout";
+import type { TAnchorLook, TResolvedAnchorClasses } from "../anchors/utils/anchorLayout";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 import { SceneComponent } from "../scene/SceneComponent";
-import { sameView } from "../scene/viewData";
+import { sameView } from "../scene/utils/viewData";
+
+import { warnLegacyMembers } from "./utils/blockWarnings";
 
 export type TBlockSettings = {
   /** Phantom blocks are blocks whose dimensions and position
@@ -132,110 +136,7 @@ type TDefaultLook = {
 const HALO_GAP = 12;
 const BADGE_INSET = 16;
 const BADGE_RADIUS = 8;
-const LEGACY_MEMBERS = [
-  "renderBody",
-  "renderSchematicView",
-  "renderMinimalisticBlock",
-  "renderDetailedView",
-  "renderStroke",
-  "renderText",
-  "render",
-];
-/** The anchor hook `getAnchorClass` replaced: a subclass that still defines it gets a development warning. */
-const REMOVED_ANCHOR_MEMBER = "renderAnchor";
-
 const blockConstants = new WeakMap<Graph, ReadonlySignal<TBlockConstants>>();
-const checkedClasses = new WeakSet<object>();
-/** Per graph: the farthest any anchor point has lain outside its block's rect (it never decreases). */
-const anchorOverflows = new WeakMap<Graph, number>();
-
-function noteAnchorOverflow(graph: Graph, overflow: number): void {
-  if (overflow > (anchorOverflows.get(graph) ?? 0)) anchorOverflows.set(graph, overflow);
-}
-
-/**
- * @internal How far outside its block's rect an anchor point of this graph has lain at most: the camera's view test
- * of the lazy anchors (`Blocks`) widens its search by it, so it finds a block whose anchors alone are in view.
- */
-export function anchorOverflowOf(graph: Graph): number {
-  return anchorOverflows.get(graph) ?? 0;
-}
-
-/**
- * @internal Sets the graph's largest anchor overflow to `overflow`: `Blocks` recomputes it from its blocks after its
- * block list changed, so a removed outlier (data replaced, a block deleted) no longer widens later view searches.
- */
-export function resetAnchorOverflow(graph: Graph, overflow: number): void {
-  anchorOverflows.set(graph, overflow);
-}
-
-/** Per graph: the largest look reach of anchor classes its blocks have read (`Block.anchorLookReach`). */
-const anchorReaches = new WeakMap<Graph, number>();
-
-function noteAnchorReach(graph: Graph, reach: number): void {
-  if (reach > (anchorReaches.get(graph) ?? 0)) anchorReaches.set(graph, reach);
-}
-
-/**
- * @internal How far an anchor's look reaches from its point at most in this graph: the largest `LOOK_EXTENT` of the
- * anchor classes its blocks have read, and at least `Anchor.LOOK_EXTENT`. The camera's view test of the lazy anchors
- * (`Blocks`) widens its search by it, so it finds a block whose anchors' look alone is in view.
- */
-export function anchorReachOf(graph: Graph): number {
-  return Math.max(Anchor.LOOK_EXTENT, anchorReaches.get(graph) ?? 0);
-}
-
-/** @internal Sets the graph's largest anchor look reach to `reach` (`Blocks`, as `resetAnchorOverflow`). */
-export function resetAnchorReach(graph: Graph, reach: number): void {
-  anchorReaches.set(graph, reach);
-}
-
-/** The anchor classes of a block that keeps `Block.getAnchorClass`; set on first use (no import-order dependency). */
-let defaultAnchorClasses: readonly TAnchorClass[] | undefined;
-
-/** The levels on which a block creates stock anchors (`Anchor.CREATION_LEVELS`): schematic and detailed. */
-const DEFAULT_ANCHOR_LEVELS = LEVEL_BIT.schematic + LEVEL_BIT.detailed;
-
-/** Per graph: the creation levels of the anchor classes its blocks have read (`Block.syncAnchorClasses`). */
-const anchorLevels = new WeakMap<Graph, number>();
-
-function noteAnchorLevels(graph: Graph, mask: number): void {
-  const current = anchorLevels.get(graph) ?? DEFAULT_ANCHOR_LEVELS;
-  const next = unionLevelMasks(current, mask);
-  if (next !== current) anchorLevels.set(graph, next);
-}
-
-/**
- * @internal The levels on which blocks of this graph may create anchor components: the stock ones (schematic and
- * detailed) and those of the anchor classes its blocks have read (`Anchor.CREATION_LEVELS`). The camera's lazy search
- * (`Blocks`) runs on these levels only.
- */
-export function anchorLevelsOf(graph: Graph): number {
-  return unionLevelMasks(DEFAULT_ANCHOR_LEVELS, anchorLevels.get(graph) ?? 0);
-}
-
-/** @internal Sets the graph's anchor creation levels to `mask` (`Blocks`, as `resetAnchorReach`). */
-export function resetAnchorLevels(graph: Graph, mask: number): void {
-  anchorLevels.set(graph, mask);
-}
-
-/** The largest `LOOK_EXTENT` of these anchor classes. */
-function lookExtentOf(classes: readonly TAnchorClass[]): number {
-  let extent = 0;
-  for (const klass of classes) if (klass.LOOK_EXTENT > extent) extent = klass.LOOK_EXTENT;
-  return extent;
-}
-
-/** The levels on which anchors of these classes are created, as one mask. */
-function creationLevelsOfClasses(classes: readonly TAnchorClass[]): number {
-  let mask = 0;
-  for (const klass of classes) mask = unionLevelMasks(mask, Anchor.creationLevelsOf(klass));
-  return mask;
-}
-
-function sameClasses(a: readonly TAnchorClass[], b: readonly TAnchorClass[]): boolean {
-  return a.length === b.length && a.every((klass, index) => klass === b[index]);
-}
 
 /** Whether a state change moves the block only: `getAnchorClass` is not asked again for it. */
 function onlyPlaceChanged(state: object, next: object): boolean {
@@ -278,44 +179,6 @@ function blockConstantsOf(graph: Graph): ReadonlySignal<TBlockConstants> {
     blockConstants.set(graph, constants);
   }
   return constants;
-}
-
-/**
- * Development check, once per class (decision 1, review I10): a `Block` subclass that defines an imperative render
- * member draws nothing with it, unless it extends `LegacyCanvasBlock` (`static legacyCanvas`). A subclass that still
- * defines `renderAnchor`, legacy or not, is told that blocks never call it: `getAnchorClass` replaces it.
- */
-function warnLegacyMembers(klass: unknown, base: unknown): void {
-  if (typeof klass !== "function" || checkedClasses.has(klass)) return;
-  checkedClasses.add(klass);
-  const legacyCanvas = Boolean((klass as { legacyCanvas?: boolean }).legacyCanvas);
-  const found = new Set<string>();
-  let rendersAnchors = false;
-  let current: unknown = klass;
-  while (typeof current === "function" && current !== base) {
-    const prototype: unknown = current.prototype;
-    if (typeof prototype === "object" && prototype !== null) {
-      const owns = (member: string): boolean => Object.prototype.hasOwnProperty.call(prototype, member);
-      if (owns(REMOVED_ANCHOR_MEMBER)) rendersAnchors = true;
-      for (const member of legacyCanvas ? [] : LEGACY_MEMBERS) {
-        if (owns(member)) found.add(member);
-      }
-    }
-    current = Object.getPrototypeOf(current);
-  }
-  if (rendersAnchors) {
-    console.warn(
-      `${klass.name}: blocks no longer call ${REMOVED_ANCHOR_MEMBER}(), so it never creates their anchors. Override ` +
-        "getAnchorClass(anchor) to return Anchor or a subclass instead, and declare the size and line width it " +
-        "passed as the class's static SIZE and LINE_WIDTH (the block keys each anchor by its id)."
-    );
-  }
-  if (found.size === 0) return;
-  console.warn(
-    `${klass.name}: blocks no longer draw imperatively, so ${[...found].join(", ")} never draw. Extend ` +
-      "LegacyCanvasBlock (deprecated: drawn on the GraphLayer canvas under scene blocks) to keep them for one " +
-      "release, or describe the look with the level methods minimalistic, schematic and detailed."
-  );
 }
 
 /**
@@ -381,22 +244,13 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   /** How far its anchor points lie outside its rect at most (`updatePortPositions`): part of the lazy view test. */
   private anchorOverflow = 0;
 
-  /** How far its anchors' look reaches from their points, as last read (`anchorLookReach`): part of the view test. */
-  private anchorReach = 0;
-
-  /** The class `getAnchorClass` chose for each anchor of `$anchors`, in its order (`syncAnchorClasses`). */
-  private anchorClassList?: readonly TAnchorClass[];
-
-  /** The distinct classes of `anchorClassList`, for exports and the lazy rule. */
-  private anchorClassSet?: readonly TAnchorClass[];
+  /** Latest successful selection, in anchor order. Stock blocks use the shared STOCK_ANCHORS. */
+  private resolvedAnchorClasses?: TResolvedAnchorClasses;
 
   /** Whether block data `getAnchorClass` may read changed since the classes were read. */
   private anchorClassesDirty = true;
 
-  /** The levels on which its anchors are created (`Anchor.CREATION_LEVELS`), as last read. */
-  private anchorCreationMask = DEFAULT_ANCHOR_LEVELS;
-
-  /** Whether the current failure of `getAnchorClass` was reported (`reportAnchorClassError`). */
+  /** Whether the current failure of `getAnchorClass` was reported. */
   private anchorClassErrorReported = false;
 
   /** The ids of the anchor list last seen, to release the ports of anchors that leave it. */
@@ -435,7 +289,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   constructor(props: Props, parent: Component) {
     super(props, parent);
-    if (isDevelopmentBuild()) warnLegacyMembers(this.constructor, Block);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") warnLegacyMembers(this.constructor, Block);
 
     this.connectedState = this.getConnectedState(props.id);
     this.subscribe(props.id);
@@ -652,28 +506,21 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
    */
   protected shouldCreateAnchors(): boolean {
     if (this.blockHidden) return false;
-    if (!isOnLevel(this.anchorCreationLevels(), this.context.graph.scene.$level.peek())) return false;
+    const graph = this.context.graph;
+    const levels =
+      this.picksAnchorClasses() && !this.resolvedAnchorClasses ? anchorLimitsOf(graph).levels : this.getAnchorLevels();
+    if (!isOnLevel(levels, graph.scene.$level.peek())) return false;
     const camera = this.context.camera;
     const { relativeWidth, relativeHeight } = camera.getCameraState();
     if (relativeWidth <= 0 || relativeHeight <= 0) return true;
     const { x, y, width, height } = this.connectedState.$geometry.peek();
     // Anchor points outside the rect (a short block with many anchors) and the anchors' look count as part of the
     // block: a dot whose point lies just outside the view still shows at its edge.
-    const out = this.anchorOverflow + this.anchorLookReach();
+    const limits = anchorLimitsOf(graph);
+    const reach = this.anchorLook()?.reach ?? Math.max(STOCK_ANCHORS.reach, limits.reach);
+    if (reach > limits.reach) limits.reach = reach;
+    const out = this.anchorOverflow + reach;
     return camera.isRectVisible(x - out, y - out, width + 2 * out, height + 2 * out);
-  }
-
-  /**
-   * How far the look of this block's anchors reaches from their points at most: the largest `LOOK_EXTENT` of their
-   * classes, as last read in its update. While its classes are unknown, the graph's largest reach. Recorded as the
-   * graph's largest for the camera's view search (`anchorReachOf`).
-   */
-  private anchorLookReach(): number {
-    const classes = this.anchorClasses();
-    const reach = classes ? lookExtentOf(classes) : anchorReachOf(this.context.graph);
-    this.anchorReach = reach;
-    noteAnchorReach(this.context.graph, reach);
-    return reach;
   }
 
   /**
@@ -762,9 +609,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.anchorOverflow;
   }
 
-  /** @internal How far its anchors' look reaches, as last read (`Blocks` recomputes the graph's largest). */
+  /** @internal How far the look of its selected anchor classes reaches now (`Blocks` recomputes the graph's largest). */
   public getAnchorReach(): number {
-    return this.anchorReach;
+    return this.resolvedAnchorClasses?.reach ?? STOCK_ANCHORS.reach;
   }
 
   /**
@@ -772,15 +619,15 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
    * and by the largest `LOOK_EXTENT` of their classes, meets it, and one of their classes draws on the level.
    */
   private anchorsShowIn(rect: TTileRect, level: TSceneLevel): boolean {
-    const classes = this.anchorClasses();
-    // Classes unknown (a pending update may change which one `getAnchorClass` picks): the block is a candidate.
-    if (!classes) return true;
+    // Pending data may choose a wider class or one that draws on another level.
+    const look = this.anchorLook();
+    if (!look) return true;
+    if (!look.hasCustomClass && !Anchor.drawsOnLevel(Anchor, level)) return false;
     const { x, y, width, height } = this.connectedState.$geometry.peek();
-    const out = this.anchorOverflow + lookExtentOf(classes);
-    if (x - out > rect.maxX || x + width + out < rect.minX || y - out > rect.maxY || y + height + out < rect.minY) {
-      return false;
-    }
-    return level === "schematic" || classes.some((klass) => Anchor.drawsOnLevel(klass, level));
+    const out = this.anchorOverflow + look.reach;
+    return (
+      x - out <= rect.maxX && x + width + out >= rect.minX && y - out <= rect.maxY && y + height + out >= rect.minY
+    );
   }
 
   /**
@@ -793,16 +640,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return data.nextProps !== undefined || data.nextState !== undefined || (entry !== undefined && entry.slot >= 0);
   }
 
-  /**
-   * The classes of these anchors' components: an export reads their `LOOK_EXTENT` and level methods
-   * (`Anchor.drawsOnLevel`). Without a `getAnchorClass` override every anchor is an `Anchor`. With one, the classes
-   * read in the block's last update; `undefined` while an update is pending or the data changed since (they may not be
-   * final), so no class-based rejection happens and the export draws whatever intersects.
-   */
-  private anchorClasses(): readonly TAnchorClass[] | undefined {
-    if (!this.picksAnchorClasses()) return (defaultAnchorClasses ??= Object.freeze([Anchor]));
-    if (this.hasPendingUpdate() || this.anchorClassesDirty) return undefined;
-    return this.anchorClassSet;
+  /** During a custom block's pending update its anchor reach and export levels are still unknown. */
+  private anchorLook(): TAnchorLook | undefined {
+    if (!this.picksAnchorClasses()) return STOCK_ANCHORS;
+    return this.anchorClassesDirty || this.hasPendingUpdate() ? undefined : this.resolvedAnchorClasses;
   }
 
   /** Whether this block's class overrides `getAnchorClass`; without an override every anchor is an `Anchor`. */
@@ -812,7 +653,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   /**
    * Reads the anchor classes from the block's applied data (`getAnchorClass`) after it changed (a move excepted), in
-   * the block's update: their reach and creation levels are cached and noted for the camera's lazy search, an offscreen
+   * the block's update: their reach and creation levels widen the camera's lazy search, an offscreen
    * block's too, and a change of the chosen classes reconciles the anchors, so each component has the class chosen now.
    */
   private syncAnchorClasses(): void {
@@ -823,45 +664,37 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     try {
       list = this.connectedState.$anchors.peek().map((anchor) => this.getAnchorClass(anchor));
     } catch (error) {
-      this.reportAnchorClassError(error);
+      if (!this.anchorClassErrorReported) {
+        this.anchorClassErrorReported = true;
+        const fallback = this.resolvedAnchorClasses
+          ? "the block keeps the anchor classes it read before"
+          : "until it returns classes, the block uses the graph's anchor reach and creation levels";
+        console.error(
+          `${this.constructor.name} (block ${String(this.props.id)}): getAnchorClass() threw; ${fallback}`,
+          error
+        );
+      }
       return;
     }
     this.anchorClassErrorReported = false;
-    const previous = this.anchorClassList;
-    const classes = [...new Set(list)];
-    this.anchorClassList = list;
-    this.anchorClassSet = classes;
-    this.anchorReach = lookExtentOf(classes);
-    noteAnchorReach(this.context.graph, this.anchorReach);
-    this.anchorCreationMask = creationLevelsOfClasses(classes);
-    noteAnchorLevels(this.context.graph, this.anchorCreationMask);
-    if (this.anchorsCreated && previous !== undefined && !sameClasses(previous, list)) this.shouldUpdateChildren = true;
+    const previous = this.resolvedAnchorClasses?.list;
+    const next = describeAnchorClasses(list);
+    this.resolvedAnchorClasses = next;
+    const limits = anchorLimitsOf(this.context.graph);
+    limits.reach = Math.max(limits.reach, next.reach);
+    limits.levels = unionLevelMasks(limits.levels, next.levels);
+    if (
+      this.anchorsCreated &&
+      previous &&
+      (previous.length !== list.length || previous.some((klass, i) => klass !== list[i]))
+    ) {
+      this.shouldUpdateChildren = true;
+    }
   }
 
-  /**
-   * Reports a `getAnchorClass` failure once per failing stretch of this block: again after a read that succeeded in
-   * between. The message says what the block uses meanwhile.
-   */
-  private reportAnchorClassError(error: unknown): void {
-    if (this.anchorClassErrorReported) return;
-    this.anchorClassErrorReported = true;
-    const block = `${this.constructor.name} (block ${String(this.props.id)})`;
-    const fallback = this.anchorClassList
-      ? "the block keeps the anchor classes it read before, with their reach and creation levels"
-      : "until it returns classes, the block uses the graph's anchor reach and creation levels, and creating its " +
-        "anchors calls getAnchorClass() again";
-    console.error(`${block}: getAnchorClass() threw; ${fallback}`, error);
-  }
-
-  /** The levels on which this block creates its anchors now: its classes', or the graph's while they are unknown. */
-  private anchorCreationLevels(): number {
-    if (!this.picksAnchorClasses()) return DEFAULT_ANCHOR_LEVELS;
-    return this.anchorClassList ? this.anchorCreationMask : anchorLevelsOf(this.context.graph);
-  }
-
-  /** @internal The levels on which its anchors are created, as last read (`Blocks` recomputes the graph's). */
+  /** @internal The creation levels last read from this block, used when rebuilding the graph's limits. */
   public getAnchorLevels(): number {
-    return this.anchorCreationMask;
+    return this.resolvedAnchorClasses?.levels ?? STOCK_ANCHORS.levels;
   }
 
   protected override getViewData(): TBlockView<T> {
@@ -1012,7 +845,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       }
     });
     this.anchorOverflow = overflow;
-    noteAnchorOverflow(this.context.graph, overflow);
+    const limits = anchorLimitsOf(this.context.graph);
+    limits.overflow = Math.max(limits.overflow, overflow);
   }
 
   public getInputPort(): PortState {
@@ -1180,7 +1014,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   /** One anchor's component: its class with the anchor's data, its port and the class's `SIZE` and `LINE_WIDTH`. */
   private anchorDescriptor(anchor: TAnchor, index: number): ChildDescriptor {
-    const list = this.anchorClassList;
+    const list = this.resolvedAnchorClasses?.list;
     const klass = list && list.length === (this.state.anchors ?? []).length ? list[index] : this.getAnchorClass(anchor);
     return klass.create(
       {

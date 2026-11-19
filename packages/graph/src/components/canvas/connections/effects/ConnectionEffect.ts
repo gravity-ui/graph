@@ -1,7 +1,7 @@
 import { signal } from "@preact/signals-core";
 import type { Signal } from "@preact/signals-core";
 
-import { isDevelopmentBuild } from "../../../../lib/detachedWarning";
+import { HAS_NODE_ENV } from "../../../../utils/development";
 import type { TLineStroke } from "../lines/types";
 
 import type {
@@ -13,57 +13,12 @@ import type {
   TUniformTypes,
   TUniformValue,
 } from "./types";
+import { countEffectObject, warnTruncatedParams } from "./utils/diagnostics";
 
 /** Numbers of parameters per connection that reach the shader. */
 export const MAX_EFFECT_PARAMS = 8;
 
-/** Effect objects with one fragment text alive at once past which a warning is reported. */
-const MAX_OBJECTS_PER_FRAGMENT = 64;
-
 const UNIFORM_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
-
-/** The part of `FinalizationRegistry` used here: an ES2021 global, past the package's ES2020 lib. */
-interface IFinalizationRegistry<T> {
-  register(target: object, held: T): void;
-}
-
-type TFinalizationRegistryConstructor = new <T>(cleanup: (held: T) => void) => IFinalizationRegistry<T>;
-
-/** Effect objects alive per fragment text. */
-const objectsPerFragment = new Map<string, number>();
-
-const warnedFragments = new Set<string>();
-
-/** An object leaves the count of its fragment when it is collected. */
-function releaseObject(fragment: string): void {
-  const count = (objectsPerFragment.get(fragment) ?? 0) - 1;
-  if (count > 0) objectsPerFragment.set(fragment, count);
-  else objectsPerFragment.delete(fragment);
-}
-
-/** Without FinalizationRegistry, objects are never counted down. */
-const collectedObjects = ((): IFinalizationRegistry<string> | undefined => {
-  const Registry = (globalThis as { FinalizationRegistry?: TFinalizationRegistryConstructor }).FinalizationRegistry;
-  return typeof Registry === "function" ? new Registry<string>(releaseObject) : undefined;
-})();
-
-/**
- * Counts the effect objects of a fragment alive at once, so an app that remounts graphs and clones an effect per
- * graph is not reported: many alive at once mean effects created per connection.
- */
-function countObject(effect: object, fragment: string): void {
-  collectedObjects?.register(effect, fragment);
-  const count = (objectsPerFragment.get(fragment) ?? 0) + 1;
-  objectsPerFragment.set(fragment, count);
-  if (count > MAX_OBJECTS_PER_FRAGMENT && !warnedFragments.has(fragment) && isDevelopmentBuild()) {
-    warnedFragments.add(fragment);
-    console.warn(
-      `[@gravity-ui/graph] More than ${MAX_OBJECTS_PER_FRAGMENT} connection effect objects with one fragment are ` +
-        "alive. defineConnectionEffect() or clone() is called per connection (inside getStroke()?): " +
-        "define the effect once and pass per-connection values through use(params)."
-    );
-  }
-}
 
 /** Validates both `use()` options and effect uses supplied as literals. */
 export function validateConnectionEffectScaleRange({ minScale, maxScale }: TConnectionEffectScaleRange): void {
@@ -100,8 +55,6 @@ export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = reado
 
   public readonly uniforms: { [K in keyof U]: Signal<TUniformValue<U[K]>> };
 
-  private paramsWarned = false;
-
   constructor(private readonly definition: TConnectionEffectDefinition<U, P>) {
     const { fragment, animated = false, extraWidth = 0 } = definition;
     if (!Number.isFinite(extraWidth) || extraWidth < 0) {
@@ -131,20 +84,15 @@ export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = reado
       .map((name) => `uniform ${types[name]} u_${name};\n`)
       .join("");
     this.programKey = this.uniformDeclarations + fragment;
-    countObject(this, fragment);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") countEffectObject(this, fragment);
   }
 
   public use(input: P, scaleRange?: TConnectionEffectScaleRange): TConnectionEffectUse {
     if (scaleRange) validateConnectionEffectScaleRange(scaleRange);
     let params = this.definition.encode ? this.definition.encode(input) : (input as unknown as readonly number[]);
     if (params.length > MAX_EFFECT_PARAMS) {
-      if (!this.paramsWarned && isDevelopmentBuild()) {
-        this.paramsWarned = true;
-        console.warn(
-          `[@gravity-ui/graph] A connection effect got ${params.length} parameters; only the first ` +
-            `${MAX_EFFECT_PARAMS} reach the shader.`
-        );
-      }
+      if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
+        warnTruncatedParams(this, params.length, MAX_EFFECT_PARAMS);
       params = params.slice(0, MAX_EFFECT_PARAMS);
     }
     const use: TConnectionEffectUse = { effect: this as unknown as TConnectionEffectUse["effect"], params };

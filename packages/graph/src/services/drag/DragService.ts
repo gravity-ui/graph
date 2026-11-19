@@ -9,8 +9,8 @@ import { getXY } from "../../utils/functions";
 import { DragEmitter, dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
 
-import { findDragTarget } from "./findDragTarget";
 import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOptions, DragState } from "./types";
+import { findDragTarget } from "./utils/findDragTarget";
 
 /**
  * DragService manages drag operations for all draggable GraphComponents.

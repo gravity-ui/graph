@@ -271,8 +271,8 @@ function MyComponent() {
 
 - Types and interfaces start with `T` or `I`: `TBlock`, `ICamera`, `TConnection`
 - Component files: `ComponentName.tsx` or `ComponentName.ts`
-- Utilities: `utilityName.ts`
-- Tests: `ComponentName.test.ts`
+- Utilities: `utils/utilityName.ts`
+- Tests: `test/ComponentName.test.ts`
 - Styles: `ComponentName.css`
 
 ## Important Rules from .cursor/rules
@@ -357,7 +357,7 @@ Layers receive:
 
 - Tests use Jest with `@swc/jest` for TypeScript
 - Canvas mocking via `jest-canvas-mock`
-- Test files in `__tests__` directories or `*.test.ts` alongside source
+- Place unit tests in the owning module’s `test/` directory and reusable test helpers in `test/utils/`. Name tests after the behavior or regression they protect.
 - Run specific test: `pnpm test -- <pattern>`
 
 ## Documentation
@@ -1378,8 +1378,8 @@ batch(() => {
 
 **Files:**
 - Components: `ComponentName.tsx` or `ComponentName.ts`
-- Utilities: `utilityName.ts`
-- Tests: `ComponentName.test.ts`
+- Utilities: `utils/utilityName.ts`
+- Tests: `test/ComponentName.test.ts`
 - Styles: `ComponentName.css`
 
 **Types and Interfaces:**

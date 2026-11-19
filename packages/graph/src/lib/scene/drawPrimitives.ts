@@ -1,12 +1,12 @@
 import type { TSceneLevel } from "../../services/scene/types";
 
-import { readColorRgba } from "./colorAlpha";
 import { isOnLevel } from "./levels";
-import { resolveSceneSize } from "./size";
 import { applyStyle } from "./style";
 import { placeText, resolveTextSize, textClip } from "./textLayout";
 import { sceneTextLayout, sceneTextMetrics } from "./textMetrics";
 import type { TSceneElement, TScenePrimitive, TSceneStroke, TSceneStyle, TSceneTextPolicy } from "./types";
+import { readColorRgba } from "./utils/colorAlpha";
+import { resolveSceneSize } from "./utils/size";
 
 type TTextPrimitive = Extract<TScenePrimitive, { kind: "text" }>;
 type TRectPrimitive = Extract<TScenePrimitive, { kind: "rect" }>;

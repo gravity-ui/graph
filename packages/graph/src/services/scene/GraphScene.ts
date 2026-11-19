@@ -14,6 +14,7 @@ import { ignoresCameraAware, styleLookKey } from "../../lib/scene/style";
 import { clearSceneTextMetrics } from "../../lib/scene/textMetrics";
 import type { TSceneChange, TSceneElement, TSceneStyle, TSceneTextPolicy } from "../../lib/scene/types";
 import type { ISceneBackendModule } from "../../lib/scene/webgl/backendTypes";
+import { HAS_NODE_ENV } from "../../utils/development";
 import { noop } from "../../utils/functions";
 import { clearMeasureTextCache } from "../../utils/functions/text";
 import { track } from "../../utils/functions/track";
@@ -31,7 +32,6 @@ import { cameraWorldViewport } from "../visibilityCulling";
 
 import { DelegatedRanks } from "./DelegatedRanks";
 import { SceneClock } from "./SceneClock";
-import { afterScenePaint } from "./afterScenePaint";
 import { isSceneKeyed } from "./sceneKey";
 import { createSceneLevel } from "./sceneLevel";
 import type {
@@ -46,6 +46,7 @@ import type {
   TSceneRendererState,
   TSceneState,
 } from "./types";
+import { afterScenePaint } from "./utils/afterScenePaint";
 
 /** Canvas limits that hold in current browsers (side and area); larger outputs come back blank, so toImage throws. */
 const MAX_IMAGE_SIDE = 16384;
@@ -125,7 +126,8 @@ export class GraphScene implements IGraphScene {
   public readonly delegatedRanks: DelegatedRanks;
 
   /** Stops the development errors for the scene limits. */
-  private readonly unwatchLimits = watchSceneLimits(this.store);
+  private readonly unwatchLimits =
+    HAS_NODE_ENV && process.env.NODE_ENV !== "production" ? watchSceneLimits(this.store) : undefined;
 
   /** Scene time in seconds. */
   public readonly clock: { now(): number };
@@ -845,7 +847,8 @@ export class GraphScene implements IGraphScene {
     canvas.height = image.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("graph.scene.toImage() needs a 2D canvas context");
-    const stats = sceneExportStats.enabled ? sceneExportStats : undefined;
+    const stats =
+      HAS_NODE_ENV && process.env.NODE_ENV !== "production" && sceneExportStats.enabled ? sceneExportStats : undefined;
     let start = stats ? performance.now() : 0;
     const lap = (): number => {
       const now = performance.now();
@@ -1001,7 +1004,7 @@ export class GraphScene implements IGraphScene {
     this.unsubscribeBackendState();
     this.changedTypes.clear();
     this.movedNestings.clear();
-    this.unwatchLimits();
+    this.unwatchLimits?.();
     this.delegatedRanks.dispose();
     this.unsubscribeRenderer?.();
     this.unsubscribeRenderer = undefined;

@@ -13,8 +13,8 @@ import type { TConnectionArrow, TConnectionGeometry } from "../geometry";
 import { distanceToArrow, distanceToSegments } from "../geometry/distance";
 
 import { ConnectionLine, getSelectionColor } from "./ConnectionLine";
-import { GeometryCache, applyArrowStyle, applyLineStyle, getArrowGroup, strokeKey } from "./fallbackPath";
 import type { TLineInteraction, TLineStroke, TWebGLShape } from "./types";
+import { GeometryCache, applyArrowStyle, applyLineStyle, getArrowGroup, strokeKey } from "./utils/fallbackPath";
 
 /** Stroke used by both scene renderers, with an optional WebGL fragment effect. */
 export type TSceneLineStroke = TLineStroke & { effect?: TConnectionEffectUse };

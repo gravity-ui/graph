@@ -19,15 +19,26 @@ function config(useBezierConnections: boolean): GraphConfig {
   };
 }
 
-type TLineKind = "plain" | "dashFlow" | "pulse" | "stillDashFlow";
+type TLineKind = "plain" | "dashFlow" | "pulse" | "stillDashFlow" | "customHelpers";
 
 /** Switches the graph to a connection class using a scene line with an optional WebGL effect. */
 async function useWebGLConnection(page: Page, kind: TLineKind): Promise<void> {
   await page.evaluate((lineKind) => {
-    const { BlockConnection, SceneLine, dashFlow, pulse } = window.GraphModule;
+    const { BlockConnection, SceneLine, dashFlow, pulse, defineConnectionEffect } = window.GraphModule;
+    const custom =
+      lineKind === "customHelpers" &&
+      defineConnectionEffect({
+        fragment: `vec4 effect(ConnectionFragment f, vec4 color) {
+        float phase = graph_dashPhase(f.along, 40.0, 40.0, 0.0);
+        float red = graph_comet(min(phase, 40.0), 40.0, 1.0);
+        float green = graph_wave(f.world, 0.0, 1.0, 0.0);
+        return vec4(red, green, 0.0, color.a);
+      }`,
+      });
     class Line extends SceneLine {
       getStroke(state: Parameters<InstanceType<typeof SceneLine>["getStroke"]>[0]) {
         const base = super.getStroke(state);
+        if (custom) return { ...base, width: 8, effect: custom.use([]) };
         if (lineKind === "dashFlow") {
           return {
             ...base,
@@ -317,7 +328,7 @@ test.describe("WebGL connections", () => {
     }
   }
 
-  for (const kind of ["dashFlow", "pulse"] as const) {
+  for (const kind of ["dashFlow", "pulse", "customHelpers"] as const) {
     test(`${kind} renders in WebGL without console errors`, async ({ page }) => {
       const errors: string[] = [];
       page.on("console", (message) => {
@@ -341,6 +352,14 @@ test.describe("WebGL connections", () => {
       await graphPO.waitForFrames(10);
       await expect.poll(() => graphPO.getSceneRenderer()).toBe("webgl");
       expect(errors).toEqual([]);
+      if (kind === "customHelpers") {
+        const line = graphPO.connection("c1");
+        const tail = await line.getPointOnCurve(0.25);
+        const head = await line.getPointOnCurve(0.75);
+        const colors = await countColorsOnScreen(page, tail, head, { green: [0, 255, 0], yellow: [255, 255, 0] });
+        expect(colors.green).toBeGreaterThan(20);
+        expect(colors.yellow).toBeGreaterThan(20);
+      }
     });
   }
 });

@@ -12,20 +12,20 @@ import {
 import type { ConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import { dashFlow, pulse } from "../../../components/canvas/connections/effects/library";
 import type { TConnectionEffectScaleRange, TUniformTypes } from "../../../components/canvas/connections/effects/types";
-import { turnedPolylineStrokes } from "../../../components/canvas/connections/geometry/polylineStroke";
+import { turnedPolylineStrokes } from "../../../components/canvas/connections/geometry/utils/polylineStroke";
 import { CURVE_CHORDS, INSTANCE_FLOATS, scaleBucket } from "../../../components/canvas/connections/webgl/encode";
 import { createCurveTemplate, createLineTemplate } from "../../../components/canvas/connections/webgl/shaders";
 import type { TSceneLevel } from "../../../services/scene/types";
 import { track } from "../../../utils/functions/track";
 import type { TTileRect } from "../../culling/TileIndex";
 import type { SceneStore } from "../SceneStore";
-import { readColorRgba } from "../colorAlpha";
 import { LEVEL_BIT, isOnLevel } from "../levels";
 import { bakeElementStyle, connectionEffectId, styleOpacity } from "../style";
 import { DEFAULT_TEXT_POLICY, isLayoutValid, layoutText, resolveTextSize } from "../textLayout";
 import type { TTextLayout } from "../textLayout";
 import { peekSceneTextLayout, sceneTextLayout, sceneTextMetrics } from "../textMetrics";
 import type { TSceneChange, TSceneElement, TScenePrimitive, TSceneStyle, TSceneTextPolicy } from "../types";
+import { readColorRgba } from "../utils/colorAlpha";
 
 import { InstanceRanges } from "./InstanceRanges";
 import type {

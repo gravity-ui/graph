@@ -1,7 +1,7 @@
 import { toConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import type { TTileRect } from "../../culling/TileIndex";
-import { resolveSceneSize } from "../size";
 import type { TScenePrimitive, TSceneSize, TSceneStroke } from "../types";
+import { resolveSceneSize } from "../utils/size";
 
 import { MITER_LIMIT } from "./closedStroke";
 

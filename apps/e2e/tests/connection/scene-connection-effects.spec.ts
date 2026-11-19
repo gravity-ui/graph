@@ -152,6 +152,8 @@ test("effect scale ranges keep resident paths, stop animation and preserve custo
             segments: new Float32Array(lineSegment({ x: 100, y: 100 + i * 80 }, { x: 400, y: 100 + i * 80 })),
             stroke: { color: "#0000ff", width: 12 },
             effect: { ...effect.use([]), minScale: i === 1 ? 0.75 : 0.5, maxScale: 1.25 },
+            interaction: { selected: true, hovered: false, selectionColor: "#ff00ff" },
+            effectShowsSelection: i === 1,
           },
         ],
       });
@@ -198,11 +200,12 @@ test("effect scale ranges keep resident paths, stop animation and preserve custo
     );
   const blue = [0, 0, 255];
   const red = [255, 0, 0];
+  const selected = [255, 0, 255];
   for (const [scale, colors, animated] of [
-    [0.25, [blue, blue, blue, blue], false],
-    [0.5, [red, blue, red, red], true],
+    [0.25, [blue, selected, blue, blue], false],
+    [0.5, [red, selected, red, red], true],
     [0.75, [red, red, red, red], true],
-    [1.25, [blue, blue, blue, blue], false],
+    [1.25, [blue, selected, blue, blue], false],
     [0.75, [red, red, red, red], true],
   ] as const) {
     const result = await draw(scale);
@@ -225,7 +228,7 @@ test("effect scale ranges keep resident paths, stop animation and preserve custo
     });
   });
   await expect.poll(() => page.evaluate(() => window.graph.scene.$renderer.peek())).toBe("webgl");
-  expect((await draw(0.25)).colors, "plain siblings survive context restoration").toEqual([blue, blue, blue, blue]);
+  expect((await draw(0.25)).colors, "plain siblings survive context restoration").toEqual([blue, selected, blue, blue]);
   expect((await draw(1)).colors, "custom depth effects resume after restoration").toEqual([red, red, red, red]);
   await graph.evaluate((each) => each.cameraService.set({ scale: 0.25 }));
   await graph.waitForFrames(3);
@@ -283,6 +286,8 @@ test("mixed connection sources activate the same effect independently without re
             kind: "path",
             segments: new Float32Array(lineSegment({ x: 100, y: 100 + i * 80 }, { x: 400, y: 100 + i * 80 })),
             stroke: { color: "#0000ff", width: 12 },
+            interaction: i === 1 ? { selected: true, hovered: false, selectionColor: "#ff00ff" } : undefined,
+            effectShowsSelection: i === 1,
             effect: pulse.use({ period: 2 }, { minScale: i === 0 ? 0.5 : 0.75, maxScale: 1.25 }),
           },
         ],
@@ -309,12 +314,12 @@ test("mixed connection sources activate the same effect independently without re
         ...cameraService.getCameraState(),
         scale,
         dpr: 1,
-        time: 1.234,
+        time: 1, // trough of the 2-second pulse
         dimColor: scene.store.getDimColor(),
       });
       const previous = ids;
       ids = probe.mixedDraw?.ids.data;
-      const alphas = [0, 1].map((i) => {
+      const pixels = [0, 1].map((i) => {
         const pixel = new Uint8Array(4);
         gl.readPixels(
           Math.floor(250 * scale),
@@ -325,11 +330,11 @@ test("mixed connection sources activate the same effect independently without re
           gl.UNSIGNED_BYTE,
           pixel
         );
-        return pixel[3];
+        return Array.from(pixel);
       });
       return {
         scale,
-        alphas,
+        pixels,
         animated,
         mixed: Boolean(probe.mixedTarget),
         sameIds: previous?.buffer === ids?.buffer && previous?.length === ids?.length,
@@ -346,10 +351,14 @@ test("mixed connection sources activate the same effect independently without re
       expect(row.uploads).toBe(0);
     }
     expect(row.animated).toBe(row.scale < 1.25);
-    expect(row.alphas[0]).toBe(row.scale < 1.25 ? result[0].alphas[0] : 255);
-    expect(row.alphas[1]).toBe(row.scale >= 0.75 && row.scale < 1.25 ? result[0].alphas[1] : 255);
+    // At the trough the plain blue line is 15% opaque. The selected line mixes blue with magenta,
+    // then becomes solid magenta when its own effect is out of range.
+    expect(Math.abs(row.pixels[0][3] - (row.scale < 1.25 ? 38 : 255))).toBeLessThanOrEqual(1);
+    const selected = row.pixels[1];
+    const active = row.scale >= 0.75 && row.scale < 1.25;
+    expect(Math.abs(selected[0] - (active ? 217 : 255))).toBeLessThanOrEqual(1);
+    expect(selected.slice(1)).toEqual([0, 255, 255]);
   }
-  expect(result[0].alphas[0], "the active pulse actually changes alpha").toBeLessThan(250);
 });
 
 test("alternating stock effects share a native draw without changing translucent pixels", async ({ page }) => {

@@ -10,7 +10,7 @@ import { dragListener } from "../../utils/functions/dragListener";
 import { EWheelIntent, isPinchZoomGesture } from "../../utils/functions/wheelIntent";
 import { EVENTS } from "../../utils/types/events";
 import { schedule } from "../../utils/utils/schedule";
-import { findDragTarget } from "../drag/findDragTarget";
+import { findDragTarget } from "../drag/utils/findDragTarget";
 
 import { ICamera, TCameraState } from "./CameraService";
 

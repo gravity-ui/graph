@@ -618,9 +618,10 @@ receives (with their `cameraAware` objects), so changing one in place throws a `
 
 ## Limits
 
-Development builds report each limit with one console error before the WebGL renderer falls back to Canvas 2D
-(`$renderer` becomes `"webgl-fallback"`). Production builds check nothing in advance and fall back when the WebGL
-backend throws.
+With a development build, the scene reports each limit once before WebGL falls back to Canvas 2D.
+Set `process.env.NODE_ENV` to `"production"` in the application build to omit these diagnostics.
+Direct browser ESM also skips them when `process` is absent. In every build the scene switches
+`$renderer` to `"webgl-fallback"` if the WebGL backend fails.
 
 - **Parts:** at most 15 distinct part names in the scene, plus `"none"`, which is reserved for primitives without a
   part.

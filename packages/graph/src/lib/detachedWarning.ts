@@ -1,18 +1,6 @@
 /** Hooks the frame never calls for retained components. */
 const FRAME_HOOKS = ["render", "willRender", "didRender", "willNotRender", "didIterate", "iterate", "viewportChanged"];
 
-/**
- * Whether this is a development build. Keeps the literal `process.env.NODE_ENV !== "production"` expression so
- * bundlers can replace it; without `process` (bundler-less ESM) the access throws and the answer is "production".
- */
-export function isDevelopmentBuild(): boolean {
-  try {
-    return process.env.NODE_ENV !== "production";
-  } catch {
-    return false;
-  }
-}
-
 const checked = new WeakSet<object>();
 
 /**

@@ -1,4 +1,4 @@
-import { isDevelopmentBuild } from "../../../../lib/detachedWarning";
+import { HAS_NODE_ENV } from "../../../../utils/development";
 import { parseColor } from "../../../../utils/functions/color";
 import { isLineSegment } from "../geometry/segments";
 import type { TLineInteraction, TLineStroke, TWebGLShape } from "../lines/types";
@@ -152,7 +152,7 @@ const reportedPatterns = new Set<string>();
 
 function reportLongPattern(pattern: readonly number[], normalized: readonly number[]): void {
   const text = pattern.join(", ");
-  if (!isDevelopmentBuild() || reportedPatterns.has(text)) return;
+  if (reportedPatterns.has(text)) return;
   reportedPatterns.add(text);
   console.warn(
     `[@gravity-ui/graph] WebGL connections draw dash patterns of up to ${DASH_FLOATS} numbers. ` +
@@ -171,7 +171,8 @@ function dashFloats(dash: TLineStroke["dash"]): readonly number[] {
   if (!pattern?.length) return NO_DASH;
   for (const value of pattern) if (!Number.isFinite(value) || value < 0) return NO_DASH;
   const normalized = pattern.length % 2 ? [...pattern, ...pattern] : pattern;
-  if (normalized.length > DASH_FLOATS) reportLongPattern(pattern, normalized);
+  if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && normalized.length > DASH_FLOATS)
+    reportLongPattern(pattern, normalized);
   return [normalized[0], normalized[1], normalized[2] ?? 0, normalized[3] ?? 0];
 }
 

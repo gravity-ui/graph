@@ -1,5 +1,3 @@
-import { isDevelopmentBuild } from "../detachedWarning";
-
 import type { SceneStore } from "./SceneStore";
 import type { TSceneElement, TSceneStyle } from "./types";
 import { DEPTH_INDICES, SCENE_DEPTH, subBitsFor } from "./webgl/depth";
@@ -17,7 +15,6 @@ const MAX_BANDS = 2 ** SCENE_DEPTH.BAND_BITS;
  * Production builds watch nothing.
  */
 export function watchSceneLimits(store: SceneStore): () => void {
-  if (!isDevelopmentBuild()) return (): void => undefined;
   const reported = new Set<string>();
   const parts = new Set<string>();
   const bandOf = new Map<string, number>();

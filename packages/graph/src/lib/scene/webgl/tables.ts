@@ -1,7 +1,7 @@
 import { colorFloats } from "../../../components/canvas/connections/webgl/encode";
-import { parseColorAlpha } from "../colorAlpha";
 import { styleDim, styleOpacity } from "../style";
 import type { TScenePartStyle, TSceneStyle } from "../types";
+import { parseColorAlpha } from "../utils/colorAlpha";
 
 export const TABLE_WIDTH = 1024;
 export const PART_SLOTS = 16;

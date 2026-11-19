@@ -8,7 +8,7 @@ import { GraphComponent, GraphComponentContext } from "../GraphComponent";
 import { TAnchor } from "../anchors";
 import { Block } from "../blocks/Block";
 
-import { hasChangedValue } from "./hasChangedValue";
+import { hasChangedValue } from "./utils/hasChangedValue";
 
 /**
  * Properties for BaseConnection component

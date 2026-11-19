@@ -96,7 +96,7 @@ The JSON separates the selection action (`select`), its following frame (`select
 For a slow drag, compare the browser frame interval (`p95`), synchronous scene update (`scene95`) and time
 handling delivered pointer moves (`input95`).
 
-The standalone test `node --test scripts/bench/etl-camera-motion.test.mjs` checks camera motion, restart and
+The standalone test `node --test scripts/bench/test/etl-camera-motion.test.mjs` checks camera motion, restart and
 cancellation with a deterministic clock.
 
 For a **Live** profile, take the longest animation-frame interval overlapping each simulation tick and its first

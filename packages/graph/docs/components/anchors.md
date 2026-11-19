@@ -101,8 +101,8 @@ class SquareOutBlock extends CanvasBlock {
 ```
 
 `getAnchorClass` is a pure function of the anchor and the block's data (`this.state`, `this.props`,
-`this.connectedState`), without side effects. A throw from it is reported with `console.error`, and the block keeps
-the classes it read before, if any.
+`this.connectedState`), without side effects. If it throws, the block keeps its last successful choice of classes
+and reports the error in every build. It reports a new failure after the hook succeeds again.
 
 ## Anchor Structure
 

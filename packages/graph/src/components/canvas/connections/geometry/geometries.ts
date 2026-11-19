@@ -1,8 +1,7 @@
 import { getTriangleArrowPoints } from "../../../../utils/shapes/triangle";
 import type { TPoint } from "../../../../utils/types/shapes";
-import { generateBezierParams, getArrowCoords } from "../bezierHelpers";
+import { generateBezierParams, getArrowCoords } from "../utils/bezierHelpers";
 
-import { markPolylineStroke } from "./polylineStroke";
 import {
   SEGMENT_FLOATS,
   bezierSegment,
@@ -13,6 +12,7 @@ import {
   writeLineSegment,
 } from "./segments";
 import type { TConnectionGeometry, TConnectionGeometryFn, TConnectionGeometryInput } from "./types";
+import { markPolylineStroke } from "./utils/polylineStroke";
 
 const POLYLINE_RADIUS = 10;
 const TRIANGLE_HEIGHT = 16;

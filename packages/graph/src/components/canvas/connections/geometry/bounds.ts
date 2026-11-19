@@ -1,5 +1,5 @@
 import type { TPathBounds } from "../../../../lib/batch/types";
-import { joinCubicBounds } from "../bezierHelpers";
+import { joinCubicBounds } from "../utils/bezierHelpers";
 
 import { SEGMENT_FLOATS, isLineSegment } from "./segments";
 
