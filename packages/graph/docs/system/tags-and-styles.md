@@ -8,7 +8,7 @@ class:
 3. **The scene draws computed styles.** For each element the scene resolves its class and tags into a style row and
    draws the row's values.
 
-Tags and styles live on the scene (`graph.scene.tags`, `graph.scene.styles`) because they exist for the scene's looks.
+For a complete example that styles a block and animates its outgoing connection, see [Show a running ETL step](#show-a-running-etl-step).
 See [Scene](scene.md) for the renderer itself.
 
 ## Tags
@@ -329,6 +329,50 @@ the parts `line`, `arrow`, `labelBackground` and `label`. A tagged line width al
 Set `parts.line.effect` to `effect.use(input, { minScale, maxScale })` or to `null` to turn it off.
 The optional scale range includes its lower bound and excludes its upper bound. Canvas draws the base stroke.
 See [Connection styles](../connections/webgl-connections.md#scene-styles) for examples.
+
+### Show a running ETL step
+
+Suppose the `extract` block publishes results through the `extract-to-load` connection. Give the block a teal
+border and its outgoing connection a teal stroke while the step runs. WebGL adds moving dashes at camera scales
+of 0.4 and above. At smaller scales and on Canvas2D, the stroke keeps the status colour.
+
+```ts
+import { BlockConnection, CanvasBlock, dashFlow, defineTag, selectedTag } from "@gravity-ui/graph";
+
+const runningTag = defineTag("etl-running");
+const color = "#087e67";
+const flow = dashFlow.use({ pattern: [12, 8], speed: 40 }, { minScale: 0.4 });
+const removeRules = graph.scene.styles.add([
+  {
+    target: CanvasBlock,
+    tags: [runningTag],
+    notTags: [selectedTag], // Keep the theme's selection border.
+    style: { parts: { border: { color } } },
+  },
+  {
+    target: BlockConnection,
+    tags: [runningTag],
+    style: { parts: { line: { color, effect: flow } } },
+  },
+]);
+```
+
+Register the rules once per graph. When the job starts, apply the tag to the block and connection by ID.
+The graph maintains `selectedTag` as the selection changes.
+
+```ts
+const step = { block: ["extract"], connection: ["extract-to-load"] };
+graph.scene.tags.add(runningTag, step);
+```
+
+When the job finishes, remove its tag. The same rules still apply to other running steps.
+
+```ts
+graph.scene.tags.delete(runningTag, step);
+```
+
+Call `removeRules()` when the view that installed the rules closes.
+To design your own animation, see [Writing a tagged shader effect](../connections/webgl-connections.md#writing-a-tagged-shader-effect).
 
 ## Elements and `explain`
 

@@ -68,6 +68,8 @@ rules raise the connection one bucket.
 
 A rule can set `parts.line.effect` to an effect use such as `flow.use(params)`, or set it to `null` to disable an
 effect. `WebGLLine.getStroke()` can also supply one. Canvas draws the base stroke with the matching paint rules.
+For a built-in moving dash, see [Show a running ETL step](../system/tags-and-styles.md#show-a-running-etl-step).
+For a custom pattern on a stock connection, see [Writing a tagged shader effect](#writing-a-tagged-shader-effect).
 
 ## Lines
 
@@ -407,9 +409,9 @@ class WebGLMultipointConnection extends MultipointConnection {
 
 ## Effects
 
-An effect recolors the fragments of a WebGL stroke with a GLSL function. `defineConnectionEffect(definition)` returns
-an effect object: define it once, at module scope, and refer to it from `getStroke()` with `effect.use(input)`. Effects
-are values: nothing is registered or referred to by name.
+An effect recolors the fragments of a WebGL stroke with a GLSL function. Define the effect once at module scope with
+`defineConnectionEffect()`. Assign `effect.use(input)` to a scene rule's `parts.line.effect` or to the stroke returned
+by a custom line's `getStroke()`.
 
 | Definition field | Meaning |
 |---|---|
@@ -431,9 +433,59 @@ fields can appear on a literal `{ effect, params, minScale, maxScale }`. Outside
 plain stroke, including its normal selection color. WebGL batches uses of the same effect instance with matching
 bounds, so distinct per-connection bounds can increase draw calls.
 
+### Writing a tagged shader effect
+
+To show the direction of a transfer, draw a bright band that travels from source to target. This example uses a
+stock connection. `graph` is your graph instance and `connectionId` identifies the transfer's existing connection.
+
+```ts
+import { BlockConnection, defineConnectionEffect, defineTag } from "@gravity-ui/graph";
+
+const transferring = defineTag("transferring");
+const movingBand = defineConnectionEffect({
+  animated: true,
+  encode: ({ spacing, speed }: { spacing: number; speed: number }) => [spacing, speed],
+  uniforms: { strength: { type: "float", value: 0.75 } },
+  fragment: /* glsl */ `
+    vec4 effect(ConnectionFragment f, vec4 color) {
+      float spacing = max(f.params0.x, 1.0);
+      float phase = fract((f.along - f.time * f.params0.y) / spacing);
+      float band = 1.0 - smoothstep(0.0, 0.2, abs(phase - 0.5));
+      vec4 base = f.selected > 0.5 ? f.selectionColor : color;
+      return vec4(mix(base.rgb, vec3(1.0), band * u_strength), base.a);
+    }`,
+});
+
+// Install the rule once for this graph.
+const removeStyle = graph.scene.styles.add([{
+  target: BlockConnection,
+  tags: [transferring],
+  style: {
+    parts: {
+      line: {
+        color: "#257a52",
+        width: 4,
+        effect: movingBand.use({ spacing: 80, speed: 40 }, { minScale: 0.25 }),
+      },
+    },
+  },
+}]);
+
+// When the transfer starts:
+graph.scene.tags.add(transferring, { connection: [connectionId] });
+```
+
+`encode` puts the parameters in the order the shader reads them. Here the bands are 80 world units apart and move
+40 world units per second. WebGL supplies the elapsed time in `f.time` on each animation frame. Canvas and WebGL
+below scale 0.25 draw the static stroke. The rule styles only the shaft, so the arrow and label keep their own styles.
+
+Set `movingBand.uniforms.strength.value = 0.3` to soften the band on every connection using this effect instance.
+When the transfer ends, call `graph.scene.tags.delete(transferring, { connection: [connectionId] })` to restore
+the styles that apply without the tag. Call `removeStyle()` when the graph no longer needs the rule.
+
 ### Three levels of control
 
-1. **Whether** a connection has the effect: a condition in the line's `getStroke()`.
+1. **Whether** a connection has the effect: match a tag in a scene style rule, or check the connection state in a custom line's `getStroke()`.
 2. **Per-connection values:** `params`, up to 8 numbers from `use()`, read as `f.params0` and `f.params1`. A change
    updates the affected connection's scene records.
 3. **Values shared by every connection with the effect:** uniforms. Writing one schedules one redraw and touches no
