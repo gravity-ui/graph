@@ -1,7 +1,7 @@
 /** Code samples shown in the stories; each compiles on its own against the public API. */
 
 const imports = (names: string): string =>
-  `import { ${names} } from "@gravity-ui/graph";\nimport type { TBaseConnectionState, TWebGLStroke } from "@gravity-ui/graph";\n`;
+  `import { ${names} } from "@gravity-ui/graph";\nimport type { TBaseConnectionState, TSceneLineStroke } from "@gravity-ui/graph";\n`;
 
 const hashHelper = `function hashId(id: string | number | undefined): number {
   let hash = 0;
@@ -10,9 +10,9 @@ const hashHelper = `function hashId(id: string | number | undefined): number {
 }
 `;
 
-export const runningDashCode = `${imports("BlockConnection, WebGLLine, dashFlow")}
-class RunningDashLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+export const runningDashCode = `${imports("BlockConnection, SceneLine, dashFlow")}
+class RunningDashLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     // dashFlow draws the dash itself, so the stroke has no \`dash\`;
     // selected, it fills the gaps with the selection color
     const effect = dashFlow.use({ pattern: [12, 8], speed: 40 });
@@ -22,15 +22,18 @@ class RunningDashLine extends WebGLLine {
 class RunningDashConnection extends BlockConnection {
   public static override line = RunningDashLine;
 }
-// The Canvas renderer draws the base stroke.
-// graph.updateSettings({ renderer: "webgl", connection: RunningDashConnection });`;
+// Register the connection once.
+// graph.updateSettings({ connection: RunningDashConnection });
+// Switch the same graph at runtime. Canvas draws the base stroke.
+// graph.scene.setRenderer("canvas");
+// graph.scene.setRenderer("webgl");`;
 
-export const perConnectionCode = `${imports("BlockConnection, WebGLLine")}
+export const perConnectionCode = `${imports("BlockConnection, SceneLine")}
 const palette = ["#e15759", "#4e79a7", "#59a14f", "#f28e2b", "#b07aa1", "#76b7b2"];
 
 ${hashHelper}
-class DataStyledLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class DataStyledLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     const hash = hashId(this.connection.props.id);
     // without an effect: the selection color and 2 units more width on hover and selection, as for the default stroke
     return this.withInteraction({ color: palette[hash % palette.length], width: 1 + (hash % 4) }, state);
@@ -41,10 +44,10 @@ class DataStyledConnection extends BlockConnection {
 }
 // graph.updateSettings({ connection: DataStyledConnection });`;
 
-export const stressCode = `${imports("BlockConnection, WebGLLine, dashFlow")}
+export const stressCode = `${imports("BlockConnection, SceneLine, dashFlow")}
 // GraphEditor/GraphStressTest: generatePrettyBlocks({ layersCount: 110, connectionsPerLayer: 1000 }), straight lines
-class StressLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class StressLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     const effect = dashFlow.use({ pattern: [12, 8], speed: 40 });
     return this.withInteraction({ color: "#4e79a7", width: 2, effect }, state);
   }
@@ -52,17 +55,17 @@ class StressLine extends WebGLLine {
 class StressConnection extends BlockConnection {
   public static override line = StressLine;
 }
-// graph.updateSettings({ renderer: "webgl", connection: StressConnection, useBezierConnections: false });`;
+// graph.updateSettings({ connection: StressConnection, useBezierConnections: false });`;
 
-export const pipelineCode = `${imports("BlockConnection, WebGLLine, dashFlow, pulse")}
+export const pipelineCode = `${imports("BlockConnection, SceneLine, dashFlow, pulse")}
 ${hashHelper}
-class PipelineLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class PipelineLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     // the comets, the wave and the dash stay on hover and selection; dashFlow and pulse show the selection color
     return this.withInteraction(this.look(), state);
   }
 
-  private look(): TWebGLStroke {
+  private look(): TSceneLineStroke {
     const hash = hashId(this.connection.props.id);
     // forward comets, return comets, a signal wave or a waiting dashed line, from a hash of the id
     if (hash % 10 < 4) {
@@ -83,12 +86,12 @@ class PipelineConnection extends BlockConnection {
   public static override line = PipelineLine;
 }
 // Canvas draws the base stroke of each line.
-// graph.updateSettings({ renderer: "webgl", connection: PipelineConnection });`;
+// graph.updateSettings({ connection: PipelineConnection });`;
 
-export const cometsCode = `${imports("BlockConnection, WebGLLine, dashFlow")}
+export const cometsCode = `${imports("BlockConnection, SceneLine, dashFlow")}
 ${hashHelper}
-class CometsLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class CometsLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     const speed = 100 + (hashId(this.connection.props.id) % 220);
     const effect = dashFlow.use({ pattern: [80, 180], speed, fade: true });
     return this.withInteraction({ color: "#2f7cf6", width: 5, effect }, state);
@@ -98,9 +101,9 @@ class CometsConnection extends BlockConnection {
   public static override line = CometsLine;
 }`;
 
-export const signalWaveCode = `${imports("BlockConnection, WebGLLine, pulse")}
-class SignalWaveLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+export const signalWaveCode = `${imports("BlockConnection, SceneLine, pulse")}
+class SignalWaveLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     // the crest travels along the x axis: neighbouring connections pulse in step
     return this.withInteraction({ color: "#7a5af8", width: 6, effect: pulse.use({ period: 4, wavelength: 30000 }) }, state);
   }
@@ -109,9 +112,9 @@ class SignalWaveConnection extends BlockConnection {
   public static override line = SignalWaveLine;
 }`;
 
-export const stillDashCode = `${imports("BlockConnection, WebGLLine")}
-class StillDashLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+export const stillDashCode = `${imports("BlockConnection, SceneLine")}
+class StillDashLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     return this.withInteraction({ color: "#4e79a7", width: 2, dash: { pattern: [12, 8] } }, state);
   }
 }
@@ -119,7 +122,7 @@ class StillDashConnection extends BlockConnection {
   public static override line = StillDashLine;
 }`;
 
-export const particlesCode = `${imports("BlockConnection, WebGLLine, defineConnectionEffect")}
+export const particlesCode = `${imports("BlockConnection, SceneLine, defineConnectionEffect")}
 const particles = defineConnectionEffect({
   animated: true,
   uniforms: { speed: { type: "float", value: 1 } },
@@ -137,8 +140,8 @@ const particles = defineConnectionEffect({
   encode: ({ spacing, speed }: { spacing: number; speed: number }) => [spacing, speed],
 });
 
-class ParticlesLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class ParticlesLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     return this.withInteraction({ color: "#2f7cf6", width: 14, effect: particles.use({ spacing: 120, speed: 100 }) }, state);
   }
 }
@@ -148,7 +151,7 @@ class ParticlesConnection extends BlockConnection {
 // particles.uniforms.speed.value = 2; // all connections at once
 // The phase is time * speed, so the dots jump while the speed changes.`;
 
-export const gradientCode = `${imports("BlockConnection, WebGLLine, defineConnectionEffect")}
+export const gradientCode = `${imports("BlockConnection, SceneLine, defineConnectionEffect")}
 const gradient = defineConnectionEffect({
   animated: true,
   fragment: \`vec4 effect(ConnectionFragment f, vec4 color) {
@@ -165,11 +168,10 @@ const gradient = defineConnectionEffect({
     laps,
     ...to,
   ],
-  fallback: (stroke) => stroke, // Canvas draws the plain stroke
 });
 
-class GradientLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class GradientLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     const effect = gradient.use({ from: [0.18, 0.49, 0.96], to: [0.95, 0.56, 0.17], laps: 0.3 });
     return this.withInteraction({ color: "#7a8aa6", width: 6, effect }, state);
   }
@@ -178,7 +180,7 @@ class GradientConnection extends BlockConnection {
   public static override line = GradientLine;
 }`;
 
-export const glowCode = `${imports("BlockConnection, WebGLLine, defineConnectionEffect")}
+export const glowCode = `${imports("BlockConnection, SceneLine, defineConnectionEffect")}
 const glow = defineConnectionEffect({
   extraWidth: 6, // CSS pixels drawn outside each side of the stroke
   uniforms: { intensity: { type: "float", value: 0.6 } },
@@ -191,11 +193,10 @@ const glow = defineConnectionEffect({
       : vec4(color.rgb, color.a * u_intensity * falloff);
     return mix(halo, color, f.coverage);
   }\`,
-  fallback: (stroke) => stroke,
 });
 
-class GlowLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class GlowLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     return this.withInteraction({ color: "#2f7cf6", width: 3, effect: glow.use([]) }, state);
   }
 }
@@ -204,8 +205,8 @@ class GlowConnection extends BlockConnection {
 }
 // glow.uniforms.intensity.value = 1; // the slider does this`;
 
-export const etlCode = `import { BlockConnection, ECanDrag, WebGLLine, dashFlow, pulse } from "@gravity-ui/graph";
-import type { Graph, TBaseConnectionState, TBlock, TBlockId, TConnection, TWebGLStroke } from "@gravity-ui/graph";
+export const etlCode = `import { BlockConnection, ECanDrag, SceneLine, dashFlow, pulse } from "@gravity-ui/graph";
+import type { Graph, TBaseConnectionState, TBlock, TBlockId, TConnection, TSceneLineStroke } from "@gravity-ui/graph";
 
 type TStageStatus = "running" | "succeeded" | "idle" | "paused" | "failed";
 type TStage = TBlock & { status: TStageStatus };
@@ -214,8 +215,8 @@ type TFlow = TConnection & { volume: number; status: "running" | "idle" | "faile
 // The look depends on data outside the connection's store: the selected effect
 let flowEffect: "comets" | "pulse" | "plain" = "comets";
 
-class FlowLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class FlowLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     const { status, volume = 1 } = state as TBaseConnectionState & Partial<TFlow>;
     // failed and idle flows keep their own look, whatever the effect
     if (status === "failed") {

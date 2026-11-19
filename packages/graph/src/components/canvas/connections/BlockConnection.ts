@@ -27,10 +27,10 @@ import { turnedPolylineStrokes } from "./geometry/polylineStroke";
 import { stockBezierSegments } from "./geometry/segments";
 import { hasChangedValue } from "./hasChangedValue";
 import { getLabelCoords } from "./labelHelper";
-import { Path2DLine, WebGLLine } from "./lines";
+import { SceneLine } from "./lines";
 import type { ConnectionLine, TConnectionLineClass, TLineStroke } from "./lines";
 import { getSelectionColor } from "./lines/ConnectionLine";
-import { arrowSegments } from "./lines/WebGLLine";
+import { arrowSegments } from "./lines/SceneLine";
 import type { TLineInteraction } from "./lines/types";
 import { warnRemovedConnectionMethods } from "./removedMethods";
 import type { TMultipointConnection } from "./types";
@@ -122,14 +122,14 @@ export class BlockConnection<T extends TConnection = TConnection>
   implements IConnectionLabelOwner
 {
   /**
-   * Connections are retained: the batch draws their lines and arrows and the label pass their labels, so the frame
-   * does not walk them. A subclass that draws in `render()` or relies on other per-frame hooks declares
+   * Retained connections submit their line, arrow and labels together. A subclass that draws in `render()` or
+   * relies on other per-frame hooks declares
    * `static override readonly mode = "immediate";`.
    */
   public static override readonly mode: TComponentMode = "retained";
 
   /** The line's appearance and optional Canvas drawing hooks. The graph scene picks its renderer. */
-  public static line: TConnectionLineClass = Path2DLine;
+  public static line: TConnectionLineClass = SceneLine;
 
   /** Pure shape: cubic segments and the arrow, in world coordinates. */
   public static geometry: TConnectionGeometryFn = blockGeometry;
@@ -140,6 +140,8 @@ export class BlockConnection<T extends TConnection = TConnection>
 
   /** Created in the constructor: `new (this.constructor.line)(this)`. Owns the look and the line and arrow items. */
   protected readonly line: ConnectionLine;
+
+  private readonly lineUsesCanvasHooks: boolean;
 
   protected labelGeometry: { x: number; y: number; width: number; height: number } | undefined = undefined;
 
@@ -186,12 +188,10 @@ export class BlockConnection<T extends TConnection = TConnection>
     this.addEventListener("click", this);
     if (isDevelopmentBuild()) warnRemovedConnectionMethods(this.constructor, BlockConnection);
 
-    // ConnectionLine records at construction whether the connection has afterRender(); a prototype method is visible
-    // here, a field initializer of a subclass is not yet.
     const LineClass = (this.constructor as typeof BlockConnection).line;
     // The line class checks the connection type on its side (see TConnectionLineClass); the connection is this one.
     this.line = new LineClass(this as never);
-    // Registers the line and its arrow with the batch.
+    this.lineUsesCanvasHooks = this.line.usesCanvasDrawing();
     this.updateLine(this.state, props);
   }
 
@@ -216,11 +216,7 @@ export class BlockConnection<T extends TConnection = TConnection>
 
   private usesSceneDrawing(): boolean {
     const mode = (this.constructor as typeof BlockConnection).mode;
-    return (
-      mode === "retained" &&
-      (this.line.constructor === Path2DLine || this.line instanceof WebGLLine) &&
-      !this.hasCanvasDecorations()
-    );
+    return mode === "retained" && !this.lineUsesCanvasHooks && !this.hasCanvasDecorations();
   }
 
   public getSceneKey(): TSceneKey | undefined {
@@ -327,20 +323,20 @@ export class BlockConnection<T extends TConnection = TConnection>
     state: TBaseConnectionState,
     props: TConnectionProps
   ): TScenePrimitive[] {
-    const webgl = this.line.getWebGLShape();
+    const shape = this.line.getSceneShape();
     const strokes = this.line.getSceneStrokes();
     const primitives: TScenePrimitive[] = [
       {
         kind: "path",
         part: "line",
-        segments: webgl?.segments ?? geometry.segments,
-        stroke: sceneStroke(webgl?.stroke ?? strokes.shaft),
-        canvasStroke: webgl?.effect ? sceneStroke(strokes.shaft) : undefined,
-        effect: webgl?.effect
-          ? { effect: webgl.effect, params: webgl.params?.slice() ?? [], ...webgl.effectScaleRange }
+        segments: shape?.segments ?? geometry.segments,
+        stroke: sceneStroke(shape?.stroke ?? strokes.shaft),
+        canvasStroke: shape?.effect ? sceneStroke(strokes.shaft) : undefined,
+        effect: shape?.effect
+          ? { effect: shape.effect, params: shape.params?.slice() ?? [], ...shape.effectScaleRange }
           : undefined,
-        interaction: { ...(webgl?.interaction ?? this.getSceneInteraction(state)) },
-        effectShowsSelection: webgl?.effectShowsSelection,
+        interaction: { ...(shape?.interaction ?? this.getSceneInteraction(state)) },
+        effectShowsSelection: shape?.effectShowsSelection,
       },
     ];
     const arrow = props.showConnectionArrows ? geometry.arrow : undefined;
@@ -713,10 +709,16 @@ export class BlockConnection<T extends TConnection = TConnection>
   }
 
   private hitSceneStroke(x: number, y: number, threshold: number): boolean {
-    if (this.line instanceof WebGLLine && this.line.hitTest !== WebGLLine.prototype.hitTest) {
-      const visible = this.isScenePartVisible("line") || this.isScenePartVisible("arrow");
-      return visible && this.line.hitTest(x, y, threshold);
+    if (this.line.hitTest !== SceneLine.prototype.hitTest) {
+      const shaftVisible = Boolean(this.shape?.segments.length) && this.isScenePartVisible("line");
+      const arrowVisible = this.props.showConnectionArrows && this.shape?.arrow && this.isScenePartVisible("arrow");
+      return Boolean(shaftVisible || arrowVisible) && this.line.hitTest(x, y, threshold);
     }
+    return this.hitSceneGeometry(x, y, threshold);
+  }
+
+  /** @internal Default scene picking, including resolved part visibility and camera-dependent stroke widths. */
+  public hitSceneGeometry(x: number, y: number, threshold: number): boolean {
     const geometry = this.shape;
     if (!geometry) return false;
     const scale = this.context.camera.getCameraScale();

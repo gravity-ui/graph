@@ -35,7 +35,9 @@ class PathBatchItem implements IBatchItem {
 
   constructor(
     input: TScenePathBatchInput,
-    private readonly source: { kind: "path"; segments: Float32Array } | { kind: "polygon"; points: Float32Array },
+    private readonly source:
+      | { kind: "path"; segments: Float32Array; closed?: boolean }
+      | { kind: "polygon"; points: Float32Array },
     stroke: TSceneStroke | undefined,
     fill: string | undefined,
     private readonly ox: number,
@@ -61,7 +63,7 @@ class PathBatchItem implements IBatchItem {
   public getPath(): Path2D {
     if (!this.path) {
       const path = new Path2D();
-      if (this.source.kind === "path") appendSegments(path, this.source.segments, this.ox, this.oy);
+      if (this.source.kind === "path") appendSegments(path, this.source.segments, this.ox, this.oy, this.source.closed);
       else appendPolygon(path, this.source.points, this.ox, this.oy);
       this.path = path;
     }

@@ -69,15 +69,25 @@ function regroup(input: readonly TTranslucentPart[], previous: readonly TPartBlo
   return previous.length > 0 && blocks.length > compactLimit ? regroup(input, []) : blocks;
 }
 
-function firstOverlap(spans: readonly TVisibilitySpan[], { first, end }: TVisibilitySpan): number {
-  let low = 0;
-  let high = spans.length;
+const spanEnd = (span: TVisibilitySpan): number => span.end;
+const runEnd = (run: TTranslucentRun): number => run.first + run.count;
+
+/** First interval ending strictly after the given slot. Adjacent candidates are common in a dense edit. */
+function seekPast<T>(items: readonly T[], low: number, high: number, slot: number, endOf: (item: T) => number): number {
+  if (low === high || endOf(items[low]) > slot) return low;
+  low++;
   while (low < high) {
     const mid = Math.floor((low + high) / 2);
-    if (spans[mid].end <= first) low = mid + 1;
+    if (endOf(items[mid]) <= slot) low = mid + 1;
     else high = mid;
   }
-  return low < spans.length && spans[low].first < end ? low : -1;
+  return low;
+}
+
+function firstOverlap(spans: readonly TVisibilitySpan[], { first, end }: TVisibilitySpan): number {
+  if (spans.length === 0 || spans[0].first >= end || spans[spans.length - 1].end <= first) return -1;
+  const at = seekPast(spans, 0, spans.length, first, spanEnd);
+  return at < spans.length && spans[at].first < end ? at : -1;
 }
 
 function partView(part: TTranslucentPart, cache: WeakMap<TTranslucentPart, TPartView>): TPartView {
@@ -106,22 +116,17 @@ function prepare(parts: readonly TTranslucentPart[], cache: WeakMap<TTranslucent
 
 /** One order part is a single source in increasing physical order. Search its existing runs for an edited slot. */
 function intersectsRuns(view: TPartView, spans: readonly TVisibilitySpan[], bridge: boolean): boolean {
-  const first = firstOverlap(spans, view);
-  if (first < 0) return false;
-  if (bridge) return true;
+  let i = firstOverlap(spans, view);
+  if (i < 0) return false;
   const { part, raw } = view;
-  let lo = part.first;
-  for (let i = first; i < spans.length; i++) {
+  if (bridge || part.end === part.first + 1) return true;
+  let j = part.first;
+  while (i < spans.length && j < part.end) {
     const span = spans[i];
-    if (span.first >= view.end) break;
-    let hi = part.end;
-    while (lo < hi) {
-      const mid = Math.floor((lo + hi) / 2);
-      if (raw[mid].first + raw[mid].count <= span.first) lo = mid + 1;
-      else hi = mid;
-    }
-    if (lo === part.end) return false;
-    if (raw[lo].first < span.end) return true;
+    const run = raw[j];
+    if (span.end <= run.first) i = seekPast(spans, i + 1, spans.length, run.first, spanEnd);
+    else if (runEnd(run) <= span.first) j = seekPast(raw, j + 1, part.end, span.first, runEnd);
+    else return true;
   }
   return false;
 }
@@ -198,10 +203,20 @@ function filterBlock(
   return runs;
 }
 
-function invalidated(bounds: TBounds[], changed: TChanges): boolean {
-  for (const bound of bounds) {
+function invalidated(
+  raw: { bounds: TBounds[]; views: TPartView[] },
+  changed: TChanges,
+  bridges: readonly boolean[]
+): boolean {
+  for (const bound of raw.bounds) {
     const spans = changed[bound.source];
-    if (!spans || (spans.length > 0 && firstOverlap(spans, bound) >= 0)) return true;
+    if (!spans) return true;
+    if (firstOverlap(spans, bound) < 0) continue;
+    // A painter group can span distant physical slots. Only bridging observes visibility inside its gaps.
+    if (bridges[bound.source]) return true;
+    for (const view of raw.views) {
+      if (view.source === bound.source && intersectsRuns(view, spans, false)) return true;
+    }
   }
   return false;
 }
@@ -315,7 +330,7 @@ export class TranslucentVisibility {
         continue;
       }
       block.raw ??= prepare(block.parts, this.parts);
-      if (!block.visible || ((block.sources & changedSources) !== 0 && invalidated(block.raw.bounds, changed))) {
+      if (!block.visible || ((block.sources & changedSources) !== 0 && invalidated(block.raw, changed, bridges))) {
         const validated = block.visible && block.visible !== EMPTY.runs;
         block.visible = filterBlock(block.raw.views, visibility, coverage, bridges, validated ? changed : undefined);
       }

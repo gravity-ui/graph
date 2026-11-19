@@ -6,18 +6,41 @@ import { selectedTag } from "../../../services/tags/builtinTags";
 import { defineTag } from "../../../services/tags/defineTag";
 import type { TConnection } from "../../../store/connection/ConnectionState";
 
+import type { TBaseConnectionState } from "./BaseConnection";
 import { BlockConnection } from "./BlockConnection";
-import { Path2DLine, WebGLLine } from "./lines";
+import { SceneLine } from "./lines";
 import { installFakeWebGL2 } from "./webgl/fakeGL";
 
-class StyledConnection extends BlockConnection {
-  public static override line = WebGLLine;
+class StyledLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState) {
+    return { ...super.getStroke(state), width: 5 };
+  }
 }
 
-class CustomCanvasLine extends Path2DLine {}
+class StyledConnection extends BlockConnection {
+  public static override line = StyledLine;
+}
+
+class CustomCanvasLine extends SceneLine {
+  protected override createPath(): Path2D {
+    const path = new Path2D();
+    path.arc(100, 100, 10, 0, Math.PI * 2);
+    return path;
+  }
+}
 
 class CanvasConnection extends BlockConnection {
   public static override line = CustomCanvasLine;
+}
+
+class CustomHitLine extends SceneLine {
+  public override hitTest(x: number, y: number, threshold: number): boolean {
+    return super.hitTest(x, y, threshold);
+  }
+}
+
+class CustomHitConnection extends BlockConnection {
+  public static override line = CustomHitLine;
 }
 
 class ImmediateConnection extends BlockConnection {
@@ -93,6 +116,16 @@ describe("connection drawing ownership", () => {
     expect(graph.scene.store.get(entityKey("connection", "edge"))).toBeUndefined();
   });
 
+  it("draws a Canvas decoration initialized as a connection field", () => {
+    const paint = jest.fn();
+    class DecoratedConnection extends BlockConnection {
+      public override afterRender = (ctx: CanvasRenderingContext2D): void => paint(ctx);
+    }
+    const graph = mount(DecoratedConnection);
+    expect(graph.scene.store.get(entityKey("connection", "edge"))).toBeUndefined();
+    expect(paint).toHaveBeenCalledWith(graph.getGraphLayer().context.ctx);
+  });
+
   it("publishes only changed derived fields, including after a direct scene edit", () => {
     const graph = mount(StyledConnection);
     const id = entityKey("connection", "edge");
@@ -150,30 +183,34 @@ describe("connection drawing ownership", () => {
     });
   });
 
-  it("uses a styled screen width for picking at each camera scale", () => {
-    const graph = mount();
-    const view = graph.connections.getConnectionState("edge")?.getViewComponent();
-    const nearShaft = { x: 180, y: 115 };
-    expect(graph.getElementOverPoint(nearShaft)).toBeUndefined();
-    const wide = defineTag("wide-connection");
-    graph.scene.tags.add(wide, { connection: ["edge"] });
-    const removeRule = graph.scene.styles.add([
-      {
-        target: BlockConnection,
-        tags: [wide],
-        style: { parts: { line: { width: { px: 20, maxWorld: 50 } } } },
-      },
-    ]);
-    frames();
-    expect(graph.getElementOverPoint(nearShaft)).toBe(view);
-    graph.cameraService.set({ scale: 2 });
-    frames();
-    expect(graph.getElementOverPoint(nearShaft)).toBeUndefined();
-    removeRule();
-    graph.scene.styles.add([{ target: BlockConnection, style: { parts: { line: { visible: false } } } }]);
-    frames();
-    expect(graph.getElementOverPoint({ x: 180, y: 100 })).toBeUndefined();
-  });
+  it.each([BlockConnection, CustomHitConnection])(
+    "uses the styled width when picking with %p at each scale",
+    (Connection) => {
+      const graph = mount(Connection);
+      const view = graph.connections.getConnectionState("edge")?.getViewComponent();
+      const nearShaft = { x: 180, y: 115 };
+      expect(graph.getElementOverPoint(nearShaft)).toBeUndefined();
+      const wide = defineTag("wide-connection");
+      graph.scene.tags.add(wide, { connection: ["edge"] });
+      const removeRule = graph.scene.styles.add([
+        {
+          target: BlockConnection,
+          tags: [wide],
+          style: { parts: { line: { width: { px: 20, maxWorld: 50 } } } },
+        },
+      ]);
+      frames();
+      expect(graph.getElementOverPoint(nearShaft)).toBe(view);
+      graph.cameraService.set({ scale: 2 });
+      frames();
+      expect(graph.getElementOverPoint(nearShaft)).toBeUndefined();
+      removeRule();
+      graph.updateSettings({ showConnectionArrows: false });
+      graph.scene.styles.add([{ target: BlockConnection, style: { parts: { line: { visible: false } } } }]);
+      frames();
+      expect(graph.getElementOverPoint({ x: 180, y: 100 })).toBeUndefined();
+    }
+  );
 
   it("updates geometry without republishing z-order or visibility on a port move", () => {
     const graph = mount();
@@ -188,7 +225,7 @@ describe("connection drawing ownership", () => {
     expect(changes).toEqual([new Set(["bounds", "primitives"])]);
   });
 
-  it("lets the scene own renderer choice even when a WebGLLine style is configured", () => {
+  it("lets the scene own renderer choice even when a SceneLine style is configured", () => {
     const installed = installFakeWebGL2();
     try {
       const graph = mount(StyledConnection);

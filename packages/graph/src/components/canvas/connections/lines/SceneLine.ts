@@ -16,8 +16,8 @@ import { ConnectionLine, getSelectionColor } from "./ConnectionLine";
 import { GeometryCache, applyArrowStyle, applyLineStyle, getArrowGroup, strokeKey } from "./fallbackPath";
 import type { TLineInteraction, TLineStroke, TWebGLShape } from "./types";
 
-/** Stroke of a WebGL line: the shared stroke and an optional effect that recolors it. */
-export type TWebGLStroke = TLineStroke & { effect?: TConnectionEffectUse };
+/** Stroke used by both scene renderers, with an optional WebGL fragment effect. */
+export type TSceneLineStroke = TLineStroke & { effect?: TConnectionEffectUse };
 
 /** Hit tolerance of the flattening: half a CSS pixel. */
 const FLATNESS_CSS_PX = 0.5;
@@ -30,7 +30,7 @@ const INTERACTION_MARK = Symbol("withInteraction");
 
 type TInteractionMark = { base: string; applied: string };
 
-type TMarkedStroke = TWebGLStroke & { [INTERACTION_MARK]?: TInteractionMark };
+type TMarkedStroke = TSceneLineStroke & { [INTERACTION_MARK]?: TInteractionMark };
 
 type TCanvasStrokes = {
   stroke: TLineStroke;
@@ -73,11 +73,9 @@ export function arrowSegments(arrow: TConnectionArrow): Float32Array {
  * stroke still has the selection color `withInteraction()` applied gets the line's own color back and shows the
  * selection itself.
  */
-export class WebGLLine<
+export class SceneLine<
   C extends BlockConnection<TConnection> = BlockConnection<TConnection>,
 > extends ConnectionLine<C> {
-  public static override readonly renderer = "webgl";
-
   private lineShape?: {
     geometry: TConnectionGeometry;
     stroke: TLineStroke;
@@ -94,7 +92,7 @@ export class WebGLLine<
 
   private readonly arrowPathCache = new GeometryCache<Path2D>();
 
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     return super.getStroke(state);
   }
 
@@ -105,8 +103,14 @@ export class WebGLLine<
     state: TBaseConnectionState = this.connection.state,
     props: TConnectionProps = this.connection.props
   ): void {
-    this.interaction = readInteraction(this.connection, state);
     super.readStrokes(state, props);
+    const { effect } = this.getCurrentStroke() as TSceneLineStroke;
+    if (effect) {
+      this.interaction = readInteraction(this.connection, state);
+    } else if (this.interaction) {
+      this.interaction = undefined;
+      this.lineShape = undefined;
+    }
   }
 
   /**
@@ -117,11 +121,40 @@ export class WebGLLine<
    */
   protected override withInteraction<S extends TLineStroke>(stroke: S, state: TBaseConnectionState): S {
     const result = super.withInteraction(stroke, state);
-    if (result.color === stroke.color) return result;
+    if (result.color === stroke.color || this.getStroke === SceneLine.prototype.getStroke) return result;
     return { ...result, [INTERACTION_MARK]: { base: stroke.color, applied: result.color } };
   }
 
+  /** @internal A subclass with imperative Canvas hooks needs the GraphLayer batch to invoke them. */
+  public override usesCanvasDrawing(): boolean {
+    const stock = SceneLine.prototype;
+    return (
+      this.hasCustomPath() ||
+      this.style !== stock.style ||
+      this.styleArrow !== stock.styleArrow ||
+      this.getGroup !== stock.getGroup ||
+      this.getBatchGroup !== stock.getBatchGroup ||
+      this.getArrowBatchGroup !== stock.getArrowBatchGroup ||
+      this.getPathBounds !== stock.getPathBounds ||
+      this.isPathVisible !== stock.isPathVisible ||
+      this.isInViewport !== stock.isInViewport ||
+      this.afterRender !== this.connectionAfterRender
+    );
+  }
+
+  private hasCustomPath(): boolean {
+    const stock = SceneLine.prototype;
+    return (
+      this.createPath !== stock.createPath ||
+      this.createArrowPath !== stock.createArrowPath ||
+      this.getPath !== stock.getPath ||
+      this.getArrowPath !== stock.getArrowPath
+    );
+  }
+
   public hitTest(x: number, y: number, threshold: number): boolean {
+    if (this.connection.getSceneKey()) return this.connection.hitSceneGeometry(x, y, threshold);
+    if (this.hasCustomPath()) return this.hitCanvasPath(x, y, threshold);
     const geometry = this.connection.getGeometry();
     if (!geometry) return false;
     const state = this.connection.state;
@@ -134,42 +167,78 @@ export class WebGLLine<
     return distanceToArrow(arrow, x, y) <= this.getArrowStroke(state).width / 2 + threshold;
   }
 
-  /** @internal */
-  public override getWebGLShape(): TWebGLShape | undefined {
+  private hitCanvasPath(x: number, y: number, threshold: number): boolean {
+    const path = this.getPath();
+    if (!path) return false;
+    const { ctx } = this.connection.context;
+    const state = this.connection.state;
+    const arrow = this.connection.props.showConnectionArrows ? this.connection.getGeometry()?.arrow : undefined;
+    ctx.save();
+    try {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.setLineDash([]);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = this.getStroke(state).width + 2 * threshold;
+      if (ctx.isPointInStroke(path, x, y)) return true;
+      const arrowPath = arrow ? this.getArrowPath() : undefined;
+      if (!arrow || !arrowPath) return false;
+      ctx.lineWidth = this.getArrowStroke(state).width + 2 * threshold;
+      return ctx.isPointInStroke(arrowPath, x, y) || (arrow.closed && ctx.isPointInPath(arrowPath, x, y));
+    } finally {
+      ctx.restore();
+    }
+  }
+
+  /** @internal Supplies the additional scene data needed by a shader attached to the stroke. */
+  public override getSceneShape(): TWebGLShape | undefined {
+    const stroke = this.getCurrentStroke() as TMarkedStroke;
+    if (!stroke.effect) return undefined;
     const geometry = this.connection.getGeometry();
     if (!geometry) return undefined;
-    const stroke = this.getCurrentStroke();
     const interaction = this.getInteraction();
     const cached = this.lineShape;
     if (cached && cached.geometry === geometry && cached.stroke === stroke && cached.interaction === interaction) {
       return cached.shape;
     }
-    const { [INTERACTION_MARK]: mark, effect, ...plain } = stroke as TMarkedStroke;
+    const { [INTERACTION_MARK]: mark, effect, ...plain } = stroke;
     // The selection color withInteraction() applied goes back to the line's own color for an effect, which shows the
     // selection itself; every other stroke is drawn as it is.
-    const shown = effect && mark && plain.color === mark.applied ? mark : undefined;
+    const shown = mark && plain.color === mark.applied ? mark : undefined;
     const drawn = shown ? { ...plain, color: shown.base } : plain;
-    const shape: TWebGLShape = { segments: geometry.segments, stroke: drawn, interaction };
-    if (effect) {
-      shape.effect = toConnectionEffect(effect.effect);
-      shape.params = effect.params ?? [];
-      shape.effectScaleRange = declaredEffectRange(effect);
-    }
+    const shape: TWebGLShape = {
+      segments: geometry.segments,
+      stroke: drawn,
+      interaction,
+      effect: toConnectionEffect(effect.effect),
+      params: effect.params ?? [],
+      effectScaleRange: declaredEffectRange(effect),
+    };
     if (shown) shape.effectShowsSelection = true;
     this.lineShape = { geometry, stroke, interaction, shape };
     return shape;
   }
 
+  /** Default: the geometry's segments. Override for any Canvas2D shape. */
+  protected createPath(geometry: TConnectionGeometry): Path2D {
+    return createSegmentsPath(geometry.segments);
+  }
+
+  /** Default: the geometry's arrow; an empty path without one. */
+  protected createArrowPath(geometry: TConnectionGeometry): Path2D {
+    return geometry.arrow ? createArrowPath(geometry.arrow) : new Path2D();
+  }
+
   public getPath(): Path2D | undefined {
     const geometry = this.connection.getGeometry();
     if (!geometry) return undefined;
-    return this.pathCache.get(geometry, (g) => createSegmentsPath(g.segments));
+    return this.pathCache.get(geometry, (g) => this.createPath(g));
   }
 
   public getArrowPath(): Path2D | undefined {
     const geometry = this.connection.getGeometry();
     if (!geometry) return undefined;
-    return this.arrowPathCache.get(geometry, (g) => (g.arrow ? createArrowPath(g.arrow) : new Path2D()));
+    return this.arrowPathCache.get(geometry, (g) => this.createArrowPath(g));
   }
 
   public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
@@ -182,7 +251,8 @@ export class WebGLLine<
     return applyArrowStyle(ctx, this.getCurrentArrowStroke(), this.connection.getGeometry()?.arrow?.closed);
   }
 
-  protected getBatchGroup(): string {
+  /** Groups paths whose Canvas paint settings can be shared by a single draw call. */
+  public getGroup(): string {
     const { range, plain, fallbackStroke } = this.getFallbackStrokes();
     const active = strokeKey(fallbackStroke);
     if (!range) return `line/${active}`;
@@ -213,6 +283,10 @@ export class WebGLLine<
   private getInteraction(): TLineInteraction {
     this.interaction ??= readInteraction(this.connection, this.connection.state);
     return this.interaction;
+  }
+
+  protected getBatchGroup(): string {
+    return this.getGroup();
   }
 
   protected getArrowBatchGroup(lineGroup: string): string {

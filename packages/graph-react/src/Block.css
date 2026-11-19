@@ -15,6 +15,17 @@
   transform: translate3d(var(--graph-block-geometry-x, 0px), var(--graph-block-geometry-y, 0px), 0);
 }
 
+/* The container already establishes a containing block. Keep the wrapper's positioning and user transforms intact. */
+.graph-block-container[data-graph-block-motion] {
+  translate: var(--graph-block-motion-x) var(--graph-block-motion-y);
+}
+
+/* Both positioned ports and inline ports stay at their original connection endpoints. */
+.graph-block-container[data-graph-block-motion] .graph-block-anchor {
+  translate: var(--graph-anchor-motion-x, calc(0px - var(--graph-block-motion-x)))
+    var(--graph-anchor-motion-y, calc(0px - var(--graph-block-motion-y)));
+}
+
 .graph-block-container-moving {
   /*will-change: transform;*/
 }
@@ -40,4 +51,14 @@
 
 .graph-block-wrapper.selected:hover {
   border-color: var(--graph-block-border-selected);
+}
+
+.graph-block-outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
 }

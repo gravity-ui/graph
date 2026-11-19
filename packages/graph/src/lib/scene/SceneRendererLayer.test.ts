@@ -300,13 +300,40 @@ describe("SceneRendererLayer", () => {
     }
   );
 
+  it.each([
+    { dpr: 1, tx: 10, ty: -20 },
+    { dpr: 2, tx: 21, ty: -41 },
+  ])("snaps only the Canvas2D camera translation to physical pixels at DPR $dpr", ({ dpr, tx, ty }) => {
+    const { layer, frame, store } = setup({ renderer: "canvas" });
+    const query = jest.spyOn(store, "queryForCanvas");
+    graph.layers.rootSize.value = { width: 800, height: 600, dpr };
+    graph.cameraService.set({ width: 800, height: 600, x: 10, y: -20, scale: 0.75 });
+    graph.cameraService.move(0.375, -0.375);
+    frame();
+    expect(graph.$camera.peek()).toMatchObject({ x: 10.375, y: -20.375 });
+    expect(layer.context.ctx?.getTransform()).toMatchObject({ a: 0.75 * dpr, d: 0.75 * dpr, e: tx, f: ty });
+    expect(query.mock.lastCall?.[0]).toEqual({
+      minX: -(tx / dpr) / 0.75,
+      minY: -(ty / dpr) / 0.75,
+      maxX: (800 - tx / dpr) / 0.75,
+      maxY: (600 - ty / dpr) / 0.75,
+    });
+  });
+
   it("builds the frame from the camera, the graph clock and the store's dim colour", async () => {
     const { fake, frame, store } = setup({ renderer: "webgl" });
     await flushPromises();
-    graph.cameraService.set({ x: 10, y: 20, width: 800, height: 600, scale: 0.5 });
+    graph.cameraService.set({ x: 10.25, y: -20.375, width: 800, height: 600, scale: 0.5 });
     frame();
     const last = fake.frames[fake.frames.length - 1];
-    expect(last).toMatchObject({ x: 10, y: 20, width: 800, height: 600, scale: 0.5, dimColor: store.getDimColor() });
+    expect(last).toMatchObject({
+      x: 10.25,
+      y: -20.375,
+      width: 800,
+      height: 600,
+      scale: 0.5,
+      dimColor: store.getDimColor(),
+    });
     expect(last.time).toBeGreaterThanOrEqual(0);
     // A new dim colour draws a frame with it.
     const draws = fake.draws;

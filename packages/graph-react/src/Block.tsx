@@ -11,12 +11,14 @@ import React, {
 
 import { CanvasBlock, ESchedulerPriority, Graph, TBlock, TStyleTarget } from "@gravity-ui/graph";
 
+import { BlockOutline } from "./BlockOutline";
 import { useSchedulerDebounce, useSignalEffect } from "./hooks";
 import { useBlockState, useBlockViewState } from "./hooks/useBlockState";
 import { useEntityStyle } from "./hooks/useEntityStyle";
 import { useSignal } from "./hooks/useSignal";
 import { applyBlockContainerLayout } from "./utils/applyBlockContainerLayout";
 import { cn } from "./utils/cn";
+import { prepareAnchorMotion } from "./utils/prepareAnchorMotion";
 
 import "./Block.css";
 
@@ -186,6 +188,37 @@ function GraphBlockInner<T extends TBlock>(
   const blockComponents = useSignal(graph.rootStore.settings.$blockComponents);
   const blockClass: TStyleTarget = blockComponents[block.is] || CanvasBlock;
   const entityStyle = useEntityStyle(graph, { type: "block", id: block.id }, blockClass, "graph-block");
+  const hasMotion = entityStyle.motion !== undefined && entityStyle.motion !== "none";
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    return hasMotion && viewState && container ? prepareAnchorMotion(container) : undefined;
+  }, [hasMotion, viewState, children]);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!hasMotion || !viewState || !container) return undefined;
+
+    const reset = () => {
+      container.removeAttribute("data-graph-block-motion");
+      container.style.removeProperty("--graph-block-motion-x");
+      container.style.removeProperty("--graph-block-motion-y");
+    };
+    const unsubscribe = graph.scene.onBlockMotion(block.id, (x, y) => {
+      if (x === 0 && y === 0) {
+        reset();
+        return;
+      }
+      container.style.setProperty("--graph-block-motion-x", `${x}px`);
+      container.style.setProperty("--graph-block-motion-y", `${y}px`);
+      container.toggleAttribute("data-graph-block-motion", true);
+    });
+    return () => {
+      unsubscribe();
+      reset();
+    };
+  }, [graph, block.id, hasMotion, viewState]);
+  const outline = entityStyle.outline;
+  const hasOutline = outline && Number.isFinite(outline.width) && outline.width > 0;
   const selected = state?.$selected.value;
 
   const wrapperClassNames = useMemo(() => {
@@ -198,9 +231,13 @@ function GraphBlockInner<T extends TBlock>(
 
   return (
     <div className={containerClassNames} ref={setContainerRef}>
-      <div className={wrapperClassNames} style={entityStyle.style}>
+      <div
+        className={wrapperClassNames}
+        style={hasOutline ? { ...entityStyle.style, borderColor: "transparent" } : entityStyle.style}
+      >
         {children}
       </div>
+      {hasOutline && <BlockOutline outline={outline} />}
     </div>
   );
 }

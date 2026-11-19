@@ -4,7 +4,7 @@ import type { ReadonlySignal } from "@preact/signals-core";
 import { Layer } from "../../services/Layer";
 import type { LayerProps } from "../../services/Layer";
 import type { TSceneLevel } from "../../services/scene/types";
-import type { TTileRect } from "../culling/TileIndex";
+import { cameraWorldViewport } from "../../services/visibilityCulling";
 
 import { SceneChangeQueue } from "./SceneChangeQueue";
 import type { SceneStore } from "./SceneStore";
@@ -183,21 +183,18 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
   private drawInterpreter(): void {
     const ctx = this.context.ctx;
     if (!ctx) return;
-    const scale = this.props.graph.cameraService.getCameraScale();
+    const camera = this.props.graph.cameraService.getCameraState();
+    const { scale } = camera;
+    const viewport = cameraWorldViewport(camera, this.getDRP());
     const store = this.props.store;
     const level = this.props.level?.peek();
     // The query leaves out elements with nothing to draw on the level (an anchor at the minimalistic level).
-    drawElements(ctx, store.queryForCanvas(this.getWorldViewport(), scale, level), scale, {
+    drawElements(ctx, store.queryForCanvas(viewport, scale, level), scale, {
       styles: store.getStyles(),
       dimColor: store.getDimColor(),
       level,
       textPolicy: this.textPolicy(),
     });
-  }
-
-  private getWorldViewport(): TTileRect {
-    const { x, y, width, height, scale } = this.props.graph.cameraService.getCameraState();
-    return { minX: -x / scale, minY: -y / scale, maxX: (width - x) / scale, maxY: (height - y) / scale };
   }
 
   /** A backend call threw after load (capacity limits, GL errors): drop the backend and draw with Canvas2D. */

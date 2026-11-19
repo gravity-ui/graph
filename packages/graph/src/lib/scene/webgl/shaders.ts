@@ -13,11 +13,13 @@ import { toConnectionEffect } from "../../../components/canvas/connections/effec
 import { dashFlow, pulse } from "../../../components/canvas/connections/effects/library";
 import type { TUniformTypes } from "../../../components/canvas/connections/effects/types";
 import { FRAGMENT_MAIN, FRAGMENT_PRELUDE, IDENTITY_EFFECT } from "../../../components/canvas/connections/webgl/shaders";
+import { TEXT_METRICS_PX } from "../textLayout";
 
+import { MITER_LIMIT } from "./closedStroke";
 import { DEPTH_INDICES } from "./depth";
 import { SDF_EDGE } from "./glyphs";
 import { MIXED_PATH_SOURCE_BITS, MIXED_PATH_SOURCE_STRIDE } from "./mixedPathPlan";
-import { DIM_TEXEL, PART_SLOTS, TABLE_WIDTH } from "./tables";
+import { DIM_TEXEL, PART_SLOTS, TABLE_WIDTH, USE_BASE_ALPHA } from "./tables";
 
 /** Shared by every vertex shader: frame uniforms, the element and style tables, depth, sizes and clip space. */
 export const SCENE_COMMON = /* glsl */ `
@@ -289,13 +291,15 @@ const GLYPH_EDGE = SDF_EDGE.toFixed(6);
 export const GLYPH_VERTEX = /* glsl */ `#version 300 es
 precision highp float;
 
+uniform float scene_glyphPass; // 0: ordinary opaque, 1: blended, 2: shared opaque view after fade-in
+
 layout(location = 0) in vec2 scene_template;  // quad corner, 0..1
 layout(location = 1) in vec4 glyph_ids;       // element index, clip left, part slot, clip right (+-1e9: none)
 layout(location = 2) in vec4 glyph_quad;      // x, y, width, height at the layout size, from the text's anchor
 layout(location = 3) in vec4 glyph_uv;        // u0, v0, u1, v1 in the atlas
 layout(location = 4) in vec4 glyph_color;     // straight rgba; alpha -3: the base colour
 layout(location = 5) in vec4 glyph_size;      // camera-aware font size: mode, value, min, max
-layout(location = 6) in vec4 glyph_origin;    // the text's anchor x, y from the element origin, layout size, clip top
+layout(location = 6) in vec4 glyph_origin;    // the text's anchor x, y from the element origin, fade end, clip top
 layout(location = 7) in vec4 glyph_scales;    // minScale, maxScale, levelMask, clip bottom
 layout(location = 8) in float glyph_sub;      // the primitive's sub, from a buffer of its own
 ${SCENE_COMMON}
@@ -306,20 +310,26 @@ flat out vec4 glyph_vClip;   // the text's box from the element origin: left, to
 
 void main() {
   vec4 element = sceneElement(glyph_ids.x);
+  bool revealed = glyph_origin.z > glyph_scales.x && scene_camera.z >= glyph_origin.z
+    && (glyph_color.a >= 1.0 || glyph_color.a == ${USE_BASE_ALPHA.toFixed(1)});
   if (sceneHidden(element.w, glyph_ids.z) || !sceneShown(element.z, glyph_scales.x, glyph_scales.y)
-      || !sceneOnLevel(glyph_scales.z)) {
+      || !sceneOnLevel(glyph_scales.z)
+      || (scene_glyphPass > 1.5 ? !revealed : scene_glyphPass > 0.5 && revealed)) {
     gl_Position = SCENE_HIDDEN;
     return;
   }
   // The text's block of lines scales about its anchor by the resolved size over the size its quads were placed at:
   // between line breaks the glyphs follow the camera continuously (textLayout.ts).
-  float s = sceneSize(glyph_size, scene_camera.z) / glyph_origin.z;
+  float s = sceneSize(glyph_size, scene_camera.z) / ${TEXT_METRICS_PX.toFixed(1)};
   vec2 local = glyph_origin.xy + (glyph_quad.xy + scene_template * glyph_quad.zw) * s;
   gl_Position = sceneClip(element.xy + local, sceneDepth(element.z, glyph_sub));
   glyph_vUv = mix(glyph_uv.xy, glyph_uv.zw, scene_template);
   glyph_vLocal = local;
   glyph_vClip = vec4(glyph_ids.y, glyph_origin.w, glyph_ids.w, glyph_scales.w);
   glyph_vColor = sceneDimmed(scenePaint(glyph_color, element.w, glyph_ids.z), sceneDim(element.w, glyph_ids.z));
+  if (glyph_origin.z > glyph_scales.x) {
+    glyph_vColor.a *= smoothstep(glyph_scales.x, glyph_origin.z, scene_camera.z);
+  }
 }
 `;
 
@@ -511,6 +521,13 @@ void main() {
   // Analytic coverage needs a fringe. A multisampled union uses the physical edge of the strip itself.
   float extent = halfPx + graph_extraWidth${sampleEdges ? "" : " + 1.0 / graph_dpr"};
   vec2 normal = vec2(-dir.y, dir.x);
+  if (graph_stroke.y < 0.0) {
+    // Solid closed contours store the tangent component of each endpoint miter in the distance fields.
+    float k = t == 0.0 ? graph_stroke.z : t == 1.0 ? graph_stroke.w : 0.0;
+    normal += dir * k;
+    // A near-tangent port can nearly reverse the stroke. Bound its shared miter instead of emitting a spike.
+    if (abs(k) > ${Math.sqrt(MITER_LIMIT ** 2 - 1)}) normal = normalize(normal) * ${MITER_LIMIT}.0;
+  }
   vec2 center = graph_bezier(p0, c1, c2, p3, t);
   // CSS pixels from the center line.
   vec2 offset = normal * graph_template.y * extent;

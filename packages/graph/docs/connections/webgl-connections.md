@@ -1,49 +1,32 @@
-# Connection Lines, Geometry and WebGL
-
-How a `BlockConnection` draws its line: a geometry function describes the shape, a line class describes the look and
-supplies the stroke, and `graph.scene` draws built-in connections with Canvas2D or WebGL2. WebGL paths can
-carry shader effects.
-
-A `BlockConnection` is made of three parts, each with one job:
-
-- **The component** (`BlockConnection` or your subclass): data and state, click, hover and selection, z-level and
-  the label. It decides when the geometry is recomputed (a moved port, changed props such as the Bézier settings,
-  any change of the connection's data in the store) and reports bounds for culling and hit testing.
-- **The geometry** (`static geometry`): a pure function from the endpoints, `points` and the connection's data to
-  cubic Bézier segments and an arrow, in world coordinates. Bounds, the arrow position and hit testing derive from it.
-- **The line** (`static line`): one object per connection, created by the component in its constructor. It owns the
-  look (`getStroke()` and `getArrowStroke()`) and the optional shader effect.
-
-```typescript
-import { BlockConnection, Path2DLine, WebGLLine, blockGeometry } from "@gravity-ui/graph";
-
-// The default stroke and a Bézier or straight shape by useBezierConnections.
-class CanvasConnection extends BlockConnection {
-  public static override line = Path2DLine;
-  public static override geometry = blockGeometry;
-}
-
-// The same geometry with the WebGLLine style and effect APIs.
-class GLConnection extends BlockConnection {
-  public static override line = WebGLLine;
-}
-
-graph.updateSettings({ connection: GLConnection, renderer: "webgl" });
-```
-
-Lines and geometries compose: a geometry is written once, and both line kinds draw, bound and hit-test it.
+# Connection lines, geometry and effects
 
 ## Choosing a renderer
 
-Set `renderer: "webgl"` to draw blocks, anchors and built-in connections in one WebGL context. With the default
-`renderer: "canvas"`, they use the same scene's Canvas2D interpreter. Changing the renderer preserves the
-connection objects and their geometry. To apply a shader effect, attach it to a scene style or supply it
-from a `WebGLLine` subclass.
+A graph uses Canvas2D by default. Switch the running graph to WebGL2 with one call. Blocks, anchors and built-in
+connections switch together. The same connection objects keep their geometry, arrows, labels and hit targets.
 
-A retained `BlockConnection` with the exact stock `Path2DLine` or any `WebGLLine` subclass publishes one
-scene element for its shaft, arrow and labels. A `Path2DLine` subclass, an immediate-mode `BlockConnection`,
-or an override of `afterRender()`, `renderLabel()` or `renderLabelText()` uses the GraphLayer Canvas2D
-compatibility batch. Prefer `static geometry` for a shape that should participate in both scene renderers.
+```typescript
+graph.scene.setRenderer("webgl");
+
+// Later, switch the same graph back to Canvas2D.
+graph.scene.setRenderer("canvas");
+```
+
+To start in WebGL, set `settings.renderer` to `"webgl"` when creating the graph. The stock straight, Bézier and
+multipoint routes use the graph's renderer automatically. Tag rules can change their appearance and apply a shader
+effect to the shaft. Canvas draws the static stroke.
+
+A custom connection has two independent extension points:
+
+- Override `static geometry` for a different route. Both scene renderers use its world-space segments and arrow
+  for drawing, bounds and hit testing.
+- Override `static line` **only when supplying your own line class**. A `SceneLine` subclass can compute the shaft
+  and arrow strokes from connection data once for both renderers. For a status, selection or hover style, a
+  [scene rule](#scene-styles) can usually style the stock line directly.
+
+If a line overrides [imperative Canvas hooks](#imperative-canvas-hooks), its connection draws in the GraphLayer
+Canvas2D batch even when the scene is in WebGL. The same applies to an immediate-mode connection and to custom
+Canvas decorations in `afterRender()`, `renderLabel()` or `renderLabelText()`.
 
 ## Scene styles
 
@@ -67,32 +50,32 @@ Color and dim changes can use the WebGL style table without rebuilding the route
 rules raise the connection one bucket.
 
 A rule can set `parts.line.effect` to an effect use such as `flow.use(params)`, or set it to `null` to disable an
-effect. `WebGLLine.getStroke()` can also supply one. Canvas draws the base stroke with the matching paint rules.
+effect. `SceneLine.getStroke()` can also supply one. Canvas draws the base stroke with the matching paint rules.
 For a built-in moving dash, see [Show a running ETL step](../system/tags-and-styles.md#show-a-running-etl-step).
 For a custom pattern on a stock connection, see [Writing a tagged shader effect](#writing-a-tagged-shader-effect).
 
 ## Lines
 
-What both line kinds draw the same way, lengths in world units:
+Both renderers draw a base stroke with lengths in world units:
 
 ```typescript
 type TLineStroke = { color: string; width: number; dash?: { pattern: readonly number[] } };
 ```
 
-`ConnectionLine` is the base of both kinds. `this.connection` is the connection component, typed by the line's type
-parameter (`class MyLine extends Path2DLine<MyConnection>`), so a line can call your connection's own methods.
+`SceneLine` extends `ConnectionLine`. Its `this.connection` is the connection component, typed by the line's type
+parameter (`class MyLine extends SceneLine<MyConnection>`), so a line can call your connection's own methods.
 
 | Method | Default |
 |---|---|
 | `getStroke(state)` | The connection color (`styles.background` first), width 2, dash from `dashed` and `styles.dashes` (`[6, 4]` without them), with hover and selection applied by `withInteraction()` |
-| `withInteraction(stroke, state)` | Protected helper: a hovered or selected line is 2 units wider and a selected one takes the selection color (`styles.selectedBackground` first); the dash and the effect stay. On a `WebGLLine`, an effect gets the line's own color back and shows the selection |
+| `withInteraction(stroke, state)` | Protected helper: a hovered or selected line is 2 units wider and a selected one takes the selection color (`styles.selectedBackground` first); the dash and the effect stay. On a `SceneLine`, an effect gets the line's own color back and shows the selection |
 | `getArrowStroke(state)` | The line's color and width without the dash; a closed arrow is filled with the color |
 | `getBounds(geometry)` | Bounds of the geometry's segments (the control-point hull with `EXP_USE_TIGHT_BEZIER_BOUNDS = false`); the component adds the arrow, the label and `getAfterRenderBounds()`, and pads them by half the stroke width for culling (the arrow by half its width times the canvas miter limit) |
 | `hitTest(x, y, threshold)` | See [Hit testing](#hit-testing) |
 
 **Hover and selection** preserve the default dash pattern and effect. `withInteraction()`, and the default stroke built on it, makes a hovered or selected line 2 units wider
 and gives a selected one the selection color; whatever stroke `getStroke()` returns is drawn as it is, its arrow and
-by both scene renderers. One exception: on a `WebGLLine`, an effect whose stroke still has
+by both scene renderers. One exception: on a `SceneLine`, an effect whose stroke still has
 the selection color `withInteraction()` applied gets the line's own color back and shows the selection itself through
 `f.hovered`, `f.selected` and `f.selectionColor` (see
 [Hover and selection in effects](#hover-and-selection-in-effects)), so `{ ...super.getStroke(state), effect }` runs
@@ -105,12 +88,12 @@ scene primitives or Canvas batch items. The state carries the connection's data,
 custom fields included, so a stroke computed from the state follows the store with no extra work:
 
 ```typescript
-import { BlockConnection, WebGLLine } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine } from "@gravity-ui/graph";
 import type { TBaseConnectionState, TConnection, TLineStroke } from "@gravity-ui/graph";
 
 type TStatusConnection = TConnection & { status?: "ok" | "failed" };
 
-class StatusLine extends WebGLLine {
+class StatusLine extends SceneLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
     const { status } = state as Partial<TStatusConnection>;
     if (status !== "failed") return super.getStroke(state);
@@ -136,13 +119,13 @@ A look that depends on data outside the connection's store (an external signal o
 hit box follow:
 
 ```typescript
-import { BlockConnection, WebGLLine } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine } from "@gravity-ui/graph";
 import type { TBaseConnectionState, TLineStroke } from "@gravity-ui/graph";
 
 /** Colors by connection id, kept outside the graph's store. */
 const highlights = new Map<string, string>();
 
-class HighlightLine extends WebGLLine {
+class HighlightLine extends SceneLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
     const highlight = highlights.get(String(state.id));
     if (!highlight) return super.getStroke(state);
@@ -162,10 +145,45 @@ function highlight(id: string, color: string): void {
 }
 ```
 
-### `Path2DLine`
+### Scene strokes
 
-The exact stock `Path2DLine` supplies a stroke to either scene renderer. Extending it enables Canvas2D
-drawing through the [Path2D compatibility batch](batch-rendering.md), with these customization hooks.
+A `SceneLine` supplies the geometry and stroke to the scene. Its WebGL path and analytic hit test use the
+segment array directly. Its stroke type extends `TLineStroke` with an optional effect:
+
+```typescript
+type TSceneLineStroke = TLineStroke & { effect?: TConnectionEffectUse };
+```
+
+- The arrow is drawn with `getArrowStroke()`, never with the effect.
+- Dash patterns of up to 4 numbers are drawn as canvas `setLineDash` draws them; an odd-length list is repeated, so
+  `[a, b, c]` counts as 6 numbers. A longer pattern draws its first 4 numbers in WebGL, with one development-build
+  warning. Canvas2D draws the full base dash pattern.
+- Hit tests are computed from the geometry (see [Hit testing](#hit-testing)).
+
+```typescript
+import { BlockConnection, SceneLine } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TConnection, TSceneLineStroke } from "@gravity-ui/graph";
+
+type TWeightedConnection = TConnection & { weight?: number };
+
+/** A width from the data, the color from `styles.background` (the default) and a still dash. */
+class WeightedLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
+    const stroke = super.getStroke(state);
+    const { weight = 1 } = state as Partial<TWeightedConnection>;
+    return { ...stroke, width: stroke.width * weight, dash: { pattern: [12, 8] } };
+  }
+}
+
+class WeightedConnection extends BlockConnection<TWeightedConnection> {
+  public static override line = WeightedLine;
+}
+```
+
+### Imperative Canvas hooks
+
+For a gradient, shadow, fill or arbitrary `Path2D`, override a Canvas drawing hook on `SceneLine`.
+The [Canvas compatibility batch](batch-rendering.md) then draws that connection using your hook.
 
 | Member | Use |
 |---|---|
@@ -178,13 +196,13 @@ A custom path keeps the geometry for everything else: the arrow comes from the g
 `isPointInStroke` on your path. Override `getBounds()` when the path reaches outside the geometry's segments:
 
 ```typescript
-import { BlockConnection, Path2DLine } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine } from "@gravity-ui/graph";
 import type { TConnectionGeometry, TPathBounds } from "@gravity-ui/graph";
 
 const RING_RADIUS = 4;
 
 /** The line and a ring around its source: a Canvas2D shape on top of the geometry. */
-class SourceRingLine extends Path2DLine {
+class SourceRingLine extends SceneLine {
   protected override createPath(geometry: TConnectionGeometry): Path2D {
     const path = super.createPath(geometry);
     const x = geometry.segments[0];
@@ -218,11 +236,11 @@ Lines of one group are drawn with one `stroke()` per chunk, styled by the chunk'
 depends on more than the stroke puts that in the group, here at the price of one `stroke()` per connection:
 
 ```typescript
-import { BlockConnection, Path2DLine } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine } from "@gravity-ui/graph";
 import type { Path2DRenderStyleResult } from "@gravity-ui/graph";
 
 /** A gradient from the source to the target: style() reads the geometry. */
-class GradientCanvasLine extends Path2DLine {
+class GradientCanvasLine extends SceneLine {
   public override style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
     const result = super.style(ctx); // width and dash from getStroke()
     const segments = this.connection.getGeometry()?.segments;
@@ -249,41 +267,6 @@ class GradientCanvasConnection extends BlockConnection {
 
 The same look in WebGL is an effect with the colors in its parameters (the `Gradient (shader)` option of the Storybook
 `Canvas/WebGLConnections` `NirvanaEffects` story), where the scene can batch connections that share the effect.
-
-### `WebGLLine`
-
-A `WebGLLine` supplies the geometry and stroke to the scene. Its WebGL path and analytic hit test use the
-segment array directly. Its stroke type extends `TLineStroke` with an optional effect:
-
-```typescript
-type TWebGLStroke = TLineStroke & { effect?: TConnectionEffectUse };
-```
-
-- The arrow is drawn with `getArrowStroke()`, never with the effect.
-- Dash patterns of up to 4 numbers are drawn as canvas `setLineDash` draws them; an odd-length list is repeated, so
-  `[a, b, c]` counts as 6 numbers. A longer pattern draws its first 4 numbers in WebGL, with one development-build
-  warning. Canvas2D draws the full base dash pattern.
-- Hit tests are computed from the geometry (see [Hit testing](#hit-testing)).
-
-```typescript
-import { BlockConnection, WebGLLine } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TConnection, TWebGLStroke } from "@gravity-ui/graph";
-
-type TWeightedConnection = TConnection & { weight?: number };
-
-/** A width from the data, the color from `styles.background` (the default) and a still dash. */
-class WeightedLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    const stroke = super.getStroke(state);
-    const { weight = 1 } = state as Partial<TWeightedConnection>;
-    return { ...stroke, width: stroke.width * weight, dash: { pattern: [12, 8] } };
-  }
-}
-
-class WeightedConnection extends BlockConnection<TWeightedConnection> {
-  public static override line = WeightedLine;
-}
-```
 
 ## Geometry
 
@@ -393,7 +376,7 @@ for that end of the route and preserve the stored points. On expansion the origi
 For a stock rounded polyline, the arrow follows the final nonzero segment even if the endpoint is repeated.
 
 ```typescript
-import { BlockConnection, MultipointConnection, WebGLLine, multipointGeometry } from "@gravity-ui/graph";
+import { BlockConnection, multipointGeometry } from "@gravity-ui/graph";
 import type { TMultipointConnection } from "@gravity-ui/graph";
 
 /** A polyline through `points` on your own connection class. */
@@ -401,10 +384,6 @@ class RouteConnection extends BlockConnection<TMultipointConnection> {
   public static override geometry = multipointGeometry;
 }
 
-/** Supply effects via the line class; positioned labels also draw in the scene. */
-class WebGLMultipointConnection extends MultipointConnection {
-  public static override line = WebGLLine;
-}
 ```
 
 ## Effects
@@ -495,8 +474,8 @@ The levels combine. Here running jobs have the effect, critical ones breathe (a 
 `f.time`), and a slider sets the brightness of all of them (a uniform):
 
 ```typescript
-import { BlockConnection, WebGLLine, defineConnectionEffect } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TConnection, TWebGLStroke } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, defineConnectionEffect } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TConnection, TSceneLineStroke } from "@gravity-ui/graph";
 
 type TJobConnection = TConnection & { running?: boolean; critical?: boolean };
 
@@ -514,8 +493,8 @@ const activity = defineConnectionEffect({
   encode: ({ critical }: { critical: boolean }) => [critical ? 1 : 0],
 });
 
-class JobLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class JobLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     const stroke = super.getStroke(state);
     const job = state as Partial<TJobConnection>;
     // 1. Whether: only running jobs have the effect.
@@ -543,8 +522,8 @@ or clone it once for each independent set of uniforms. A development build warns
 share a source.
 
 ```typescript
-import { BlockConnection, WebGLLine, defineConnectionEffect } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TConnection, TConnectionEffect, TWebGLStroke } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, defineConnectionEffect } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TConnection, TConnectionEffect, TSceneLineStroke } from "@gravity-ui/graph";
 
 // Ignores f.selected: a selected line shows the selection by its width only.
 const tint = defineConnectionEffect({
@@ -557,8 +536,8 @@ const tint = defineConnectionEffect({
 
 /** A connection class drawn with the given effect object. */
 function createTintedConnection(effect: TConnectionEffect<{ tint: "vec3" }>): typeof BlockConnection<TConnection> {
-  class TintedLine extends WebGLLine {
-    public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+  class TintedLine extends SceneLine {
+    public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
       return { ...super.getStroke(state), effect: effect.use([]) };
     }
   }
@@ -582,8 +561,8 @@ pixels on each side, only its outer edge is anti-aliased, and the effect compose
 `f.coverage`:
 
 ```typescript
-import { BlockConnection, WebGLLine, defineConnectionEffect } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TWebGLStroke } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, defineConnectionEffect } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TSceneLineStroke } from "@gravity-ui/graph";
 
 const glow = defineConnectionEffect({
   extraWidth: 6, // CSS pixels drawn outside each side of the stroke
@@ -600,8 +579,8 @@ const glow = defineConnectionEffect({
     }`,
 });
 
-class GlowLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class GlowLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     return this.withInteraction({ color: "#2f7cf6", width: 3, effect: glow.use([]) }, state);
   }
 }
@@ -627,8 +606,8 @@ into the selection color and the particles keep theirs. The scene paints the bas
 callback supplies a dotted stroke for the [Canvas compatibility batch](#fallback-strokes).
 
 ```typescript
-import { BlockConnection, WebGLLine, defineConnectionEffect } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TWebGLStroke } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, defineConnectionEffect } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TSceneLineStroke } from "@gravity-ui/graph";
 
 export const particles = defineConnectionEffect({
   animated: true,
@@ -651,8 +630,8 @@ export const particles = defineConnectionEffect({
   fallback: (stroke, params) => ({ ...stroke, width: 2, dash: { pattern: [2, Math.max(params[0] - 2, 2)] } }),
 });
 
-class ParticlesLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class ParticlesLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     const effect = particles.use({ spacing: 120, speed: 100 });
     // Selected, 2 units wider; the effect gets #2f7cf6 back and draws the selection.
     return this.withInteraction({ color: "#2f7cf6", width: 14, effect }, state);
@@ -740,13 +719,13 @@ vec4 effect(ConnectionFragment f, vec4 color) {
 Built with the public API above:
 
 ```typescript
-import { BlockConnection, WebGLLine, dashFlow, pulse } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TConnection, TWebGLStroke } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, dashFlow, pulse } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TConnection, TSceneLineStroke } from "@gravity-ui/graph";
 
 type TFlowConnection = TConnection & { flow?: "data" | "signal" };
 
-class PipelineLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class PipelineLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     const { flow } = state as Partial<TFlowConnection>;
     if (!flow) return super.getStroke(state);
     // Hover and selection widen the line; selected, the comets run over the selection color and the wave dims to it.
@@ -814,12 +793,12 @@ Read `graph.scene.$renderer` for renderer state, including loading and restorati
 
 ## Hit testing
 
-One rule for both line kinds: a point hits a connection within `stroke.width / 2 + THRESHOLD_LINE_HIT` world units of
+In both renderers, a point hits a connection within `stroke.width / 2 + THRESHOLD_LINE_HIT` world units of
 its drawn line (`THRESHOLD_LINE_HIT` is 8 by default: 9 for a 2-unit line, 10 hovered or selected). The arrow is part
 of the hit area while arrows are shown, with its own stroke width; a point inside a closed arrow hits too.
 
 - Scene connections use the same analytic hit test in both renderers. Curves flatten to half a CSS pixel.
-- A `Path2DLine` subclass uses its custom path for hits, with a line width of `width + 2 · threshold`.
+- A line that overrides a Canvas path hook uses its custom path for hits, with a line width of `width + 2 · threshold`.
 - `extraWidth` is not part of the hit area: a glow is decoration.
 - Labels keep their own rule: a square of `THRESHOLD_LINE_HIT` screen pixels around the point meets the label.
 - The broad phase uses the connection's hit box: the bounds of the line, the arrow (while shown) and the label,
@@ -827,8 +806,8 @@ of the hit area while arrows are shown, with its own stroke width; a point insid
   The culling bounds pad the line by half its stroke width as well, so wide strokes are not clipped at the viewport's
   edge.
 
-A line class can override `hitTest(x, y, threshold)`: the point is in world coordinates and `threshold` in world
-units. A filled custom path, for example, adds `isPointInPath`.
+A line class can override `hitTest(x, y, threshold)`. The point and threshold are in world units.
+For a scene line, `super.hitTest(x, y, threshold)` respects the visible parts and their styled widths at the current zoom. A filled custom path, for example, adds `isPointInPath`.
 
 ## Draw calls and order
 

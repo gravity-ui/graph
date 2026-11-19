@@ -3,6 +3,7 @@ import { effect, signal } from "@preact/signals-core";
 import { defineConnectionEffect } from "../../components/canvas/connections/effects";
 import { SceneStore } from "../../lib/scene/SceneStore";
 import { TagStore } from "../tags/TagStore";
+import { hoveredTag } from "../tags/builtinTags";
 import { defineTag } from "../tags/defineTag";
 import type { TTag } from "../tags/types";
 
@@ -82,6 +83,36 @@ describe("StyleResolver", () => {
     const before = store.getStyles()[id];
     sheet.add([{ target: class Unrelated {}, style: { parts: { body: { color: "#000000" } } } }]);
     expect(store.getStyles()[id]).toBe(before);
+  });
+
+  it("replaces the rectangular border only while a block outline rule is active", () => {
+    const { resolver, sheet } = setup();
+    class Block extends Target {
+      public static entityType = "block";
+    }
+    const outline = { color: "#234567", width: 3 };
+    const tagged = new Map([[hoveredTag, true]]) as never;
+    sheet.add([{ target: Block, tags: [hoveredTag], style: { outline } }]);
+    expect(resolver.styleFor(Block, tagged)).toMatchObject({ outline, parts: { border: { visible: false } } });
+    expect(resolver.styleFor(Block, new Map()).outline).toBeUndefined();
+    sheet.add([{ target: Block, priority: 5, style: { outline: null } }]);
+    expect(resolver.styleFor(Block, tagged).parts?.border?.visible).toBeUndefined();
+  });
+
+  it("cascades hover motion independently of raise and updates the cached row when a rule is removed", () => {
+    const { sheet, resolver } = setup();
+    const hovered = new Map([[hoveredTag, true]]);
+    sheet.add([
+      { target: Target, tags: [hoveredTag], style: { motion: "bounce", raise: 2 } },
+      { target: Target, tags: [hoveredTag], priority: 1, style: { motion: "shake" } },
+    ]);
+    resolver.acquire(Target, hovered);
+    expect(resolver.styleFor(Target, hovered)).toMatchObject({ motion: "shake", raise: 2 });
+    const disable = sheet.add([{ target: Target, tags: [hoveredTag], priority: 2, style: { motion: "none" } }]);
+    expect(resolver.styleFor(Target, hovered)).toMatchObject({ motion: "none", raise: 2 });
+    disable();
+    expect(resolver.styleFor(Target, hovered)).toMatchObject({ motion: "shake", raise: 2 });
+    expect(resolver.styleFor(Target, new Map()).motion).toBeUndefined();
   });
 
   it("rewrites a live effect row when a rule changes which object's uniforms it uses", () => {

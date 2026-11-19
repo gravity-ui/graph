@@ -8,7 +8,7 @@ The Connection System allows you to create visual links between blocks in your g
 - **Visual Customization**: Colors, dash patterns, line thickness, and arrows, from data or from a line class
 - **Interactive Elements**: Hover effects, selection states, and clickable labels
 - **Performance Optimized**: Built-in connections share the scene renderer with blocks in Canvas2D or WebGL2
-- **WebGL Effects**: Animated dashes, comets, pulses and custom shader effects on WebGL lines
+- **WebGL Effects**: Animated dashes, comets, pulses and custom shader effects with the WebGL renderer
 - **Anchor Support**: Connect to specific points on blocks or use default connection points
 
 ## Creating Connections
@@ -254,8 +254,9 @@ or the default Canvas2D renderer. Each connection publishes its shaft, arrow and
 element. Both renderers use its geometry for culling and hit testing. Pan and zoom reuse the route as
 the visible area and level of detail change.
 
-A `WebGLLine` subclass can supply a shader effect in its stroke. A tag rule can also apply a shader effect
-to a stock line. For custom Canvas drawing, see [Connection Lines, Geometry and WebGL](webgl-connections.md).
+The same connection class works when you switch with `graph.scene.setRenderer("canvas")` or
+`graph.scene.setRenderer("webgl")`. Add a shader effect to the stock line with a tag rule, or return one
+from a custom line’s stroke. See [Connection lines, geometry and effects](webgl-connections.md).
 
 ### Working with Many Connections
 
@@ -336,11 +337,11 @@ A `BlockConnection` has two pluggable parts, set as statics of its class:
 
 - `static geometry`: the shape, a pure function from the endpoints, `points` and the connection's data to cubic Bézier
   segments and an arrow. Bounds and hit testing follow it.
-- `static line` supplies the stroke and arrow style. The stock `Path2DLine` and `WebGLLine` both support
-  scene drawing. Extend `WebGLLine` to derive a scene stroke or shader effect from connection data.
+- `static line` defaults to `SceneLine`. Extend it to derive the stroke and arrow style from connection data.
+  Both scene renderers draw the same returned stroke. WebGL also runs its optional shader effect.
 
 `BlockConnection` is retained. Its scene element updates when its data, style or ports change. A
-`Path2DLine` subclass, a connection that overrides Canvas decoration hooks, or an immediate-mode
+line that overrides a Canvas painting hook, a connection with custom Canvas decorations, or an immediate-mode
 `BlockConnection` uses the GraphLayer Canvas compatibility batch. An immediate component also receives
 per-frame `render()` calls. See [Connection lines](webgl-connections.md#lines) and
 [retained components](../migration-guides/v1-to-v2.md#retained-components-connections-outside-the-frame-walk).
@@ -378,7 +379,7 @@ A custom shape is a geometry; a custom look is a line class whose `getStroke(sta
 dash:
 
 ```typescript
-import { BlockConnection, WebGLLine, lineSegment } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, lineSegment } from "@gravity-ui/graph";
 import type { TBaseConnectionState, TConnectionGeometryFn, TLineStroke } from "@gravity-ui/graph";
 
 // A zigzag through the middle; both renderers draw, bound and hit-test it.
@@ -389,7 +390,7 @@ const zigzagGeometry: TConnectionGeometryFn = ({ source, target }) => {
   return { segments: new Float32Array([...lineSegment(source, a), ...lineSegment(a, b), ...lineSegment(b, target)]) };
 };
 
-class ZigzagLine extends WebGLLine {
+class ZigzagLine extends SceneLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
     // Hover and selection change the color and the width, as for the default stroke; the dash stays.
     return this.withInteraction({ color: "#4285f4", width: 2, dash: state.dashed ? { pattern: [8, 4] } : undefined }, state);
@@ -402,8 +403,9 @@ class CustomPathConnection extends BlockConnection {
 }
 ```
 
-To use the Canvas compatibility batch, extend `Path2DLine` and override `createPath(geometry)` for any Canvas2D shape and `style(ctx)` for gradients,
-shadows or fills; a `WebGLLine` subclass returns the same strokes, plus effects, from `getStroke()`.
+For a Canvas-specific shape, override `SceneLine.createPath(geometry)`. For a gradient, shadow or fill, override
+`style(ctx)`. These hooks draw the affected connection in the [Canvas compatibility batch](batch-rendering.md)
+with either scene renderer.
 
 ### Custom Labels and Badges
 
@@ -465,15 +467,15 @@ as selection changes, including when the line itself is outside the viewport.
 
 ### Custom Connection with Special Rendering
 
-A scene tag rule or a `WebGLLine` stroke can supply a library effect (`dashFlow` for running dashes and
+A scene tag rule or a `SceneLine` stroke can supply a library effect (`dashFlow` for running dashes and
 comets, `pulse` for a brightness wave) or your own shader from `defineConnectionEffect()`.
 
 ```typescript
-import { BlockConnection, WebGLLine, dashFlow } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TWebGLStroke } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, dashFlow } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TSceneLineStroke } from "@gravity-ui/graph";
 
-class CometLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+class CometLine extends SceneLine {
+  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     const stroke = super.getStroke(state);
     // dashFlow draws the dash itself: the base stroke has no `dash`.
     return { ...stroke, dash: undefined, effect: dashFlow.use({ pattern: [80, 180], speed: 120, fade: true }) };
@@ -538,6 +540,6 @@ const graph = new Graph({ settings: { connection: CustomPathConnection } }, cont
 ### When to Use Custom Connections
 
 - Use `BlockConnection` for a scene connection. Set `static geometry` for a custom route.
-- Extend `WebGLLine` for data-dependent scene strokes and effects, or apply a tag style to the built-in line.
-- Extend `Path2DLine` for a Canvas-specific path, gradient or drawing hook. See [Batch Rendering](batch-rendering.md).
+- Use a tag style for the built-in line or extend `SceneLine` for data-dependent strokes and effects.
+- Use the same line class’s Canvas hooks for a custom `Path2D`, gradient or shadow. See [Batch Rendering](batch-rendering.md).
 - Extend `BaseConnection` for a component that owns its drawing and hit geometry.

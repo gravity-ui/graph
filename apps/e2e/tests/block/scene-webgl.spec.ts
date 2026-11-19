@@ -98,6 +98,234 @@ async function anchorPoint(page: Page, blockId: string, anchorId: string): Promi
 }
 
 test.describe("Scene blocks with the WebGL renderer", () => {
+  test("shares fading glyph storage with its opaque pass and preserves it through growth and replay", async ({
+    page,
+  }) => {
+    const graph = new GraphPageObject(page);
+    await graph.initialize({ ...CONFIG, blocks: [] });
+    test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+    await expect.poll(() => rendererState(page)).toBe("webgl");
+    const result = await page.evaluate(() => {
+      const { scene, cameraService, scheduler } = window.graph;
+      const backend = scene.layer.getBackend();
+      if (!backend) throw new Error("Missing backend");
+      type Resource = { generation: number; destroy(): void };
+      type Batch = {
+        ranges: { count: number; ownerRanges(id: string): readonly { offset: number; count: number }[] };
+        buffer: Resource;
+        companion: { ranges: object; buffer: Resource };
+        model: { destroy(): void };
+        revealed?: Batch;
+      };
+      const probe = backend as typeof backend & {
+        glyphs: { translucent: Batch };
+        opaqueFrameDraws: { batch: Batch; count: number }[];
+        visibility: WeakMap<Batch, { any(first: number, count: number): boolean }>;
+        hasMixedVertexWork(): boolean;
+        prepareMixedPlane(...args: unknown[]): unknown;
+      };
+      const source = probe.glyphs.translucent;
+      const revealed = source.revealed;
+      if (!revealed) return { available: false as const };
+      const gl = backend.canvas.getContext("webgl2");
+      if (!gl) throw new Error("Missing WebGL context");
+      const primitive = (text: string, color: string, fadeInUntil: number | undefined) => ({
+        kind: "text" as const,
+        text,
+        family: "sans-serif",
+        weight: "bold",
+        size: 64,
+        lineHeight: 72,
+        x: 20,
+        y: 20,
+        width: 20000,
+        wrap: false,
+        color,
+        minScale: 0.2,
+        fadeInUntil,
+      });
+      const texts = [primitive("Fade", "#e02020", 0.3), primitive("Alpha", "rgba(32,32,224,0.5)", 0.3)];
+      for (const [index, text] of texts.entries()) {
+        scene.store.add({
+          id: `fade-${index}`,
+          x: index * 30,
+          y: 0,
+          zIndex: index * 2,
+          bounds: { minX: 0, minY: 0, maxX: 20000, maxY: 120 },
+          primitives: [text],
+        });
+      }
+      scene.store.add({
+        id: "between",
+        x: 0,
+        y: 0,
+        zIndex: 1,
+        bounds: { minX: 60, minY: 40, maxX: 100, maxY: 100 },
+        primitives: [{ kind: "rect", x: 60, y: 40, width: 40, height: 60, fill: "#00ff00" }],
+      });
+      // A resident path exercises the real filtered translucent command path rather than a text-only shortcut.
+      scene.store.add({
+        id: "resident-path",
+        entityType: "connection",
+        x: 0,
+        y: 0,
+        zIndex: -1,
+        bounds: { minX: 0, minY: 150, maxX: 200, maxY: 160 },
+        primitives: [
+          {
+            kind: "path",
+            segments: new Float32Array(window.GraphModule.lineSegment({ x: 0, y: 155 }, { x: 200, y: 155 })),
+            stroke: { color: "rgba(0,255,0,0.5)", width: 4 },
+          },
+        ],
+      });
+      const render = (scale: number) => {
+        cameraService.set({ scale, x: 0, y: 0 });
+        scene.layer.performRender();
+        scheduler.performUpdate();
+      };
+      const pixels = () => {
+        const out = new Uint8Array(gl.drawingBufferWidth * gl.drawingBufferHeight * 4);
+        gl.readPixels(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight, gl.RGBA, gl.UNSIGNED_BYTE, out);
+        return out;
+      };
+      const visibility = () => {
+        const visible = probe.visibility.get(source);
+        if (!visible) throw new Error("Glyph visibility was not prepared");
+        return [0, 1].map((index) =>
+          source.ranges.ownerRanges(`fade-${index}`).some(({ offset, count }) => visible.any(offset, count))
+        );
+      };
+      const drawsRevealed = () => probe.opaqueFrameDraws.some((draw) => draw.batch === revealed && draw.count > 0);
+      const shared = () =>
+        source.ranges === revealed.ranges &&
+        source.buffer === revealed.buffer &&
+        source.companion === revealed.companion;
+      render(0.25);
+      const fading = { visible: visibility(), opaque: drawsRevealed() };
+      const encodes = backend.stats.encodes,
+        bytes = backend.stats.uploadBytes;
+      render(0.4);
+      const complete = { visible: visibility(), opaque: drawsRevealed() };
+      render(0.25);
+      const returning = { visible: visibility(), opaque: drawsRevealed() };
+      const camera = { encodes: backend.stats.encodes - encodes, bytes: backend.stats.uploadBytes - bytes };
+      const initialGeneration = source.buffer.generation;
+      texts[0] = primitive("Fade ".repeat(100), "#e02020", 0.3);
+      scene.store.update("fade-0", { primitives: [texts[0]] });
+      render(0.4);
+      const grown = source.buffer.generation > initialGeneration;
+      const beforeRebind = pixels();
+      // A second element-table row replaces the GPU texture and must rebind both glyph views.
+      for (let i = 0; i < 1025; i++)
+        scene.store.add({
+          id: `empty-${i}`,
+          x: 0,
+          y: 0,
+          zIndex: 3,
+          bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+          primitives: [],
+        });
+      render(0.4);
+      const beforeReplay = pixels();
+      backend.replay(scene.store);
+      render(0.4);
+      const afterReplay = pixels();
+      const sharedAfterReplay = shared();
+      for (const [index, text] of texts.entries())
+        scene.store.update(`fade-${index}`, {
+          primitives: [{ ...text, fadeInUntil: undefined }],
+        });
+      render(0.4);
+      const ordinary = pixels();
+      const differences = (a: Uint8Array, b: Uint8Array) => a.reduce((n, value, i) => n + Number(value !== b[i]), 0);
+      // Only bypass the workload cutoff: the real mixed plane must preserve an upper opaque glyph view.
+      probe.hasMixedVertexWork = () => true;
+      const prepareMixed = probe.prepareMixedPlane.bind(probe);
+      let mixedUsed = false;
+      probe.prepareMixedPlane = (...args) => {
+        const prepared = prepareMixed(...args);
+        mixedUsed = Boolean(prepared);
+        return prepared;
+      };
+      for (const [index, text] of texts.entries()) scene.store.update(`fade-${index}`, { primitives: [text] });
+      render(0.4);
+      const upperMixed = mixedUsed;
+      const mixedFaded = pixels();
+      for (const [index, text] of texts.entries())
+        scene.store.update(`fade-${index}`, {
+          primitives: [{ ...text, fadeInUntil: undefined }],
+        });
+      render(0.4);
+      const mixedOrdinary = pixels();
+      scene.store.delete("fade-0");
+      scene.store.add({
+        id: "fade-0",
+        parent: "resident-path",
+        childOrder: 0,
+        x: 0,
+        y: 0,
+        zIndex: 0,
+        bounds: { minX: 0, minY: 0, maxX: 20000, maxY: 120 },
+        primitives: [texts[0]],
+      });
+      render(0.4);
+      const lowerMixed = mixedUsed;
+      const lowerFaded = pixels();
+      scene.store.update("fade-0", { primitives: [{ ...texts[0], fadeInUntil: undefined }] });
+      render(0.4);
+      const lowerOrdinary = pixels();
+      const error = gl.getError();
+      const destroys = [0, 0, 0];
+      for (const [index, resource] of [source.buffer, source.companion.buffer, revealed.model].entries()) {
+        const destroy = resource.destroy.bind(resource);
+        resource.destroy = () => {
+          destroys[index]++;
+          destroy();
+        };
+      }
+      backend.dispose();
+      backend.dispose();
+      return {
+        available: true as const,
+        fading,
+        complete,
+        returning,
+        camera,
+        grown,
+        sharedAfterReplay,
+        rebindDifference: differences(beforeRebind, beforeReplay),
+        replayDifference: differences(beforeReplay, afterReplay),
+        ordinaryDifference: differences(afterReplay, ordinary),
+        upperMixed,
+        lowerMixed,
+        mixedDifference: differences(mixedFaded, mixedOrdinary),
+        lowerDifference: differences(lowerFaded, lowerOrdinary),
+        ink: beforeReplay.filter((value, index) => index % 4 === 3 && value > 0).length,
+        error,
+        destroys,
+      };
+    });
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.fading).toEqual({ visible: [true, true], opaque: false });
+    expect(result.complete).toEqual({ visible: [false, true], opaque: true });
+    expect(result.returning).toEqual(result.fading);
+    expect(result.camera).toEqual({ encodes: 0, bytes: 0 });
+    expect(result.grown).toBe(true);
+    expect(result.sharedAfterReplay).toBe(true);
+    expect(result.rebindDifference).toBe(0);
+    expect(result.replayDifference).toBe(0);
+    expect(result.ordinaryDifference).toBe(0);
+    expect(result.upperMixed).toBe(true);
+    expect(result.lowerMixed).toBe(false);
+    expect(result.mixedDifference).toBe(0);
+    expect(result.lowerDifference).toBe(0);
+    expect(result.ink).toBeGreaterThan(100);
+    expect(result.error).toBe(0);
+    expect(result.destroys).toEqual([1, 1, 1]);
+  });
+
   test("skips wholly hidden opaque fills and glyphs and draws them again at their visible scale", async ({ page }) => {
     const graph = new GraphPageObject(page);
     await graph.initialize({ ...CONFIG, blocks: [] });
@@ -501,6 +729,52 @@ test.describe("Scene blocks with the WebGL renderer", () => {
     expect(result.changedOrder).toBe(true);
     expect(result.raised[0]).toBeGreaterThan(result.raised[2]);
     expect(result.error).toBe(0);
+  });
+
+  test("draws a decoded sprite in scene order with top-left UVs and straight alpha", async ({ page }) => {
+    const graph = new GraphPageObject(page);
+    await graph.initialize({ ...CONFIG, blocks: [] });
+    test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+    await expect.poll(() => rendererState(page)).toBe("webgl");
+
+    await page.evaluate(async () => {
+      const chart = document.createElement("canvas");
+      chart.width = chart.height = 8;
+      const ctx = chart.getContext("2d")!;
+      ctx.fillStyle = "#00ff00";
+      ctx.fillRect(0, 0, 4, 4);
+      ctx.fillStyle = "rgba(255,0,0,0.5)";
+      ctx.fillRect(0, 4, 8, 4);
+      const image = new Image();
+      image.src = chart.toDataURL();
+      await image.decode();
+
+      window.graph.cameraService.set({ scale: 1, x: 0, y: 0 });
+      const box = { x: 0, y: 0, width: 80, height: 80 };
+      window.graph.scene.store.add({
+        id: "sprite",
+        zIndex: 100,
+        x: 40,
+        y: 40,
+        bounds: { minX: 0, minY: 0, maxX: 80, maxY: 80 },
+        primitives: [
+          { kind: "rect", ...box, fill: "#0000ff" },
+          { kind: "sprite", ...box, image },
+          { kind: "rect", x: 40, y: 40, width: 40, height: 40, fill: "#ffff00" },
+        ],
+      });
+    });
+    await graph.waitForFrames(3);
+    const samples: [number, number, [number, number, number]][] = [
+      [60, 60, [0, 255, 0]], // top-left texel
+      [100, 60, [0, 0, 255]], // transparent texel reveals the earlier primitive
+      [60, 100, [128, 0, 127]], // half-transparent red over blue
+      [100, 100, [255, 255, 0]], // later primitive covers the sprite
+    ];
+    for (const [x, y, color] of samples) {
+      const sample = await countColor(page, { x, y, width: 4, height: 4 }, color, 4);
+      expect(sample.matched, `world (${x}, ${y})`).toBe(sample.total);
+    }
   });
 
   test("draws a filled arrow triangle in scene order", async ({ page }) => {

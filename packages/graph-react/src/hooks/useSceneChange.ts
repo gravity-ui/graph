@@ -28,10 +28,15 @@ export function useSceneChange(graph: Graph, fn: () => void) {
     const unsubscribeLevel = graph.scene.$level.subscribe(() => {
       handleSceneChange();
     });
+    // A replacement can keep its id and hit box while supplying a new block state.
+    const unsubscribeBlocks = graph.rootStore.blocksList.$viewRevision.subscribe(() => {
+      handleSceneChange();
+    });
 
     return () => {
       unsubscribeCamera();
       unsubscribeLevel();
+      unsubscribeBlocks();
     };
   }, [graph, handleSceneChange]);
 

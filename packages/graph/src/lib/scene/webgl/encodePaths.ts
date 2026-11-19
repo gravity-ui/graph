@@ -8,6 +8,7 @@ import type { TEncodedChunk } from "../../../components/canvas/connections/webgl
 import { ALL_LEVELS_MASK } from "../levels";
 import type { TScenePrimitive } from "../types";
 
+import { closeStroke } from "./closedStroke";
 import { MAX_SUB, NO_LIMIT, USE_BASE, checkSub, hasStrokeWidth, scaleBound, writeSize } from "./encodeRects";
 import type { TSlotOf } from "./encodeRects";
 import { markOverviewCurves } from "./overviewCurves";
@@ -124,7 +125,9 @@ export function encodePaths(
     const lines = chunk.lines.count;
     const curves = chunk.curves.count;
     // Only dashes and effects read the longitudinal distances in the shader.
-    encodeShapes([shape], bucket, chunk, effect !== undefined || Boolean(stroke.dash?.length));
+    const usesDistance = effect !== undefined || Boolean(stroke.dash?.length);
+    encodeShapes([shape], bucket, chunk, usesDistance);
+    if (primitive.closed && !usesDistance) closeStroke(primitive.segments, bucket, chunk, lines, curves);
     if (stroke.color === undefined) {
       useBase(chunk.lines.data, lines, chunk.lines.count);
       useBase(chunk.curves.data, curves, chunk.curves.count);

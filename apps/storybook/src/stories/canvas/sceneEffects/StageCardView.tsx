@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useLayoutEffect, useRef } from "react";
 
 import type { Graph } from "@gravity-ui/graph";
 import { GraphBlock, GraphBlockAnchor } from "@gravity-ui/graph-react";
 import { ArrowRotateRight, Pause, Play } from "@gravity-ui/icons";
 import { Button, Icon } from "@gravity-ui/uikit";
 import type { IconProps } from "@gravity-ui/uikit";
+import type { ReadonlySignal } from "@preact/signals-core";
 
 import { etlKindBadges, formatRows } from "../webglConnections/etl";
 
@@ -34,7 +35,7 @@ function stopGraphEvent(event: React.SyntheticEvent): void {
 /**
  * The status effects of the card, the CSS twins of the scene's: only the current status mounts its element. Two
  * differences from the scene: running shows the marching border only, without the throughput particles; and the
- * selection glow is a static box-shadow on `.selected` (StageCardView.css), where the gallery's `GlowRing` breathes.
+ * original selection mode uses a static box-shadow. GraphBlock draws the combined outline in the other modes.
  */
 const StatusEffect = ({ status, block }: { status: TStageStatus; block: TStageBlock }): React.JSX.Element | null => {
   switch (status) {
@@ -63,17 +64,27 @@ type TStageCardViewProps = {
   block: TStageBlock;
   /** Applies the stage's action through the story's simulation. */
   onAction: (id: string) => void;
+  statusOpacity: ReadonlySignal<number>;
 };
 
 /**
  * The React card of a stage at the detailed level: it replaces the scene block (`GraphBlock`'s default
- * `autoHideCanvas`). The status is the `statusTag` value, read with `useTagValue`; the stripe takes the `stripe` part
- * colour the status rule computes (`--graph-block-stripe-color`, from `GraphBlock`); `selected` and the
+ * `autoHideCanvas`). The status is the `statusTag` value, read with `useTagValue`; the stripe takes the `body` part
+ * colour the status rule computes (`--graph-block-body-color`, from `GraphBlock`); `selected` and the
  * `graph-tag-dimmed` class come from `GraphBlock` too.
  */
-export const StageCardView = ({ graph, block, onAction }: TStageCardViewProps): React.JSX.Element => {
+export const StageCardView = ({ graph, block, onAction, statusOpacity }: TStageCardViewProps): React.JSX.Element => {
   const status = useTagValue(graph, "block", block.id, statusTag) ?? DEFAULT_STAGE_STATUS;
   const action = actions[stageActionOf(status)];
+  const chip = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const element = chip.current;
+    if (!element) return undefined;
+    // Only the chip fades. An inherited CSS variable invalidates the entire graph on every zoom step.
+    return statusOpacity.subscribe((opacity) => {
+      element.style.opacity = String(opacity);
+    });
+  }, [statusOpacity]);
 
   return (
     <GraphBlock graph={graph} block={block} className="scene-stage">
@@ -82,7 +93,7 @@ export const StageCardView = ({ graph, block, onAction }: TStageCardViewProps): 
         <div className="scene-stage__header">
           <span className="scene-stage__badge">{etlKindBadges[block.kind]}</span>
           <span className="scene-stage__pipeline">{block.pipeline.toUpperCase()}</span>
-          <span className="scene-stage__status">
+          <span ref={chip} className="scene-stage__status">
             {status === "queued" && (
               <Spinner
                 size={11}

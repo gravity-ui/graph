@@ -6,7 +6,7 @@ import type { IConnectionBatchItem } from "../batch";
 import { getSegmentsBounds } from "../geometry";
 import type { TConnectionGeometry } from "../geometry";
 
-import type { TConnectionsRenderer, TLineStroke, TWebGLShape } from "./types";
+import type { TLineStroke, TWebGLShape } from "./types";
 
 /** @internal The selection color of a connection state: `styles.selectedBackground`, else the theme's. */
 export function getSelectionColor(connection: BlockConnection<TConnection>, state: TBaseConnectionState): string {
@@ -52,13 +52,14 @@ class LineArrowItem implements IConnectionBatchItem {
 export abstract class ConnectionLine<C extends BlockConnection<TConnection> = BlockConnection<TConnection>>
   implements IConnectionBatchItem
 {
-  public static readonly renderer: TConnectionsRenderer;
-
   /** The arrow's batch item: its own z-level (the line's minus one) and, for Path2D, its own style group. */
   public readonly arrow: IConnectionBatchItem;
 
   /** Draws extra content of the connection after its chunk; set only when the connection has `afterRender()`. */
   public afterRender?: (ctx: CanvasRenderingContext2D) => void;
+
+  /** A scene connection handles its own decoration when the line still uses this forwarding callback. */
+  protected connectionAfterRender?: (ctx: CanvasRenderingContext2D) => void;
 
   private stroke?: TLineStroke;
 
@@ -68,10 +69,19 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
   private updatingState?: TBaseConnectionState;
 
   constructor(protected readonly connection: C) {
-    if (typeof connection.afterRender === "function") {
-      this.afterRender = (ctx: CanvasRenderingContext2D): void => connection.afterRender?.(ctx);
-    }
+    this.bindConnectionDecoration();
     this.arrow = new LineArrowItem(this);
+  }
+
+  private bindConnectionDecoration(): void {
+    if (this.afterRender || this.connectionAfterRender || typeof this.connection.afterRender !== "function") return;
+    this.connectionAfterRender = (ctx) => this.connection.afterRender?.(ctx);
+    this.afterRender = this.connectionAfterRender;
+  }
+
+  /** @internal Direct implementations supply Canvas paths and styles. */
+  public usesCanvasDrawing(): boolean {
+    return true;
   }
 
   /**
@@ -89,7 +99,7 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
    * Hover and selection on top of a stroke: a selected line takes the selected color (`styles.selectedBackground` or
    * the theme's), a hovered or selected one is 2 units wider. The rest of the stroke — dash, effect — stays, so a
    * custom look keeps its style while selected: `return this.withInteraction({ color, width: 6, effect }, state)`.
-   * A `WebGLLine` gives an effect the line's own color back: the effect shows the selection.
+   * A `SceneLine` gives an effect the line's own color back: the effect shows the selection.
    */
   protected withInteraction<S extends TLineStroke>(stroke: S, state: TBaseConnectionState): S {
     if (!state.hovered && !state.selected) return stroke;
@@ -156,6 +166,8 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     state: TBaseConnectionState = this.connection.state,
     props: TConnectionProps = this.connection.props
   ): void {
+    // A connection subclass can initialize its decoration as a field after constructing the line.
+    this.bindConnectionDecoration();
     const batch = this.connection.context.batch;
     const zIndex = this.connection.getBatchZIndex(state);
     const group = this.getBatchGroup();
@@ -230,8 +242,8 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     return this.connection.isInViewport();
   }
 
-  /** @internal The line stroke and its optional WebGL effect; lines without WebGL shapes return `undefined`. */
-  public getWebGLShape(): TWebGLShape | undefined {
+  /** @internal Additional scene data for an effect attached to the stroke. */
+  public getSceneShape(): TWebGLShape | undefined {
     return undefined;
   }
 

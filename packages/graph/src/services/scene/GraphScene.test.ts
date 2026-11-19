@@ -9,7 +9,8 @@ import { ECameraScaleLevel } from "../camera/cameraScaleEnums";
 import { ESelectionStrategy } from "../selection";
 import { StyleResolver } from "../styles/StyleResolver";
 import type { TStyleParts } from "../styles/types";
-import { selectedTag } from "../tags/builtinTags";
+import { entityKey } from "../tags/TagStore";
+import { hoveredTag, selectedTag } from "../tags/builtinTags";
 import { defineTag } from "../tags/defineTag";
 
 import type { TSceneElementView, TSceneRendererState } from "./types";
@@ -98,6 +99,27 @@ describe("graph.scene", () => {
     expect(graph.scene.$renderer.value).toBe("canvas");
     graph.cameraService.set({ scale: 0.05 });
     expect(graph.scene.$level.value).toBe("minimalistic");
+  });
+
+  it("plays a hover rule on a stock block through the graph frame task", () => {
+    graph = new Graph({}, document.createElement("div"));
+    graph.setEntities({ blocks: [{ is: "Block", id: "b", name: "B", x: 9, y: 20, width: 80, height: 40 }] });
+    graph.start();
+    graph.scheduler.performUpdate();
+    const { scene } = graph;
+    const block = scene.store.get(entityKey("block", "b"));
+    expect(block?.y).toBe(20);
+    scene.tags.add(hoveredTag, { block: ["b"] });
+    const remove = scene.styles.add([{ target: Block, tags: [hoveredTag], style: { motion: "bounce" } }]);
+    const now = jest.spyOn(scene.clock, "now").mockReturnValue(1);
+    graph.scheduler.performUpdate();
+    now.mockReturnValue(1.15);
+    graph.scheduler.performUpdate();
+    expect(block?.y).toBeCloseTo(12);
+    remove();
+    expect(block?.y).toBe(20);
+    expect(scene.store.hasBlockMotions).toBe(false);
+    now.mockRestore();
   });
 
   it("draws after every layer in the same tick", () => {
@@ -401,6 +423,45 @@ describe("graph.scene", () => {
   });
 
   describe("frame order", () => {
+    it("aligns stationary HTML to the renderer that drew the frame, including an in-draw fallback", async () => {
+      const fake = createFakeGpu();
+      graph = new Graph({ settings: { renderer: "webgl", webglBackend: async () => fake.module } });
+      graph.attach(document.createElement("div"));
+      graph.start();
+      const html = graph.addLayer(Layer, { html: { zIndex: 3, transformByCameraPosition: true } }).getHTML();
+      graph.layers.rootSize.value = { width: 800, height: 600, dpr: 2 };
+      graph.cameraService.set({ x: 10.375, y: -20.375, scale: 1 });
+      await waitForRenderer(graph, "webgl");
+      graph.scheduler.performUpdate();
+      const webglMatrix = "matrix(1, 0, 0, 1, 10.375, -20.375)";
+      const canvasMatrix = "matrix(1, 0, 0, 1, 10.5, -20.5)";
+      expect(html?.style.transform).toBe(webglMatrix);
+
+      const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+      try {
+        const backend = graph.scene.layer.getBackend();
+        if (!backend) throw new Error("Expected an active WebGL backend");
+        jest.spyOn(backend, "draw").mockImplementationOnce(() => {
+          throw new Error("failed draw");
+        });
+        graph.scene.store.add(rectElement("fallback"));
+        graph.scheduler.performUpdate();
+        expect(graph.scene.$renderer.peek()).toBe("webgl-fallback");
+        expect(graph.scene.layer.context.ctx?.getTransform()).toMatchObject({ e: 21, f: -41 });
+        expect(html?.style.transform).toBe(canvasMatrix);
+      } finally {
+        warn.mockRestore();
+      }
+
+      graph.updateSettings({ renderer: "canvas" });
+      graph.updateSettings({ renderer: "webgl" });
+      await waitForRenderer(graph, "webgl");
+      expect(html?.style.transform).toBe(canvasMatrix);
+      graph.scheduler.performUpdate();
+      expect(fake.drawn.at(-1)).toEqual(["fallback"]);
+      expect(html?.style.transform).toBe(webglMatrix);
+    });
+
     it("draws an element a layer added during layers.update() in the same frame", async () => {
       const fake = createFakeGpu();
       graph = new Graph({ settings: { renderer: "webgl", webglBackend: () => Promise.resolve(fake.module) } });
@@ -696,6 +757,32 @@ describe("bindStyle and explain", () => {
     });
   });
 
+  it("leaves a bound style asleep across equivalent levels and follows rules that distinguish them", () => {
+    graph = new Graph({});
+    graph.cameraService.set({ scale: 0.8 });
+    graph.scene.styles.add([{ target: Styled, scope: { levels: ["detailed", "schematic"] }, style: { raise: 1 } }]);
+    addElement("link");
+    const changed = jest.fn();
+    const unbind = graph.scene.bindStyle("link", { type: "connection", id: "link" }, Styled, changed);
+    const read = jest.spyOn(graph.scene.store, "get");
+    const generation = graph.scene.$styleGeneration.peek();
+    graph.cameraService.set({ scale: 0.69 });
+    expect(graph.scene.$styleGeneration.peek()).toBe(generation + 1);
+    expect(read).not.toHaveBeenCalledWith("link");
+    expect(changed).toHaveBeenCalledTimes(1);
+
+    const remove = graph.scene.styles.add([{ target: Styled, scope: { levels: ["schematic"] }, style: { raise: 2 } }]);
+    expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ raise: 2 }));
+    graph.cameraService.set({ scale: 0.8 });
+    expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ raise: 1 }));
+    remove();
+    read.mockClear();
+    graph.cameraService.set({ scale: 0.69 });
+    expect(read).not.toHaveBeenCalledWith("link");
+    read.mockRestore();
+    unbind();
+  });
+
   it("bindStyle after dispose does nothing", () => {
     graph = new Graph({});
     addElement("e");
@@ -735,7 +822,8 @@ describe("bindStyle and explain", () => {
 
   it("toImage draws the scene through the interpreter at the camera's view", () => {
     graph = new Graph({}, document.createElement("div"));
-    graph.cameraService.set({ width: 200, height: 100, x: 0, y: 0, scale: 1 });
+    graph.layers.rootSize.value = { width: 200, height: 100, dpr: 2 };
+    graph.cameraService.set({ width: 200, height: 100, x: 10.375, y: -20.375, scale: 1 });
     graph.scene.store.add({
       id: "e",
       zIndex: 200,
@@ -744,10 +832,13 @@ describe("bindStyle and explain", () => {
       bounds: { minX: 0, minY: 0, maxX: 20, maxY: 20 },
       primitives: [{ kind: "rect", x: 0, y: 0, width: 20, height: 20, fill: "#ff0000" }],
     });
-    const image = graph.scene.toImage({ pixelRatio: 2, background: "#ffffff" });
-    expect([image.width, image.height]).toEqual([400, 200]);
+    const image = graph.scene.toImage({ pixelRatio: 3, background: "#ffffff" });
+    expect([image.width, image.height]).toEqual([600, 300]);
     const ctx = image.getContext("2d") as CanvasRenderingContext2D & { __getDrawCalls(): { type: string }[] };
+    expect(ctx.getTransform()).toMatchObject({ e: 31.5, f: -61.5 });
     expect(ctx.__getDrawCalls().filter((call) => call.type === "fill" || call.type === "fillRect")).toHaveLength(2);
+    const crop = graph.scene.toImage({ rect: { x: -10.375, y: 20.375, width: 200, height: 100 }, pixelRatio: 3 });
+    expect(crop.getContext("2d")?.getTransform()).toMatchObject({ e: 31.125, f: -61.125 });
   });
 
   it("toImage of the current view draws the visible layer canvases under the scene first", () => {

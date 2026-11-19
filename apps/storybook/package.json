@@ -19,6 +19,7 @@
     "@gravity-ui/icons": "^2.15.0",
     "@gravity-ui/uikit": "^7.19.0",
     "@monaco-editor/react": "^4.6.0",
+    "@preact/signals-core": "^1.12.2",
     "elkjs": "^0.9.3",
     "lodash": "^4.17.21",
     "monaco-editor": "^0.52.0",

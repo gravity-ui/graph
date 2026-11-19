@@ -9,6 +9,7 @@ import { Component, TComponentState } from "../lib/Component";
 import { ESchedulerPriority } from "../lib/Scheduler";
 import type { TTreeCullingOptions } from "../lib/culling/TreeCulling";
 import { TypedEventListener, addTypedEventListener } from "../utils/eventListener";
+import { alignToPixelGrid } from "../utils/functions";
 import type { GraphClassConstructor } from "../utils/types/classes";
 import { debounce } from "../utils/utils/schedule";
 
@@ -417,6 +418,14 @@ export class Layer<
     }
 
     this.handleCommittedCameraChange(this.context.camera.getCameraState());
+    if (this.html && this.props.html?.transformByCameraPosition) {
+      const { scene } = this.props.graph;
+      this.onSignal(scene.$cameraFrame, (frame) => {
+        const camera = frame?.camera ?? this.context.camera.getCameraState();
+        this.updateHtmlActivation(camera);
+        this.scheduleCameraChange(camera);
+      });
+    }
     this.updateSize();
   }
 
@@ -436,17 +445,23 @@ export class Layer<
         this.html.classList.add("layer-with-camera-moving");
         this.moving = true;
       }
-      this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+      const { scene } = this.props.graph;
+      const frame = scene.$cameraFrame.peek();
+      const canvasDpr = frame ? frame.canvasDpr : scene.canvasDpr;
+      const x = canvasDpr === undefined ? camera.x : alignToPixelGrid(camera.x, canvasDpr);
+      const y = canvasDpr === undefined ? camera.y : alignToPixelGrid(camera.y, canvasDpr);
+      this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${x}, ${y})`;
       this.stopCameraMoving();
     }
   }
 
   private handleCommittedCameraChange(camera: TCameraState): void {
-    this.applyCameraTransform(camera);
+    if (!this.props.html?.transformByCameraPosition) this.updateHtmlActivation(camera);
+    if (this.props.canvas?.transformByCameraPosition) this.performRender();
     this.onCameraChange(camera);
   }
 
-  private applyCameraTransform(camera: TCameraState): void {
+  private updateHtmlActivation(camera: TCameraState): void {
     // Check if HTML layer should be active based on activationScale
     if (this.html && this.props.html?.activationScale !== undefined) {
       const shouldBeActive = camera.scale >= this.props.html.activationScale;
@@ -455,21 +470,13 @@ export class Layer<
         this.onHtmlActiveChange(shouldBeActive);
       }
     }
-
-    if (this.props.html?.transformByCameraPosition && this.html && this.htmlActive) {
-      this.scheduleCameraChange(camera);
-    }
-    if (this.props.canvas?.transformByCameraPosition) {
-      this.performRender();
-    }
   }
 
   /**
    * Called when committed camera state changes (`graph.$camera` signal).
    * Override in derived layers to react to pan, zoom, and resize.
    *
-   * Built-in HTML/canvas transforms (`transformByCameraPosition`, `activationScale`)
-   * are applied before this hook via `applyCameraTransform`.
+   * Receives each commit synchronously. Camera-transformed layers present it on the graph frame.
    *
    * @param camera - Committed camera state (same as `graph.$camera.value`)
    */
@@ -498,7 +505,9 @@ export class Layer<
     this.htmlActive = active;
     this.onHtmlActiveChange(active);
     if (active && this.props.html?.transformByCameraPosition) {
-      this.scheduleCameraChange(this.context.camera.getCameraState());
+      this.scheduleCameraChange(
+        this.props.graph.scene.$cameraFrame.peek()?.camera ?? this.context.camera.getCameraState()
+      );
     }
   }
 
@@ -661,7 +670,13 @@ export class Layer<
     this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);
     // Use canvas dimensions directly, as they should already factor in DPR if respectPixelRatio is true
     this.context.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.applyTransform(cameraState?.x ?? 0, cameraState?.y ?? 0, cameraState?.scale ?? 1, true);
+    const dpr = this.getDRP();
+    this.applyTransform(
+      alignToPixelGrid(cameraState?.x ?? 0, dpr),
+      alignToPixelGrid(cameraState?.y ?? 0, dpr),
+      cameraState?.scale ?? 1,
+      true
+    );
   }
 
   protected render() {

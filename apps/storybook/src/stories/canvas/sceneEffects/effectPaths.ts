@@ -127,11 +127,6 @@ export function fitPattern(length: number, on: number, off: number): [number, nu
   return [on * stretch, off * stretch];
 }
 
-/** Puts a primitive on the camera scales [minScale, maxScale): one look of an effect per zoom range. */
-export function onScales(primitive: TScenePrimitive, minScale?: number, maxScale?: number): TScenePrimitive {
-  return { ...primitive, minScale, maxScale };
-}
-
 /** A dash running around the box: `dashFlow` with a short pattern. */
 export function marchingBorder(
   box: TBox,

@@ -5,7 +5,8 @@ import type { TConnection } from "../../../store/connection/ConnectionState";
 
 import type { TBaseConnectionState } from "./BaseConnection";
 import { BlockConnection } from "./BlockConnection";
-import { Path2DLine, WebGLLine } from "./lines";
+import type { TConnectionGeometry } from "./geometry";
+import { SceneLine } from "./lines";
 import type { TLineStroke } from "./lines";
 
 const THRESHOLD_LINE_HIT = 8;
@@ -19,19 +20,8 @@ function widthOf(state: TBaseConnectionState, stroke: TLineStroke): number {
   return widths.get(String(state.id)) ?? stroke.width;
 }
 
-class WidePath2DLine extends Path2DLine {
-  public override getStroke(state: TBaseConnectionState): TLineStroke {
-    const stroke = super.getStroke(state);
-    return { ...stroke, width: widthOf(state, stroke) };
-  }
-}
-
-class WidePath2DConnection extends BlockConnection<TConnection> {
-  public static override line = WidePath2DLine;
-}
-
 /** A line that owns its width and redraws itself through `invalidate()` when it changes. */
-class SelfWideningLine extends WebGLLine {
+class SelfWideningLine extends SceneLine {
   private width = 2;
 
   public setWidth(width: number): void {
@@ -52,15 +42,25 @@ class SelfWideningConnection extends BlockConnection<TConnection> {
   }
 }
 
-class WideWebGLLine extends WebGLLine {
+class WideLine extends SceneLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
     const stroke = super.getStroke(state);
     return { ...stroke, width: widthOf(state, stroke) };
   }
 }
 
-class WideWebGLConnection extends BlockConnection<TConnection> {
-  public static override line = WideWebGLLine;
+class WideConnection extends BlockConnection<TConnection> {
+  public static override line = WideLine;
+}
+
+class WideCanvasPath extends WideLine {
+  protected override createPath(geometry: TConnectionGeometry): Path2D {
+    return super.createPath(geometry);
+  }
+}
+
+class CanvasPathConnection extends BlockConnection<TConnection> {
+  public static override line = WideCanvasPath;
 }
 
 const treeNode = (component: object): Tree => (component as unknown as { __comp: { treeNode: Tree } }).__comp.treeNode;
@@ -157,8 +157,8 @@ describe("connection bounds and hit box follow the stroke width", () => {
   });
 
   it.each([
-    ["Path2DLine", WidePath2DConnection],
-    ["WebGLLine", WideWebGLConnection],
+    ["custom Canvas path", CanvasPathConnection],
+    ["scene stroke", WideConnection],
   ] as const)("hits a 14-unit %s up to 7 + THRESHOLD_LINE_HIT from the line, through the broad phase", (_, Klass) => {
     widths.set("c", 14);
     const view = mount(Klass);
@@ -178,7 +178,7 @@ describe("connection bounds and hit box follow the stroke width", () => {
   });
 
   it("follows a width that changes outside the store through invalidateLine()", () => {
-    const view = mount(WidePath2DConnection);
+    const view = mount(CanvasPathConnection);
     expect(view.getPathBounds()).toEqual([99, 99, 401, 101]);
     expect(hits(TARGET.x + 12, TARGET.y)).toBe(false);
 
@@ -206,8 +206,8 @@ describe("connection bounds and hit box follow the stroke width", () => {
   });
 
   it("reads the stroke once per geometry update", () => {
-    const view = mount(WidePath2DConnection);
-    const stroke = jest.spyOn(WidePath2DLine.prototype, "getStroke");
+    const view = mount(CanvasPathConnection);
+    const stroke = jest.spyOn(WideCanvasPath.prototype, "getStroke");
     view.updateGeometry();
     expect(stroke).toHaveBeenCalledTimes(1);
   });

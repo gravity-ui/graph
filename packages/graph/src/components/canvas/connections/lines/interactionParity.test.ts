@@ -6,10 +6,7 @@ import type { IConnectionBatch, IConnectionBatchItem } from "../batch";
 import { multipointGeometry } from "../geometry";
 import type { TConnectionGeometry } from "../geometry";
 
-import type { ConnectionLine } from "./ConnectionLine";
-import { Path2DLine } from "./Path2DLine";
-import { WebGLLine } from "./WebGLLine";
-import type { TWebGLStroke } from "./WebGLLine";
+import { SceneLine } from "./SceneLine";
 import type { TLineStroke } from "./types";
 
 class RecordingBatch implements IConnectionBatch {
@@ -46,10 +43,14 @@ const closedArrow = multipointGeometry({
   connection: { id: "c" } as TConnection,
 }) as TConnectionGeometry;
 
-type TLineClass = new (connection: BlockConnection<TConnection>) => ConnectionLine;
+type StrokeStyle = (base: TLineStroke, state: TBaseConnectionState) => TLineStroke;
 
-/** What a line draws: its line and arrow colors and widths, from the Path2D style of both line kinds. */
-function drawn(Line: TLineClass, state: Partial<TBaseConnectionState>): { line: string; arrow: string } {
+function drawn(getStroke: StrokeStyle, state: Partial<TBaseConnectionState>): { line: string; arrow: string } {
+  class StyledLine extends SceneLine {
+    public override getStroke(currentState: TBaseConnectionState): TLineStroke {
+      return getStroke(super.getStroke(currentState), currentState);
+    }
+  }
   const batch = new RecordingBatch();
   const ctx = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
   const connection = {
@@ -61,13 +62,14 @@ function drawn(Line: TLineClass, state: Partial<TBaseConnectionState>): { line: 
     },
     state: { id: "c", ...state },
     props: { showConnectionArrows: true, useTightBezierBounds: true },
+    getSceneKey: () => undefined,
     getGeometry: () => closedArrow,
     getBatchZIndex: () => 0,
     isPathVisible: () => true,
     getPathBounds: () => undefined,
     isInViewport: () => true,
   } as unknown as BlockConnection<TConnection>;
-  const line = new Line(connection);
+  const line = new StyledLine(connection);
   line.update();
   line.style(ctx);
   const lineStyle = `${ctx.strokeStyle}/${ctx.lineWidth}`;
@@ -75,35 +77,19 @@ function drawn(Line: TLineClass, state: Partial<TBaseConnectionState>): { line: 
   return { line: lineStyle, arrow: `${ctx.fillStyle}/${ctx.lineWidth}` };
 }
 
-/** The same getStroke() on both line kinds. */
-function twins(getStroke: (base: TLineStroke, state: TBaseConnectionState) => TLineStroke): TLineClass[] {
-  class CanvasLine extends Path2DLine {
-    public override getStroke(state: TBaseConnectionState): TLineStroke {
-      return getStroke(super.getStroke(state), state);
-    }
-  }
-  class GLLine extends WebGLLine {
-    public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-      return getStroke(super.getStroke(state), state);
-    }
-  }
-  return [CanvasLine, GLLine];
-}
-
-describe("hover and selection: one getStroke(), the same look in Path2DLine and WebGLLine", () => {
+describe("Canvas compatibility painting follows the scene line's interaction styles", () => {
   const selected = { selected: true };
 
   it("draws the default stroke in the selection color, 2 units wider", () => {
-    for (const Line of twins((base) => base)) {
-      expect(drawn(Line, selected)).toEqual({ line: "#ffcc00/4", arrow: "#ffcc00/4" });
-      expect(drawn(Line, { hovered: true })).toEqual({ line: "#aaaaaa/4", arrow: "#aaaaaa/4" });
-    }
+    expect(drawn((base) => base, selected)).toEqual({ line: "#ffcc00/4", arrow: "#ffcc00/4" });
+    expect(drawn((base) => base, { hovered: true })).toEqual({ line: "#aaaaaa/4", arrow: "#aaaaaa/4" });
   });
 
   it("draws a color set over super.getStroke() while selected: the own color wins", () => {
-    for (const Line of twins((base, state) => (state.selected ? { ...base, color: "#e5484d" } : base))) {
-      expect(drawn(Line, selected)).toEqual({ line: "#e5484d/4", arrow: "#e5484d/4" });
-    }
+    expect(drawn((base, state) => (state.selected ? { ...base, color: "#e5484d" } : base), selected)).toEqual({
+      line: "#e5484d/4",
+      arrow: "#e5484d/4",
+    });
   });
 
   it("keeps the selection color of fields picked from super.getStroke()", () => {
@@ -112,16 +98,12 @@ describe("hover and selection: one getStroke(), the same look in Path2DLine and 
       width: base.width,
       dash: { pattern: [4, 4] },
     });
-    for (const Line of twins(pick)) {
-      expect(drawn(Line, selected)).toEqual({ line: "#ffcc00/4", arrow: "#ffcc00/4" });
-    }
+    expect(drawn(pick, selected)).toEqual({ line: "#ffcc00/4", arrow: "#ffcc00/4" });
   });
 
   it("keeps the selection color of a copy of super.getStroke()", () => {
     const copy = (base: TLineStroke): TLineStroke => JSON.parse(JSON.stringify(base)) as TLineStroke;
-    for (const Line of twins(copy)) {
-      expect(drawn(Line, selected)).toEqual({ line: "#ffcc00/4", arrow: "#ffcc00/4" });
-    }
+    expect(drawn(copy, selected)).toEqual({ line: "#ffcc00/4", arrow: "#ffcc00/4" });
   });
 
   it("draws a stroke built without withInteraction() as it is", () => {
@@ -129,8 +111,6 @@ describe("hover and selection: one getStroke(), the same look in Path2DLine and 
       color: state.selected ? "#f00" : "#00f",
       width: 2,
     });
-    for (const Line of twins(own)) {
-      expect(drawn(Line, selected)).toEqual({ line: "#ff0000/2", arrow: "#ff0000/2" });
-    }
+    expect(drawn(own, selected)).toEqual({ line: "#ff0000/2", arrow: "#ff0000/2" });
   });
 });

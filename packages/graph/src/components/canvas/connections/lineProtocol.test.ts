@@ -14,8 +14,8 @@ import { defineConnectionEffect } from "./effects";
 import { bezierGeometry, multipointGeometry } from "./geometry";
 import type { TConnectionGeometryFn } from "./geometry";
 import { stockBezierSegments } from "./geometry/segments";
-import { Path2DLine, WebGLLine } from "./lines";
-import type { ConnectionLine, TLineStroke, TWebGLStroke } from "./lines";
+import { SceneLine } from "./lines";
+import type { ConnectionLine, TLineStroke, TSceneLineStroke } from "./lines";
 import type { TMultipointConnection } from "./types";
 
 type TBlockConnectionsInternals = {
@@ -98,7 +98,7 @@ class MixedConnection extends BlockConnection<TKindConnection> {
 /** Stroke colors that live outside the store, by connection id. */
 const outsideColors = new Map<string, string>();
 
-class MappedLine extends Path2DLine {
+class MappedLine extends SceneLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
     return { ...super.getStroke(state), color: outsideColors.get(String(state.id)) ?? "#000" };
   }
@@ -109,7 +109,7 @@ class MappedConnection extends BlockConnection<TConnection> {
 }
 
 /** A line typed for its connection class: it reads the connection's own member without a cast. */
-class TaggedLine extends Path2DLine<TaggedConnection> {
+class TaggedLine extends SceneLine<TaggedConnection> {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
     return { ...super.getStroke(state), color: this.connection.getTagColor() };
   }
@@ -138,8 +138,8 @@ describe("BlockConnection line protocol", () => {
     const effect = defineConnectionEffect({
       fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
     });
-    class ScopedLine extends WebGLLine {
-      public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+    class ScopedLine extends SceneLine {
+      public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
         return { ...super.getStroke(state), effect: { effect, params: [3], minScale: 0.5, maxScale: 1 } };
       }
     }
@@ -158,8 +158,8 @@ describe("BlockConnection line protocol", () => {
     let effect = defineConnectionEffect(definition);
     let param = 0;
     let certified = true;
-    class ExternalLine extends WebGLLine {
-      public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+    class ExternalLine extends SceneLine {
+      public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
         return { ...super.getStroke(state), effect: { effect, params: [param] } };
       }
     }
@@ -194,12 +194,12 @@ describe("BlockConnection line protocol", () => {
     const params = [1];
     const interaction = { hovered: false, selected: false, selectionColor: "#bbb" };
     const effect = defineConnectionEffect({ fragment: "vec4 effect(ConnectionFragment f, vec4 c) { return c; }" });
-    class ReusingLine extends WebGLLine {
-      public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+    class ReusingLine extends SceneLine {
+      public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
         return { ...super.getStroke(state), dash: { pattern }, effect: { effect, params } };
       }
-      public override getWebGLShape() {
-        const shape = super.getWebGLShape();
+      public override getSceneShape() {
+        const shape = super.getSceneShape();
         return shape && { ...shape, interaction };
       }
     }
@@ -337,21 +337,21 @@ describe("BlockConnection line protocol", () => {
     graph = mount({ connection: MappedConnection });
     const a = view(graph, "a");
     expect(lineOf(a)).toBeInstanceOf(MappedLine);
-    expect(registered(graph).get(lineOf(a))?.group).toBe("line/#111/2/");
+    expect(pathsOf(graph, "a")[0]?.stroke.color).toBe("#111");
 
     outsideColors.set("a", "#222");
     frames();
-    expect(registered(graph).get(lineOf(a))?.group).toBe("line/#111/2/");
+    expect(pathsOf(graph, "a")[0]?.stroke.color).toBe("#111");
 
     a.invalidateLine();
-    expect(registered(graph).get(lineOf(a))?.group).toBe("line/#222/2/");
+    expect(pathsOf(graph, "a")[0]?.stroke.color).toBe("#222");
   });
 
   it("accepts a line class typed for a connection subclass as static line", () => {
     graph = mount({ connection: TaggedConnection });
     const line = lineOf(view(graph, "a"));
     expect(line).toBeInstanceOf(TaggedLine);
-    expect(registered(graph).get(line)?.group).toBe("line/#333/2/");
+    expect(pathsOf(graph, "a")[0]?.stroke.color).toBe("#333");
   });
 
   it("hit-tests the line at the world center of the hit box with the threshold in world units", () => {

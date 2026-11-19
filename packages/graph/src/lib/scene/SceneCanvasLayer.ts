@@ -1,5 +1,6 @@
 import { Layer } from "../../services/Layer";
 import type { LayerProps } from "../../services/Layer";
+import { cameraWorldViewport } from "../../services/visibilityCulling";
 import type { TTileRect } from "../culling/TileIndex";
 
 import type { ScenePathBatch } from "./ScenePathBatch";
@@ -28,8 +29,7 @@ export class SceneCanvasLayer extends Layer<TSceneCanvasLayerProps> {
 
   /** The world rectangle the camera shows; screen = world × scale + camera offset. */
   public getWorldViewport(): TTileRect {
-    const { x, y, width, height, scale } = this.props.graph.cameraService.getCameraState();
-    return { minX: -x / scale, minY: -y / scale, maxX: (width - x) / scale, maxY: (height - y) / scale };
+    return cameraWorldViewport(this.props.graph.cameraService.getCameraState(), this.getDRP());
   }
 
   public drawScene(viewport: TTileRect = this.getWorldViewport()): void {

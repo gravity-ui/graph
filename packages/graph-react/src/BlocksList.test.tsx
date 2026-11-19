@@ -12,6 +12,69 @@ class SchematicHitBlock extends CanvasBlock {
 }
 
 describe("BlocksList", () => {
+  it("keeps the graph visible during a suspended handover and commits the current entity on re-entry", async () => {
+    const block = { is: "Block", id: "a", name: "old", x: 0, y: 0, width: 100, height: 60, anchors: [] };
+    const graph = new Graph({ blocks: [block] });
+    const root = document.createElement("div");
+    document.body.appendChild(root);
+    graph.attach(root);
+    graph.start();
+    graph.cameraService.set({ scale: 0.5, width: 800, height: 600 });
+    const frames = () => {
+      for (let i = 0; i < 3; i++) act(() => graph.scheduler.performUpdate());
+    };
+    frames();
+    let ready = false;
+    let release!: () => void;
+    const loading = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const mounted: string[] = [];
+    function Card({ name }: { name: string }) {
+      React.useEffect(() => {
+        mounted.push(name);
+      }, [name]);
+      if (!ready) throw loading;
+      return <button>{name}</button>;
+    }
+    const { queryByTestId, getByRole, unmount } = render(
+      <React.Suspense fallback={<span data-testid="fallback" />}>
+        <BlocksList graphObject={graph} renderBlock={(_, current) => <Card name={current.name} />} />
+      </React.Suspense>
+    );
+    act(() => graph.cameraService.set({ scale: 0.8 }));
+    frames();
+    expect(queryByTestId("fallback")).toBeNull();
+    act(() => graph.cameraService.set({ scale: 0.5 }));
+    frames();
+    act(() => graph.setEntities({ blocks: [] }));
+    frames();
+    act(() => graph.setEntities({ blocks: [{ ...block, name: "new" }] }));
+    act(() => graph.cameraService.set({ scale: 0.8 }));
+    frames();
+    await act(async () => {
+      ready = true;
+      release();
+      await loading;
+    });
+    const button = getByRole("button");
+    expect(button.textContent).toBe("new");
+    expect(mounted).toEqual(["new"]);
+    frames();
+    button.focus();
+    act(() => {
+      graph.setEntities({ blocks: [] });
+      graph.setEntities({ blocks: [{ ...block, name: "replacement" }] });
+    });
+    frames();
+    expect(getByRole("button")).toBe(button);
+    expect(button.textContent).toBe("replacement");
+    expect(document.activeElement).toBe(button);
+    unmount();
+    graph.unmount();
+    root.remove();
+  });
+
   it("renders the HTML of a block whose class is not hit on the detailed level: hits do not decide HTML", () => {
     const graph = new Graph({
       blocks: [{ is: "SchematicHit", id: "b1", name: "b1", x: 0, y: 0, width: 100, height: 60, anchors: [] }],

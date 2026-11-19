@@ -183,6 +183,62 @@ describe("Layer resources and lifecycle", () => {
     layer.detachLayer();
   });
 
+  it("presents HTML at the camera drawn by the scene and coalesces later camera commits", () => {
+    const layer = new Layer({
+      graph,
+      camera: graph.cameraService,
+      html: { zIndex: 1, transformByCameraPosition: true },
+    });
+    graph.cameraService.set({ x: 20, y: 10, scale: 1 });
+    const stop = graph.scene.onFrameEnd(() => graph.cameraService.set({ x: 30 }));
+    layer.attachLayer(root);
+    const html = layer.getHTML();
+    graph.cameraService.set({ x: 21 });
+    graph.cameraService.set({ x: 22 });
+    expect(graph.$camera.peek().x).toBe(22);
+    expect(html?.style.transform).toBe("matrix(1, 0, 0, 1, 20, 10)");
+
+    graph.scene.update();
+    expect(graph.$camera.peek().x).toBe(30);
+    expect(html?.style.transform).toBe("matrix(1, 0, 0, 1, 22, 10)");
+    stop();
+    graph.scene.update();
+    expect(html?.style.transform).toBe("matrix(1, 0, 0, 1, 30, 10)");
+    layer.detachLayer();
+  });
+
+  it("attaches HTML at the presented pose when input arrives after the last draw", () => {
+    graph.cameraService.set({ x: 8, scale: 1 });
+    graph.scene.update();
+    graph.cameraService.move(4, 0);
+    const layer = new Layer({
+      graph,
+      camera: graph.cameraService,
+      html: { zIndex: 1, transformByCameraPosition: true },
+    });
+    layer.attachLayer(root);
+    expect(layer.getHTML()?.style.transform).toBe("matrix(1, 0, 0, 1, 8, 0)");
+    graph.scene.update();
+    expect(layer.getHTML()?.style.transform).toBe("matrix(1, 0, 0, 1, 12, 0)");
+    layer.detachLayer();
+  });
+
+  it("aligns the HTML over Canvas2D to backing pixels and follows a DPR change at rest", () => {
+    const layer = new Layer({
+      graph,
+      camera: graph.cameraService,
+      html: { zIndex: 1, transformByCameraPosition: true },
+    });
+    layer.attachLayer(root);
+    graph.cameraService.set({ x: 1.4, y: -1.4, scale: 0.75 });
+    graph.scene.update();
+    expect(layer.getHTML()?.style.transform).toBe("matrix(0.75, 0, 0, 0.75, 1, -1)");
+    graph.layers.rootSize.value = { width: 300, height: 200, dpr: 2 };
+    graph.scene.update();
+    expect(layer.getHTML()?.style.transform).toBe("matrix(0.75, 0, 0, 0.75, 1.5, -1.5)");
+    layer.detachLayer();
+  });
+
   it("clears pending movement and restores activation after camera changes while detached", () => {
     const layer = new Layer({
       graph,

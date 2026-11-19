@@ -46,7 +46,7 @@ The temporary branch and release process is documented separately in
 - Scene text sizes are numbers: replace a text `size: { px, minWorld, maxWorld }` with `size: px, cameraAware: {
   minWorld, maxWorld }` (see [Text, primitives and ports](#text-primitives-and-ports)). The `{ world, minPx, maxPx }`
   text form and `TSceneTextSize` are gone; `TSceneSize` keeps both forms for stroke and border widths.
-- `BlockConnection` subclasses: move paths and shapes to `static geometry` or a `Path2DLine` subclass, styles and batch groups to the line class (`static line`), and expect connection hits within half the stroke width plus `THRESHOLD_LINE_HIT` (see [Connection lines and geometry](#connection-lines-and-geometry)).
+- `BlockConnection` subclasses: move shared shapes to `static geometry` and Canvas-specific paths to a `SceneLine` subclass, styles and batch groups to the line class (`static line`), and expect connection hits within half the stroke width plus `THRESHOLD_LINE_HIT` (see [Connection lines and geometry](#connection-lines-and-geometry)).
 
 ## React package boundary
 
@@ -1675,21 +1675,28 @@ pre-releases:
 
 ## Connection lines and geometry
 
-`BlockConnection` has no renderer methods. The look of a connection moves to a line class (`static line`), its shape
-to a geometry function (`static geometry`); the component keeps data, state, interaction, the z-level and the label.
-Set `renderer: "webgl"` to switch the whole scene to WebGL. `WebGLLine` configures the stroke and effects.
-The built-in lines, arrows and labels share scene order. A custom Canvas painter still uses the GraphLayer canvas.
-Read `graph.scene.$renderer` for renderer state. The experimental `getWebGLConnectionsStats()` and
+`BlockConnection` uses `SceneLine` by default. Describe the shape with `static geometry` and the look with a
+`getStroke()` override on a `SceneLine` subclass. Set `renderer: "webgl"` or switch a running graph with
+`graph.scene.setRenderer("canvas")`. The same connection and line class work in both scene renderers. Its shaft,
+arrow and labels share scene order. Canvas-specific path or paint hooks draw through the GraphLayer Canvas batch.
+
+If you used the experimental connection API, replace imports of `Path2DLine` and `WebGLLine` with `SceneLine`,
+and `TWebGLStroke` with `TSceneLineStroke`. Remove a `static line` assignment that only selected one of the old
+classes. Keep the assignment when it installs your own line subclass. A subclass that only overrides `getStroke()`
+now works in both scene renderers, including when it previously extended the Canvas-specific class.
+
+The experimental line class's static `renderer` field is gone. Read `graph.scene.$renderer` for the graph's
+active renderer, including WebGL loading and recovery states. The experimental `getWebGLConnectionsStats()` and
 `resetWebGLConnectionsStats()` exports were retired with the separate connection renderer.
 See [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md) for the API.
 
 | Before | After |
 |---|---|
-| `createPath()` / `createArrowPath()` on the component | A custom `static geometry`, which both line kinds draw, bound and hit-test; or `createPath(geometry)` / `createArrowPath(geometry)` of a `Path2DLine` subclass with `static line = MyLine` |
+| `createPath()` / `createArrowPath()` on the component | A custom `static geometry`, shared by drawing and hit testing in both scene renderers; or `createPath(geometry)` / `createArrowPath(geometry)` of a `SceneLine` subclass with `static line = MyLine` |
 | `getPath()`, `getArrowPath()`, `generatePath()`, `getArrowPoints()` | `getGeometry()`: the segments and the arrow; the line builds and caches its paths |
-| `style(ctx)`, `styleArrow(ctx)`, `setRenderStyles(ctx)` | `style(ctx)` / `styleArrow(ctx)` of a `Path2DLine` subclass |
+| `style(ctx)`, `styleArrow(ctx)`, `setRenderStyles(ctx)` | `style(ctx)` / `styleArrow(ctx)` of a `SceneLine` subclass |
 | `getStrokeColor(state)` | `getStroke(state)` of the line class: color, width and dash |
-| `getClassName(state)` | `getGroup()` of a `Path2DLine` subclass; the default group follows `getStroke()` |
+| `getClassName(state)` | `getGroup()` of a `SceneLine` subclass; the default group follows `getStroke()` |
 | `MultipointConnection` / `BezierMultipointConnection` path overrides | `static geometry = multipointGeometry` / `bezierMultipointGeometry`; the ready classes are `BlockConnection` subclasses with these statics |
 | `collectBBoxPoints()` | Bounds come from the geometry; `getBounds(geometry)` of the line for custom paths; `getAfterRenderBounds()` for what `afterRender()` draws |
 | `onHitBox()` overridden for the line | `hitTest(x, y, threshold)` of the line class; the label hit stays on the component (`hitTestLabel()`) |
@@ -1699,7 +1706,7 @@ See [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md) 
 
 ### Custom shapes
 
-A shape written as a geometry works with both line kinds, and its bounds, arrow and hit test follow it:
+Both scene renderers draw a shape described by `static geometry`. Bounds, arrow placement and hit testing follow the same route.
 
 ```typescript
 // v1
@@ -1734,15 +1741,15 @@ class ZigzagConnection extends BlockConnection {
 }
 ```
 
-A `Path2DLine` subclass draws any Canvas2D shape instead. It keeps the geometry for everything else: the arrow and the
-bounds come from `static geometry` (override `getBounds()` when the path reaches outside it), and hit testing runs on
-your path.
+To keep a Canvas-specific shape, override `SceneLine.createPath(geometry)`. The compatibility batch paints
+the returned path and hit testing uses it. The arrow and bounds still come from `static geometry`. Override
+`getBounds()` if your path extends beyond those bounds.
 
 ```typescript
-import { BlockConnection, Path2DLine } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine } from "@gravity-ui/graph";
 import type { TConnectionGeometry } from "@gravity-ui/graph";
 
-class ZigzagLine extends Path2DLine {
+class ZigzagLine extends SceneLine {
   protected override createPath(geometry: TConnectionGeometry): Path2D {
     const { segments } = geometry;
     const x1 = segments[0];
@@ -1766,7 +1773,7 @@ class ZigzagConnection extends BlockConnection {
 
 ### Styles from data
 
-The stroke is data the line returns, and its default batch group follows it, so no group override is needed:
+Return the colour, width and dash from `getStroke()` once for both renderers.
 
 ```typescript
 // v1
@@ -1784,12 +1791,12 @@ class StatusConnection extends BlockConnection {
 ```
 
 ```typescript
-import { BlockConnection, Path2DLine } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine } from "@gravity-ui/graph";
 import type { TBaseConnectionState, TConnection, TLineStroke } from "@gravity-ui/graph";
 
 type TStatusConnection = TConnection & { status?: "ok" | "failed" };
 
-class StatusLine extends Path2DLine {
+class StatusLine extends SceneLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
     const { status } = state as Partial<TStatusConnection>;
     // withInteraction() applies hover and selection: the selected color, 2 units wider; the dash stays.
@@ -1802,10 +1809,9 @@ class StatusConnection extends BlockConnection<TStatusConnection> {
 }
 ```
 
-`withInteraction()` keeps hover and selection as they were: the selected color and 2 more units of width on top of
-your look, which keeps its dash. The same `getStroke()` on a `WebGLLine` subclass draws the same look with WebGL; a
-line with an effect gets its own color back there and the effect shows the selection (see
-[Hover and selection in effects](../connections/webgl-connections.md#hover-and-selection-in-effects)).
+`withInteraction()` adds 2 units of width for hover or selection and supplies the selection color while retaining
+your dash. A WebGL shader effect receives the base stroke color and can use `f.selected` to draw its selection.
+See [Hover and selection in effects](../connections/webgl-connections.md#hover-and-selection-in-effects).
 `style()` stays for what a stroke cannot say (gradients, shadows, fills); a `style()` that reads more than
 `getStroke()` overrides `getGroup()` as well.
 
@@ -1817,7 +1823,7 @@ line with an effect gets its own color back there and the effect shows the selec
 - Supply both endpoints, even for a route with explicit `points`. The connection becomes visible and hittable
   once both ports and their delegates resolve. Delegating one end replaces the corresponding end of the rendered
   route with the delegate position. Stored points remain available when the delegation ends.
-- The default `Path2DLine` strokes the closed triangle at the end with the line's width (v1 used width 1).
+- The default `SceneLine` strokes the closed triangle at the end with the line's width (v1 used width 1).
 - The built-in `labels` use the scene's `label` and `labelBackground` parts with both renderers. Connections that
   use the Canvas compatibility batch draw those labels through `afterRender()`.
 
@@ -1851,7 +1857,7 @@ class FlagConnection extends BlockConnection {
 }
 ```
 
-Hit testing has one rule for both line kinds: a point hits within `stroke.width / 2 + THRESHOLD_LINE_HIT` world units
+Hit testing has one rule in both scene renderers: a point hits within `stroke.width / 2 + THRESHOLD_LINE_HIT` world units
 of the drawn line (9 for a 2-unit line with the default `THRESHOLD_LINE_HIT = 8`, 10 hovered or selected). In v1 it
 was 8 world units from the center, whatever the width. The arrow is part of the hit area while it is shown; label hits
 are unchanged. The hit box follows the rule: it covers the line, the arrow and the label, padded by
@@ -1868,7 +1874,7 @@ one development-build warning per class, and the method is not called. For examp
 
 ```text
 [@gravity-ui/graph] StatusConnection overrides style, getClassName, which BlockConnection no longer calls.
-Move them: style → style() / styleArrow() of a Path2DLine subclass; getClassName → getGroup() of a Path2DLine
+Move them: style → style() / styleArrow() of a SceneLine subclass; getClassName → getGroup() of a SceneLine
 subclass. See the v2 migration guide, "Connection lines and geometry".
 ```
 

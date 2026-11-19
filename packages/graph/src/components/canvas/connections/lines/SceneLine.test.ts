@@ -7,8 +7,8 @@ import { bezierSegment, blockGeometry, lineSegment, multipointGeometry } from ".
 import type { TConnectionGeometry } from "../geometry";
 import { createEncodedChunk, encodeShapes } from "../webgl/encode";
 
-import { WebGLLine } from "./WebGLLine";
-import type { TWebGLStroke } from "./WebGLLine";
+import { SceneLine } from "./SceneLine";
+import type { TSceneLineStroke } from "./SceneLine";
 import type { TWebGLShape } from "./types";
 
 class RecordingBatch implements IConnectionBatch {
@@ -59,6 +59,7 @@ function stubConnection(
     },
     state: { id: "c", ...state },
     props,
+    getSceneKey: () => undefined,
     getGeometry: () => geometry,
     getBatchZIndex: () => 0,
     isPathVisible: () => true,
@@ -96,11 +97,10 @@ const bezierGeometry: TConnectionGeometry = {
 
 const noArrows = { showConnectionArrows: false };
 
-describe("WebGLLine", () => {
-  it("is a webgl line with Path2D style groups for the fallback", () => {
-    expect(WebGLLine.renderer).toBe("webgl");
+describe("SceneLine", () => {
+  it("builds Path2D style groups for the Canvas batch", () => {
     const { connection, batch } = stubConnection(straight);
-    const line = new WebGLLine(connection);
+    const line = new SceneLine(connection);
     line.update();
     expect(batch.items.get(line)).toEqual({ zIndex: 0, group: "line/#aaa/2/" });
     expect(batch.items.get(line.arrow)?.group).toBe("arrow/open/#aaa/2//line/#aaa/2/");
@@ -108,7 +108,7 @@ describe("WebGLLine", () => {
 
   describe("hitTest", () => {
     it("hits within width / 2 + threshold on a straight line and misses beyond", () => {
-      const line = new WebGLLine(stubConnection(straight, {}, noArrows).connection);
+      const line = new SceneLine(stubConnection(straight, {}, noArrows).connection);
       expect(line.hitTest(50, 8.9, 8)).toBe(true);
       expect(line.hitTest(50, -9, 8)).toBe(true);
       expect(line.hitTest(50, 9.1, 8)).toBe(false);
@@ -116,13 +116,13 @@ describe("WebGLLine", () => {
     });
 
     it("widens the hit by half the hovered width", () => {
-      const line = new WebGLLine(stubConnection(straight, { hovered: true }, noArrows).connection);
+      const line = new SceneLine(stubConnection(straight, { hovered: true }, noArrows).connection);
       expect(line.hitTest(50, 9.9, 8)).toBe(true);
       expect(line.hitTest(50, 10.1, 8)).toBe(false);
     });
 
     it("hits within the limit of a bezier and misses beyond", () => {
-      const line = new WebGLLine(stubConnection(bezierGeometry, {}, { showConnectionArrows: false }).connection);
+      const line = new SceneLine(stubConnection(bezierGeometry, {}, { showConnectionArrows: false }).connection);
       // (0, 0) is the curve's start.
       expect(line.hitTest(0, 8.5, 8)).toBe(true);
       expect(line.hitTest(0, 9.5, 8)).toBe(false);
@@ -140,41 +140,29 @@ describe("WebGLLine", () => {
         arrow: { points: arrow.points.map((v, i) => (i % 2 ? v + 300 : v)), closed: arrow.closed },
       };
       const tip = { x: away.arrow?.points[0] ?? 0, y: away.arrow?.points[1] ?? 0 };
-      expect(new WebGLLine(stubConnection(away).connection).hitTest(tip.x, tip.y, 8)).toBe(true);
-      expect(new WebGLLine(stubConnection(away, {}, noArrows).connection).hitTest(tip.x, tip.y, 8)).toBe(false);
-      expect(new WebGLLine(stubConnection(away).connection).hitTest(tip.x, tip.y + 100, 8)).toBe(false);
+      expect(new SceneLine(stubConnection(away).connection).hitTest(tip.x, tip.y, 8)).toBe(true);
+      expect(new SceneLine(stubConnection(away, {}, noArrows).connection).hitTest(tip.x, tip.y, 8)).toBe(false);
+      expect(new SceneLine(stubConnection(away).connection).hitTest(tip.x, tip.y + 100, 8)).toBe(false);
     });
 
     it("returns false without geometry", () => {
-      expect(new WebGLLine(stubConnection(undefined).connection).hitTest(0, 0, 8)).toBe(false);
+      expect(new SceneLine(stubConnection(undefined).connection).hitTest(0, 0, 8)).toBe(false);
     });
   });
 
-  describe("getWebGLShape", () => {
-    it("returns the geometry segments and the stroke of the line", () => {
+  describe("getSceneShape", () => {
+    it("uses the shared shaft stroke directly when it has no effect", () => {
       const { connection } = stubConnection(straight);
-      const line = new WebGLLine(connection);
+      const line = new SceneLine(connection);
       line.update();
-      const shape = line.getWebGLShape();
-      expect(shape?.segments).toBe(straight.segments);
-      expect(shape?.stroke).toEqual({ color: "#aaa", width: 2, dash: undefined });
-      expect(line.getWebGLShape()).toBe(shape);
-    });
-
-    it("rebuilds the shape after update() with a new stroke", () => {
-      const { connection } = stubConnection(straight);
-      const line = new WebGLLine(connection);
-      line.update();
-      const before = line.getWebGLShape();
-      (connection.state as { hovered?: boolean }).hovered = true;
-      line.update();
-      const after = line.getWebGLShape();
-      expect(after).not.toBe(before);
-      expect(after?.stroke.width).toBe(4);
+      expect(line.getSceneShape()).toBeUndefined();
+      expect(line.getSceneStrokes().shaft).toEqual({ color: "#aaa", width: 2, dash: undefined });
+      line.update({ id: "c", hovered: true });
+      expect(line.getSceneStrokes().shaft.width).toBe(4);
     });
 
     it("has no WebGL shape without geometry", () => {
-      expect(new WebGLLine(stubConnection(undefined).connection).getWebGLShape()).toBeUndefined();
+      expect(new SceneLine(stubConnection(undefined).connection).getSceneShape()).toBeUndefined();
     });
   });
 
@@ -189,9 +177,9 @@ describe("WebGLLine", () => {
         }
       };
       const { connection } = stubConnection(closedArrowGeometry);
-      const line = new WebGLLine(connection);
+      const line = new SceneLine(connection);
       line.update();
-      line.getWebGLShape();
+      line.getSceneShape();
       line.hitTest(1, 1, 8);
       expect(countPath2D).not.toHaveBeenCalled();
 
@@ -205,7 +193,7 @@ describe("WebGLLine", () => {
 
     it("applies the stroke in style() and styleArrow()", () => {
       const closed = stubConnection(closedArrowGeometry, { dashed: true });
-      const line = new WebGLLine(closed.connection);
+      const line = new SceneLine(closed.connection);
       line.update();
       expect(line.style(closed.ctx)).toEqual({ type: "stroke" });
       expect(closed.ctx.strokeStyle).toBe("#aaaaaa");
@@ -224,8 +212,8 @@ describe("WebGLLine", () => {
       },
     });
 
-    class EffectLine extends WebGLLine {
-      public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+    class EffectLine extends SceneLine {
+      public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TSceneLineStroke {
         return { ...super.getStroke(state), effect: pulse.use(3) };
       }
     }
@@ -233,14 +221,14 @@ describe("WebGLLine", () => {
     it("passes the effect and params into the line shape", () => {
       const line = new EffectLine(stubConnection(closedArrowGeometry).connection);
       line.update();
-      const shape = line.getWebGLShape();
+      const shape = line.getSceneShape();
       expect(shape?.effect).toBe(toConnectionEffect(pulse as never));
       expect(shape?.params).toEqual([3]);
     });
 
     it("keeps the effect on hover and selection", () => {
-      class SelectedEffectLine extends WebGLLine {
-        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+      class SelectedEffectLine extends SceneLine {
+        public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TSceneLineStroke {
           return this.withInteraction({ color: "#2f7cf6", width: 6, effect: pulse.use(3) }, state);
         }
       }
@@ -248,7 +236,7 @@ describe("WebGLLine", () => {
       const stroke = selected.getStroke({ id: "c", selected: true });
       expect(stroke).toMatchObject({ color: "#fc0", width: 8, effect: { params: [3] } });
       selected.update();
-      expect(selected.getWebGLShape()?.effect).toBe(toConnectionEffect(pulse as never));
+      expect(selected.getSceneShape()?.effect).toBe(toConnectionEffect(pulse as never));
     });
 
     it("draws and groups the Path2D fallback with the fallback stroke", () => {
@@ -260,7 +248,7 @@ describe("WebGLLine", () => {
       expect(ctx.lineWidth).toBe(5);
 
       const plain = stubConnection(straight, {}, noArrows);
-      const other = new WebGLLine(plain.connection);
+      const other = new SceneLine(plain.connection);
       other.update();
       expect(plain.batch.items.get(other)?.group).not.toBe(batch.items.get(line)?.group);
     });
@@ -269,8 +257,8 @@ describe("WebGLLine", () => {
       const { connection, batch, ctx } = stubConnection(straight, { selected: true }, noArrows);
       let scale = 0.25;
       jest.spyOn(connection.context.camera, "getCameraScale").mockImplementation(() => scale);
-      class ScopedLine extends WebGLLine {
-        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+      class ScopedLine extends SceneLine {
+        public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TSceneLineStroke {
           return this.withInteraction(
             { color: "#2f7cf6", width: 6, effect: pulse.use(3, { minScale: 0.5, maxScale: 1 }) },
             state
@@ -299,8 +287,8 @@ describe("WebGLLine", () => {
     it("separates compatibility Canvas groups that disagree on effect activity or the plain stroke", () => {
       const group = (minScale: number, width: number, params: number): string | undefined => {
         const { connection, batch } = stubConnection(straight, {}, noArrows);
-        class ScopedLine extends WebGLLine {
-          public override getStroke(): TWebGLStroke {
+        class ScopedLine extends SceneLine {
+          public override getStroke(): TSceneLineStroke {
             return { color: "#aaa", width, effect: pulse.use(params, { minScale }) };
           }
         }
@@ -316,8 +304,8 @@ describe("WebGLLine", () => {
       const bare = defineConnectionEffect({
         fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
       });
-      class BareLine extends WebGLLine {
-        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+      class BareLine extends SceneLine {
+        public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TSceneLineStroke {
           return { ...super.getStroke(state), effect: bare.use([]) };
         }
       }
@@ -339,9 +327,9 @@ describe("WebGLLine", () => {
     });
 
     /** A custom look built with withInteraction(): blue, 6 wide, with the effect when one is given. */
-    function lookLine(effect?: typeof flow): new (connection: BlockConnection<TConnection>) => WebGLLine {
-      return class LookLine extends WebGLLine {
-        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+    function lookLine(effect?: typeof flow): new (connection: BlockConnection<TConnection>) => SceneLine {
+      return class LookLine extends SceneLine {
+        public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TSceneLineStroke {
           const look = { color: "#2f7cf6", width: 6 };
           return this.withInteraction(effect ? { ...look, effect: effect.use([]) } : look, state);
         }
@@ -349,16 +337,16 @@ describe("WebGLLine", () => {
     }
 
     /** The default stroke with an effect added afterwards. */
-    class AddedEffectLine extends WebGLLine {
-      public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+    class AddedEffectLine extends SceneLine {
+      public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TSceneLineStroke {
         return { ...super.getStroke(state), effect: dashFlow.use({ pattern: [40, 30], speed: 120 }) };
       }
     }
 
     /** Handles hover and selection itself: red while selected, blue otherwise; no withInteraction(). */
-    function ownLook(effect?: typeof flow): new (connection: BlockConnection<TConnection>) => WebGLLine {
-      return class OwnLookLine extends WebGLLine {
-        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+    function ownLook(effect?: typeof flow): new (connection: BlockConnection<TConnection>) => SceneLine {
+      return class OwnLookLine extends SceneLine {
+        public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TSceneLineStroke {
           const look = { color: state.selected ? "#f00" : "#00f", width: 2 };
           return effect ? { ...look, effect: effect.use([]) } : look;
         }
@@ -384,7 +372,7 @@ describe("WebGLLine", () => {
       (hovered ? 1 : 0) + (selected ? 2 : 0) + 4 * 255 + (effectShows ? 1024 : 0);
 
     it("withInteraction() recolors like ConnectionLine: the selection color and 2 units wider", () => {
-      const look = (stroke: TWebGLStroke): [string, number, boolean] => [
+      const look = (stroke: TSceneLineStroke): [string, number, boolean] => [
         stroke.color,
         stroke.width,
         Boolean(stroke.effect),
@@ -395,23 +383,20 @@ describe("WebGLLine", () => {
       expect(look(effectLine.getStroke({ id: "c", selected: true }))).toEqual(["#fc0", 8, true]);
       const plainLine = new PlainLook(stubConnection(straight).connection);
       expect(look(plainLine.getStroke({ id: "c", selected: true }))).toEqual(["#fc0", 8, false]);
-      const line = new WebGLLine(stubConnection(straight).connection);
+      const line = new SceneLine(stubConnection(straight).connection);
       expect(look(line.getStroke({ id: "c", selected: true }))).toEqual(["#fc0", 4, false]);
     });
 
     it("draws a line without an effect as its stroke: the selection color comes from withInteraction()", () => {
-      const line = new WebGLLine(stubConnection(straight, { selected: true }).connection);
+      const line = new SceneLine(stubConnection(straight, { selected: true }).connection);
       line.update();
-      expect(line.getWebGLShape()?.stroke).toEqual({ color: "#fc0", width: 4, dash: undefined });
-      expect(encoded(line.getWebGLShape())).toEqual({ rgba: [255, 204, 0, 1], packed: packed(false, true) });
-      // The mark of withInteraction() stays on the stroke it returns, not on what the batches draw.
-      expect(Object.getOwnPropertySymbols(line.getStroke({ id: "c", selected: true }))).toHaveLength(1);
-      expect(Object.getOwnPropertySymbols(line.getWebGLShape()?.stroke ?? {})).toEqual([]);
+      expect(line.getSceneShape()).toBeUndefined();
+      expect(line.getSceneStrokes().shaft).toEqual({ color: "#fc0", width: 4, dash: undefined });
 
       const styles = { selectedBackground: "rgba(255, 0, 0, 0.5)" };
       const styled = new PlainLook(stubConnection(straight, { selected: true, styles }).connection);
       styled.update();
-      expect(encoded(styled.getWebGLShape()).rgba).toEqual([255, 0, 0, 0.5]);
+      expect(styled.getSceneStrokes().shaft.color).toBe(styles.selectedBackground);
     });
 
     it("gives an effect the line's own color in place of the selection color withInteraction() applied", () => {
@@ -419,7 +404,7 @@ describe("WebGLLine", () => {
         const selected = stubConnection(closedArrowGeometry, { selected: true });
         const line = new Line(selected.connection);
         line.update();
-        const shape = line.getWebGLShape();
+        const shape = line.getSceneShape();
         const own = Line === EffectLook ? "#2f7cf6" : "#aaa";
         expect(shape?.stroke.color).toBe(own);
         expect(shape?.effectShowsSelection).toBe(true);
@@ -433,14 +418,14 @@ describe("WebGLLine", () => {
 
       const hovered = new AddedEffectLine(stubConnection(straight, { hovered: true }, noArrows).connection);
       hovered.update();
-      expect(hovered.getWebGLShape()?.stroke.color).toBe("#aaa");
-      expect(hovered.getWebGLShape()?.effectShowsSelection).toBeUndefined();
-      expect(encoded(hovered.getWebGLShape()).packed).toBe(packed(true, false));
+      expect(hovered.getSceneShape()?.stroke.color).toBe("#aaa");
+      expect(hovered.getSceneShape()?.effectShowsSelection).toBeUndefined();
+      expect(encoded(hovered.getSceneShape()).packed).toBe(packed(true, false));
     });
 
     it("keeps a color set over withInteraction() for an effect: drawn as returned", () => {
-      class OverriddenLine extends WebGLLine {
-        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+      class OverriddenLine extends SceneLine {
+        public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TSceneLineStroke {
           const stroke = { ...super.getStroke(state), effect: flow.use([]) };
           return state.selected ? { ...stroke, color: "#e5484d" } : stroke;
         }
@@ -448,8 +433,8 @@ describe("WebGLLine", () => {
       const selected = stubConnection(closedArrowGeometry, { selected: true });
       const line = new OverriddenLine(selected.connection);
       line.update();
-      expect(line.getWebGLShape()?.stroke.color).toBe("#e5484d");
-      expect(line.getWebGLShape()?.effectShowsSelection).toBeUndefined();
+      expect(line.getSceneShape()?.stroke.color).toBe("#e5484d");
+      expect(line.getSceneShape()?.effectShowsSelection).toBeUndefined();
       expect(line.getSceneStrokes().arrow?.color).toBe("#e5484d");
     });
 
@@ -457,14 +442,14 @@ describe("WebGLLine", () => {
       const selected = stubConnection(closedArrowGeometry, { selected: true });
       const line = new (ownLook())(selected.connection);
       line.update();
-      expect(line.getWebGLShape()?.stroke).toEqual({ color: "#f00", width: 2 });
+      expect(line.getSceneStrokes().shaft).toEqual({ color: "#f00", width: 2 });
       expect(line.getSceneStrokes().arrow).toEqual({ color: "#f00", width: 2 });
       expect(selected.batch.items.get(line)?.group).toBe("line/#f00/2/");
 
       const withEffect = stubConnection(closedArrowGeometry, { selected: true });
       const effectLine = new (ownLook(widen as unknown as typeof flow))(withEffect.connection);
       effectLine.update();
-      const shape = effectLine.getWebGLShape();
+      const shape = effectLine.getSceneShape();
       expect(shape?.stroke).toEqual({ color: "#f00", width: 2 });
       expect(shape?.effectShowsSelection).toBeUndefined();
       expect(shape?.interaction).toEqual({ hovered: false, selected: true, selectionColor: "#fc0" });
@@ -477,40 +462,40 @@ describe("WebGLLine", () => {
       const { connection } = stubConnection(closedArrowGeometry);
       const line = new EffectLook(connection);
       line.update();
-      expect(line.getWebGLShape()?.interaction).toEqual({ hovered: false, selected: false, selectionColor: "#fc0" });
+      expect(line.getSceneShape()?.interaction).toEqual({ hovered: false, selected: false, selectionColor: "#fc0" });
 
       // The state passed to update(), not the connection's.
       const selectedBackground = "rgba(255, 0, 0, 0.5)";
       line.update({ id: "c", hovered: true, selected: true, styles: { selectedBackground } }, connection.props);
-      expect(line.getWebGLShape()?.interaction).toEqual({
+      expect(line.getSceneShape()?.interaction).toEqual({
         hovered: true,
         selected: true,
         selectionColor: selectedBackground,
       });
-      expect(line.getWebGLShape()?.stroke.color).toBe("#2f7cf6");
+      expect(line.getSceneShape()?.stroke.color).toBe("#2f7cf6");
     });
 
     it("rebuilds the shape when only the interaction changes", () => {
-      const stroke: TWebGLStroke = { color: "#2f7cf6", width: 6, effect: flow.use([]) };
-      class FixedLine extends WebGLLine {
-        public override getStroke(): TWebGLStroke {
+      const stroke: TSceneLineStroke = { color: "#2f7cf6", width: 6, effect: flow.use([]) };
+      class FixedLine extends SceneLine {
+        public override getStroke(): TSceneLineStroke {
           return stroke;
         }
       }
       const { connection } = stubConnection(straight, {}, noArrows);
       const line = new FixedLine(connection);
       line.update();
-      const before = line.getWebGLShape();
-      expect(line.getWebGLShape()).toBe(before);
+      const before = line.getSceneShape();
+      expect(line.getSceneShape()).toBe(before);
       line.update({ id: "c", selected: true }, connection.props);
-      const after = line.getWebGLShape();
+      const after = line.getSceneShape();
       expect(after).not.toBe(before);
       expect(after?.interaction?.selected).toBe(true);
     });
 
     it("draws the Path2D fallback of a selected effect line from its stroke, with the fallback's width", () => {
-      class WidenLine extends WebGLLine {
-        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+      class WidenLine extends SceneLine {
+        public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TSceneLineStroke {
           return this.withInteraction({ color: "#2f7cf6", width: 6, effect: widen.use(3) }, state);
         }
       }

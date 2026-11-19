@@ -26,6 +26,19 @@ describe("largestSize", () => {
 });
 
 describe("geometryBounds", () => {
+  it("includes closed joins in the overlap bounds and the device-dependent AA fringe", () => {
+    const path: TScenePrimitive = {
+      kind: "path",
+      closed: true,
+      segments: new Float32Array([0, 0, 3, 0, 6, 0, 9, 0, 9, 0, 6, 0, 3, 0, 0, 0]),
+      stroke: { width: 2 },
+    };
+    const bounds = new CachedGeometryBounds([path]);
+    expect(geometryBounds([path])).toEqual(box(-10, -10, 19, 10));
+    expect(bounds.at(() => 1)).toEqual(geometryBounds([path]));
+    expect(bounds.at(() => 1, 2)).toEqual(box(-15, -15, 24, 15));
+  });
+
   it("keeps cached hulls identical to geometry bounds as camera-aware widths and halos change", () => {
     const glow = defineConnectionEffect({
       extraWidth: 6,

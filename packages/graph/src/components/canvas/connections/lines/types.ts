@@ -14,11 +14,9 @@ export type TLineStroke = { color: string; width: number; dash?: { pattern: read
 /**
  * A line class for `static line`. A static member cannot refer to the instance type, so the connection type is checked
  * on the line class's side: the parameter is `never`, which accepts a line typed for a connection subclass
- * (`class MyLine extends Path2DLine<MyConnection>`). The connection passes itself when it creates the line.
+ * (`class MyLine extends SceneLine<MyConnection>`). The connection passes itself when it creates the line.
  */
-export type TConnectionLineClass = (new (connection: never) => ConnectionLine) & {
-  readonly renderer: TConnectionsRenderer;
-};
+export type TConnectionLineClass = new (connection: never) => ConnectionLine;
 
 /**
  * Hover and selection of the connection a line draws (internal): what an effect reads as `f.hovered`, `f.selected` and

@@ -141,12 +141,7 @@ constructor(props: LayerProps) {
 
 ### Camera Transformation
 
-- HTML elements with `transformByCameraPosition: true` are transformed using a matrix transform based on camera state:
-```typescript
-this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
-```
-- This transformation is applied directly in the `afterInit()` method when the `transformByCameraPosition` option is set to `true`.
-- **IMPORTANT**: The camera state subscription is set up in the `afterInit()` method to ensure it's properly reestablished when a layer is reattached.
+Camera-transformed HTML uses the position and scale drawn by the scene in that graph frame. If several input events arrive between frames, the layer applies one CSS matrix. HTML over WebGL uses the fractional camera position. HTML over Canvas2D uses the same translation snapped to the nearest physical pixel as the canvas, including during WebGL fallback.
 
 ### React Integration
 
@@ -204,7 +199,7 @@ export class MyLayer extends Layer<MyLayerProps, MyLayerContext> {
 
   // `afterInit` is called after the layer's elements (canvas/html) are created and attached.
   protected afterInit() {
-    // Base Layer applies transforms and calls onCameraChange() on $camera updates
+    // The hook receives each committed camera update. The layer presents it during the graph frame.
     super.afterInit();
   }
 
@@ -257,8 +252,8 @@ The `Layer` class provides tools to handle rendering correctly with camera trans
     - Set to `false` only if you need explicit manual control over pixel scaling.
 
 - **`transformByCameraPosition`** (`LayerProps.canvas.transformByCameraPosition` / `LayerProps.html.transformByCameraPosition`, default: `false`):
-    - **For Canvas:** When `true`, the `resetTransform()` method automatically applies the current camera translation (`x`, `y`) and `scale` to the canvas context (`ctx`). This means your subsequent drawing operations in the `render` method should use world coordinates.
-    - **For HTML:** When `true`, the HTML element gets the `layer-with-camera` class, and its CSS `transform: matrix(...)` is automatically updated on camera changes to match the camera's position and scale.
+    - **For Canvas:** When `true`, the `resetTransform()` method automatically applies the camera translation snapped to physical pixels and the current `scale` to the canvas context (`ctx`). This means your subsequent drawing operations in the `render` method should use world coordinates.
+    - **For HTML:** When `true`, the HTML element gets the `layer-with-camera` class and follows the position and scale presented by the scene.
 
 - **`resetTransform()`**:
     - Call this at the beginning of your canvas `render` method.

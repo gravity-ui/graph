@@ -7,7 +7,7 @@ import type { TScenePartStyle, TScenePrimitive, TSceneStroke, TSceneStyle } from
 type TPaintSlot = "border" | "fill" | "color" | "stroke";
 
 /** Which paint a part's colour addresses. */
-function paintSlot(primitive: TScenePrimitive): TPaintSlot {
+function paintSlot(primitive: Exclude<TScenePrimitive, { kind: "sprite" }>): TPaintSlot {
   if (primitive.part === "border" && (primitive.kind === "rect" || primitive.kind === "circle")) return "border";
   switch (primitive.kind) {
     case "rect":
@@ -140,6 +140,8 @@ function mapPaints(primitive: TScenePrimitive, map: (color: string) => string): 
   const stroke = (value: TSceneStroke): TSceneStroke =>
     value.color === undefined ? value : { ...value, color: map(value.color) };
   switch (primitive.kind) {
+    case "sprite":
+      return primitive;
     case "rect":
     case "circle":
       return { ...primitive, fill: paint(primitive.fill), border: primitive.border && stroke(primitive.border) };
@@ -193,8 +195,9 @@ function withPartValues(
   base: Readonly<TScenePartStyle> | undefined,
   override: Readonly<TScenePartStyle> | undefined
 ): TScenePrimitive {
+  if (primitive.kind === "sprite") return primitive;
   const slot = paintSlot(primitive);
-  let result = primitive;
+  let result: TScenePrimitive = primitive;
   if (base?.color !== undefined && currentColor(result, slot) === undefined) {
     result = withColor(result, slot, base.color);
   }
@@ -389,6 +392,7 @@ function withElementValues(
   base: Readonly<TScenePartStyle> | undefined,
   override: Readonly<TScenePartStyle> | undefined
 ): TScenePrimitive {
+  if (primitive.kind === "sprite") return primitive;
   const slot = paintSlot(primitive);
   let result = withWidth(primitive, base?.width, true);
   result = withWidth(result, override?.width, false);

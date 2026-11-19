@@ -1,8 +1,9 @@
 import { INSTANCE_FLOATS } from "../../../components/canvas/connections/webgl/encode";
-import { ALL_LEVELS_MASK, isOnLevel } from "../levels";
+import { isOnLevel, sameLevelVisibility } from "../levels";
 
 import type { TInstanceUpload } from "./InstanceRanges";
 import type { TSceneFrame } from "./backendTypes";
+import { MITER_LIMIT } from "./closedStroke";
 import { PATH_ELEMENT_FLOATS } from "./encodePaths";
 import type { ElementTable } from "./tables";
 
@@ -20,6 +21,8 @@ type TBounds = {
   maxX: number;
   maxY: number;
   pixelHalfWidth: number;
+  /** Multiplier for the hairline and AA fringe at closed miter joins. */
+  joinReach: number;
   untranslated: boolean;
 };
 type TCohort = TBounds & { minScale: number; maxScale: number; mask: number };
@@ -32,6 +35,7 @@ function emptyBounds(): TBounds {
     maxX: -Infinity,
     maxY: -Infinity,
     pixelHalfWidth: 0,
+    joinReach: 1,
     untranslated: true,
   };
 }
@@ -40,6 +44,7 @@ function resetBounds(box: TBounds): void {
   box.minX = box.minY = Infinity;
   box.maxX = box.maxY = -Infinity;
   box.pixelHalfWidth = 0;
+  box.joinReach = 1;
   box.untranslated = true;
 }
 
@@ -60,7 +65,7 @@ export class PathCulling {
   private count = 0;
   private originRevision = -1;
   private level: TSceneFrame["level"];
-  private levelSensitive = false;
+  private readonly levelMasks = new Set<number>();
   private from = Infinity;
   private to = -Infinity;
   private preparedView?: TSceneFrame & { extraWidth: number; curveChords?: 8 };
@@ -82,7 +87,10 @@ export class PathCulling {
     const scale = Math.fround(frame.scale);
     const resized = this.count !== count;
     const reselectAll =
-      this.full || (this.levelSensitive && this.level !== frame.level) || scale < this.from || scale >= this.to;
+      this.full ||
+      !sameLevelVisibility(this.levelMasks, this.level, frame.level) ||
+      scale < this.from ||
+      scale >= this.to;
     this.level = frame.level;
     if (this.full) {
       this.chunks = [];
@@ -140,7 +148,7 @@ export class PathCulling {
   private selectHulls(scale: number): void {
     this.from = -Infinity;
     this.to = Infinity;
-    this.levelSensitive = false;
+    this.levelMasks.clear();
     this.translatedChunks = 0;
     for (const box of this.chunks) this.selectHull(box, scale);
   }
@@ -153,13 +161,14 @@ export class PathCulling {
         if (scale < boundary) this.to = Math.min(this.to, boundary);
         else this.from = Math.max(this.from, boundary);
       }
-      if (cohort.mask !== ALL_LEVELS_MASK) this.levelSensitive = true;
+      this.levelMasks.add(cohort.mask);
       if (scale < cohort.minScale || scale >= cohort.maxScale || !isOnLevel(cohort.mask, this.level)) continue;
       box.minX = Math.min(box.minX, cohort.minX);
       box.minY = Math.min(box.minY, cohort.minY);
       box.maxX = Math.max(box.maxX, cohort.maxX);
       box.maxY = Math.max(box.maxY, cohort.maxY);
       box.pixelHalfWidth = Math.max(box.pixelHalfWidth, cohort.pixelHalfWidth);
+      box.joinReach = Math.max(box.joinReach, cohort.joinReach);
       box.untranslated &&= cohort.untranslated;
     }
     if (!box.untranslated) this.translatedChunks++;
@@ -262,7 +271,7 @@ export class PathCulling {
       const x1 = box.maxX * scale + x;
       const y1 = box.maxY * scale + y;
       // Include float32 evaluation and projection error, even when a large camera offset cancels the world position.
-      const extent = box.pixelHalfWidth + halo + 1.5 / dpr;
+      const extent = box.pixelHalfWidth + halo + (1.5 * box.joinReach) / dpr;
       const rounding =
         (Math.max(Math.abs(x0), Math.abs(y0), Math.abs(x1), Math.abs(y1), Math.abs(x), Math.abs(y), extent) + 1) *
         2 ** -20;
@@ -325,10 +334,16 @@ export class PathCulling {
       }
       const mode = Math.floor(elements[e + 6] / 8);
       // clamp(px / scale, minWorld, maxWorld) <= minWorld + px / scale, likewise for world/minPx.
-      const worldHalfWidth = Math.max(0, mode === 1 ? elements[e + 3] : paths[p + 12]) / 2;
+      let worldHalfWidth = Math.max(0, mode === 1 ? elements[e + 3] : paths[p + 12]) / 2;
       let pixelHalfWidth = 0;
       if (mode === 1) pixelHalfWidth = Math.max(0, paths[p + 12]) / 2;
       else if (mode === 2) pixelHalfWidth = Math.max(0, elements[e + 3]) / 2;
+      if (paths[p + 13] < 0) {
+        const reach = Math.min(MITER_LIMIT, Math.hypot(1, Math.max(Math.abs(paths[p + 14]), Math.abs(paths[p + 15]))));
+        worldHalfWidth *= reach;
+        pixelHalfWidth *= reach;
+        cohort.joinReach = Math.max(cohort.joinReach, reach);
+      }
       cohort.pixelHalfWidth = Math.max(cohort.pixelHalfWidth, pixelHalfWidth);
       for (let point = 0; point < 8; point += 2) {
         const px = Math.fround(paths[p + point] + ox);

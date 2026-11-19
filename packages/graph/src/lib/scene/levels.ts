@@ -28,6 +28,19 @@ export function isOnLevel(mask: number | undefined, level: TSceneLevel | undefin
   return Math.floor(mask / LEVEL_BIT[level]) % 2 === 1;
 }
 
+/** Whether every encountered primitive mask has the same visibility on the two levels. */
+export function sameLevelVisibility(
+  masks: ReadonlySet<number>,
+  before: TSceneLevel | undefined,
+  after: TSceneLevel | undefined
+): boolean {
+  if (before === after) return true;
+  for (const mask of masks) {
+    if (isOnLevel(mask, before) !== isOnLevel(mask, after)) return false;
+  }
+  return true;
+}
+
 /** The levels at least one of the primitives shows on, as a level mask; 0 for no primitives. */
 export function levelMaskOfPrimitives(primitives: readonly TScenePrimitive[]): number {
   let mask = 0;

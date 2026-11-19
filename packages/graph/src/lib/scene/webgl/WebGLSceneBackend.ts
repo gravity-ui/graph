@@ -26,7 +26,7 @@ import type { TTileRect } from "../../culling/TileIndex";
 import type { SceneStore } from "../SceneStore";
 import { readColorRgba } from "../colorAlpha";
 import { LEVEL_BIT, isOnLevel } from "../levels";
-import { bakeElementStyle, connectionEffectId } from "../style";
+import { bakeElementStyle, connectionEffectId, styleOpacity } from "../style";
 import { DEFAULT_TEXT_POLICY, isLayoutValid, layoutText, resolveTextSize } from "../textLayout";
 import type { TTextLayout } from "../textLayout";
 import { peekSceneTextLayout, sceneTextLayout, sceneTextMetrics } from "../textMetrics";
@@ -42,7 +42,7 @@ import type {
   TSceneTextFrame,
 } from "./backendTypes";
 import { CameraTextEpochs } from "./cameraTextEpochs";
-import { coalesceTranslucentRuns, translucentRunOwners } from "./coalesceTranslucent";
+import { TranslucentRefinement, coalesceTranslucentRuns, translucentRunOwners } from "./coalesceTranslucent";
 import { canCoarsenCurves, createCurveBins, partitionCurves } from "./curveTessellation";
 import { SCENE_DEPTH, SceneDepth, movesInDepth } from "./depth";
 import { PATH_ELEMENT_FLOATS, encodePaths } from "./encodePaths";
@@ -55,7 +55,7 @@ import {
   isTranslucentPaint,
   scaleBound,
 } from "./encodeRects";
-import { GLYPH_FLOATS, GLYPH_SUB_FLOATS, encodeText, writeTextGlyphs } from "./encodeText";
+import { GLYPH_FLOATS, GLYPH_SUB_FLOATS, encodeText, isTranslucentText, writeTextGlyphs } from "./encodeText";
 import type { TTextEncodeInput, TTextGlyphPlaces } from "./encodeText";
 import { TRIANGLE_FLOATS, encodeTriangles, isFilledTriangle } from "./encodeTriangles";
 import { GlyphAtlas, glyphRun } from "./glyphs";
@@ -110,8 +110,17 @@ import {
   createPathPlugin,
   createStockPathPlugin,
 } from "./shaders";
+import {
+  SAMPLE_SPRITE,
+  SPRITE_ATTRIBUTES,
+  SPRITE_FLOATS,
+  SPRITE_VERTEX,
+  appendSprite,
+  spriteFragment,
+  visibleSpriteAnimation,
+} from "./sprites";
+import type { TSprite } from "./sprites";
 import { StockCommandGroups } from "./stockCommandGroups";
-import { StockDrawGroups } from "./stockDrawGroups";
 import { orderResidentPathDraws } from "./stockPathOrder";
 import { ElementTable, STYLE_ROW_TEXELS, StyleTable, TABLE_WIDTH } from "./tables";
 import { adoptTexts, planTextEncode, resubGlyphs, textsOf } from "./textEncodes";
@@ -178,7 +187,11 @@ type TBatch = {
   model: Model;
   /** Depth-writing custom effects need a plain program while inactive, sharing the same resident storage. */
   plain?: TInstancePointerTarget;
+  /** An opaque glyph view after fade-in, sharing this batch's storage; only its model and VAO are owned separately. */
+  revealed?: TBatch;
   animated?: boolean;
+  spriteTexture?: Texture;
+  spriteAnimated?: boolean;
   /** The model's uniforms: luma reads this object at every draw. */
   uniforms: TUniforms;
   textures: readonly TTextureName[];
@@ -541,7 +554,7 @@ function translucentPrimitives(
   return emitted.size === primitives.length
     ? primitives
     : primitives.filter(
-        (primitive, index) => emitted.has(index) || (primitive.kind === "text" && isTranslucentPaint(primitive.color))
+        (primitive, index) => emitted.has(index) || (primitive.kind === "text" && isTranslucentText(primitive))
       );
 }
 
@@ -550,11 +563,12 @@ function sameNumbers(a: readonly number[], b: readonly number[]): boolean {
 }
 
 /** Unsupported primitives, including polygons beyond the filled arrow triangles. */
-function countSkipped(primitives: readonly TScenePrimitive[]): { polygon: number; icon: number } {
-  const counts = { polygon: 0, icon: 0 };
+function classifyPrimitives(primitives: readonly TScenePrimitive[]) {
+  const counts = { polygon: 0, icon: 0, sprites: false };
   for (const primitive of primitives) {
     if (primitive.kind === "polygon" && !isFilledTriangle(primitive)) counts.polygon++;
     else if (primitive.kind === "icon") counts.icon++;
+    else if (primitive.kind === "sprite") counts.sprites = true;
   }
   return counts;
 }
@@ -706,20 +720,16 @@ class WebGLSceneBackend implements ISceneBackend {
   };
   private readonly visibility = new WeakMap<TBatch, InstanceVisibility>();
   private activeStamp: number[] = [];
-  private activeStockActivityRevision = -1;
   private activeInput?: readonly TTranslucentPart[];
   private readonly translucentVisibility = new TranslucentVisibility();
   private activeGroups: readonly (readonly TTranslucentRun[])[] = [];
   private readonly preparedGroups = new PreparedTranslucentDraws<TBatch>();
   private readonly groupVertexCounts = new WeakMap<readonly TDraw[], number>();
-  private readonly groupCounts = new StockDrawGroups();
-  private activeDrawGroups = 0;
   private activeOwners: ReturnType<typeof translucentRunOwners> = [];
   private coalesceScope?: TOverlapScope & { clip: TTileRect };
   private coalesceRevision = -1;
   private coalescedRuns: TTranslucentRun[] = [];
-  private scheduleScale?: number;
-  private refineTranslucent = false;
+  private readonly translucentRefinement = new TranslucentRefinement();
   /** The scale and policy texts are laid out for: the next draw's (`applyMany`, `replay`, `draw`). */
   private textFrame: TSceneTextFrame = { scale: 1, textPolicy: DEFAULT_TEXT_POLICY };
   /** The text frame of the draws (`refreshTexts`), rewritten by each one. */
@@ -785,6 +795,13 @@ class WebGLSceneBackend implements ISceneBackend {
   private styleTexture: Texture;
   private readonly atlasTexture: Texture;
 
+  private readonly spriteImages = new Map<HTMLImageElement, { texture: Texture; batches: Map<string, TBatch> }>();
+  private readonly spriteBatches = new Set<TBatch>();
+  private readonly spritesOf = new Map<string, TBatch[]>();
+  private readonly rejectedSpriteImages = new WeakSet<HTMLImageElement>();
+  private spriteGroupsRemoved = false;
+  private spriteUploadBytes = 0;
+  private spriteUploadWrites = 0;
   private readonly rects: Record<TPass, TBatch>;
   private readonly triangles: Record<TPass, TBatch>;
   private readonly glyphs: Record<TPass, TBatch>;
@@ -854,6 +871,7 @@ class WebGLSceneBackend implements ISceneBackend {
       opaque: this.createBatch("glyph-opaque", GLYPH_PROGRAM, "opaque"),
       translucent: this.createBatch("glyph-translucent", GLYPH_PROGRAM, "translucent"),
     };
+    this.glyphs.translucent.revealed = this.createRevealedGlyphs(this.glyphs.translucent);
     const glyphSubs = this.glyphs.opaque.companion;
     if (!glyphSubs) throw new Error("The scene glyph batches keep their subs in a companion list");
     this.glyphSubs = glyphSubs;
@@ -876,7 +894,12 @@ class WebGLSceneBackend implements ISceneBackend {
     });
     // The plain path program is compiled up front, so `deviceMs` covers every base program.
     this.pathGroupFor("opaque", undefined);
-    for (const model of [this.alphaModel, ...[...this.allBatches()].map((batch) => batch.model)]) {
+    for (const model of [
+      this.alphaModel,
+      ...[...this.allBatches()].flatMap((batch) =>
+        batch.revealed ? [batch.model, batch.revealed.model] : [batch.model]
+      ),
+    ]) {
       if (!isLinked(model)) {
         throw new Error(`The scene program ${model.id} does not link:\n${compilerLog(model)}`);
       }
@@ -894,6 +917,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.rebaseChildren();
     this.flushDepth();
     this.releaseUnusedPathGroups();
+    if (this.spriteGroupsRemoved) this.releaseUnusedSprites();
     this.stats.lastReplayMs = performance.now() - start;
   }
 
@@ -911,6 +935,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.rebaseChildren();
     this.flushDepth();
     this.releaseUnusedPathGroups();
+    if (this.spriteGroupsRemoved) this.releaseUnusedSprites();
     this.stats.lastApplyMs = performance.now() - start;
   }
 
@@ -943,8 +968,9 @@ class WebGLSceneBackend implements ISceneBackend {
   public draw(frame: TSceneFrame): boolean {
     if (this.disposed || this.gl.isContextLost()) return false;
     const start = performance.now();
-    this.frameUploadBytes = 0;
-    this.frameUploadWrites = 0;
+    this.frameUploadBytes = this.spriteUploadBytes;
+    this.frameUploadWrites = this.spriteUploadWrites;
+    this.spriteUploadBytes = this.spriteUploadWrites = 0;
     // Before the uploads: a re-laid-out text writes glyph instances, and maybe atlas glyphs.
     this.refreshTexts(frame);
     this.device
@@ -993,6 +1019,7 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     const opaqueDraws = this.opaqueFrameDraws;
     let translucentDraws = this.translucentFrameDraws;
+    let directTranslucent = false;
     this.cullingDrawCount = 0;
     for (const batch of this.passBatches("opaque")) {
       if (!batch.pathRecords && batch.ranges.count) {
@@ -1010,7 +1037,6 @@ class WebGLSceneBackend implements ISceneBackend {
     if (stockOrder) {
       // A graph replacement can leave this renderer on the stock-only path for its remaining lifetime.
       if (this.translucentBatches.length > 0) this.clearTranslucentCommands();
-      this.refineTranslucent = false;
       for (const draw of stockOrder)
         translucentDraws[this.cullingDrawCount++] = this.frameDraw(
           draw.batch,
@@ -1027,6 +1053,7 @@ class WebGLSceneBackend implements ISceneBackend {
         }
         translucentDraws.length = this.cullingDrawCount;
       } else {
+        directTranslucent = true;
         translucentDraws = this.preparedGroupDraws(frame);
       }
     }
@@ -1074,6 +1101,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.stats.lastUploadWrites = this.frameUploadWrites;
     this.stats.uploadBytes += this.frameUploadBytes;
     this.stats.drawCalls = 0;
+    this.stats.translucentDrawCalls = 0;
     this.stats.instances = 0;
 
     if (this.multisampleTarget && !hasStrokeUnion) {
@@ -1112,13 +1140,18 @@ class WebGLSceneBackend implements ISceneBackend {
       hasStrokeUnion && hasCustomDepth ? { opaque: upperOpaque, unions: [], withUnions: true } : undefined;
     if (stock) this.drawStockPaths(pass, stock, stockNativeRuns, frame, customDepth);
     else this.drawPrepared(pass, upperTranslucent, frame, customDepth);
-    this.stats.translucentDrawCalls = this.stats.drawCalls - beforeTranslucent + (mixed?.plan.commands.length ?? 0);
+    this.stats.translucentDrawCalls += this.stats.drawCalls - beforeTranslucent;
     pass.end();
     target?.resolve();
     this.device.submit();
 
     if (this.frames++ === 0) this.stats.firstFrameMs = performance.now() - start;
-    return this.frameAnimated || this.refineTranslucent;
+    const refine = this.translucentRefinement.record(
+      frame,
+      directTranslucent ? this.stats.translucentDrawCalls : 0,
+      this.stockActivityRevision
+    );
+    return this.frameAnimated || refine;
   }
 
   private strokeTarget(): ReturnType<typeof createMultisampleTarget> {
@@ -1146,6 +1179,10 @@ class WebGLSceneBackend implements ISceneBackend {
     this.listeners.abort();
     for (const group of this.pathGroups.values()) group.stopUniforms?.();
     for (const batch of this.allBatches()) this.destroyBatch(batch);
+    if (this.ownsObjects()) for (const { texture } of this.spriteImages.values()) texture.destroy();
+    this.spriteImages.clear();
+    this.spriteBatches.clear();
+    this.spritesOf.clear();
     for (const group of this.idlePathGroups.values()) {
       this.destroyBatch(group.lines);
       this.destroyBatch(group.curves);
@@ -1411,6 +1448,7 @@ class WebGLSceneBackend implements ISceneBackend {
     for (const batch of this.allBatches()) removeInstances(batch, id);
     for (const group of this.pathGroupsOf.get(id) ?? []) group.users--;
     this.pathGroupsOf.delete(id);
+    if (this.spritesOf.delete(id)) this.spriteGroupsRemoved = true;
     this.setSkipped(id, { polygon: 0, icon: 0 });
     this.textEncodes.delete(id);
     this.forgetCameraTexts(id);
@@ -1450,8 +1488,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.coalesceScope = undefined;
     this.activeOwners = [];
     this.coalescedRuns = [];
-    this.scheduleScale = undefined;
-    this.refineTranslucent = false;
+    this.translucentRefinement.clear();
   }
 
   private reset(): void {
@@ -1464,6 +1501,8 @@ class WebGLSceneBackend implements ISceneBackend {
     this.stockPhysicalDraws.length = 0;
     this.clearTranslucentCommands();
     this.elements.clear();
+    this.spriteGroupsRemoved = this.spriteImages.size > 0;
+    this.spritesOf.clear();
     for (const group of this.pathGroups.values()) group.users = 0;
     this.pathGroupsOf.clear();
     this.skippedOf.clear();
@@ -1491,6 +1530,133 @@ class WebGLSceneBackend implements ISceneBackend {
     for (const batch of this.allBatches()) {
       batch.ranges = new InstanceRanges(batch.ranges.floats);
       if (batch.companion) batch.companion.ranges = new InstanceRanges(batch.companion.ranges.floats);
+      if (batch.revealed) {
+        batch.revealed.ranges = batch.ranges;
+        batch.revealed.opaqueVisibility = new OpaqueVisibility("glyph-revealed");
+      }
+    }
+  }
+
+  private encodeSprites(
+    id: string,
+    primitives: readonly TScenePrimitive[],
+    index: number,
+    subBase: number,
+    maxSub: number,
+    style: TSceneStyle | undefined,
+    writes: TTranslucentWrite[]
+  ): void {
+    const groups = new Map<TBatch, number[]>();
+    for (let i = 0; i < primitives.length; i++) {
+      const sprite = primitives[i];
+      if (sprite.kind !== "sprite" || !(sprite.width > 0 && sprite.height > 0)) continue;
+      const opacity = styleOpacity(style, sprite.part);
+      const batch = this.spriteBatch(sprite);
+      if (!batch) continue;
+      const sub = subBase + i;
+      checkSub(sub, maxSub);
+      let instances = groups.get(batch);
+      if (!instances) groups.set(batch, (instances = []));
+      appendSprite(instances, sprite, index, sub, this.slotOf(sprite.part), opacity);
+    }
+    for (const batch of this.spritesOf.get(id) ?? []) {
+      if (!groups.has(batch)) {
+        removeInstances(batch, id);
+        this.spriteGroupsRemoved = true;
+      }
+    }
+    for (const [batch, instances] of groups) writes.push({ batch, instances: new Float32Array(instances) });
+    if (groups.size) this.spritesOf.set(id, [...groups.keys()]);
+    else this.spritesOf.delete(id);
+  }
+
+  private spriteBatch(sprite: TSprite): TBatch | undefined {
+    const { image, effect } = sprite;
+    if (!image.complete || !image.naturalWidth || !image.naturalHeight || this.rejectedSpriteImages.has(image))
+      return undefined;
+    let source = this.spriteImages.get(image);
+    if (!source) {
+      const texture = this.uploadSpriteImage(image);
+      if (!texture) return undefined;
+      source = { texture, batches: new Map() };
+      this.spriteImages.set(image, source);
+    }
+    const fragment = effect?.fragment ?? SAMPLE_SPRITE;
+    let batch = source.batches.get(fragment);
+    if (!batch) {
+      const program: TQuadProgram = {
+        vs: SPRITE_VERTEX,
+        fs: spriteFragment(fragment),
+        floats: SPRITE_FLOATS,
+        textures: PATH_TEXTURES,
+        layout: [
+          { name: "scene_template", format: "float32x2" },
+          vec4Layout("sprite_instances", SPRITE_ATTRIBUTES, SPRITE_FLOATS),
+        ],
+      };
+      batch = this.createBatch("sprite", program, "translucent", source.texture);
+      if (!isLinked(batch.model)) {
+        console.error(
+          "[@gravity-ui/graph] Sprite effect failed to link; using the source image.",
+          compilerLog(batch.model)
+        );
+        this.destroyBatch(batch);
+        batch = this.createBatch(
+          "sprite",
+          { ...program, fs: spriteFragment(SAMPLE_SPRITE) },
+          "translucent",
+          source.texture
+        );
+        batch.spriteAnimated = false;
+      }
+      source.batches.set(fragment, batch);
+      this.spriteBatches.add(batch);
+      this.clearTranslucentCommands();
+    }
+    if (effect?.animated && batch.spriteAnimated !== false) batch.spriteAnimated = true;
+    return batch;
+  }
+
+  private uploadSpriteImage(image: HTMLImageElement): Texture | undefined {
+    const { naturalWidth: width, naturalHeight: height } = image;
+    let texture: Texture | undefined;
+    try {
+      const limit = this.device.limits.maxTextureDimension2D;
+      if (Math.max(width, height) > limit)
+        throw new RangeError(`Sprite ${width} × ${height} exceeds the texture limit ${limit}`);
+      texture = this.device.createTexture({
+        width,
+        height,
+        format: "rgba8unorm",
+        usage: TEXTURE_USAGE,
+        sampler: ATLAS_SAMPLER,
+      });
+      texture.copyExternalImage({ image, flipY: false, premultipliedAlpha: false });
+    } catch (error) {
+      texture?.destroy();
+      this.rejectedSpriteImages.add(image);
+      console.warn("[@gravity-ui/graph] Could not upload the scene sprite image.", error);
+      return undefined;
+    }
+    this.spriteUploadBytes += width * height * 4;
+    this.spriteUploadWrites++;
+    return texture;
+  }
+
+  private releaseUnusedSprites(): void {
+    this.spriteGroupsRemoved = false;
+    for (const [image, source] of this.spriteImages) {
+      for (const [fragment, batch] of source.batches) {
+        if (batch.ranges.liveCount) continue;
+        this.destroyBatch(batch);
+        this.spriteBatches.delete(batch);
+        source.batches.delete(fragment);
+        this.clearTranslucentCommands();
+      }
+      if (!source.batches.size) {
+        if (this.ownsObjects()) source.texture.destroy();
+        this.spriteImages.delete(image);
+      }
     }
   }
 
@@ -1525,6 +1691,10 @@ class WebGLSceneBackend implements ISceneBackend {
       { batch: this.triangles.translucent, instances: triangles.translucent },
       { batch: this.glyphs.translucent, instances: glyphs.instances, companion: glyphs.subs }
     );
+    const classified = classifyPrimitives(primitives);
+    if (classified.sprites || (this.spritesOf.size && this.spritesOf.has(id))) {
+      this.encodeSprites(id, primitives, index, subBase, maxSub, this.styleOf(element), translucent);
+    }
     this.setTranslucent(id, primitives, translucent);
     if (before) {
       const edits = pathPlanResizes(before, this.pathInputsOf(id));
@@ -1534,7 +1704,7 @@ class WebGLSceneBackend implements ISceneBackend {
         this.mixedResizes.push(...edits);
       }
     }
-    this.setSkipped(id, countSkipped(primitives));
+    this.setSkipped(id, classified);
     if (element.parent === undefined) this.encodedCounts.set(id, primitives.length);
     this.stats.encodes += primitives.length;
     this.stats.lastEncodeMs = performance.now() - start;
@@ -2093,9 +2263,11 @@ class WebGLSceneBackend implements ISceneBackend {
   private destroyBatch(batch: TBatch): void {
     batch.model.destroy();
     batch.plain?.model.destroy();
+    batch.revealed?.model.destroy();
     if (!this.ownsObjects()) return;
     batch.model.vertexArray.destroy();
     batch.plain?.model.vertexArray.destroy();
+    batch.revealed?.model.vertexArray.destroy();
     batch.buffer.destroy();
     batch.companion?.buffer?.destroy();
     batch.pathRecords?.texture.destroy();
@@ -2126,7 +2298,7 @@ class WebGLSceneBackend implements ISceneBackend {
    * A batch with the shared quad template, one instance buffer (`layout[1]`) and, for a program with a companion
    * list, the companion's buffer.
    */
-  private createBatch(id: string, program: TQuadProgram, pass: TPass): TBatch {
+  private createBatch(id: string, program: TQuadProgram, pass: TPass, spriteTexture?: Texture): TBatch {
     const { vs, fs, layout, floats, textures } = program;
     const buffer = this.createInstanceBuffer(floats);
     const instanceBuffers: TInstanceBuffer[] = [{ name: layout[1].name, buffer }];
@@ -2143,6 +2315,7 @@ class WebGLSceneBackend implements ISceneBackend {
       bufferLayout.push(program.companion.layout);
     }
     const uniforms: TUniforms = { scene_opaquePass: pass === "opaque" ? 1 : 0 };
+    if (program === GLYPH_PROGRAM) uniforms.scene_glyphPass = pass === "opaque" ? 0 : 1;
     const model = new Model(this.device, {
       id,
       vs,
@@ -2153,7 +2326,7 @@ class WebGLSceneBackend implements ISceneBackend {
         [layout[0].name]: this.quadTemplate,
         ...Object.fromEntries(instanceBuffers.map((instance) => [instance.name, instance.buffer])),
       },
-      bindings: this.bindings(textures),
+      bindings: { ...this.bindings(textures), ...(spriteTexture && { sprite_image: spriteTexture }) },
       uniforms,
       parameters: PASS_PARAMETERS[pass],
       vertexCount: program.vertexCount ?? QUAD_TEMPLATE.length / 2,
@@ -2162,6 +2335,7 @@ class WebGLSceneBackend implements ISceneBackend {
     });
     return {
       ranges: new InstanceRanges(floats),
+      spriteTexture,
       buffer,
       companion,
       model,
@@ -2170,6 +2344,40 @@ class WebGLSceneBackend implements ISceneBackend {
       layout: bufferLayout,
       instanceBuffers,
       pointedAt: 0,
+    };
+  }
+
+  /** A second draw view, with no second allocation or upload of the glyphs or their subs. */
+  private createRevealedGlyphs(source: TBatch): TBatch {
+    const uniforms: TUniforms = { scene_opaquePass: 1, scene_glyphPass: 2 };
+    const model = new Model(this.device, {
+      id: "glyph-revealed",
+      vs: GLYPH_VERTEX,
+      fs: GLYPH_FRAGMENT,
+      topology: "triangle-strip",
+      bufferLayout: [...source.layout],
+      attributes: {
+        scene_template: this.quadTemplate,
+        ...Object.fromEntries(source.instanceBuffers.map(({ name, buffer }) => [name, buffer])),
+      },
+      bindings: this.batchBindings(source),
+      uniforms,
+      parameters: PASS_PARAMETERS.opaque,
+      vertexCount: QUAD_TEMPLATE.length / 2,
+      isInstanced: true,
+      instanceCount: 0,
+    });
+    return {
+      ranges: source.ranges,
+      buffer: source.buffer,
+      companion: source.companion,
+      model,
+      uniforms,
+      textures: source.textures,
+      layout: source.layout,
+      instanceBuffers: source.instanceBuffers,
+      pointedAt: 0,
+      opaqueVisibility: new OpaqueVisibility("glyph-revealed"),
     };
   }
 
@@ -2239,6 +2447,7 @@ class WebGLSceneBackend implements ISceneBackend {
   private batchBindings(batch: TBatch): Record<string, Texture> {
     const bindings = this.bindings(batch.textures);
     if (batch.pathRecords) bindings.graph_records = batch.pathRecords.texture;
+    if (batch.spriteTexture) bindings.sprite_image = batch.spriteTexture;
     return bindings;
   }
 
@@ -2249,6 +2458,7 @@ class WebGLSceneBackend implements ISceneBackend {
     yield this.triangles.translucent;
     yield this.glyphs.opaque;
     yield this.glyphs.translucent;
+    if (this.spriteBatches.size) yield* this.spriteBatches;
     for (const group of this.pathGroups.values()) {
       yield group.lines;
       yield group.curves;
@@ -2270,6 +2480,8 @@ class WebGLSceneBackend implements ISceneBackend {
     yield this.rects[pass];
     yield this.triangles[pass];
     yield this.glyphs[pass];
+    if (pass === "opaque" && this.glyphs.translucent.revealed) yield this.glyphs.translucent.revealed;
+    if (pass === "translucent" && this.spriteBatches.size) yield* this.spriteBatches;
   }
 
   private invalidateOverlap(id: string): void {
@@ -2312,7 +2524,7 @@ class WebGLSceneBackend implements ISceneBackend {
         if (this.styles.hiddenForOrder(element.styleId, primitive.part)) return undefined;
         const scale = Math.max(limits.minScale, Math.fround(scaleBound(primitive.minScale, 0)));
         lowest = Math.min(lowest, scale);
-        text ||= primitive.kind === "text" && isTranslucentPaint(primitive.color);
+        text ||= primitive.kind === "text" && isTranslucentText(primitive);
         return scale;
       },
       cache.pathsOnly ? limits.dpr : undefined
@@ -2348,7 +2560,7 @@ class WebGLSceneBackend implements ISceneBackend {
           return undefined;
         const from = Math.fround(scaleBound(primitive.minScale, 0));
         const to = Math.fround(scaleBound(primitive.maxScale, NO_LIMIT));
-        const translucentText = primitive.kind === "text" && isTranslucentPaint(primitive.color);
+        const translucentText = primitive.kind === "text" && isTranslucentText(primitive);
         if (scale < from) {
           scope.to = Math.min(scope.to, from);
           return undefined;
@@ -2460,21 +2672,16 @@ class WebGLSceneBackend implements ISceneBackend {
 
   /** Returns an alternate raw/coalesced schedule when the retained active groups cannot be submitted directly. */
   private visibleTranslucentRuns(frame: TSceneFrame): Iterable<TTranslucentRun> | undefined {
-    this.refineTranslucent = false;
     const batches = this.translucentBatches;
     if (!batches.some((batch) => batch.ranges.layoutRetained && batch.ranges.liveCount > 0))
       return this.rawTranslucentRuns();
     const scale = Math.fround(frame.scale);
     if (!(scale > 0) || !Number.isFinite(scale)) return this.rawTranslucentRuns();
-    const previousScale = this.scheduleScale;
-    const zooming = previousScale !== undefined && previousScale !== scale;
-    this.scheduleScale = scale;
     const visibility = batches.map((batch) => this.updateVisibility(batch, frame));
     // The physical schedule and its shader predicates are independent of paint and in-place geometry writes.
     const stamp = [...this.orderStamp, ...visibility.map((source) => source.visibilityRevision)];
-    let changed = false;
-    if (this.activeInput !== this.translucentParts || !sameNumbers(stamp, this.activeStamp)) {
-      changed = true;
+    const changed = this.activeInput !== this.translucentParts || !sameNumbers(stamp, this.activeStamp);
+    if (changed) {
       this.activeGroups = this.translucentVisibility.update(
         this.translucentParts,
         visibility,
@@ -2484,25 +2691,16 @@ class WebGLSceneBackend implements ISceneBackend {
       this.activeOwners = [];
       this.activeInput = this.translucentParts;
       this.activeStamp = stamp;
-      this.activeStockActivityRevision = -1;
     }
     // Coalescing additionally depends on exact ink footprints, even when the filtered order is unchanged.
     if (changed || this.coalesceRevision !== this.scheduleRevision) {
-      changed = true;
       this.coalesceRevision = this.scheduleRevision;
       this.coalesceScope = undefined;
+      this.translucentRefinement.clear();
     }
-    if (this.activeStockActivityRevision !== this.stockActivityRevision) {
-      // A custom effect crossing its activity bound changes program barriers but leaves visibility intact.
-      this.activeDrawGroups = this.groupCounts.count(
-        this.activeGroups,
-        batches.map((batch) => nativeStockGroup(this.pathBatchGroups.get(batch))),
-        batches.map((batch) => stockGroup(this.pathBatchGroups.get(batch))),
-        batches.map((batch) => Boolean(batch.pathRecords))
-      );
-      this.activeStockActivityRevision = this.stockActivityRevision;
-    }
-    if (this.activeDrawGroups < 512) return undefined;
+    const refine = this.translucentRefinement.take(frame, this.stockActivityRevision);
+    let scope = this.coalesceScope;
+    if (!scope && !refine) return undefined;
     const x = Math.fround(frame.x),
       y = Math.fround(frame.y);
     const width = Math.fround(frame.width),
@@ -2513,16 +2711,11 @@ class WebGLSceneBackend implements ISceneBackend {
       maxX: (width - x + 2) / scale,
       maxY: (height - y + 2) / scale,
     };
-    if (!Number.isFinite(view.minX + view.minY + view.maxX + view.maxY)) return undefined;
-    let scope = this.coalesceScope;
+    if (!Number.isFinite(view.minX + view.minY + view.maxX + view.maxY)) return this.rawTranslucentRuns();
     if (scope && withinOverlapScope(scope, scale, frame.level, frame.dpr) && containsBox(scope.clip, view))
       return this.coalescedRuns;
-    // A changing camera draws the exact active schedule immediately. Refine after it settles, instead of adding
-    // footprint construction to the same frame as a level transition or a large scene edit.
-    if (zooming || (changed && previousScale !== undefined)) {
-      this.refineTranslucent = true;
-      return undefined;
-    }
+    // The direct plan has already been clipped and submitted. Its actual draw count includes stock batching.
+    if (!refine) return undefined;
     if (this.activeOwners.length === 0) {
       this.activeOwners = translucentRunOwners(
         this.activeGroups.flat(),
@@ -2755,6 +2948,8 @@ class WebGLSceneBackend implements ISceneBackend {
   /** Labels and filled arrows stay in the shared pass whenever their vertex predicates allow paint. */
   private hasVisibleNativeOnlyPaint(plan: TMixedPlan, frame: TSceneFrame): boolean {
     for (const { batch, first, count } of plan.nativeOnlyPaint) {
+      // The shared glyph view owns no visibility cache. A lower-plane candidate keeps native depth composition.
+      if (batch === this.glyphs.translucent.revealed && count > 0) return true;
       if (this.updateVisibility(batch, frame).any(first, count)) return true;
     }
     return false;
@@ -3426,6 +3621,8 @@ class WebGLSceneBackend implements ISceneBackend {
       }
     }
     connectionPass.end();
+    // Count the lower blended draws before the fullscreen composite and the upper opaque pass.
+    this.stats.translucentDrawCalls = this.stats.drawCalls;
 
     // An ordinary fullscreen draw replicates the lower premultiplied color into each default sample.
     const color = target.colorAttachments[0].texture;
@@ -3581,6 +3778,16 @@ class WebGLSceneBackend implements ISceneBackend {
           customDepth.withUnions = false;
         }
       }
+      if (batch.spriteAnimated && !this.frameAnimated) {
+        this.frameAnimated = visibleSpriteAnimation(
+          batch.ranges.data,
+          first,
+          count,
+          this.table.data,
+          this.styles.data,
+          frame
+        );
+      }
       const target = batch.uniforms.graph_effectEnabled === 0 && batch.plain ? batch.plain : batch;
       this.pointInstances(target, first);
       this.drawInstances(pass, batch, frame, count, curveDetail, target.model);
@@ -3660,7 +3867,8 @@ class WebGLSceneBackend implements ISceneBackend {
     let visibility = this.visibility.get(batch);
     if (!visibility) {
       if (path) visibility = new InstanceVisibility("path");
-      else if (batch.companion?.kind === "subs") visibility = new InstanceVisibility("glyph");
+      else if (batch.companion?.kind === "subs")
+        visibility = new InstanceVisibility(batch === this.glyphs.translucent ? "glyph-blended" : "glyph");
       else if (batch.ranges.floats === TRIANGLE_FLOATS) visibility = new InstanceVisibility("triangle");
       else visibility = new InstanceVisibility("rect");
       this.visibility.set(batch, visibility);
@@ -3689,8 +3897,13 @@ class WebGLSceneBackend implements ISceneBackend {
     if (generations() !== before) {
       // A resize replaced a GPU buffer. Bind it now: luma would rebind it at offset 0 inside the next draw, after
       // pointInstances() set a run's offset.
-      batch.model.setAttributes(Object.fromEntries(batch.instanceBuffers.map(({ name, buffer }) => [name, buffer])));
+      const attributes = Object.fromEntries(batch.instanceBuffers.map(({ name, buffer }) => [name, buffer]));
+      batch.model.setAttributes(attributes);
       batch.pointedAt = 0;
+      if (batch.revealed) {
+        batch.revealed.model.setAttributes(attributes);
+        batch.revealed.pointedAt = 0;
+      }
     }
     if (batch.retainRanges) {
       batch.ranges.retainLayout();
@@ -3853,6 +4066,7 @@ class WebGLSceneBackend implements ISceneBackend {
       const bindings = this.batchBindings(batch);
       batch.model.setBindings(bindings);
       batch.plain?.model.setBindings(bindings);
+      batch.revealed?.model.setBindings(bindings);
     }
   }
 

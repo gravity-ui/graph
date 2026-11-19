@@ -19,6 +19,7 @@ import { clearMeasureTextCache } from "../../utils/functions/text";
 import { track } from "../../utils/functions/track";
 import { clearTextCache } from "../../utils/renderers/text";
 import type { TRect } from "../../utils/types/shapes";
+import type { TCameraState } from "../camera/CameraService";
 import { SceneStyleSheet } from "../styles/SceneStyleSheet";
 import { StyleResolver } from "../styles/StyleResolver";
 import { computeStyle, isStateRule } from "../styles/computeStyle";
@@ -26,9 +27,12 @@ import { createThemeRules } from "../styles/themeRules";
 import type { TStyleExplanation, TStyleTarget } from "../styles/types";
 import { TagStore, entityKey } from "../tags/TagStore";
 import type { TEntityAddress, TEntityId, TEntityType, TTagSet } from "../tags/types";
+import { cameraWorldViewport } from "../visibilityCulling";
 
+import { BlockOutlines } from "./BlockOutlines";
 import { DelegatedRanks } from "./DelegatedRanks";
 import { SceneClock } from "./SceneClock";
+import { exportBlockOutlines } from "./exportBlockOutlines";
 import { isSceneKeyed } from "./sceneKey";
 import { createSceneLevel } from "./sceneLevel";
 import type {
@@ -66,6 +70,8 @@ type TSceneImage = {
 };
 
 /** Whether a step of an export threw, and what. */
+type TCameraFrame = { camera: TCameraState; level: TSceneLevel; canvasDpr: number | undefined };
+
 type TOutcome = { failed: boolean; error: unknown };
 
 const UNDO_FAILED = "graph.scene.toImage(): undoing an export's preparation failed";
@@ -115,6 +121,8 @@ export class GraphScene implements IGraphScene {
   /** @internal The element store; plan 3's components write to it. */
   public readonly store = new SceneStore();
 
+  private readonly blockOutlines = new BlockOutlines(this.store);
+
   /** @internal React ranks (spec §10). */
   public readonly delegatedRanks: DelegatedRanks;
 
@@ -128,8 +136,16 @@ export class GraphScene implements IGraphScene {
 
   public readonly $renderer: ReadonlySignal<TSceneRendererState>;
 
+  private readonly cameraFrame = signal<TCameraFrame | undefined>(undefined);
+
+  /** @internal Camera and pixel grid used by the scene. HTML presents these together at the end of a draw. */
+  public readonly $cameraFrame: ReadonlySignal<TCameraFrame | undefined> = this.cameraFrame;
+
   /** Increments when computed styles may have changed: rules, root tags, the level or a crossed scale threshold. */
   public readonly $styleGeneration: ReadonlySignal<number>;
+
+  /** @internal Global changes that can affect a bound style or an HTML view's cascade. */
+  public readonly $styleCascadeGeneration: ReadonlySignal<number>;
 
   /**
    * The `cameraAwareText` setting: `false` makes every scene text world-sized, whatever its primitive and the styles
@@ -144,6 +160,8 @@ export class GraphScene implements IGraphScene {
   public readonly layer: SceneRendererLayer;
 
   private readonly sceneClock = new SceneClock();
+
+  private motionPreference?: MediaQueryList;
 
   private readonly $scale: ReadonlySignal<number>;
 
@@ -205,8 +223,12 @@ export class GraphScene implements IGraphScene {
   constructor(private readonly graph: Graph) {
     // The graph's frame task runs every frame while started and calls flush(), so nothing needs waking.
     this.delegatedRanks = new DelegatedRanks(this.store, noop);
-    const stopElements = this.store.subscribe((change) => this.noteChange(change));
+    const stopElements = this.store.subscribe((change) => {
+      this.blockOutlines.changed(change);
+      this.noteChange(change);
+    });
     const stopStyles = this.store.subscribeStyles((change) => {
+      if (change === "replace") this.blockOutlines.stylesChanged();
       // A rule, level or root-tag change rewrites rows of any type, and the dim colour paints them all.
       if (change === "replace" || change === "dim") this.everyTypeChanged = true;
     });
@@ -243,6 +265,7 @@ export class GraphScene implements IGraphScene {
       $scale: this.$scale,
     });
     this.$styleGeneration = this.resolver.$generation;
+    this.$styleCascadeGeneration = this.resolver.$cascadeGeneration;
 
     this.stopTheme = effect(() => {
       const colors = graph.$graphColors.value;
@@ -262,11 +285,36 @@ export class GraphScene implements IGraphScene {
     });
   }
 
+  /** @internal Connects an HTML block to the same visual offset as its scene component. */
+  public onBlockMotion(id: TEntityId, listener: (x: number, y: number) => void): () => void {
+    if (this.disposed) return noop;
+    const view = this.graph.rootStore.blocksList.getBlockState(id)?.getViewComponent();
+    return this.store.onBlockMotion(view?.getSceneElementId() ?? entityKey("block", id), listener);
+  }
+
+  /** @internal The physical pixel grid used by the active Canvas2D renderer. WebGL uses fractional positions. */
+  public get canvasDpr(): number | undefined {
+    return this.$renderer.peek() === "webgl" ? undefined : this.layer.getDRP();
+  }
+
   /** @internal Called by Graph's frame task after layers.update(). */
   public update(): void {
     if (this.disposed) return;
     this.delegatedRanks.flush();
+    if (this.store.hasBlockMotions) {
+      this.motionPreference ??= globalThis.matchMedia?.("(prefers-reduced-motion: reduce)");
+      this.store.advanceBlockMotions(this.clock.now(), this.motionPreference?.matches ?? false);
+    }
+    this.blockOutlines.flush(this.$scale.peek());
+    const camera = this.graph.$camera.peek();
+    const level = this.$level.peek();
     Component.update(this.layer);
+    // A failed WebGL draw can switch to Canvas2D in this very frame.
+    const canvasDpr = this.canvasDpr;
+    const previous = this.cameraFrame.peek();
+    if (previous?.camera !== camera || previous.level !== level || previous.canvasDpr !== canvasDpr) {
+      this.cameraFrame.value = { camera, level, canvasDpr };
+    }
     // Before the frame-end listeners: a change they make steps at the next frame's end.
     this.stepRevisions();
     this.frameEndListeners.forEach((listener) => {
@@ -381,6 +429,7 @@ export class GraphScene implements IGraphScene {
   /** @internal */
   public stop(): void {
     this.sceneClock.pause();
+    this.cameraFrame.value = undefined;
   }
 
   /** @internal Makes the clock follow document visibility until dispose(). */
@@ -463,7 +512,7 @@ export class GraphScene implements IGraphScene {
     let previousStyle: TSceneStyle | undefined;
     const stop = effect(() => {
       const tags = $tags.value;
-      if (onStyleChange) track(this.$styleGeneration);
+      if (onStyleChange) track(this.$styleCascadeGeneration);
       untracked(() => {
         const element = this.store.get(elementId);
         if (tags !== previousTags) {
@@ -618,6 +667,7 @@ export class GraphScene implements IGraphScene {
 
   public query(rect: TRect, options: TSceneQueryOptions = {}): readonly TSceneElementView[] {
     const tileRect = { minX: rect.x, minY: rect.y, maxX: rect.x + rect.width, maxY: rect.y + rect.height };
+    this.blockOutlines.flush(this.$scale.peek());
     const includeHidden = options.includeHidden ?? false;
     const types = options.entityTypes;
     const found = this.store.query(tileRect, options.level, undefined, includeHidden);
@@ -762,9 +812,10 @@ export class GraphScene implements IGraphScene {
     const camera = this.graph.cameraService.getCameraState();
     const currentView = options.rect === undefined && options.scale === undefined;
     const scale = options.scale ?? camera.scale;
+    const viewport = cameraWorldViewport(camera, currentView ? this.canvasDpr : undefined);
     const rect = options.rect ?? {
-      x: -camera.x / camera.scale,
-      y: -camera.y / camera.scale,
+      x: viewport.minX,
+      y: viewport.minY,
       width: camera.width / camera.scale,
       height: camera.height / camera.scale,
     };
@@ -805,14 +856,15 @@ export class GraphScene implements IGraphScene {
     // The rows as they compute at the export's level and scale, which need not be the live ones; children whose parent
     // row needs composition only there draw with rows added for the export.
     const { styles, childRows } = this.store.stylesWith(this.resolver.stylesAt(level, scale));
-    const found = this.store.query(tileRect, level, styles);
-    const elements =
-      childRows.size === 0
-        ? found
-        : found.map((element) => {
-            const styleId = childRows.get(element.id);
-            return styleId === undefined ? element : { ...element, styleId };
-          });
+    const elements = exportBlockOutlines(
+      this.store,
+      tileRect,
+      level,
+      scale,
+      styles,
+      childRows,
+      this.blockOutlines.owns
+    );
     // Texts lay out at the export's scale under the setting, as the renderer would draw them there.
     const textPolicy = this.$textPolicy.peek();
     drawElements(ctx, elements, scale, { styles, dimColor: this.store.getDimColor(), level, textPolicy });
@@ -867,6 +919,7 @@ export class GraphScene implements IGraphScene {
     this.exportPreparers.clear();
     this.frameEndListeners.clear();
     for (const unbind of [...this.styleUnbinds]) unbind();
+    this.store.clearBlockMotionListeners();
     this.resolver.dispose();
     this.tags.dispose();
     this.graph.layers.removeLayer(this.layer);

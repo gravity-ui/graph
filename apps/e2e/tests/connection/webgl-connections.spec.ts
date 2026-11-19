@@ -19,14 +19,14 @@ function config(useBezierConnections: boolean): GraphConfig {
   };
 }
 
-type TLineKind = "webgl" | "dashFlow" | "pulse" | "stillDashFlow";
+type TLineKind = "plain" | "dashFlow" | "pulse" | "stillDashFlow";
 
-/** Switches the graph to a connection class whose line is a WebGLLine, optionally with a library effect. */
+/** Switches the graph to a connection class using a scene line with an optional WebGL effect. */
 async function useWebGLConnection(page: Page, kind: TLineKind): Promise<void> {
   await page.evaluate((lineKind) => {
-    const { BlockConnection, WebGLLine, dashFlow, pulse } = window.GraphModule;
-    class Line extends WebGLLine {
-      getStroke(state: Parameters<InstanceType<typeof WebGLLine>["getStroke"]>[0]) {
+    const { BlockConnection, SceneLine, dashFlow, pulse } = window.GraphModule;
+    class Line extends SceneLine {
+      getStroke(state: Parameters<InstanceType<typeof SceneLine>["getStroke"]>[0]) {
         const base = super.getStroke(state);
         if (lineKind === "dashFlow") {
           return {
@@ -47,10 +47,10 @@ async function useWebGLConnection(page: Page, kind: TLineKind): Promise<void> {
         return base;
       }
     }
-    class GL extends BlockConnection {
+    class StyledConnection extends BlockConnection {
       static line = Line;
     }
-    window.graph.updateSettings({ connection: GL, renderer: "webgl" });
+    window.graph.updateSettings({ connection: StyledConnection, renderer: "webgl" });
   }, kind);
 }
 
@@ -143,22 +143,26 @@ type TParityResult = {
   band: number;
 };
 
-/** Compares Path2DLine and WebGLLine hit tests over a 2-unit grid; the exact distance comes from dense sampling. */
+/** Compares scene hits against the browser’s native Canvas stroke hit test over a 2-unit grid; the exact distance comes from dense sampling. */
 async function measureParity(page: Page, connectionId: string, scale: number): Promise<TParityResult> {
   return page.evaluate(
     ({ id, cameraScale }) => {
-      const { Path2DLine, WebGLLine } = window.GraphModule;
+      const { BlockConnection, SceneLine } = window.GraphModule;
       window.graph.cameraService.set({ scale: cameraScale });
       const view = window.graph.rootStore.connectionsList.getConnectionState(id)?.getViewComponent();
-      if (!view) throw new Error("No connection view");
-      const path2d = new Path2DLine(view as never);
-      const webgl = new WebGLLine(view as never);
-      const geometry = (view as unknown as { getGeometry(): { segments: Float32Array } | undefined }).getGeometry();
-      if (!geometry) throw new Error("No geometry");
+      if (!(view instanceof BlockConnection)) throw new Error("No connection view");
+      const line = new SceneLine(view);
+      const path = line.getPath();
+      const canvas = document.createElement("canvas").getContext("2d");
+      const geometry = view.getGeometry();
+      if (!geometry || !path || !canvas) throw new Error("Cannot sample the connection");
       const { segments } = geometry;
-      const width = path2d.getStroke((view as unknown as { state: never }).state).width;
+      const width = line.getLineHalfWidth() * 2;
       const threshold = 8;
       const boundary = width / 2 + threshold;
+      canvas.lineWidth = 2 * boundary;
+      canvas.lineCap = "round";
+      canvas.lineJoin = "round";
       // The analytic test flattens to half a CSS pixel (0.5 / scale world units) and the rasterizer adds a fraction of
       // a unit: 0.75 world units at scale 1, wider when zoomed out.
       const band = 0.25 + 0.5 / cameraScale;
@@ -201,8 +205,8 @@ async function measureParity(page: Page, connectionId: string, scale: number): P
             if (d2 < best) best = d2;
           }
           const distance = Math.sqrt(best);
-          const a = path2d.hitTest(x, y, threshold);
-          const b = webgl.hitTest(x, y, threshold);
+          const a = canvas.isPointInStroke(path, x, y);
+          const b = line.hitTest(x, y, threshold);
           result.checked++;
           if (a) result.hits++;
           if (a !== b) {
@@ -220,14 +224,14 @@ async function measureParity(page: Page, connectionId: string, scale: number): P
 }
 
 test.describe("WebGL connections", () => {
-  test("WebGLLine connection renders with webgl and is selected by a click", async ({ page }) => {
+  test("a scene connection renders in WebGL and is selected by a click", async ({ page }) => {
     const graphPO = new GraphPageObject(page);
     await graphPO.initialize(config(false));
     test.skip(!(await hasWebGL2(page)), "Headless Chromium has no WebGL2");
 
-    await useWebGLConnection(page, "webgl");
+    await useWebGLConnection(page, "plain");
     await graphPO.waitForFrames(3);
-    expect(await graphPO.getConnectionsRenderer()).toBe("webgl");
+    await expect.poll(() => graphPO.getSceneRenderer()).toBe("webgl");
 
     const conn = graphPO.connection("c1");
     expect(await conn.isSelected()).toBe(false);
@@ -245,7 +249,7 @@ test.describe("WebGL connections", () => {
 
     await useWebGLConnection(page, "stillDashFlow");
     await graphPO.waitForFrames(3);
-    expect(await graphPO.getConnectionsRenderer()).toBe("webgl");
+    await expect.poll(() => graphPO.getSceneRenderer()).toBe("webgl");
 
     const conn = graphPO.connection("c1");
     const from = await conn.getPointOnCurve(0.25);
@@ -264,7 +268,7 @@ test.describe("WebGL connections", () => {
     expect(selected.line).toBeGreaterThan(20);
   });
 
-  test("falls back to Path2D when WebGL2 is unavailable", async ({ page }) => {
+  test("the Canvas scene draws the connection when WebGL2 is unavailable", async ({ page }) => {
     await page.addInitScript(() => {
       const original = HTMLCanvasElement.prototype.getContext as (
         this: HTMLCanvasElement,
@@ -281,10 +285,10 @@ test.describe("WebGL connections", () => {
     });
     const graphPO = new GraphPageObject(page);
     await graphPO.initialize(config(false));
-    await useWebGLConnection(page, "webgl");
+    await useWebGLConnection(page, "plain");
     await graphPO.waitForFrames(3);
 
-    expect(await graphPO.getConnectionsRenderer()).toBe("webgl-fallback");
+    await expect.poll(() => graphPO.getSceneRenderer()).toBe("webgl-fallback");
 
     const conn = graphPO.connection("c1");
     const midpoint = await conn.getPointOnCurve(0.5);
@@ -299,7 +303,7 @@ test.describe("WebGL connections", () => {
 
   for (const bezier of [false, true]) {
     for (const scale of [1, 0.25]) {
-      test(`hit-test parity of Path2DLine and WebGLLine (${bezier ? "bezier" : "straight"}, scale ${scale})`, async ({
+      test(`scene hit test matches the Canvas stroke (${bezier ? "bezier" : "straight"}, scale ${scale})`, async ({
         page,
       }, testInfo) => {
         const graphPO = new GraphPageObject(page);
@@ -335,7 +339,7 @@ test.describe("WebGL connections", () => {
 
       await useWebGLConnection(page, kind);
       await graphPO.waitForFrames(10);
-      expect(await graphPO.getConnectionsRenderer()).toBe("webgl");
+      await expect.poll(() => graphPO.getSceneRenderer()).toBe("webgl");
       expect(errors).toEqual([]);
     });
   }

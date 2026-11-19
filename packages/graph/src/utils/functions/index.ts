@@ -1,5 +1,6 @@
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
+import { ESchedulerPriority, debounce } from "../../lib/Scheduler";
 import { ECanDrag } from "../../store/settings";
 import { SELECTION_EVENT_TYPES } from "../types/events";
 import { Rect, TRect } from "../types/shapes";
@@ -177,16 +178,15 @@ export function isGeometryHaveInfinity(geometry: TRect): boolean {
 export function startAnimation(duration: number, draw: (progress: number) => void) {
   const start = performance.now();
 
-  requestAnimationFrame(function animate(time) {
-    let progress = (time - start) / duration;
-    if (progress > 1) progress = 1;
-
-    draw(progress);
-
-    if (progress < 1) {
-      requestAnimationFrame(animate);
-    }
-  });
+  const animate = debounce(
+    () => {
+      const progress = Math.min((performance.now() - start) / duration, 1);
+      draw(progress);
+      if (progress < 1) animate();
+    },
+    { priority: ESchedulerPriority.HIGHEST }
+  );
+  animate();
 }
 
 /**

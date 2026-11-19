@@ -1,4 +1,4 @@
-import { drawElements, isPrimitiveVisible } from "./drawPrimitives";
+import { appendSegments, drawElements, isPrimitiveVisible } from "./drawPrimitives";
 import { layoutText } from "./textLayout";
 import { sceneTextMetrics } from "./textMetrics";
 import type { TSceneElement, TScenePrimitive } from "./types";
@@ -54,6 +54,22 @@ function line(id: string): TSceneElement {
 }
 
 describe("scene primitives", () => {
+  it("closes a solid contour once, including the join between the final and first segments", () => {
+    const segments = new Float32Array([...SEGMENTS, 3, 0, 2, 0, 1, 0, 0, 0]);
+    const path = new Path2D();
+    appendSegments(path, segments, 1, 2);
+    expect(path.closePath).not.toHaveBeenCalled();
+    appendSegments(path, segments, 1, 2, true);
+    expect(path.closePath).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits WebGL sprites from interpreted draws and exports", () => {
+    const ctx = createContext();
+    const sprite = { kind: "sprite" as const, x: 10, y: 15, width: 24, height: 32, image: new Image() };
+    expect(drawElements(ctx, [element({ primitives: [sprite] })], 1)).toBe(0);
+    expect(ctx.__getDrawCalls()).toHaveLength(0);
+  });
+
   it("shows a primitive only inside its scale range", () => {
     const circle = { kind: "circle" as const, cx: 0, cy: 0, r: 1, minScale: 0.2, maxScale: 0.7 };
     expect(isPrimitiveVisible(circle, 0.2)).toBe(true);
@@ -351,6 +367,21 @@ describe("scene primitives", () => {
       align: "center",
       verticalAlign: "middle",
       ...patch,
+    });
+
+    it("reveals text with zoom in both directions and preserves the opacity of the next label", () => {
+      const ctx = createContext();
+      ctx.globalAlpha = 0.8;
+      const alphas: number[] = [];
+      jest.spyOn(ctx, "fillText").mockImplementation(() => {
+        alphas.push(ctx.globalAlpha);
+      });
+      const plain = name({ text: "A", cameraAware: false });
+      const fading = { ...plain, minScale: 1, fadeInUntil: 2 };
+      const block = element({ primitives: [fading, plain] });
+      for (const scale of [1, 1.25, 2, 1.25, 1]) drawElements(ctx, [block], scale);
+      expect(alphas).toEqual([0.8, 0.125, 0.8, 0.8, 0.8, 0.125, 0.8, 0.8]);
+      expect(ctx.globalAlpha).toBe(0.8);
     });
 
     // A character is half the size wide, rounded as v1 (floor + 1): at size 10 "aaa" is 16 and a space 6, so the

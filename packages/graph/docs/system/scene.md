@@ -24,6 +24,185 @@ then composites it below the rest of the scene. Blocks and their text retain the
 is redrawn each frame that uses it. Eligibility is internal and respects the authored scene order. See
 [connection draw calls and order](../connections/webgl-connections.md#draw-calls-and-order).
 
+## Add an element to the scene
+
+For an annotation, badge or character with its own position and pointer target, return a `SceneComponent` from a
+layer's `updateChildren()`. The graph mounts it, draws it with the current renderer and removes it when its owner
+unmounts. The layer can own components without creating a canvas or HTML overlay.
+
+### Define the look and hit area
+
+This square marker has a stable application ID, a fill colour and a world position. Its rectangle is in **local**
+coordinates. The scene applies `getSceneOrigin()` and the camera when drawing. A standalone component supplies its
+own hit rectangle in **world** coordinates. This makes the marker a pointer target wherever it moves. For a purely
+decorative standalone component, omit `getHitRect()` so the pointer reaches the graph underneath.
+
+```ts
+import { Layer, SceneComponent, getEventTarget } from "@gravity-ui/graph";
+import type { Graph, LayerProps, TGraphComponentProps, TScenePrimitive } from "@gravity-ui/graph";
+
+type MarkerData = { id: string; x: number; y: number; color: string };
+const side = 24;
+
+class Marker extends SceneComponent<{ color: string }, TGraphComponentProps & MarkerData> {
+  public static override entityType = "marker";
+
+  public override getEntityId() {
+    return this.props.id;
+  }
+
+  protected override getSceneOrigin() {
+    return { x: this.props.x, y: this.props.y };
+  }
+
+  protected override getViewData() {
+    return { color: this.props.color };
+  }
+
+  protected override schematic({ color }: { color: string }): readonly TScenePrimitive[] {
+    return [{ kind: "rect", x: 0, y: 0, width: side, height: side, fill: color }];
+  }
+
+  protected override getHitRect() {
+    return { ...this.getSceneOrigin(), width: side, height: side };
+  }
+}
+
+type MarkerLayerProps = LayerProps & { marker: MarkerData };
+
+class MarkerLayer extends Layer<MarkerLayerProps> {
+  protected override propsChanged(next: MarkerLayerProps) {
+    super.propsChanged(next);
+    this.shouldUpdateChildren = true;
+  }
+
+  protected override updateChildren() {
+    const { marker } = this.props;
+    return [Marker.create(marker, { key: marker.id })];
+  }
+}
+```
+
+### Mount, update and remove it
+
+The layer below owns one marker. Its key stays the same when its props change, so the graph updates the same
+component. Moving it changes its origin. Changing its colour updates the rectangle. A click on the marker
+recolours it.
+
+```ts
+function mountMarker(graph: Graph) {
+  let marker: MarkerData = { id: "checkpoint", x: 100, y: 80, color: "#2563eb" };
+  const layer = graph.addLayer(MarkerLayer, { marker });
+
+  function update(patch: Partial<Omit<MarkerData, "id">>) {
+    marker = { ...marker, ...patch };
+    layer.setProps({ marker });
+  }
+
+  const offClick = graph.on("click", (event) => {
+    const target = getEventTarget(event.detail.sourceEvent);
+    if (target instanceof Marker && target.getEntityId() === marker.id) {
+      update({ color: "#c25013" });
+    }
+  });
+
+  return {
+    update,
+    dispose() {
+      offClick();
+      graph.removeLayer(layer);
+    },
+  };
+}
+
+const marker = mountMarker(graph);
+```
+
+Call `marker.update({ x: 180, y: 120 })` to move it. After the graph processes the update, a point inside the square,
+such as `graph.getElementOverPoint({ x: 192, y: 132 })`, returns the topmost pointer target. To find painted markers
+in an area, use `graph.scene.query({ x: 180, y: 120, width: 24, height: 24 }, { entityTypes: ["marker"] })`. Query
+results are snapshots. Apply edits to the model that supplies the component's props. Individual primitives draw as
+part of their component and share its pointer target. For a separately clickable part, return a child
+[`SceneComponent`](../components/block-component.md#child-components).
+
+Call `marker.dispose()` when its view closes. For a collection, one layer can return multiple keyed descriptors.
+Omit a descriptor from the next `updateChildren()` result to remove just that component. If the entity is a graph
+block with anchors and connections, register a [custom block](../components/block-component.md#registering-custom-blocks)
+and use `graph.api.addBlock()` and `graph.api.updateBlock()` to manage its data.
+
+In Storybook, open [Canvas / Scene elements / Orbit mascot](../../../../apps/storybook/src/stories/canvas/sceneRuntime/mascot.stories.tsx)
+to see a component walk and wave in the WebGL scene. Orbit owns its body and returns keyed children for its limbs.
+Each child adds its pose offset to `super.getSceneOrigin()`, so the hand can wave while the feet stand still.
+All parts share one animation clock and keep their primitive geometry across frames. Moving them still redraws the
+visible scene. Orbit pauses when its walking route is offscreen, its foot lift is smaller than one CSS pixel, the
+page is hidden, or the user prefers reduced motion. Removing the mascot also cancels the loop.
+
+## Draw a texture and animate it in WebGL
+
+A `sprite` places a decoded image on a rectangle in the scene. Its `x`, `y`, `width` and `height` are local world
+coordinates, just like a rect's. Load the asset before mounting the component and pass the same image object to
+components that share it. To replace an image, decode a new object.
+
+```ts
+import type { TScenePrimitive, TSceneSpriteEffect } from "@gravity-ui/graph";
+
+const image = new Image();
+image.src = "/assets/robot.png";
+await image.decode();
+
+const shine: TSceneSpriteEffect = {
+  animated: true,
+  fragment: `
+    vec4 spriteColor(sampler2D atlas, vec2 uv, float time, vec4 params) {
+      vec4 pixel = texture(atlas, uv);
+      float band = abs(uv.x + 0.2 * uv.y - (fract(time * 0.5) * 1.6 - 0.2));
+      float light = 1.0 - smoothstep(0.0, 0.09, band);
+      return vec4(mix(pixel.rgb, vec3(1.0), params.x * light), pixel.a);
+    }
+  `,
+};
+
+// Return this primitive from the component's schematic() method.
+const sprite: TScenePrimitive = {
+  kind: "sprite", image, x: 0, y: 0, width: 160, height: 120,
+  effect: shine, params: [0.6, 0, 0, 0],
+};
+```
+
+Without an effect the rectangle shows the whole image. The effect's **fragment shader** runs for each covered pixel.
+`uv` runs from the top-left `(0, 0)` to the bottom-right `(1, 1)`. `time` is the graph clock in seconds and `params`
+contains four per-sprite numbers (all zero if omitted). Return straight RGBA.
+Keep the sampled alpha to preserve transparent edges. For an asset on another origin, set `image.crossOrigin`
+before `src` and serve it with appropriate CORS headers.
+
+[Textured Orbit in Storybook](../../../../apps/storybook/src/stories/canvas/sceneRuntime/mascot.stories.tsx) samples one
+cell from an 8 × 8 PNG atlas. Changing the sampled coordinates selects a new pose or moves the character within the
+rectangle. Changing the sampled colour adds a travelling highlight. Neither requires changing scene geometry or
+resending the PNG for each frame. Set `animated: true` when the shader uses the clock. Canvas 2D, the minimap
+and `scene.toImage()` skip sprites. For effects on a connection's stroke, see the
+[connection shader contract](../connections/webgl-connections.md#shader-contract).
+
+### Move a character in world coordinates
+
+For a character that travels between blocks, put the position of its feet in your model. Return that world point
+from `getSceneOrigin()`; offset the sprite's local rectangle so its bottom-centre is at `(0, 0)`. For artwork with
+transparent padding, use the actual ground-contact point in the image. A stand-alone interactive sprite also needs
+a `getHitRect()` in world coordinates. A pan or zoom changes the projection, so neither should advance the walk.
+
+A single PNG provides one pose. Move it as a whole or apply a colour or UV effect. To animate articulated limbs,
+supply a sheet of poses with the same foot pivot in every cell, or separate limb artwork and animate the joints.
+For a walk cycle, derive the frame from distance along the path:
+
+```ts
+const phase = (distanceTravelled / distancePerCycle) % 1;
+const frame = Math.floor(phase * framesPerCycle);
+```
+
+`distancePerCycle` is the world distance between two ground contacts of the same foot. This keeps the planted foot
+from sliding as walking speed changes. A stationary action, such as waving, can use elapsed time independently.
+Textured Orbit moves the sampled pixels inside a fixed rectangle as a decorative animation. Changing the
+element's origin instead also moves its scene bounds and lets pointer interaction follow the character.
+
 ## Settings
 
 ```ts
@@ -261,6 +440,11 @@ it out with one shared layout (`lib/scene/textLayout.ts`), the rules of v1's `la
   in screen pixels at every camera scale: the world font size is `size / scale`, clamped by the bounds. Off
   (`false` or unset) means the authored world size. `lineHeight` is the line pitch at `size`, and the pitch scales
   with the resolved font size.
+- **Fade on zoom.** Set `minScale: 0.225, fadeInUntil: 0.3` on a label to reveal it gradually as the user zooms in.
+  At 0.225 the text is invisible. At 0.3 it reaches its styled opacity. Zooming out follows the same curve in reverse.
+  Canvas, WebGL and scene exports use the current scale, including when the camera stops inside the interval.
+  WebGL blends the label in scene order during the fade. Once it reaches full opacity, it uses ordinary text
+  antialiasing. Both passes share the same glyph buffers. Labels with a translucent paint keep blending.
 - **Wrapping.** Lines wrap by words (whitespace, newlines included, collapses to single spaces) to `width` at the
   resolved size, and a word wider than the box is split by characters; a line of one piece no wider than a space is
   dropped, as v1 dropped it. `wrap: false` keeps one line with its whitespace as written (each whitespace character
@@ -396,6 +580,7 @@ backend throws.
 The two renderers draw the same picture, with these known differences:
 
 - WebGL draws fill-only triangle primitives, including the triangles used to fill connection arrowheads.
+  WebGL also draws [textured sprites](#draw-a-texture-and-animate-it-in-webgl).
   Canvas 2D also draws arbitrary polygons, icons, and dashed rect and circle borders. Both renderers draw dashed paths.
 - Line breaks and line placement are the same (one shared layout). Both renderers align a line by the measured width
   of the complete line (Canvas 2D by `textAlign`, as v1 drew it; WebGL by the shared metrics: its words and spaces

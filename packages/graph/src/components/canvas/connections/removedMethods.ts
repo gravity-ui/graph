@@ -1,11 +1,11 @@
 import { isDevelopmentBuild } from "../../../lib/detachedWarning";
 
 const GEOMETRY_AND_PATHS =
-  "createPath(geometry) / createArrowPath(geometry) of a Path2DLine subclass (static line), or a custom static geometry";
-const STYLES = "style() / styleArrow() of a Path2DLine subclass";
-const GROUP = "getGroup() of a Path2DLine subclass";
+  "createPath(geometry) / createArrowPath(geometry) of a SceneLine subclass (static line), or a custom static geometry";
+const STYLES = "style() / styleArrow() of a SceneLine subclass";
+const GROUP = "getGroup() of a SceneLine subclass";
 const STROKES = "getStroke(state) / getArrowStroke(state) of the line class";
-const BOUNDS = "bounds come from static geometry; getBounds() of a Path2DLine subclass for custom shapes";
+const BOUNDS = "bounds come from static geometry; getBounds() of a SceneLine subclass for custom shapes";
 
 /** Methods `BlockConnection` no longer calls, with the place their work moves to. */
 const REMOVED_METHODS: Readonly<Record<string, string>> = {

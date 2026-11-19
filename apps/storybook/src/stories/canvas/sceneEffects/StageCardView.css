@@ -3,6 +3,8 @@
  * selection glow can extend past its edges.
  */
 .scene-stage {
+  --graph-block-bg: var(--graph-block-surface-color, #fff);
+  --graph-block-stripe-color: var(--graph-block-body-color, #c4c6cc);
   --graph-block-anchor-width: 18px;
   --graph-block-anchor-height: 18px;
   position: relative;
@@ -17,8 +19,13 @@
   margin: -1px 0 0 -1px;
 }
 
-/* The selection glow, the twin of the scene's `glow` part: its edge inside the card, its halo outside. */
-.scene-stage.selected {
+/* Both baselines keep the same selected border. Only the original treatment adds the outer glow. */
+[data-block-highlight="base"] .scene-stage.selected {
+  border-color: #ffcc00;
+  box-shadow: inset 0 0 0 1px #ffcc00;
+}
+
+[data-block-highlight="off"] .scene-stage.selected {
   border-color: #ffcc00;
   box-shadow:
     inset 0 0 0 1px #ffcc00,
@@ -26,7 +33,8 @@
 }
 
 /* "Focus on failures": GraphBlock puts the dimmed tag's class on the wrapper; the scene rule dims by 0.75. */
-.scene-stage.graph-tag-dimmed {
+.scene-stage.graph-tag-dimmed,
+.scene-stage.graph-tag-dimmed + .graph-block-outline {
   opacity: 0.25;
 }
 

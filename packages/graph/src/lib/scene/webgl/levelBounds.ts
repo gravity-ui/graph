@@ -3,6 +3,8 @@ import type { TTileRect } from "../../culling/TileIndex";
 import { resolveSceneSize } from "../size";
 import type { TScenePrimitive, TSceneSize, TSceneStroke } from "../types";
 
+import { MITER_LIMIT } from "./closedStroke";
+
 /**
  * The camera's default minimum scale (`CameraService`, `scaleMin`). A size in pixels is largest in world units there,
  * so the levels take every camera-aware size at this scale, or at the primitive's `minScale` when that is higher.
@@ -61,18 +63,12 @@ function paintedRectReach(stroke: TSceneStroke | undefined, scale: number, width
 }
 
 /**
- * The miter limit Canvas 2D strokes paths and polygons with: the context's default. `drawPrimitives` sets no `lineJoin`
- * and no `miterLimit`, so their joins are miters, and a join sharper than the limit is bevelled.
- */
-const CANVAS_MITER_LIMIT = 10;
-
-/**
  * How far the stroke of a path or polygon of a width reaches from its points in what Canvas 2D paints: a miter join
- * reaches up to `CANVAS_MITER_LIMIT` half-widths from its vertex (the limit is a ratio of the miter length to half the
+ * reaches up to `MITER_LIMIT` half-widths from its vertex (the limit is a ratio of the miter length to half the
  * width), farther than the whole width `geometryBounds` pads by, which also covers caps and bevels.
  */
 function paintedJoinReach(width: number): number {
-  return Math.max(width, (CANVAS_MITER_LIMIT * width) / 2);
+  return Math.max(width, (MITER_LIMIT * width) / 2);
 }
 
 function joinBox(box: TTileRect, minX: number, minY: number, maxX: number, maxY: number, pad: number): void {
@@ -132,7 +128,7 @@ export class CachedGeometryBounds {
       let haloMinScale = 0;
       if (primitive.kind === "path") {
         width = primitive.stroke.width;
-        reach = 1;
+        reach = primitive.closed ? MITER_LIMIT / 2 : 1;
         halo = primitive.effect ? toConnectionEffect(primitive.effect.effect).extraWidth : 0;
         // Shader scale is f32, even when the effect's CPU activity range is narrower than one float step.
         haloMinScale = Math.fround(primitive.effect?.minScale ?? 0);
@@ -161,7 +157,7 @@ export class CachedGeometryBounds {
       const haloScale = Math.max(scale, haloMinScale);
       let pad: number;
       if (pathDpr !== undefined && width !== undefined && primitive.kind === "path") {
-        pad = pathExtent(width, scale, pathDpr);
+        pad = pathExtent(width, scale, pathDpr) * (primitive.closed ? MITER_LIMIT : 1);
         if (halo > 0) pad = Math.max(pad, pathExtent(width, haloScale, pathDpr) + halo / haloScale);
       } else {
         pad = (width === undefined ? 0 : resolveSceneSize(width, scale) * reach) + halo / haloScale;
@@ -196,6 +192,11 @@ function boundsOf(
   for (const primitive of primitives) {
     const scale = frameScale ?? lowestShownScale(primitive.minScale);
     switch (primitive.kind) {
+      case "sprite": {
+        const { x, y, width, height } = primitive;
+        joinBox(box, x, y, x + width, y + height, 0);
+        break;
+      }
       case "rect": {
         const { x, y, width, height, border } = primitive;
         const pad = painted ? paintedRectReach(border, scale, width, height) : strokeReach(border, scale);
@@ -213,7 +214,7 @@ function boundsOf(
           const width = resolveSceneSize(primitive.stroke.width, scale);
           const halo =
             !painted && primitive.effect ? toConnectionEffect(primitive.effect.effect).extraWidth / scale : 0;
-          joinPoints(box, primitive.segments, painted ? paintedJoinReach(width) : width + halo);
+          joinPoints(box, primitive.segments, (painted || primitive.closed ? paintedJoinReach(width) : width) + halo);
         }
         break;
       case "polygon": {

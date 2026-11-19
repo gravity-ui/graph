@@ -37,10 +37,15 @@ export type TStyleResolverDeps = {
  * level or the scale band), every live row is recomputed and the changed ones are rewritten in one call.
  */
 export class StyleResolver {
-  /** Increments after every recompute of the live rows: a change of rules, root tags, level or scale band. */
+  /** Increments on each change of rules, root tags, level or scale band, including equivalent levels. */
   public readonly $generation: ReadonlySignal<number>;
 
+  /** Changes when rules can match differently, including for a target without a live style row. */
+  public readonly $cascadeGeneration: ReadonlySignal<number>;
+
   private readonly generation = signal(0);
+
+  private readonly cascadeGeneration = signal(0);
 
   private readonly rows = new Map<string, TRow>();
 
@@ -57,13 +62,33 @@ export class StyleResolver {
 
   constructor(private readonly deps: TStyleResolverDeps) {
     this.$generation = this.generation;
+    this.$cascadeGeneration = this.cascadeGeneration;
     this.$band = computed(() => this.bandOf(deps.$scale.value, deps.sheet.$thresholds.value));
-    let previous: readonly unknown[] | undefined;
+    const globals = computed(() => ({
+      rules: deps.sheet.$rules.value,
+      root: deps.tags.$root.value,
+      band: this.$band.value,
+    }));
+    let previousGlobals: ReturnType<typeof globals.peek> | undefined;
+    let previousLevel: TSceneLevel | undefined;
     this.stop = effect(() => {
-      // Every global input of a computed style; the effect re-runs when one of them changes.
-      const inputs = [deps.sheet.$rules.value, deps.tags.$root.value, deps.$level.value, this.$band.value];
-      if (previous !== undefined) untracked(() => this.recompute());
-      previous = inputs;
+      const current = globals.value;
+      const level = deps.$level.value;
+      const from = previousLevel;
+      if (from !== undefined) {
+        // Levels affect rules only through scope.levels. Keep a shared row and its observers asleep
+        // when every rule covers both levels equally, even if the public level itself changed.
+        if (
+          current !== previousGlobals ||
+          current.rules.some(({ rule }) => rule.scope?.levels?.includes(from) !== rule.scope?.levels?.includes(level))
+        ) {
+          untracked(() => this.recompute());
+          this.cascadeGeneration.value = this.cascadeGeneration.peek() + 1;
+        }
+        this.generation.value = this.generation.peek() + 1;
+      }
+      previousGlobals = current;
+      previousLevel = level;
     });
   }
 
@@ -155,7 +180,6 @@ export class StyleResolver {
       changed.set(row.styleId, style);
     }
     if (changed.size > 0) this.deps.store.replaceStyles(changed);
-    this.generation.value = this.generation.peek() + 1;
   }
 
   /** `${targetId}|${tag.id}=${JSON(value)},...` with tags sorted by id. */

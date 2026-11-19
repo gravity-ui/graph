@@ -189,8 +189,7 @@ const SceneRuntimeApp = (): React.JSX.Element => {
         <Flex direction="column" gap={2} style={{ padding: 16 }}>
           <Text variant="header-1">Scene runtime</Text>
           <Text variant="body-1">
-            Elements are written straight into graph.scene (blocks and connections still draw through GraphLayer until
-            the component work lands). Zoom to see the level change; switch the renderer to compare.
+            Zoom to change the level of detail, or switch between Canvas and WebGL to compare the same scene.
           </Text>
           <Flex alignItems="center" gap={3} wrap>
             <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />

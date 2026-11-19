@@ -1,6 +1,6 @@
 import { Page } from "@playwright/test";
 
-import type { TBlock, TConnection } from "@gravity-ui/graph";
+import type { TBlock, TConnection, TSceneRendererState } from "@gravity-ui/graph";
 import { GraphPO } from "@gravity-ui/graph-playwright";
 
 import { GraphCameraComponentObject } from "./GraphCameraComponentObject";
@@ -106,9 +106,8 @@ export class GraphPageObject extends GraphPO {
     }, count);
   }
 
-  /** The renderer the graph layer actually uses for connections: "canvas", "webgl" or "webgl-fallback". */
-  public async getConnectionsRenderer(): Promise<string> {
-    return this.evaluate((graph) => graph.getGraphLayer().$connectionsRenderer.value);
+  public async getSceneRenderer(): Promise<TSceneRendererState> {
+    return this.evaluate((graph) => graph.scene.$renderer.value);
   }
 
   public async setEntities(config: GraphConfig): Promise<void> {

@@ -56,18 +56,6 @@ const EMPTY_LEVELS: TLevelOutput = Object.freeze({
   bounds: EMPTY_BOUNDS,
 });
 
-/** The component that added each element, per store: an element id is never taken over from another component. */
-const elementOwners = new WeakMap<SceneStore, Map<string, object>>();
-
-function ownersOf(store: SceneStore): Map<string, object> {
-  let owners = elementOwners.get(store);
-  if (!owners) {
-    owners = new Map();
-    elementOwners.set(store, owners);
-  }
-  return owners;
-}
-
 /**
  * Reports an exception of a component hook in every build. Scene computeds never hold an exception: a held one would
  * be thrown again by every later update of the component, and each throw stops the frame before the scene paints.
@@ -595,10 +583,8 @@ export abstract class SceneComponent<
     if (this.written) {
       const store = this.context.graph.scene.store;
       const id = this.getSceneElementId();
-      const owners = ownersOf(store);
       // The store deletes the element's child elements with it.
-      if (owners.get(id) === this) {
-        owners.delete(id);
+      if (store.writerOf(id) === this) {
         store.delete(id);
       }
     }
@@ -844,9 +830,8 @@ export abstract class SceneComponent<
    */
   private addSceneElement(store: SceneStore, id: string, next: TWritten): boolean {
     const owner = this.constructor.name;
-    const owners = ownersOf(store);
     if (store.get(id)) {
-      const holder = owners.get(id);
+      const holder = store.writerOf(id);
       if (holder !== this) {
         this.written = undefined;
         this.sceneKey = undefined;
@@ -863,7 +848,6 @@ export abstract class SceneComponent<
         return false;
       }
       store.delete(id);
-      owners.delete(id);
     }
     this.written = undefined;
     this.sceneKey = undefined;
@@ -872,20 +856,22 @@ export abstract class SceneComponent<
       return false;
     }
     if (isDevelopmentBuild()) checkScenePrimitives(owner, next.primitives);
-    store.add({
-      id,
-      // The type is the class's, whatever the id (`createSceneElementId` may be overridden).
-      entityType: (this.constructor as typeof SceneComponent).entityType,
-      primitives: next.primitives,
-      bounds: next.bounds,
-      x: next.x,
-      y: next.y,
-      zIndex: next.zIndex,
-      hidden: next.hidden,
-      parent: next.parent,
-      childOrder: next.childOrder,
-    });
-    owners.set(id, this);
+    store.add(
+      {
+        id,
+        // The type is the class's, whatever the id (`createSceneElementId` may be overridden).
+        entityType: (this.constructor as typeof SceneComponent).entityType,
+        primitives: next.primitives,
+        bounds: next.bounds,
+        x: next.x,
+        y: next.y,
+        zIndex: next.zIndex,
+        hidden: next.hidden,
+        parent: next.parent,
+        childOrder: next.childOrder,
+      },
+      this
+    );
     this.written = next;
     this.syncHitMask(next, this.adds === 0);
     this.sceneKey = { elementId: id, sub: 0 };

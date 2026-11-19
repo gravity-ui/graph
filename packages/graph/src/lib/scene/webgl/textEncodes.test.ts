@@ -123,6 +123,16 @@ function bitsOf(floats: ArrayLike<number>): Uint32Array {
 }
 
 describe("textEncodes", () => {
+  it("re-encodes an explicitly changed fade range and keeps equal immutable text descriptions", () => {
+    const plain = text("a");
+    const { last } = encodeOnce([plain], 0, 0, atlas());
+    const fading = { ...plain, fadeInUntil: 0.3 };
+    expect(sameText(plain, fading)).toBe(false);
+    expect(sameText(fading, { ...fading })).toBe(true);
+    expect(sameText(fading, { ...fading, fadeInUntil: 0.4 })).toBe(false);
+    expect(planTextEncode(last, 0, [fading], 0)).toBe("encode");
+  });
+
   it("lists an element's texts in primitive order with their subs", () => {
     const a = text("a");
     const b = text("b");
@@ -135,6 +145,7 @@ describe("textEncodes", () => {
       weight: "bold",
       verticalAlign: "middle",
       minScale: 0.1,
+      fadeInUntil: 0.3,
       maxScale: 2,
       levelMask: 3,
       cameraAware: { minWorld: 4, maxWorld: 30 },
@@ -161,6 +172,7 @@ describe("textEncodes", () => {
       overflow: "ellipsis",
       maxLines: 2,
       minScale: 0.2,
+      fadeInUntil: 0.4,
       maxScale: 3,
       part: "other",
       levelMask: 1,

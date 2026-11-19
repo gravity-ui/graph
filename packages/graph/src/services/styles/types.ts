@@ -1,4 +1,4 @@
-import type { TScenePartStyle, TSceneStyle } from "../../lib/scene/types";
+import type { TSceneMotion, TSceneOutline, TScenePartStyle, TSceneStyle } from "../../lib/scene/types";
 import type { TSceneLevel } from "../scene/types";
 import type { TTag } from "../tags/types";
 
@@ -20,6 +20,10 @@ export type TRuleStyle<C extends TStyleTarget> = {
   parts?: Partial<Record<TPartsOf<C>, TScenePartStyle>>;
   /** Added to the element's zIndex bucket while the rule applies. */
   raise?: number;
+  /** Visual motion of a block in Canvas and WebGL. `"none"` overrides a lower-priority motion. */
+  motion?: TSceneMotion;
+  /** Replaces the block border with the perimeter of its body and round anchors. Null restores the border. */
+  outline?: TSceneOutline | null;
   /**
    * In [0, 1]: moves the element's paints towards the scene's dim colour (the theme's layer background) without
    * touching their colours otherwise; a part's own `dim` wins over it. The last matching rule that sets it wins.

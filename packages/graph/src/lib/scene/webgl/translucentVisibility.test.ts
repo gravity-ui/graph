@@ -150,6 +150,42 @@ describe("cached visibility of translucent order parts", () => {
     expect(readEnd.mock.calls.length).toBeLessThan(runs.length);
   });
 
+  it("does not reproject a block when a change falls between its non-bridged physical runs", () => {
+    const cache = new TranslucentVisibility();
+    const source = new Visibility(4096);
+    const input = Array.from({ length: 32 }, (_, i) => {
+      source.visible.add(i);
+      return part({ source: 0, first: i, count: 1 }, { source: 0, first: 2048 + i, count: 1 });
+    });
+    const draw = () => cache.update(input, [source], [false], [input]);
+    const before = draw();
+    let revision = source.visibilityRevision;
+    const readRevision = jest.fn(() => revision);
+    Object.defineProperty(source, "visibilityRevision", {
+      get: readRevision,
+      set(value: number) {
+        revision = value;
+      },
+    });
+
+    source.update(1024);
+    readRevision.mockClear();
+    source.any.mockClear();
+    expect(draw()).toBe(before);
+    expect(source.any).not.toHaveBeenCalled();
+    // One source journal and snapshot; none of the 32 unchanged part projections is revisited.
+    expect(readRevision.mock.calls.length).toBeLessThan(4);
+
+    source.update(2048);
+    expect(draw().flat()).toEqual(
+      filterTranslucentRuns(
+        input.flatMap((p) => p.runs),
+        (_, first, count) => source.any(first, count),
+        () => false
+      )
+    );
+  });
+
   it("keeps an untouched part validated while the whole group skips visibility revisions", () => {
     const cache = new TranslucentVisibility();
     const source = new Visibility();
@@ -191,6 +227,40 @@ describe("cached visibility of translucent order parts", () => {
     jest.spyOn(source, "changesSince").mockReturnValue(changes);
     expect(draw()).toEqual(input[0].runs);
     expect(reads).toBeLessThan(64);
+  });
+
+  it("skips a long journal inside a gap between two non-bridged runs", () => {
+    const cache = new TranslucentVisibility();
+    const last = 16_384;
+    const source = new Visibility(last + 1);
+    source.visible.add(0);
+    source.visible.add(last);
+    const input = [part({ source: 0, first: 0, count: 1 }, { source: 0, first: last, count: 1 })];
+    const draw = () => cache.update(input, [source], [false]);
+    const before = draw();
+    let reads = 0;
+    const changes = Array.from({ length: last / 2 }, (_, i) => {
+      const first = i * 2 + 1;
+      source.visible.add(first);
+      return {
+        first,
+        get end() {
+          reads++;
+          return first + 1;
+        },
+      };
+    });
+    source.visibilityRevision++;
+    jest.spyOn(source, "changesSince").mockReturnValue(changes);
+    source.any.mockClear();
+    expect(draw()).toBe(before);
+    expect(source.any).not.toHaveBeenCalled();
+    expect(reads).toBeLessThan(64);
+
+    // The last gap span touches the run. Extending it by one now changes the run itself.
+    changes[changes.length - 1] = { first: last - 1, end: last + 1 };
+    source.update(last);
+    expect(draw().flat()).toEqual([input[0].runs[0]]);
   });
 
   it("rechecks an inactive gap when visibility changes or an intermediate raw run disappears", () => {

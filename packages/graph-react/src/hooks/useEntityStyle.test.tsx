@@ -28,6 +28,38 @@ it("returns tag classes and part colour variables", () => {
   expect(result.current.style).toMatchObject({ "--graph-block-border-color": "#2e7d32" });
 });
 
+it("keeps an HTML style across equivalent levels and follows a level rule without a bound scene element", () => {
+  const graph = new Graph({});
+  graph.cameraService.set({ scale: 0.8 });
+  const { result, unmount } = renderHook(() => useEntityStyle(graph, { type: "block", id: "a" }, Block, "graph-block"));
+  const first = result.current;
+  act(() => graph.cameraService.set({ scale: 0.69 }));
+  expect(result.current).toBe(first);
+  act(() => {
+    graph.scene.styles.add([
+      { target: Block, scope: { levels: ["detailed"] }, style: { parts: { border: { color: "#558877" } } } },
+    ]);
+    graph.cameraService.set({ scale: 0.8 });
+  });
+  expect(result.current.style).toMatchObject({ "--graph-block-border-color": "#558877" });
+  unmount();
+  graph.unmount();
+});
+
+it("exposes the effective block motion to an HTML face and removes it when the rule stops matching", () => {
+  const graph = new Graph({});
+  const running = defineTag("running");
+  const { result } = renderHook(() => useEntityStyle(graph, { type: "block", id: "a" }, Block, "graph-block"));
+  act(() => graph.scene.tags.add(running, { block: ["a"] }));
+  let remove: () => void;
+  act(() => {
+    remove = graph.scene.styles.add([{ target: Block, tags: [running], style: { motion: "shake" } }]);
+  });
+  expect(result.current.className.split(" ")).toContain("graph-motion-shake");
+  act(() => remove());
+  expect(result.current.className).toBe("graph-tag-running");
+});
+
 it("keeps tag classes and part colour variables current under StrictMode, without another style subscriber", () => {
   // No block "a" exists, so nothing but the hook subscribes to its tags. StrictMode subscribes, unsubscribes (the
   // store releases the signal) and subscribes again to the same signal.
@@ -140,6 +172,67 @@ describe("React wrappers", () => {
 
     const blockContainer = el.parentElement as HTMLElement;
     expect(blockContainer.style.getPropertyValue("--graph-block-geometry-width")).not.toBe("");
+    cleanup();
+  });
+
+  it("mounts the outline in the selected block's z-index container and restores its border for outline: null", () => {
+    const { graph, container, cleanup } = setup();
+    const face = wrapper(container, "p1");
+    const siblingClass = () => face.nextElementSibling?.getAttribute("class");
+    act(() => {
+      graph.scene.styles.add([
+        { target: Block, tags: [selectedTag], style: { outline: { color: "#2860ba", width: 3 } } },
+      ]);
+      graph.selectionService.select("block", ["p1"], ESelectionStrategy.REPLACE);
+    });
+    expect(siblingClass()).toBe("graph-block-outline");
+    expect(face.style.borderColor).toBe("transparent");
+    let removeOverride: () => void;
+    act(() => {
+      removeOverride = graph.scene.styles.add([{ target: Block, priority: 1, style: { outline: null } }]);
+    });
+    expect(siblingClass()).toBeUndefined();
+    expect(face.style.borderColor).toBe("");
+    act(() => removeOverride());
+    expect(siblingClass()).toBe("graph-block-outline");
+    act(() => graph.selectionService.select("block", ["c1"], ESelectionStrategy.REPLACE));
+    expect(siblingClass()).toBeUndefined();
+    expect(wrapper(container, "c1").nextElementSibling?.getAttribute("class")).toBe("graph-block-outline");
+    cleanup();
+  });
+
+  it("subscribes only the styled block and applies the scene's current offset before paint", () => {
+    const { graph, container, cleanup } = setup();
+    const running = defineTag("motion-test");
+    let notify: ((x: number, y: number) => void) | undefined;
+    const release = jest.fn();
+    const subscribe = jest.spyOn(graph.scene, "onBlockMotion").mockImplementation((_id, listener) => {
+      notify = listener;
+      listener(0, -6);
+      return release;
+    });
+    act(() => {
+      graph.scene.styles.add([{ target: CustomBlock, tags: [running], style: { motion: "bounce" } }]);
+    });
+    expect(subscribe).not.toHaveBeenCalled();
+    const body = wrapper(container, "c1");
+    const element = body.parentElement as HTMLElement;
+    const offsetY = () => element.style.getPropertyValue("--graph-block-motion-y");
+
+    act(() => graph.scene.tags.add(running, { block: ["c1"] }));
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(subscribe).toHaveBeenCalledWith("c1", expect.any(Function));
+    expect(offsetY()).toBe("-6px");
+    act(() => notify?.(0, -3));
+    expect(offsetY()).toBe("-3px");
+    expect(wrapper(container, "c1")).toBe(body);
+    act(() => notify?.(0, 0));
+    expect(element.hasAttribute("data-graph-block-motion")).toBe(false);
+    expect(offsetY()).toBe("");
+    act(() => notify?.(0, -1));
+    act(() => graph.scene.tags.clear(running));
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(offsetY()).toBe("");
     cleanup();
   });
 

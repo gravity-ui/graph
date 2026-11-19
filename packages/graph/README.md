@@ -224,6 +224,7 @@ graph.runAfterGraphReady(() => graph.zoomTo("center", { padding: 100 }));
    - [Public API](docs/system/public_api.md)
    - [Scheduler System](docs/system/scheduler-system.md)
    - [Scene](docs/system/scene.md)
+   - [Add and update a custom scene element](docs/system/scene.md#add-an-element-to-the-scene)
    - [Tags and styles](docs/system/tags-and-styles.md)
 
 2. Components
@@ -238,7 +239,7 @@ graph.runAfterGraphReady(() => graph.zoomTo("center", { padding: 100 }));
 4. Blocks and Connections
    - [Block Groups](docs/blocks/groups.md)
    - [Canvas Connection System](docs/connections/canvas-connection-system.md)
-   - [Connection Lines, Geometry and WebGL](docs/connections/webgl-connections.md)
+   - [Connection lines, geometry and effects](docs/connections/webgl-connections.md)
    - [Batch Rendering](docs/connections/batch-rendering.md)
 
 5. Testing

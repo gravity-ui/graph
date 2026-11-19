@@ -1,9 +1,11 @@
 import { dashFlow } from "../../../components/canvas/connections/effects";
 import { lineSegment } from "../../../components/canvas/connections/geometry/segments";
 import { INSTANCE_FLOATS } from "../../../components/canvas/connections/webgl/encode";
+import { blockOutlineSegments } from "../blockOutline";
 import type { TScenePrimitive } from "../types";
 
 import { PATH_ELEMENT_FLOATS, encodePaths } from "./encodePaths";
+import { CachedGeometryBounds } from "./levelBounds";
 import { USE_BASE_ALPHA } from "./tables";
 
 const straight = new Float32Array(lineSegment({ x: 0, y: 0 }, { x: 30, y: 0 }));
@@ -13,6 +15,60 @@ const curved = new Float32Array([0, 0, 0, 50, 50, 50, 50, 0]);
 const slotOf = (part: string | undefined): number => (part === undefined ? 0 : 5);
 
 describe("encodePaths", () => {
+  it("shares the cross-section at every corner of an explicitly closed solid stroke, including its seam", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 80, y: 0 },
+      { x: 80, y: 40 },
+      { x: 0, y: 40 },
+    ];
+    const segments = new Float32Array(points.flatMap((p, i) => lineSegment(p, points[(i + 1) % points.length])));
+    const primitive = { kind: "path" as const, segments, stroke: { width: 4, color: "rgba(0,0,0,0.5)" } };
+    const encode = (p: TScenePrimitive) => encodePaths([p], 0, 0, slotOf).lines;
+    const joins = encode({ ...primitive, closed: true });
+    const open = encode(primitive);
+    const dashed = encode({ ...primitive, closed: true, stroke: { width: 4, dash: [4, 2] } });
+    expect(joins).toHaveLength(4 * INSTANCE_FLOATS);
+    for (let at = 0; at < joins.length; at += INSTANCE_FLOATS) {
+      expect(Array.from(joins.subarray(at + 13, at + 16))).toEqual([-1, 1, -1]);
+      expect(Array.from(open.subarray(at + 13, at + 16))).toEqual([0, 0, 0]);
+      expect(dashed[at + 13]).toBe(240);
+      expect(Array.from(joins.subarray(at + 8, at + 12))).toEqual(Array.from(open.subarray(at + 8, at + 12)));
+    }
+  });
+
+  it("keeps finite joins and a bounded miter when a protruding anchor nearly touches the body", () => {
+    const [segments] = blockOutlineSegments(100, 40, [{ x: 109.9999, y: 20, r: 10 }]);
+    const contour: TScenePrimitive = { kind: "path", closed: true, segments, stroke: { width: 4 } };
+    const out = encodePaths([contour], 0, 6, slotOf);
+    const slopes: number[] = [];
+    for (const data of [out.lines, out.curves]) {
+      expect(data.every(Number.isFinite)).toBe(true);
+      for (let at = 0; at < data.length; at += INSTANCE_FLOATS) slopes.push(data[at + 14], data[at + 15]);
+    }
+    // This case exercises the cap in the shader instead of a regular miter.
+    expect(Math.max(...slopes.map(Math.abs))).toBeGreaterThan(10);
+    // At DPR 1 the shader's maximum reach is 10 * (2px half width + 1px AA).
+    const bounds = new CachedGeometryBounds([contour]).at(() => 1, 1)!;
+    expect(bounds.minX).toBe(-30);
+    expect(bounds.maxX).toBeLessThanOrEqual(150);
+    expect(bounds.minY).toBe(-30);
+    expect(bounds.maxY).toBe(70);
+  });
+
+  it("joins only the boundary pieces of a subdivided Bézier to the closing line", () => {
+    const segments = new Float32Array([...curved, ...lineSegment({ x: 50, y: 0 }, { x: 0, y: 0 })]);
+    const out = encodePaths([{ kind: "path", closed: true, segments, stroke: { width: 2 } }], 0, 6, slotOf);
+    const end = out.curves.length - INSTANCE_FLOATS;
+    expect(end).toBeGreaterThan(INSTANCE_FLOATS);
+    expect(out.lines[13]).toBe(-1);
+    expect(out.curves[14]).toBeCloseTo(-1);
+    expect(out.curves[end + 15]).toBeCloseTo(1);
+    expect(out.curves[INSTANCE_FLOATS + 13]).toBe(0);
+    expect(out.curves[15]).toBe(0);
+    expect(out.curves[end + 14]).toBe(0);
+  });
+
   it("writes the level mask of a path", () => {
     const out = encodePaths(
       [{ kind: "path", segments: straight, stroke: { color: "#f00", width: 2 }, levelMask: 1 }],

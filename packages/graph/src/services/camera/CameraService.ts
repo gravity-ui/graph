@@ -186,12 +186,9 @@ export class CameraService extends Emitter {
   }
 
   public move(dx = 0, dy = 0) {
-    const x = (this.state.x + dx) | 0;
-    const y = (this.state.y + dy) | 0;
-
     this.set({
-      x,
-      y,
+      x: this.state.x + dx,
+      y: this.state.y + dy,
     });
   }
 

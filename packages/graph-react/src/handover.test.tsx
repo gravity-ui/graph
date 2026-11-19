@@ -427,6 +427,24 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     if (how !== "unmount") mounted.unmount();
   });
 
+  it("keeps an anchor targeted on rapid re-entry while the previously requested list is pending", () => {
+    const suspendViews = { current: false };
+    const mounted = mount({}, 0.5, { suspendViews });
+    const { graph, nameOf } = mounted;
+    pointAtAnchor(graph);
+    suspendViews.current = true;
+    mounted.at(1);
+    mounted.frames(1);
+    // Leave and re-enter between frames. The second entry sees the same requested list, still uncommitted.
+    mounted.at(0.5);
+    mounted.at(1);
+    mounted.frames(1);
+    expect(nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("anchor");
+    mounted.frames(4);
+    expect(nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("block");
+    mounted.unmount();
+  });
+
   it("keeps the retarget waiting through a scene change that comes before React commits the views", () => {
     const mounted = mount({}, 0.5);
     const { graph, log } = mounted;

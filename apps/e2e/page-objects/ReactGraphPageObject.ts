@@ -23,7 +23,7 @@ export class ReactGraphPageObject extends GraphPageObject {
   protected async setupGraph(config: GraphConfig): Promise<void> {
     await this.page.evaluate((cfg) => {
       return new Promise<void>((resolve) => {
-        const { Graph, GraphCanvas, GraphBlock, React, ReactDOM, GraphState } = window.GraphModule;
+        const { Graph, GraphCanvas, GraphBlock, GraphBlockAnchor, React, ReactDOM, GraphState } = window.GraphModule;
 
         const rootEl = document.getElementById("root");
         if (!rootEl) {
@@ -37,7 +37,11 @@ export class ReactGraphPageObject extends GraphPageObject {
           const children = React.createElement(
             "div",
             { "data-testid": `block-${block.id}`, style: { padding: "8px" } },
-            block.name || block.id
+            block.name || block.id,
+            cfg.settings?.useBlocksAnchors &&
+              block.anchors?.map((anchor) =>
+                React.createElement(GraphBlockAnchor, { key: anchor.id, graph: g, anchor, position: "absolute" })
+              )
           );
 
           return React.createElement(GraphBlock, { graph: g, block, children });
@@ -89,9 +93,7 @@ export class ReactGraphPageObject extends GraphPageObject {
   async getRenderedHtmlBlockIds(): Promise<string[]> {
     return await this.page.evaluate(() => {
       const elements = document.querySelectorAll("[data-testid^='block-']");
-      return Array.from(elements).map((el) =>
-        el.getAttribute("data-testid")?.replace("block-", "") || ""
-      );
+      return Array.from(elements).map((el) => el.getAttribute("data-testid")?.replace("block-", "") || "");
     });
   }
 

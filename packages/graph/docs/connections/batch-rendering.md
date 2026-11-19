@@ -1,13 +1,15 @@
 # Batch Rendering System in BlockConnection
 
-Built-in connections draw in [`graph.scene`](../system/scene.md). Connections with custom Canvas hooks
-use the compatibility batch on `GraphLayer`. Their line object (see [Connection Lines, Geometry and WebGL](webgl-connections.md))
-registers a line item and an arrow item with the Path2D batch.
+The default `SceneLine` draws in [`graph.scene`](../system/scene.md). A subclass can override
+`getStroke()` or `getArrowStroke()` and switch between Canvas2D and WebGL with the rest of the scene.
+Overriding a Canvas hook such as `createPath(geometry)` or `style(ctx)` puts that connection in the
+compatibility batch on `GraphLayer` for either scene renderer. Its line object registers a line item
+and an arrow item with the batch. See [Connection lines](webgl-connections.md#lines).
 
 ## How Batching Works
 
 Every item has a z-level and a group. The z-level is `connection.DEFAULT_Z_INDEX`, plus 10 while the connection is
-hovered or selected; an arrow is one level below its line. The line item's group is `Path2DLine.getGroup()`, by default
+hovered or selected; an arrow is one level below its line. The line item's group is `SceneLine.getGroup()`, by default
 built from the stroke `getStroke()` returns. The arrow item's group adds whether the arrow is closed and the arrow's
 own stroke: a closed triangle is filled and stroked, a chevron only stroked, so the two never share a style on a graph
 with both shapes.
@@ -76,7 +78,7 @@ optionally `getPathBounds()`, `isPathVisible()` and `afterRender()`).
 
 ## Integration in Custom Connections
 
-A line builds its path once per geometry change (`Path2DLine.createPath(geometry)`) and returns it from `getPath()`
+A line builds its path once per geometry change (`SceneLine.createPath(geometry)`) and returns it from `getPath()`
 when a chunk is rebuilt. State, props, endpoint and data changes recompute the geometry and the strokes
 automatically. When data that changed elsewhere is read:
 
@@ -105,12 +107,12 @@ The chunk takes its style from its first visible line, so a `style()` that reads
 in the group by overriding `getGroup()`:
 
 ```typescript
-import { BlockConnection, Path2DLine } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine } from "@gravity-ui/graph";
 import type { Path2DRenderStyleResult, TConnection } from "@gravity-ui/graph";
 
 type TPriorityConnection = TConnection & { priority?: "high" | "normal" };
 
-class PriorityLine extends Path2DLine {
+class PriorityLine extends SceneLine {
   public override style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
     const result = super.style(ctx);
     if (this.isHigh()) {

@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { memo, startTransition, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { BlockState, CanvasBlock, Graph, GraphState, TBlock } from "@gravity-ui/graph";
 
@@ -43,10 +43,12 @@ type TRetargetHold = {
 };
 
 const hasBlockListChanged = (newStates: BlockState<TBlock>[], oldStates: BlockState<TBlock>[]): boolean => {
+  if (newStates === oldStates) return false;
   if (newStates.length !== oldStates.length) return true;
 
-  const oldIds = new Set(oldStates.map((state) => state.id));
-  return newStates.some((state) => !oldIds.has(state.id));
+  // A deleted block can return under the same id with a different state and subscriptions.
+  const previous = new Set(oldStates);
+  return newStates.some((state) => !previous.has(state));
 };
 
 export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }: TBlockListProps) {
@@ -54,6 +56,7 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
   const [graphState, setGraphState] = useCompareState(graphObject.state);
   /** The list last asked for: the scene change compares the blocks in view with it. */
   const requestedStates = useRef(blockStates);
+  const committedStates = useRef(blockStates);
   /** The pointer's retarget, held from the level's change to detailed until the new views mounted. */
   const retargetHold = useRef<TRetargetHold | undefined>(undefined);
 
@@ -92,26 +95,37 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
 
   useSceneChange(graphObject, () => {
     // The blocks in view, whether or not the level hits them: a class's `hitLevels` decide targeting, not HTML.
-    const next =
-      graphObject.scene.$level.value === "detailed"
-        ? graphObject.getComponentsInViewport([CanvasBlock]).map((component) => component.connectedState)
-        : [];
+    const next: BlockState<TBlock>[] = [];
+    if (graphObject.scene.$level.value === "detailed") {
+      const states = graphObject.rootStore.blocksList.$blocksMap.peek();
+      for (const component of graphObject.getComponentsInViewport([CanvasBlock])) {
+        const state = states.get(component.connectedState.id);
+        if (state) next.push(state);
+      }
+    }
     const hold = retargetHold.current;
     if (!hasBlockListChanged(next, requestedStates.current)) {
-      // Nothing new mounts, unless the hold waits for a list asked for before and not committed yet.
-      if (hold && !hold.waitsForList) releaseViews();
+      // A second entry can ask for the same list while the previous entry's render is still pending.
+      if (hold && !hold.waitsForList) {
+        hold.waitsForList = hasBlockListChanged(requestedStates.current, committedStates.current);
+        if (!hold.waitsForList) releaseViews();
+      }
       return;
     }
     // A newer list replaces the one the hold waited for; a hold that waited for none waits for this one.
     if (hold?.waitsForList) releaseViews();
     else if (hold) hold.waitsForList = true;
     requestedStates.current = next;
-    setBlockStates(next);
+    // The scene still draws these blocks until their HTML commits. React can yield to camera and input
+    // while preparing the first detailed list. Removing an old list stays urgent.
+    if (hold && next.length) startTransition(() => setBlockStates(next));
+    else setBlockStates(next);
   });
 
   // After a commit: the views' effects ran before this one (children first), so their holds are taken.
   useEffect(() => {
-    releaseViews();
+    committedStates.current = blockStates;
+    if (retargetHold.current && !hasBlockListChanged(requestedStates.current, blockStates)) releaseViews();
   }, [blockStates, releaseViews]);
 
   useEffect(() => {

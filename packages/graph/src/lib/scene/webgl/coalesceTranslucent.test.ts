@@ -1,11 +1,59 @@
 import type { TTileRect } from "../../culling/TileIndex";
 
 import { InstanceRanges } from "./InstanceRanges";
-import { coalesceTranslucentRuns, translucentRunOwners } from "./coalesceTranslucent";
+import type { TSceneFrame } from "./backendTypes";
+import { TranslucentRefinement, coalesceTranslucentRuns, translucentRunOwners } from "./coalesceTranslucent";
 import type { TTranslucentRun } from "./translucentOrder";
 
 const clip: TTileRect = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
 const box = (x: number): TTileRect => ({ minX: x, maxX: x + 5, minY: 0, maxY: 5 });
+
+describe("translucent refinement after a direct draw", () => {
+  const frame: TSceneFrame = {
+    x: 0,
+    y: 0,
+    width: 800,
+    height: 600,
+    scale: 1,
+    dpr: 2,
+    level: "detailed",
+    time: 0,
+    dimColor: "",
+  };
+
+  it("requests one follow-up only when the submitted draw count reaches the threshold", () => {
+    const refinement = new TranslucentRefinement();
+    expect(refinement.record(frame, 511, 0)).toBe(false);
+    expect(refinement.take(frame, 0)).toBe(false);
+    expect(refinement.record(frame, 512, 0)).toBe(true);
+    expect(refinement.take({ ...frame, time: 1 }, 0)).toBe(true);
+    expect(refinement.take(frame, 0)).toBe(false);
+  });
+
+  it("remeasures after panning, zooming, resizing or changing the active programs", () => {
+    const refinement = new TranslucentRefinement();
+    for (const camera of [
+      { x: 1 },
+      { y: 1 },
+      { width: 801 },
+      { height: 601 },
+      { dpr: 1 },
+      { scale: 0.99 },
+      { level: "schematic" as const },
+    ]) {
+      const reusedFrame = { ...frame };
+      refinement.record(reusedFrame, 600, 0);
+      Object.assign(reusedFrame, camera);
+      expect(refinement.take(reusedFrame, 0)).toBe(false);
+      expect(refinement.take(frame, 0)).toBe(false);
+    }
+    refinement.record(frame, 600, 0);
+    expect(refinement.take(frame, 1)).toBe(false);
+    refinement.record(frame, 600, 1);
+    refinement.clear();
+    expect(refinement.take(frame, 1)).toBe(false);
+  });
+});
 
 function schedule(): { sources: InstanceRanges[]; runs: TTranslucentRun[] } {
   const sources = [new InstanceRanges(1), new InstanceRanges(1)];

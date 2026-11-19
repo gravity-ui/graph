@@ -1,8 +1,17 @@
 import type { Graph } from "../graph";
 import type { TTileRect } from "../lib/culling/TileIndex";
 import type { TTreeCullingOptions } from "../lib/culling/TreeCulling";
+import { alignToPixelGrid } from "../utils/functions";
 
-import type { ICamera } from "./camera/CameraService";
+import type { ICamera, TCameraState } from "./camera/CameraService";
+
+/** World bounds of the rendered scene. Canvas2D snaps the translation to its backing pixels. */
+export function cameraWorldViewport(camera: TCameraState, canvasDpr?: number): TTileRect {
+  const { width, height, scale } = camera;
+  const x = canvasDpr === undefined ? camera.x : alignToPixelGrid(camera.x, canvasDpr);
+  const y = canvasDpr === undefined ? camera.y : alignToPixelGrid(camera.y, canvasDpr);
+  return { minX: -x / scale, minY: -y / scale, maxX: (width - x) / scale, maxY: (height - y) / scale };
+}
 
 /**
  * One viewport source for a layer tree: the camera viewport in world coordinates, or the layer's rectangle in

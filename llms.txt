@@ -17,7 +17,7 @@ For the installed core version, start at `node_modules/@gravity-ui/graph/build/d
 
 ## Core Documentation
 
-- [Scene](packages/graph/docs/system/scene.md): Renderer selection, level of detail, draw order and export
+- [Scene](packages/graph/docs/system/scene.md): Add, move and remove custom elements, handle clicks, switch renderers and export
 - [Connections](packages/graph/docs/connections/webgl-connections.md): Straight lines, Béziers, polylines, ports, hit testing and shader effects
 - [Tags and styles](packages/graph/docs/system/tags-and-styles.md): Style named parts and interaction states
 - [Public API](packages/graph/docs/system/public_api.md): Main API for interacting with the graph

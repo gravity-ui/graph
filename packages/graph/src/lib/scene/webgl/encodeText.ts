@@ -19,6 +19,17 @@ import type { GlyphAtlas, TGlyphRun } from "./glyphs";
 
 type TTextPrimitive = Extract<TScenePrimitive, { kind: "text" }>;
 
+/** A valid fade keeps one resident record shared by the blended and completed opaque draw views. */
+function fadeInUntil(primitive: TTextPrimitive): number | undefined {
+  const end = primitive.fadeInUntil;
+  return end !== undefined && Number.isFinite(end) && end > (primitive.minScale ?? 0) ? end : undefined;
+}
+
+/** Text whose glyphs need painter ordering, including a camera-driven fade over an opaque paint. */
+export function isTranslucentText(primitive: TTextPrimitive): boolean {
+  return fadeInUntil(primitive) !== undefined || isTranslucentPaint(primitive.color);
+}
+
 /** Floats per glyph instance; floats 1, 3, 23 and 27 hold the text's clip box (`GLYPH_VERTEX`). */
 export const GLYPH_FLOATS = 28;
 
@@ -128,6 +139,7 @@ export function writeTextGlyphs(
   writeSize(sizeRow, 0, shaderSize(primitive, policy));
   const minScale = scaleBound(primitive.minScale, 0);
   const maxScale = scaleBound(primitive.maxScale, NO_LIMIT);
+  const fadeEnd = fadeInUntil(primitive) ?? minScale;
   const levelMask = primitive.levelMask ?? ALL_LEVELS_MASK;
   const placed = glyphs.length / GLYPH_RUN_FLOATS;
   if (placed > count) throw new RangeError(`A text places ${placed} glyphs, past the ${count} it keeps`);
@@ -154,7 +166,7 @@ export function writeTextGlyphs(
     // The shader scales the quad about the anchor: world = element + anchor + quad x resolved size / TEXT_METRICS_PX.
     out[offset + 20] = anchor.x;
     out[offset + 21] = anchor.y;
-    out[offset + 22] = TEXT_METRICS_PX;
+    out[offset + 22] = fadeEnd;
     out[offset + 23] = clipBound(clip.minY);
     out[offset + 24] = minScale;
     out[offset + 25] = maxScale;
@@ -200,7 +212,7 @@ export function encodeText(
     if (primitive.kind !== "text") continue;
     const at = subBase + sub;
     checkSub(at, maxSub);
-    const isTranslucent = isTranslucentPaint(primitive.color);
+    const isTranslucent = isTranslucentText(primitive);
     const list = isTranslucent ? translucent : opaque;
     const subList = isTranslucent ? subs.translucent : subs.opaque;
     const layout = text.layoutOf(primitive);

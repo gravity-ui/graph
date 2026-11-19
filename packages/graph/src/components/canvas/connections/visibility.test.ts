@@ -7,10 +7,10 @@ import type { Path2DRenderStyleResult } from "./BatchPath2D";
 import { BlockConnection } from "./BlockConnection";
 import type { TConnectionProps } from "./BlockConnection";
 import type { TConnectionGeometry } from "./geometry";
-import { Path2DLine } from "./lines";
+import { SceneLine } from "./lines";
 
 /** Records the paths it builds and the styles it applies on its connection. */
-class ObservedLine extends Path2DLine<ObservedConnection> {
+class ObservedLine extends SceneLine<ObservedConnection> {
   private get draws(): string[] {
     return this.connection.draws;
   }

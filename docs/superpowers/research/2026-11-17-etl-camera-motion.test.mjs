@@ -11,10 +11,14 @@ import { build } from "esbuild";
 const repo = new URL("../../../", import.meta.url);
 const scratch = await mkdtemp(join(tmpdir(), "etl-camera-motion-"));
 const outfile = join(scratch, "motion.cjs");
-let startEtlCameraMotion;
+let motion;
 try {
   await build({
-    entryPoints: [fileURLToPath(new URL("apps/storybook/src/stories/canvas/sceneEffects/etlCameraMotion.ts", repo))],
+    stdin: {
+      contents: `export { startEtlCameraMotion } from "./apps/storybook/src/stories/canvas/sceneEffects/etlCameraMotion";
+        export { schedule, ESchedulerPriority } from "@gravity-ui/graph";`,
+      resolveDir: fileURLToPath(repo),
+    },
     alias: { "@gravity-ui/graph": fileURLToPath(new URL("packages/graph/src/index.ts", repo)) },
     loader: { ".css": "empty" },
     outfile,
@@ -22,13 +26,16 @@ try {
     format: "cjs",
     platform: "node",
   });
-  ({ startEtlCameraMotion } = await import(pathToFileURL(outfile)));
+  motion = (await import(pathToFileURL(outfile))).default;
 } finally {
   await rm(scratch, { recursive: true, force: true });
 }
 
 test("ETL camera motion waits for sizing and restarts or cancels cleanly", (t) => {
+  const { startEtlCameraMotion, schedule, ESchedulerPriority } = motion;
   const pending = new Map();
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
   let nextId = 0;
   globalThis.window = {
     requestAnimationFrame(callback) {
@@ -47,6 +54,7 @@ test("ETL camera motion waits for sizing and restarts or cancels cleanly", (t) =
     assert.equal(pending.size, 1);
     const [id, callback] = pending.entries().next().value;
     pending.delete(id);
+    now = time;
     callback(time);
   }
 
@@ -65,6 +73,13 @@ test("ETL camera motion waits for sizing and restarts or cancels cleanly", (t) =
     assert(Math.abs(actual - expected) < 1e-9, `${actual} should be close to ${expected}`);
   }
 
+  let paintedX;
+  const stopRender = schedule(
+    () => {
+      paintedX = state.x;
+    },
+    { priority: ESchedulerPriority.MEDIUM, frameInterval: 1 }
+  );
   let cancel = startEtlCameraMotion(camera, data, "pan");
   frame(1_000);
   assert.deepEqual(state, { x: -300, y: 95, scale: 0.15, width: 0, height: 0 });
@@ -73,12 +88,14 @@ test("ETL camera motion waits for sizing and restarts or cancels cleanly", (t) =
   assert.deepEqual(state, { x: -300, y: 95, scale: 0.15, width: 1_300, height: 800 });
   frame(6_000);
   close(state.x, -60);
+  close(paintedX, -60);
   close(state.y, -145);
   frame(18_000);
   close(state.x, -300);
   close(state.y, 95);
   close(state.scale, 0.15);
   cancel();
+  stopRender();
   assert.equal(pending.size, 0);
 
   Object.assign(state, { x: 220, y: -40, scale: 0.4 });
@@ -102,4 +119,18 @@ test("ETL camera motion waits for sizing and restarts or cancels cleanly", (t) =
   }
   cancel();
   assert.equal(pending.size, 0);
+
+  cancel = startEtlCameraMotion(
+    {
+      ...camera,
+      set: () => {
+        throw new Error("failed camera");
+      },
+    },
+    data,
+    "pan"
+  );
+  assert.throws(() => frame(70_000), /failed camera/);
+  assert.equal(pending.size, 0);
+  cancel();
 });

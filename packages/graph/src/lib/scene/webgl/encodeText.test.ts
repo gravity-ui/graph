@@ -3,7 +3,14 @@ import type { ISceneTextMetrics } from "../textLayout";
 import type { TScenePrimitive, TSceneTextPolicy } from "../types";
 
 import { InstanceRanges } from "./InstanceRanges";
-import { GLYPH_FLOATS, GLYPH_SUB_FLOATS, encodeText, textGlyphCount, writeTextGlyphs } from "./encodeText";
+import {
+  GLYPH_FLOATS,
+  GLYPH_SUB_FLOATS,
+  encodeText,
+  isTranslucentText,
+  textGlyphCount,
+  writeTextGlyphs,
+} from "./encodeText";
 import type { TTextEncodeInput, TTextGlyphPlaces } from "./encodeText";
 import { ATLAS_FONT_PX, GlyphAtlas, SDF_BUFFER, glyphCapacity, glyphRun, layoutGlyphs } from "./glyphs";
 import { USE_BASE_ALPHA } from "./tables";
@@ -77,8 +84,8 @@ describe("encodeText", () => {
     expect(Array.from(opaque.slice(0, 4))).toEqual([7, -1e9, 2, 1e9]);
     expect(Array.from(opaque.slice(12, 16))).toEqual([0, 0, 1, 1]);
     expect(Array.from(opaque.slice(16, 20))).toEqual([0, 12, 0, 1e9]);
-    // The anchor, the size the quads are placed at and the clip's top.
-    expect(Array.from(opaque.slice(20, 24))).toEqual([3, 4, TEXT_METRICS_PX, -1e9]);
+    // The anchor, the disabled fade (equal to minScale) and the clip's top.
+    expect(Array.from(opaque.slice(20, 24))).toEqual([3, 4, 0, -1e9]);
     expect(Array.from(opaque.slice(24, 28))).toEqual([0, 1e9, 7, 1e9]);
     for (let i = 0; i < 2; i++) {
       const at = i * GLYPH_FLOATS;
@@ -111,6 +118,58 @@ describe("encodeText", () => {
     const { opaque, translucent } = encodeText([text({ color: "rgba(0,0,0,0.5)" })], 0, () => 0, atlas(), input());
     expect(opaque).toHaveLength(0);
     expect(translucent).toHaveLength(GLYPH_FLOATS);
+  });
+
+  it("keeps fading text in the ordered translucent pass at every camera scale without changing its glyphs", () => {
+    const primitive = text({ text: "ab", minScale: 0.2, fadeInUntil: 0.3, levelMask: 3 });
+    const shared = atlas();
+    const before = encodeText([primitive], 7, () => 2, shared, input(0.2), 5);
+    const after = encodeText([primitive], 7, () => 2, shared, input(0.8), 5);
+    expect(before.opaque).toHaveLength(0);
+    expect(before.translucent).toHaveLength(2 * GLYPH_FLOATS);
+    expect(Array.from(before.subs.translucent)).toEqual([5, 5]);
+    expect(before.translucent).toEqual(after.translucent);
+    expect(before.translucent[22]).toBeCloseTo(0.3);
+    expect(before.translucent[24]).toBeCloseTo(0.2);
+    expect(before.translucent[26]).toBe(3);
+    expect(Array.from(before.translucent.slice(12, 16))).toEqual([0, 0, 1, 1]);
+  });
+
+  it.each([undefined, NaN, Infinity, -Infinity, 0.1, 0.2])(
+    "does not change an opaque text's pass for an inactive fade endpoint %s",
+    (fadeInUntil) => {
+      const { opaque, translucent } = encodeText([text({ minScale: 0.2, fadeInUntil })], 0, () => 0, atlas(), input());
+      expect(opaque).toHaveLength(GLYPH_FLOATS);
+      expect(translucent).toHaveLength(0);
+      expect(opaque[22]).toBe(opaque[24]);
+    }
+  );
+
+  it("starts an unbounded fade at zero and preserves its endpoint during a glyph re-layout", () => {
+    const primitive = text({ text: "ab", cameraAware: true, fadeInUntil: 0.3 });
+    const shared = atlas();
+    const layout = input(0.25).layoutOf(primitive);
+    const run = glyphRun(primitive, layout, shared, metrics);
+    const count = textGlyphCount(primitive, run);
+    const out = new Float32Array(count * GLYPH_FLOATS);
+    writeTextGlyphs(out, 0, count, primitive, layout, run, {
+      elementIndex: 2,
+      slot: 0,
+      policy: DEFAULT_TEXT_POLICY,
+      atlas: shared,
+    });
+    expect(out[24]).toBe(0);
+    expect(out[22]).toBeCloseTo(0.3);
+    expect(Array.from(out.slice((count - 1) * GLYPH_FLOATS))).toEqual(hiddenGlyph(2, 0));
+  });
+
+  it("classifies inherited paint by its fade and disables the fade safely for a negative visibility bound", () => {
+    expect(isTranslucentText(text({ color: undefined, fadeInUntil: 0.3 }))).toBe(true);
+    expect(isTranslucentText(text({ color: undefined, minScale: 0.3, fadeInUntil: 0.3 }))).toBe(false);
+    expect(isTranslucentText(text({ color: "rgba(0,0,0,0.5)", fadeInUntil: NaN }))).toBe(true);
+    const { opaque } = encodeText([text({ minScale: -1 })], 0, () => 0, atlas(), input());
+    expect(opaque[22]).toBe(-1);
+    expect(opaque[22]).toBe(opaque[24]);
   });
 
   it("writes each glyph's sub to the sub list of its pass, in step with the glyphs, and not into the glyph", () => {
@@ -199,7 +258,7 @@ describe("encodeText", () => {
     const k = TEXT_METRICS_PX / ATLAS_FONT_PX;
     /** The vertex shader's world position of a glyph quad's corner (0, 0): anchor + quad x resolved / layout size. */
     const shaderCorner = (out: ArrayLike<number>, at: number, size: number): { x: number; y: number } => {
-      const s = size / out[at + 22];
+      const s = size / TEXT_METRICS_PX;
       return { x: out[at + 20] + out[at + 4] * s, y: out[at + 21] + out[at + 5] * s };
     };
 

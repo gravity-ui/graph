@@ -100,6 +100,7 @@ export const TEXT_FIELDS = [
   "overflow",
   "maxLines",
   "minScale",
+  "fadeInUntil",
   "maxScale",
   "part",
   "levelMask",
@@ -152,6 +153,7 @@ function sameDrawFields(a: TTextPrimitive, b: TTextPrimitive): boolean {
   return (
     Object.is(a.color, b.color) &&
     Object.is(a.minScale, b.minScale) &&
+    Object.is(a.fadeInUntil, b.fadeInUntil) &&
     Object.is(a.maxScale, b.maxScale) &&
     Object.is(a.part, b.part) &&
     Object.is(a.levelMask, b.levelMask)

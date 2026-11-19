@@ -283,44 +283,64 @@ for (const renderer of ["canvas", "webgl"] as const) {
   });
 }
 
-test("the built-in WebGLLine shares the scene context and remains drawable through loss and restore", async ({
-  page,
-}) => {
+test("one custom SceneLine draws in Canvas and WebGL through switching, loss and restore", async ({ page }) => {
   await trackWebGLContexts(page);
 
   const graph = new GraphPageObject(page);
   await graph.initialize({
     blocks: [START, END],
-    connections: [{ ...CONNECTION, label: "Edge label" }],
     settings: {
-      renderer: "webgl",
+      renderer: "canvas",
       useBezierConnections: false,
       showConnectionArrows: true,
       showConnectionLabels: true,
     },
   });
   test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
-  await page.evaluate(() => {
-    const { BlockConnection, WebGLLine } = window.GraphModule;
-    class BuiltInWebGLConnection extends BlockConnection {
-      public static override line = WebGLLine;
-    }
-    window.graph.updateSettings({ connection: BuiltInWebGLConnection });
-    window.graph.setColors({ connectionLabel: { background: "#4020e0", text: "#209040" } });
-  });
+  await page.evaluate(
+    (connection) => {
+      const { BlockConnection, SceneLine } = window.GraphModule;
+      class RedLine extends SceneLine {
+        public override getStroke(state: Parameters<InstanceType<typeof SceneLine>["getStroke"]>[0]) {
+          return this.withInteraction({ color: "#ff2020", width: 3 }, state);
+        }
+      }
+      class StyledConnection extends BlockConnection {
+        public static override line = RedLine;
+      }
+      window.graph.updateSettings({ connection: StyledConnection });
+      window.graph.api.addConnection(connection);
+      window.graph.setColors({ connectionLabel: { background: "#4020e0", text: "#209040" } });
+    },
+    { ...CONNECTION, styles: {}, label: "Edge label" }
+  );
   await centerOrigin(graph);
-  await expectRenderer(page, "webgl");
-  expect(await attachedWebGLContexts(page)).toBe(1);
+  await expectRenderer(page, "canvas");
+  const original = await page.evaluateHandle(() =>
+    window.graph.rootStore.connectionsList.getConnectionState("edge")?.getViewComponent()
+  );
 
   // The label sits left and above the target, outside the block and away from the shaft.
   const label: TSample = { x: 485, y: 90, width: 132, height: 48, rgb: [32, 144, 64] };
   const assertDrawing = async (): Promise<void> => {
+    expect(
+      await original.evaluate(
+        (view) =>
+          Boolean(view) &&
+          view === window.graph.rootStore.connectionsList.getConnectionState("edge")?.getViewComponent()
+      )
+    ).toBe(true);
     const [shaft, arrow, text] = await sampleScene(page, [SHAFT, OPEN_ARROW, label]);
     expect(shaft, "connection shaft").toBeGreaterThan(12);
     expect(arrow, "open arrow away from the shaft").toBeGreaterThan(2);
     expect(text, "label text").toBeGreaterThan(10);
     expect(await connectionHit(page, { x: 250, y: 140 })).toBe(true);
   };
+  await assertDrawing();
+
+  await graph.evaluate((graph) => graph.scene.setRenderer("webgl"));
+  await expectRenderer(page, "webgl");
+  expect(await attachedWebGLContexts(page)).toBe(1);
   await assertDrawing();
 
   const extensionAvailable = await page.evaluate(() => {

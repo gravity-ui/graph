@@ -23,6 +23,64 @@ function paths(xs: number[]): { paths: Float32Array; elements: Float32Array; tab
 }
 
 describe("PathCulling", () => {
+  it("keeps equivalent level hulls and reselects when an edited mask or an all-level frame changes visibility", () => {
+    const data = paths(Array<number>(CHUNK * 3).fill(10));
+    for (let i = 0; i < CHUNK * 3; i++) data.elements[i * PATH_ELEMENT_FLOATS + 6] = [6, 1, 7][Math.floor(i / CHUNK)];
+    const culling = new PathCulling();
+    const detailed = { ...frame, level: "detailed" as const };
+    const schematic = { ...frame, level: "schematic" as const };
+    culling.update(data.paths, data.elements, data.table, detailed);
+    const select = jest.spyOn(culling as unknown as { selectHulls(scale: number): void }, "selectHulls");
+    const visible = (at: TSceneFrame) => culling.ranges(0, CHUNK * 3, at, 0);
+    const near = [
+      { first: 0, count: CHUNK },
+      { first: CHUNK * 2, count: CHUNK },
+    ];
+    expect(visible(detailed)).toEqual(near);
+    culling.update(data.paths, data.elements, data.table, schematic);
+    expect(visible(schematic)).toEqual(near);
+    expect(select).not.toHaveBeenCalled();
+
+    // HTML handover changes only the table's hidden key, not the conservative path hulls.
+    data.table.write("e0", 0, 0, 0, true, 0);
+    culling.update(data.paths, data.elements, data.table, detailed);
+    expect(visible(detailed)).toEqual(near);
+    expect(select).not.toHaveBeenCalled();
+    data.table.write("e0", 0, 0, 0, false, 0);
+
+    culling.update(data.paths, data.elements, data.table, frame);
+    expect(visible(frame)).toEqual([{ first: 0, count: CHUNK * 3 }]);
+    expect(select).toHaveBeenCalledTimes(1);
+    culling.update(data.paths, data.elements, data.table, schematic);
+    expect(visible(schematic)).toEqual(near);
+    expect(select).toHaveBeenCalledTimes(2);
+
+    const tail = data.elements.subarray(CHUNK * 2 * PATH_ELEMENT_FLOATS);
+    for (let at = 6; at < tail.length; at += PATH_ELEMENT_FLOATS) tail[at] = 2;
+    culling.invalidate(
+      { kind: "range", spans: [{ data: tail, byteOffset: tail.byteOffset }], bytes: tail.byteLength },
+      PATH_ELEMENT_FLOATS
+    );
+    culling.update(data.paths, data.elements, data.table, schematic);
+    expect(visible(schematic)).toEqual(near);
+    expect(select).toHaveBeenCalledTimes(2);
+    culling.update(data.paths, data.elements, data.table, detailed);
+    expect(visible(detailed)).toEqual([{ first: 0, count: CHUNK }]);
+    expect(select).toHaveBeenCalledTimes(3);
+  });
+
+  it("retains a closed corner that reaches the viewport past its centre line and fringe", () => {
+    const data = paths([108]);
+    const visible = () => {
+      const culling = new PathCulling();
+      culling.update(data.paths, data.elements, data.table, frame);
+      return culling.ranges(0, 1, frame, 0);
+    };
+    expect(visible()).toEqual([]);
+    data.paths.set([-1, 5, 0], 13);
+    expect(visible()).toEqual([{ first: 0, count: 1 }]);
+  });
+
   it("retains physical chunks across camera changes and replaces only edited chunks", () => {
     const data = paths(Array<number>(CHUNK * 2).fill(10));
     const culling = new PathCulling();

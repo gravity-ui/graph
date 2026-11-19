@@ -80,6 +80,16 @@ export type TScenePartStyle = {
   effect?: Readonly<TConnectionEffectUse> | null;
 };
 
+/** Exterior stroke of a rectangular block and its visible round anchors. Width is in world units. */
+type TOutlineStroke = Readonly<{ color: string; width: number }>;
+export type TSceneOutline = TOutlineStroke & {
+  /** A soft stroke beneath the rim. Width is the reach beyond either edge of the rim, in world units. */
+  readonly halo?: TOutlineStroke;
+};
+
+/** Visual motion for a scene block. `"none"` clears motion from an earlier rule. */
+export type TSceneMotion = "bounce" | "shake" | "none";
+
 /** A computed style row. */
 export type TSceneStyle = Readonly<{
   /** State rules: override the primitive's own values. */
@@ -91,6 +101,9 @@ export type TSceneStyle = Readonly<{
   base?: Readonly<Record<TScenePart, Readonly<TScenePartStyle>>>;
   /** Added to the element's zIndex bucket while the style is on. */
   raise?: number;
+  /** Translates the drawn block without changing its layout coordinates. */
+  motion?: TSceneMotion;
+  outline?: TSceneOutline | null;
   /** The dim of every part that sets none (`TScenePartStyle.dim`) and of primitives without a part. */
   dim?: number;
   /**
@@ -110,6 +123,13 @@ export type TSceneVisibility = {
    * means every level. `SceneComponent` sets it from the level method that returned the primitive.
    */
   levelMask?: number;
+};
+
+/** Fragment program for a WebGL sprite. Return straight RGBA; UV (0, 0) is the top-left corner. */
+export type TSceneSpriteEffect = {
+  readonly fragment: string;
+  /** Request frames while this sprite is visible. The shader receives the scene clock in seconds. */
+  readonly animated?: boolean;
 };
 
 /**
@@ -139,6 +159,8 @@ export type TScenePrimitive = Readonly<
       | {
           kind: "text";
           text: string;
+          /** Reveal the text as the camera zooms from minScale (default 0) to this scale. */
+          fadeInUntil?: number;
           family: string;
           /** A CSS font weight ("normal", "bold", "500"); default "normal". */
           weight?: string;
@@ -183,12 +205,27 @@ export type TScenePrimitive = Readonly<
           /** The most lines kept, after the box's height. */
           maxLines?: number;
         }
+      /** A decoded, immutable image on a WebGL quad. Canvas 2D and interpreted exports omit sprites. */
+      | {
+          kind: "sprite";
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          image: HTMLImageElement;
+          /** Defines vec4 spriteColor(sampler2D atlas, vec2 uv, float time, vec4 params). */
+          effect?: TSceneSpriteEffect;
+          /** Per-sprite parameters, zero by default. */
+          params?: readonly [number, number, number, number];
+        }
       | { kind: "icon"; path: Path2D; viewBox: number; x: number; y: number; size: number; color?: string }
       /** Cubic segments, 8 numbers each (p0, c1, c2, p3), as the connection geometries produce them. */
       /** The effect is drawn by WebGL only; the Canvas2D interpreter ignores it. */
       | {
           kind: "path";
           segments: Float32Array;
+          /** Joins the ends of one continuous solid contour whose final point repeats its first. */
+          closed?: boolean;
           stroke: TSceneStroke;
           effect?: TConnectionEffectUse;
           canvasStroke?: TSceneStroke;

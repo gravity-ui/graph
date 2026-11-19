@@ -1,5 +1,5 @@
-import { BlockConnection, WebGLLine, dashFlow, defineConnectionEffect, pulse } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TConnection, TConnectionEffectUse, TWebGLStroke } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, dashFlow, defineConnectionEffect, pulse } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TConnection, TConnectionEffectUse, TSceneLineStroke } from "@gravity-ui/graph";
 
 export type TConnectionClass = typeof BlockConnection<TConnection>;
 
@@ -15,7 +15,7 @@ export type TLook = {
 
 /**
  * The resting look of a connection; `withInteraction()` makes a hovered or selected line 2 units wider and a selected
- * one the selection color. A WebGL line with an effect gets its own color back and the effect shows the selection.
+ * one the selection color. In WebGL, an effect receives the resting color and draws the selection.
  */
 export type TDescribe = (id: string | number | undefined, state: TBaseConnectionState) => TLook;
 
@@ -30,16 +30,16 @@ export function hashId(id: string | number | undefined): number {
   return hash;
 }
 
-function toWebGLStroke({ color, width, pattern, effect }: TLook): TWebGLStroke {
+function toSceneStroke({ color, width, pattern, effect }: TLook): TSceneLineStroke {
   if (effect) return { color, width, effect };
   return pattern ? { color, width, dash: { pattern } } : { color, width };
 }
 
 export function createConnection(describe: TDescribe): TConnectionClass {
   // The dash and the effect stay on hover and selection; an effect decides how the selection looks.
-  class StyledLine extends WebGLLine {
-    public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-      return this.withInteraction(toWebGLStroke(describe(this.connection.props.id, state)), state);
+  class StyledLine extends SceneLine {
+    public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
+      return this.withInteraction(toSceneStroke(describe(this.connection.props.id, state)), state);
     }
   }
   class StyledConnection extends BlockConnection<TConnection> {
@@ -94,7 +94,6 @@ export const gradient = defineConnectionEffect({
     laps,
     ...to,
   ],
-  fallback: (stroke) => stroke,
 });
 
 /**
@@ -113,7 +112,6 @@ export const glow = defineConnectionEffect({
         : vec4(color.rgb, color.a * u_intensity * falloff);
       return mix(halo, color, f.coverage);
     }`,
-  fallback: (stroke) => stroke,
 });
 
 export const stillDash = createConnection(() => ({ color: "#4e79a7", width: 2, pattern: [12, 8] }));

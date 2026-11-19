@@ -5,7 +5,7 @@ import type { IConnectionBatch, IConnectionBatchItem } from "../batch";
 import { blockGeometry, multipointGeometry } from "../geometry";
 import type { TConnectionGeometry } from "../geometry";
 
-import { Path2DLine } from "./Path2DLine";
+import { SceneLine } from "./SceneLine";
 import type { TLineStroke } from "./types";
 
 class RecordingBatch implements IConnectionBatch {
@@ -56,6 +56,7 @@ function stubConnection(
     },
     state: { id: "c", ...state },
     props,
+    getSceneKey: () => undefined,
     getGeometry: () => geometry,
     getBatchZIndex: () => 0,
     isPathVisible: () => true,
@@ -87,16 +88,56 @@ const closedArrowGeometry = multipointGeometry({
   connection: { id: "c" } as TConnection,
 }) as TConnectionGeometry;
 
-describe("Path2DLine", () => {
+describe("SceneLine Canvas hooks", () => {
+  it("keeps data-driven strokes and custom hit tests in the scene", () => {
+    class StatusLine extends SceneLine {
+      public override getStroke(): TLineStroke {
+        return { color: "#079", width: 4 };
+      }
+      public override hitTest(): boolean {
+        return true;
+      }
+    }
+    expect(new StatusLine(stubConnection(straight).connection).usesCanvasDrawing()).toBe(false);
+  });
+
+  it("detects inherited Canvas paths and instance-level paint hooks", () => {
+    class CustomPath extends SceneLine {
+      protected override createArrowPath(geometry: TConnectionGeometry): Path2D {
+        return super.createArrowPath(geometry);
+      }
+    }
+    class InheritedPath extends CustomPath {}
+    class CustomPaint extends SceneLine {
+      public override style = (ctx: CanvasRenderingContext2D) => super.style(ctx);
+    }
+    const { connection } = stubConnection(straight);
+    expect(new InheritedPath(connection).usesCanvasDrawing()).toBe(true);
+    expect(new CustomPaint(connection).usesCanvasDrawing()).toBe(true);
+  });
+
+  it("distinguishes the connection's existing decoration from a line's own Canvas callback", () => {
+    const { connection, ctx } = stubConnection(straight);
+    const decoration = jest.fn();
+    connection.afterRender = decoration;
+    const line = new SceneLine(connection);
+    expect(line.usesCanvasDrawing()).toBe(false);
+    const draw = line.afterRender;
+    draw?.(ctx);
+    expect(decoration).toHaveBeenCalledWith(ctx);
+    line.afterRender = jest.fn();
+    expect(line.usesCanvasDrawing()).toBe(true);
+  });
+
   it("registers the line and the arrow one level below with Path2D style groups", () => {
     const { connection, batch } = stubConnection(straight);
-    const line = new Path2DLine(connection);
+    const line = new SceneLine(connection);
     line.update();
     expect(batch.items.get(line)).toEqual({ zIndex: 0, group: "line/#aaa/2/" });
     expect(batch.items.get(line.arrow)).toEqual({ zIndex: -1, group: "arrow/open/#aaa/2//line/#aaa/2/" });
 
     const hovered = stubConnection(straight, { hovered: true });
-    const hoveredLine = new Path2DLine(hovered.connection);
+    const hoveredLine = new SceneLine(hovered.connection);
     hoveredLine.update();
     expect(hovered.batch.items.get(hoveredLine)?.group).toBe("line/#aaa/4/");
     expect(hovered.batch.items.get(hoveredLine.arrow)?.group).toBe("arrow/open/#aaa/4//line/#aaa/4/");
@@ -104,7 +145,7 @@ describe("Path2DLine", () => {
 
   it("deletes the arrow item when arrows are off", () => {
     const { connection, batch } = stubConnection(straight, {}, { showConnectionArrows: false });
-    const line = new Path2DLine(connection);
+    const line = new SceneLine(connection);
     line.update();
     expect(batch.has(line)).toBe(true);
     expect(batch.has(line.arrow)).toBe(false);
@@ -112,7 +153,7 @@ describe("Path2DLine", () => {
 
   it("reads the stroke once per update and the arrow stroke only while arrows are shown", () => {
     const { connection } = stubConnection(straight);
-    const line = new Path2DLine(connection);
+    const line = new SceneLine(connection);
     const stroke = jest.spyOn(line, "getStroke");
     const arrowStroke = jest.spyOn(line, "getArrowStroke");
     line.update();
@@ -124,7 +165,7 @@ describe("Path2DLine", () => {
     expect(stroke).toHaveBeenCalledTimes(2);
 
     const hidden = stubConnection(straight, {}, { showConnectionArrows: false });
-    const hiddenLine = new Path2DLine(hidden.connection);
+    const hiddenLine = new SceneLine(hidden.connection);
     const hiddenStroke = jest.spyOn(hiddenLine, "getStroke");
     const hiddenArrowStroke = jest.spyOn(hiddenLine, "getArrowStroke");
     hiddenLine.update();
@@ -134,10 +175,10 @@ describe("Path2DLine", () => {
 
   it("puts closed and open arrows in different groups", () => {
     const open = stubConnection(straight);
-    const openLine = new Path2DLine(open.connection);
+    const openLine = new SceneLine(open.connection);
     openLine.update();
     const closed = stubConnection(closedArrowGeometry);
-    const closedLine = new Path2DLine(closed.connection);
+    const closedLine = new SceneLine(closed.connection);
     closedLine.update();
     expect(closed.batch.items.get(closedLine.arrow)?.group).toContain("arrow/closed/");
     expect(closed.batch.items.get(closedLine.arrow)?.group).not.toBe(open.batch.items.get(openLine.arrow)?.group);
@@ -147,7 +188,7 @@ describe("Path2DLine", () => {
     const { connection } = stubConnection(straight);
     const invalidateLine = jest.fn();
     Object.assign(connection, { invalidateLine });
-    const line = new Path2DLine(connection);
+    const line = new SceneLine(connection);
     line.update();
     line.invalidate();
     expect(invalidateLine).toHaveBeenCalledTimes(1);
@@ -155,7 +196,7 @@ describe("Path2DLine", () => {
 
   it("update() with an unchanged stroke marks the line dirty", () => {
     const { connection, batch } = stubConnection(straight);
-    const line = new Path2DLine(connection);
+    const line = new SceneLine(connection);
     line.update();
     batch.dirty.length = 0;
     line.update();
@@ -164,7 +205,7 @@ describe("Path2DLine", () => {
 
   it("applies the stroke in style() and styleArrow()", () => {
     const { connection, ctx } = stubConnection(straight, { dashed: true, styles: { dashes: [3, 2] } });
-    const line = new Path2DLine(connection);
+    const line = new SceneLine(connection);
     line.update();
     const setLineDash = jest.spyOn(ctx, "setLineDash");
     expect(line.style(ctx)).toEqual({ type: "stroke" });
@@ -174,7 +215,7 @@ describe("Path2DLine", () => {
     expect(line.styleArrow(ctx)).toEqual({ type: "stroke" });
 
     const closed = stubConnection(closedArrowGeometry);
-    const closedLine = new Path2DLine(closed.connection);
+    const closedLine = new SceneLine(closed.connection);
     closedLine.update();
     expect(closedLine.styleArrow(closed.ctx)).toEqual({ type: "both" });
     expect(closed.ctx.fillStyle).toBe("#aaaaaa");
@@ -182,7 +223,7 @@ describe("Path2DLine", () => {
 
   it("builds the path once per geometry object", () => {
     let created = 0;
-    class CountingLine extends Path2DLine {
+    class CountingLine extends SceneLine {
       protected override createPath(geometry: TConnectionGeometry): Path2D {
         created++;
         return super.createPath(geometry);
@@ -202,12 +243,18 @@ describe("Path2DLine", () => {
     line.getPath();
     expect(created).toBe(2);
 
-    const none = new Path2DLine(stubConnection(undefined).connection);
+    const none = new SceneLine(stubConnection(undefined).connection);
     expect(none.getPath()).toBeUndefined();
     expect(none.getArrowPath()).toBeUndefined();
   });
 
   describe("hitTest", () => {
+    class CustomPathLine extends SceneLine {
+      protected override createPath(geometry: TConnectionGeometry): Path2D {
+        return super.createPath(geometry);
+      }
+    }
+
     type TSeen = {
       lineWidth: number;
       lineCap: CanvasLineCap;
@@ -245,7 +292,7 @@ describe("Path2DLine", () => {
 
     it("strokes the line with width + 2 * threshold, identity transform, no dash and round caps and joins", () => {
       const { connection, ctx } = stubConnection({ segments: straight.segments });
-      const line = new Path2DLine(connection);
+      const line = new CustomPathLine(connection);
       const seen: TSeen[] = [];
       spyStroke(ctx, seen);
       dirtyContext(ctx);
@@ -258,7 +305,7 @@ describe("Path2DLine", () => {
 
     it("strokes the arrow with the arrow width + 2 * threshold on the arrow path", () => {
       const { connection, ctx } = stubConnection(straight, { hovered: true });
-      const line = new Path2DLine(connection);
+      const line = new CustomPathLine(connection);
       const seen: TSeen[] = [];
       const spy = spyStroke(ctx, seen);
       dirtyContext(ctx);
@@ -272,7 +319,7 @@ describe("Path2DLine", () => {
 
     it("hits a closed arrow by its fill", () => {
       const { connection, ctx } = stubConnection(closedArrowGeometry);
-      const line = new Path2DLine(connection);
+      const line = new CustomPathLine(connection);
       jest.spyOn(ctx, "isPointInStroke").mockReturnValue(false);
       const inPath = jest.spyOn(ctx, "isPointInPath").mockReturnValue(true);
       expect(line.hitTest(5, 6, 8)).toBe(true);
@@ -281,13 +328,13 @@ describe("Path2DLine", () => {
       const open = stubConnection(straight);
       jest.spyOn(open.ctx, "isPointInStroke").mockReturnValue(false);
       const openInPath = jest.spyOn(open.ctx, "isPointInPath").mockReturnValue(true);
-      expect(new Path2DLine(open.connection).hitTest(5, 6, 8)).toBe(false);
+      expect(new CustomPathLine(open.connection).hitTest(5, 6, 8)).toBe(false);
       expect(openInPath).not.toHaveBeenCalled();
     });
 
     it("skips the arrow when arrows are off", () => {
       const { connection, ctx } = stubConnection(closedArrowGeometry, {}, { showConnectionArrows: false });
-      const line = new Path2DLine(connection);
+      const line = new CustomPathLine(connection);
       const seen: TSeen[] = [];
       spyStroke(ctx, seen);
       const inPath = jest.spyOn(ctx, "isPointInPath").mockReturnValue(true);
@@ -301,8 +348,8 @@ describe("Path2DLine", () => {
     const bezier = {
       segments: new Float32Array([0, 0, 0, 100, 100, 100, 100, 0]),
     };
-    const tight = new Path2DLine(stubConnection(bezier).connection).getBounds(bezier);
-    const loose = new Path2DLine(
+    const tight = new SceneLine(stubConnection(bezier).connection).getBounds(bezier);
+    const loose = new SceneLine(
       stubConnection(bezier, {}, { showConnectionArrows: true, useTightBezierBounds: false }).connection
     ).getBounds(bezier);
     expect(tight).toBeDefined();
@@ -313,8 +360,8 @@ describe("Path2DLine", () => {
 
 describe("ConnectionLine.withInteraction()", () => {
   /** A custom look through withInteraction(): a 6-unit dashed line. */
-  class StyledLine extends Path2DLine {
-    public override getStroke(state: Parameters<Path2DLine["getStroke"]>[0]): TLineStroke {
+  class StyledLine extends SceneLine {
+    public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TLineStroke {
       return this.withInteraction({ color: "#123456", width: 6, dash: { pattern: [3, 2] } }, state);
     }
   }
@@ -324,8 +371,8 @@ describe("ConnectionLine.withInteraction()", () => {
       new StyledLine(stubConnection(straight, state).connection).getStroke({ id: "c", ...state });
     expect(stroke({})).toEqual({ color: "#123456", width: 6, dash: { pattern: [3, 2] } });
     expect(stroke({ hovered: true })).toEqual({ color: "#123456", width: 8, dash: { pattern: [3, 2] } });
-    expect(stroke({ selected: true })).toEqual({ color: "#fc0", width: 8, dash: { pattern: [3, 2] } });
-    expect(stroke({ selected: true, styles: { selectedBackground: "#0f0" } })).toEqual({
+    expect(stroke({ selected: true })).toMatchObject({ color: "#fc0", width: 8, dash: { pattern: [3, 2] } });
+    expect(stroke({ selected: true, styles: { selectedBackground: "#0f0" } })).toMatchObject({
       color: "#0f0",
       width: 8,
       dash: { pattern: [3, 2] },
@@ -333,7 +380,7 @@ describe("ConnectionLine.withInteraction()", () => {
   });
 
   it("returns the stroke itself when the line is neither hovered nor selected", () => {
-    class Probe extends Path2DLine {
+    class Probe extends SceneLine {
       public probe(stroke: TLineStroke, state: TStubState): TLineStroke {
         return this.withInteraction(stroke, { id: "c", ...state });
       }
@@ -346,7 +393,7 @@ describe("ConnectionLine.withInteraction()", () => {
 
   it("is what the default stroke is built on: the theme color, width 2, selected 4 in the selected color", () => {
     const stroke = (state: TStubState): TLineStroke =>
-      new Path2DLine(stubConnection(straight, state).connection).getStroke({ id: "c", ...state });
+      new SceneLine(stubConnection(straight, state).connection).getStroke({ id: "c", ...state });
     expect(stroke({ dashed: true })).toEqual({ color: "#aaa", width: 2, dash: { pattern: [6, 4] } });
     expect(stroke({ dashed: true, selected: true })).toEqual({ color: "#fc0", width: 4, dash: { pattern: [6, 4] } });
     expect(stroke({ hovered: true })).toEqual({ color: "#aaa", width: 4, dash: undefined });

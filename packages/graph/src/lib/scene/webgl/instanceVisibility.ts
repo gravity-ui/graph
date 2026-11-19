@@ -1,8 +1,8 @@
-import { LEVEL_BIT } from "../levels";
+import { LEVEL_BIT, sameLevelVisibility } from "../levels";
 
 import type { InstanceRanges, TInstanceUpload } from "./InstanceRanges";
 import type { TSceneFrame } from "./backendTypes";
-import { STYLE_ROW_TEXELS } from "./tables";
+import { STYLE_ROW_TEXELS, USE_BASE_ALPHA } from "./tables";
 
 type TKind = "path" | "rect" | "triangle" | "glyph";
 export const VISIBILITY_CHUNK_SIZE = 128;
@@ -15,6 +15,13 @@ const LAYOUT = {
   triangle: { scales: 10, mask: 3 },
   glyph: { scales: 24, mask: 26 },
 };
+/** Encoded glyphs use the ordinary opaque pass from this scale. Authored translucent paint stays blended. */
+function revealedGlyphScale(data: Float32Array, at: number, min: number): number {
+  const alpha = data[at + 15];
+  const end = data[at + 22];
+  return (alpha >= 1 || alpha === USE_BASE_ALPHA) && end > min ? end : Infinity;
+}
+
 type TCohort = {
   first: number;
   end: number;
@@ -42,6 +49,7 @@ export class InstanceVisibility {
   private invalidatedRevision = -1;
   private stateRevision?: number;
   private level: TSceneFrame["level"];
+  private readonly levelMasks = new Set<number>();
   public visibilityRevision = 0;
   private publishedChanges?: readonly TVisibilitySpan[];
   private readonly activityChanges: TVisibilitySpan[] = [];
@@ -57,7 +65,7 @@ export class InstanceVisibility {
   public from = -Infinity;
   public to = Infinity;
 
-  constructor(private readonly kind: TKind) {}
+  constructor(private readonly kind: TKind | "glyph-blended") {}
 
   public get coverage(): "none" | "partial" | "all" {
     if (this.visibleCount === 0) return "none";
@@ -227,7 +235,7 @@ export class InstanceVisibility {
     return (
       stateRevision !== undefined &&
       this.stateRevision === stateRevision &&
-      this.level === level &&
+      sameLevelVisibility(this.levelMasks, this.level, level) &&
       scale >= this.from &&
       scale < this.to
     );
@@ -249,6 +257,7 @@ export class InstanceVisibility {
     this.chunks.length = Math.min(this.chunks.length, length);
     if (this.full || sourceChanged || this.invalidatedRevision !== ranges.revision) {
       this.dirty.clear();
+      this.levelMasks.clear();
       for (let chunk = 0; chunk < length; chunk++) this.dirty.add(chunk);
     } else if (count !== this.count) {
       // The old partial tail needs rereading on growth; the new partial tail needs clipping on shrink.
@@ -275,7 +284,7 @@ export class InstanceVisibility {
   }
 
   private readChunk(data: Float32Array, stride: number, chunk: number, count: number): TChunk {
-    const { scales, mask: maskAt } = LAYOUT[this.kind];
+    const { scales, mask: maskAt } = LAYOUT[this.kind === "glyph-blended" ? "glyph" : this.kind];
     const cohorts: TCohort[] = [];
     const end = Math.min(count, (chunk + 1) * VISIBILITY_CHUNK_SIZE) * stride;
     for (let at = chunk * VISIBILITY_CHUNK_SIZE * stride; at < end; at += stride) {
@@ -283,7 +292,8 @@ export class InstanceVisibility {
       const slot = data[at + 2];
       const other = this.kind === "rect" ? data[at + 3] : slot;
       const from = data[at + scales];
-      const to = data[at + scales + 1];
+      const max = data[at + scales + 1];
+      const to = this.kind === "glyph-blended" ? Math.min(max, revealedGlyphScale(data, at, from)) : max;
       const mask = data[at + maskAt] % 8;
       const last = cohorts[cohorts.length - 1];
       if (
@@ -296,7 +306,8 @@ export class InstanceVisibility {
         last.mask === mask
       ) {
         last.end++;
-      } else
+      } else {
+        this.levelMasks.add(mask);
         cohorts.push({
           first: at / stride,
           end: at / stride + 1,
@@ -308,6 +319,7 @@ export class InstanceVisibility {
           mask,
           active: false,
         });
+      }
     }
     const previous = this.chunks[chunk];
     // Subs, widths and paint can change without changing any shader visibility predicate.
@@ -461,7 +473,7 @@ export class OpaqueVisibility {
   private witness = 0;
   private absent?: { revision: number; level: number; from: number; to: number; state?: number };
 
-  constructor(private readonly kind: Exclude<TKind, "path">) {}
+  constructor(private readonly kind: Exclude<TKind, "path"> | "glyph-revealed") {}
 
   public any(
     ranges: InstanceRanges,
@@ -486,7 +498,7 @@ export class OpaqueVisibility {
 
     const data = ranges.data,
       stride = ranges.floats;
-    const { scales, mask } = LAYOUT[this.kind];
+    const { scales, mask } = LAYOUT[this.kind === "glyph-revealed" ? "glyph" : this.kind];
     let from = -Infinity,
       to = Infinity,
       eligible = false;
@@ -496,8 +508,9 @@ export class OpaqueVisibility {
       const at = next === data.length ? 0 : next;
       next = at + stride;
       if (level && Math.floor((data[at + mask] % 8) / level) % 2 !== 1) continue;
-      const min = data[at + scales],
-        max = data[at + scales + 1];
+      const fromScale = data[at + scales];
+      const min = this.kind === "glyph-revealed" ? revealedGlyphScale(data, at, fromScale) : fromScale;
+      const max = data[at + scales + 1];
       if (!(min < max)) continue;
       if (scale < min) to = Math.min(to, min);
       else if (scale >= max) from = Math.max(from, max);

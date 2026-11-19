@@ -1,4 +1,4 @@
-import type { TWebGLStroke } from "../lines/WebGLLine";
+import type { TSceneLineStroke } from "../lines/SceneLine";
 import type { TLineStroke } from "../lines/types";
 
 import { ConnectionEffect, defineConnectionEffect, toConnectionEffect } from "./ConnectionEffect";
@@ -155,7 +155,7 @@ describe("defineConnectionEffect", () => {
       uniforms: { k: { type: "float", value: 1 } },
       encode: ({ hot }) => [hot ? 1 : 0],
     });
-    const stroke: TWebGLStroke = { color: "#fff", width: 2, effect: effect.use({ hot: true }) };
+    const stroke: TSceneLineStroke = { color: "#fff", width: 2, effect: effect.use({ hot: true }) };
     expect(stroke.effect?.params).toEqual([1]);
   });
 });

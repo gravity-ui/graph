@@ -4,10 +4,10 @@ import { TConnection } from "../../../store/connection/ConnectionState";
 
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import type { TConnectionGeometry } from "./geometry";
-import { Path2DLine } from "./lines";
+import { SceneLine } from "./lines";
 
 /** Counts the line paths it builds. */
-class CountingLine extends Path2DLine<ObservedConnection> {
+class CountingLine extends SceneLine<ObservedConnection> {
   protected override createPath(geometry: TConnectionGeometry): Path2D {
     this.connection.pathUpdates++;
     return super.createPath(geometry);

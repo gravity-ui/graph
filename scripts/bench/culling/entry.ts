@@ -25,12 +25,14 @@ const glStats = GRAPH as unknown as {
 };
 
 /**
- * The connection API of this variant, detected from the bundle's exports: `new` has line classes (`WebGLLine`),
+ * The connection API of this variant, detected from the bundle exports. `new` has scene or legacy line classes,
  * `prototype` has WebGL stats and the `connectionsRenderer` setting, `none` can only draw with Canvas.
  */
 type TApi = "new" | "prototype" | "none";
 const exportsOf = GRAPH as unknown as Record<string, unknown>;
-const api: TApi = exportsOf.WebGLLine ? "new" : exportsOf.getWebGLConnectionsStats ? "prototype" : "none";
+const hasLineClass = exportsOf.SceneLine ?? exportsOf.WebGLLine;
+const api: TApi = hasLineClass ? "new" : glStats.getWebGLConnectionsStats ? "prototype" : "none";
+const unified = api === "new" && !glStats.getWebGLConnectionsStats;
 
 /** Internals the benchmark reads; they are not part of the public API. */
 type TLayerInternals = {
@@ -256,13 +258,10 @@ function tintEffects(count: number): TEffectObject[] {
   return effects;
 }
 
-/**
- * The new API: the renderer comes from the connection class's `static line`. A WebGL column uses `WebGLLine`
- * (effects as objects), a canvas column `Path2DLine` (the still dash; Path2D cannot animate and has no effects).
- */
+/** Current revisions share one line class across renderers. Older revisions expose one class per renderer. */
 function lineConnection(effect: TEffect | undefined, renderer: "canvas" | "webgl"): unknown {
   const webgl = renderer === "webgl";
-  const Base = (webgl ? exportsOf.WebGLLine : exportsOf.Path2DLine) as TLineBase;
+  const Base = (exportsOf.SceneLine ?? (webgl ? exportsOf.WebGLLine : exportsOf.Path2DLine)) as TLineBase;
   const { dashFlow } = exportsOf as unknown as TEffectsApi;
   const effectsCount = effect?.startsWith("effects-") ? Number(effect.slice("effects-".length)) : 0;
   const effects = webgl && effectsCount ? tintEffects(effectsCount) : [];
@@ -384,7 +383,7 @@ async function setup(options: {
   const rendererSettings =
     api === "prototype"
       ? { connectionsRenderer: selectedRenderer }
-      : api === "new" && !glStats.getWebGLConnectionsStats
+      : unified
         ? { renderer: selectedRenderer }
         : {};
   const graph = new Graph(
@@ -465,7 +464,7 @@ async function setup(options: {
     first,
     api,
     // What the graph really draws with: "webgl-fallback" when WebGL was requested but is unavailable.
-    renderer: connectionsLayer.$connectionsRenderer?.value,
+    renderer: unified ? graph.scene.$renderer.value : connectionsLayer.$connectionsRenderer?.value,
     note,
   };
 }

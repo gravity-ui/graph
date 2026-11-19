@@ -5,6 +5,11 @@ import { clearSceneTextMetrics, peekSceneTextLayout, sceneTextMetrics } from "./
 import type { TScenePrimitive } from "./types";
 
 describe("elementBounds", () => {
+  it("uses the sprite quad in world units regardless of the texture dimensions", () => {
+    const sprite = { kind: "sprite" as const, x: -12, y: 15, width: 42, height: 5, image: new Image(1024, 512) };
+    expect(elementBounds([sprite])).toEqual({ minX: -12, minY: 15, maxX: 30, maxY: 20 });
+  });
+
   it("is the origin without primitives", () => {
     expect(elementBounds([])).toEqual({ minX: 0, minY: 0, maxX: 0, maxY: 0 });
   });

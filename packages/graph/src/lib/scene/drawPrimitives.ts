@@ -133,15 +133,24 @@ function drawText(
   policy: TSceneTextPolicy | undefined
 ): void {
   if (primitive.color === undefined) return;
+  let opacity = 1;
+  const end = primitive.fadeInUntil;
+  if (end !== undefined && scale < end && Number.isFinite(end)) {
+    const start = primitive.minScale ?? 0;
+    if (scale <= start) return;
+    const t = (scale - start) / (end - start);
+    opacity = t * t * (3 - 2 * t);
+  }
   const size = resolveTextSize(primitive, scale, policy);
   const layout = sceneTextLayout(source, primitive, size);
   const lines = layout.lines.length;
   if (lines === 0) return;
   const place = placeText(primitive, lines, size, sceneTextMetrics);
   const clip = layout.overflows;
+  if (clip || opacity < 1) ctx.save();
+  if (opacity < 1) ctx.globalAlpha *= opacity;
   if (clip) {
     const box = textClip(primitive);
-    ctx.save();
     ctx.beginPath();
     if (Number.isFinite(box.minY)) ctx.rect(ox + box.minX, oy + box.minY, box.maxX - box.minX, box.maxY - box.minY);
     else ctx.rect(ox + box.minX, oy + place.top - size, box.maxX - box.minX, lines * place.pitch + 3 * size);
@@ -154,7 +163,7 @@ function drawText(
   for (let row = 0; row < lines; row++) {
     ctx.fillText(layout.lines[row], ox + place.x, oy + place.top + row * place.pitch);
   }
-  if (clip) ctx.restore();
+  if (clip || opacity < 1) ctx.restore();
 }
 
 /**
@@ -238,7 +247,7 @@ export type TDrawElementsOptions = {
 };
 
 function isPrimitiveDrawn(primitive: TScenePrimitive, scale: number, options: TDrawElementsOptions): boolean {
-  if (options.skipText && primitive.kind === "text") return false;
+  if (primitive.kind === "sprite" || (options.skipText && primitive.kind === "text")) return false;
   return isPrimitiveVisible(primitive, scale, options.level);
 }
 
@@ -258,7 +267,7 @@ function resolveMaxRun(maxRun: number | undefined): number {
   return maxRun;
 }
 
-export function appendSegments(path: Path2D, segments: Float32Array, ox: number, oy: number): void {
+export function appendSegments(path: Path2D, segments: Float32Array, ox: number, oy: number, closed = false): void {
   let lastX = NaN;
   let lastY = NaN;
   for (let i = 0; i + 8 <= segments.length; i += 8) {
@@ -276,6 +285,7 @@ export function appendSegments(path: Path2D, segments: Float32Array, ox: number,
       lastY
     );
   }
+  if (closed && segments.length >= 8) path.closePath();
 }
 
 export function appendPolygon(path: Path2D, points: Float32Array, ox: number, oy: number): void {
@@ -334,7 +344,7 @@ export function drawElements(
         if (!run) run = { key, stroke, strokePath: new Path2D(), fillPath: new Path2D(), size: 0 };
         run.size++;
         if (primitive.kind === "path") {
-          appendSegments(run.strokePath, primitive.segments, element.x, element.y);
+          appendSegments(run.strokePath, primitive.segments, element.x, element.y, primitive.closed);
         } else {
           run.fill = fill;
           appendPolygon(run.fillPath, primitive.points, element.x, element.y);

@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { BlockGroups, ECanDrag, Group } from "@gravity-ui/graph";
 import type { BlockState, Graph, TBlock, TGraphColorsPatch } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import { GraphBlock, GraphCanvas, useGraph, useLayer, useSignal } from "@gravity-ui/graph-react";
 import { Button, Flex, SegmentedRadioGroup, Slider, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { computed, signal } from "@preact/signals-core";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { glow } from "../webglConnections/lines";
@@ -35,12 +36,13 @@ import {
   STAGE_STATUSES,
   createStageBlock,
   isStageBlock,
+  stageHighlightRules,
   stageRules,
   stageStatusColors,
   stageStatusEffects,
   stageStatusLabels,
 } from "./stageBlock";
-import type { TStageStatus } from "./stageBlock";
+import type { TStageHighlight, TStageStatus } from "./stageBlock";
 
 import "@gravity-ui/graph-minimap/styles.css";
 import "@gravity-ui/uikit/styles/styles.css";
@@ -285,6 +287,8 @@ type TEtlAtScaleArgs = {
   focusOnFailures: boolean;
   view: (typeof ETL_VIEWS)[number];
   cameraMotion: "manual" | TEtlCameraMotion;
+  blockHighlight: TStageHighlight;
+  levelTransitions: boolean;
   selectionGlow: number;
   effectMinScale: number;
 };
@@ -300,6 +304,8 @@ const etlDefaults: TEtlAtScaleArgs = {
   focusOnFailures: false,
   view: "fit",
   cameraMotion: "manual",
+  blockHighlight: "outline-and-halo",
+  levelTransitions: false,
   selectionGlow: 0.6,
   effectMinScale: 0.1,
 };
@@ -312,6 +318,9 @@ function boundedCount(value: number, fallback: number): number {
 /** World units around the graph when it is fitted: the group frames and the far-zoom rings stay inside. */
 const FIT_PADDING = 300;
 
+/** Scale interval over which the HTML-only status chip appears after the detailed level starts. */
+const STATUS_CHIP_FADE_RANGE = 0.12;
+
 const EtlAtScaleApp = ({
   blockCount,
   connectionCount,
@@ -323,6 +332,8 @@ const EtlAtScaleApp = ({
   focusOnFailures,
   view,
   cameraMotion,
+  blockHighlight,
+  levelTransitions,
   selectionGlow,
   effectMinScale,
 }: TEtlAtScaleArgs): React.JSX.Element => {
@@ -333,13 +344,29 @@ const EtlAtScaleApp = ({
     [blockCount, connectionCount, constants]
   );
   const simulation = useMemo(() => new EtlSimulation(graph, data), [graph, data]);
+  const [transitions] = useState(() => signal(levelTransitions));
+  useLayoutEffect(() => {
+    transitions.value = levelTransitions;
+  }, [transitions, levelTransitions]);
   const components = useMemo(
-    () => ({ connection: createEtlScaleConnection(effectMinScale), stage: createStageBlock(effectMinScale) }),
-    [effectMinScale]
+    () => ({
+      connection: createEtlScaleConnection(effectMinScale),
+      stage: createStageBlock(effectMinScale, transitions),
+    }),
+    [effectMinScale, transitions]
   );
   const [counts, setCounts] = useState(() => simulation.counts());
   const sceneState = useSignal(graph.scene.$renderer);
   const level = useSignal(graph.scene.$level);
+  const statusOpacity = useMemo(
+    () =>
+      computed(() => {
+        if (!transitions.value) return 1;
+        const scale = graph.scene.$cameraFrame.value?.camera.scale ?? graph.$camera.peek().scale;
+        return Math.min(1, Math.max(0, (scale - graph.graphConstants.block.SCALES[2]) / STATUS_CHIP_FADE_RANGE));
+      }),
+    [graph, transitions]
+  );
 
   useLayer(graph, PipelineGroups, { draggable: true, updateBlocksOnDrag: true });
   useLayer(minimap ? graph : null, MiniMapLayer, { location: "bottomRight", width: 280, height: 124 });
@@ -364,6 +391,8 @@ const EtlAtScaleApp = ({
     start();
     return remove;
   }, [graph, data, simulation, components, setEntities, start]);
+
+  useEffect(() => graph.scene.styles.add(stageHighlightRules(blockHighlight)), [graph, blockHighlight]);
 
   useEffect(() => {
     // Changing effect classes also reloads the original entities above.
@@ -423,11 +452,11 @@ const EtlAtScaleApp = ({
   const renderStage = useCallback(
     (graphInstance: Graph, block: TBlock): React.JSX.Element =>
       isStageBlock(block) ? (
-        <StageCardView graph={graphInstance} block={block} onAction={act} />
+        <StageCardView graph={graphInstance} block={block} onAction={act} statusOpacity={statusOpacity} />
       ) : (
         <PlainView graph={graphInstance} block={block} />
       ),
-    [act]
+    [act, statusOpacity]
   );
 
   return (
@@ -456,7 +485,7 @@ const EtlAtScaleApp = ({
             </Flex>
           ))}
         </Flex>
-        <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
+        <div data-block-highlight={blockHighlight} style={{ flex: 1, minHeight: 400, position: "relative" }}>
           <GraphCanvas graph={graph} className="graph-canvas" renderBlock={html ? renderStage : undefined} />
         </div>
       </Flex>
@@ -519,6 +548,7 @@ EtlAtScale.argTypes = {
     control: "boolean",
   },
   live: { name: "Live", control: "boolean" },
+  levelTransitions: { name: "Level transitions", control: "boolean" },
   focusOnFailures: { name: "Focus on failures", control: "boolean" },
   view: {
     name: "View",
@@ -530,11 +560,28 @@ EtlAtScale.argTypes = {
     options: ["manual", "zoom", "pan"],
     control: { type: "select", labels: { manual: "Manual", zoom: "Zoom cycle", pan: "Circular pan" } },
   },
-  selectionGlow: { name: "Selection glow", control: { type: "range", min: 0, max: 1.5, step: 0.05 } },
+  blockHighlight: {
+    name: "Block highlight",
+    options: ["off", "base", "outline", "outline-and-halo"],
+    control: {
+      type: "select",
+      labels: {
+        off: "Original selection",
+        base: "Base selection",
+        outline: "Outline",
+        "outline-and-halo": "Outline and halo",
+      },
+    },
+  },
+  selectionGlow: {
+    name: "Original selection glow",
+    if: { arg: "blockHighlight", eq: "off" },
+    control: { type: "range", min: 0, max: 1.5, step: 0.05 },
+  },
   effectMinScale: {
     name: "Effect min scale",
     description:
-      "Block and running-flow effects become steady strokes below this scale; 0 keeps them active. Hover remains animated.",
+      "Below this scale, status outlines and running flows become steady. Overview throughput particles disappear. Set 0 to keep WebGL effects active at every scale.",
     control: { type: "number", min: 0, max: 0.7, step: 0.05 },
   },
 };
@@ -546,9 +593,12 @@ EtlAtScale.parameters = {
         "Camera motion can run a 20-second zoom cycle from 0.05 to 0.9 and back around a central pipeline, " +
         "or pan in a circle at the current scale over 16 seconds. Stages have different numbers of " +
         "input and output anchors, with room for every port in the scene blocks and HTML cards. " +
-        "Hover over a connection to highlight its route. Enable Minimap in Controls to show the graph overview. " +
-        "Effect min scale makes block and running-flow effects steady below the cutoff (0 means always active); " +
-        "status colours and selection remain visible. Hover highlighting still animates one connection at any scale. " +
+        "Hover or select a stage to outline its body and ports. Block highlight compares the original selection, " +
+        "the base selection without glow, the outline alone, and the outline with a soft halo. Hover over a connection to highlight its route. Enable Minimap in Controls to show the graph overview. " +
+        "In the overview, throughput particles appear only while WebGL animates them. Below Effect min scale, " +
+        "status outlines and running flows become steady. Enable Level transitions to reveal stage labels, throughput and the HTML status chip gradually as you zoom in. " +
+        "The stage keeps its status tint through zoom and HTML handoff. " +
+        "Hover highlighting still animates one connection at any scale. " +
         "Changing the control reconfigures the scene; zooming across the cutoff keeps the same geometry. " +
         "Enable Live independently to update ten stage statuses and their touching flows every 500 ms. " +
         "Focus on failures dims the other stages. HTML cards replace the scene blocks at the detailed level " +

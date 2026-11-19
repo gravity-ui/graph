@@ -222,7 +222,7 @@ export default meta;
 export const RunningDash: StoryFn = () => (
   <GraphApp
     title="Running dash"
-    description="The scene renderer applies to blocks and connections. A WebGLLine subclass supplies the dashFlow effect, which WebGL animates. The Canvas scene draws the base stroke."
+    description="Switch between Canvas and WebGL on the same graph. The connection keeps its color and width in both renderers. WebGL animates the dashes."
     code={runningDashCode}
     effects={[{ value: "dash", content: "Running dash", connection: runningDash }]}
     layersCount={30}
@@ -233,7 +233,7 @@ RunningDash.parameters = {
   docs: {
     description: {
       story:
-        "A `WebGLLine` subclass returns `effect: dashFlow.use({ pattern: [12, 8], speed: 40 })` from `getStroke()`. The graph's `renderer` setting chooses how the full scene is drawn.",
+        "A `SceneLine` subclass returns `effect: dashFlow.use({ pattern: [12, 8], speed: 40 })` from `getStroke()`. `graph.scene.setRenderer()` switches the existing blocks and connections together.",
     },
   },
 };

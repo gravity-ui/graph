@@ -1,3 +1,4 @@
+import { ESchedulerPriority, schedule } from "@gravity-ui/graph";
 import type { Graph, TPoint } from "@gravity-ui/graph";
 
 import { pipelineRect } from "./etlAtScale";
@@ -44,10 +45,9 @@ export function startEtlCameraMotion(
   const focus = motion === "zoom" ? middlePipelineCenter(data) : undefined;
   const period = focus ? ZOOM_PERIOD_MS : PAN_PERIOD_MS;
   let origin: { time: number; x: number; y: number; radius: number } | undefined;
-  let request: number;
 
-  const animate = (time: number): void => {
-    request = window.requestAnimationFrame(animate);
+  const animate = (): void => {
+    const time = performance.now();
     const { x, y, width, height } = camera.getCameraState();
     if (width <= 0 || height <= 0) return;
     origin ??= { time, x, y, radius: Math.min(width, height) * 0.3 };
@@ -64,6 +64,16 @@ export function startEtlCameraMotion(
     }
   };
 
-  request = window.requestAnimationFrame(animate);
-  return () => window.cancelAnimationFrame(request);
+  const stop = schedule(
+    () => {
+      try {
+        animate();
+      } catch (error) {
+        stop();
+        throw error;
+      }
+    },
+    { priority: ESchedulerPriority.HIGHEST, frameInterval: 1 }
+  );
+  return stop;
 }

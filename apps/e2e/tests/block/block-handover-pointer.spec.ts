@@ -115,6 +115,59 @@ test.describe("The handover under a still pointer on an anchor", () => {
     expect(after).toEqual({ held: true, target: "anchor", log: [] });
   });
 
+  test("keeps the same bounce phase across the scene and HTML with a fixed anchor", async ({ page }) => {
+    const lookAt = async (scale: number) => {
+      await page.evaluate((s) => (window as unknown as { handover: THandoverWindow }).handover.lookAt(s), scale);
+      await graphPO.waitForFrames(5);
+    };
+    const sceneY = () =>
+      page.evaluate(() => {
+        const graph = window.graph;
+        const block = graph.rootStore.blocksList.getBlockState("block-1")?.getViewComponent();
+        return block && graph.scene.store.get(block.getSceneElementId())?.y;
+      });
+    const htmlPosition = () =>
+      page.locator(".graph-block-wrapper").evaluate((wrapper) => {
+        const element = wrapper.querySelector(".graph-block-anchor");
+        if (!element) throw new Error("The block's HTML anchor is missing");
+        const anchor = element.getBoundingClientRect();
+        return {
+          y: wrapper.getBoundingClientRect().y,
+          anchorX: anchor.x + anchor.width / 2,
+          anchorY: anchor.y + anchor.height / 2,
+        };
+      });
+
+    await page.addStyleTag({ content: '[data-testid="block-block-1"] { transform: rotate(30deg) scale(2); }' });
+    await lookAt(1);
+    const rest = await htmlPosition();
+    await page.evaluate(() => {
+      const { scene } = window.graph;
+      scene.clock.now = () => 0;
+      const { CanvasBlock, hoveredTag } = window.GraphModule;
+      scene.styles.add([{ target: CanvasBlock, tags: [hoveredTag], style: { motion: "bounce" } }]);
+    });
+    await restOnAnchor(0.5);
+    await page.evaluate(() => {
+      window.graph.scene.clock.now = () => 0.15;
+    });
+    await expect.poll(sceneY).toBeCloseTo(BLOCKS[0].y - 8);
+
+    await lookAt(1);
+    const moving = await htmlPosition();
+    expect(moving.y).toBeCloseTo(rest.y - 8);
+    expect(moving.anchorX).toBeCloseTo(rest.anchorX);
+    expect(moving.anchorY).toBeCloseTo(rest.anchorY);
+
+    await page.evaluate(() => {
+      window.graph.scene.clock.now = () => 0.225;
+    });
+    const offset = -8 * Math.sin(0.75 * Math.PI);
+    await expect.poll(async () => (await htmlPosition()).y).toBeCloseTo(rest.y + offset);
+    await lookAt(0.5);
+    await expect.poll(sceneY).toBeCloseTo(BLOCKS[0].y + offset);
+  });
+
   for (const [level, scale, target, log] of [
     ["schematic", 0.5, "anchor", []],
     ["minimalistic", 0.1, "block", ["leave:anchor", "enter:block"]],

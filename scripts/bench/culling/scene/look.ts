@@ -236,7 +236,7 @@ export function groupPrimitives(width: number, height: number): TScenePrimitive[
   ];
 }
 
-/** What Path2DLine draws for a multipoint geometry: the line, and a closed arrow filled and stroked. */
+/** The stock multipoint connection draws its line and a filled, stroked arrowhead. */
 export function connectionPrimitives(geometry: {
   segments: Float32Array;
   arrow?: { points: Float32Array; closed: boolean };

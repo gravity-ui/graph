@@ -1,4 +1,4 @@
-import { Anchor, CanvasBlock, defineTag, selectedTag } from "@gravity-ui/graph";
+import { Anchor, CanvasBlock, defineTag, hoveredTag, selectedTag } from "@gravity-ui/graph";
 import type {
   TAnchorClass,
   TAnchorView,
@@ -9,6 +9,7 @@ import type {
   TStyleParts,
   TStyleRule,
 } from "@gravity-ui/graph";
+import type { ReadonlySignal } from "@preact/signals-core";
 
 import { etlKindBadges, etlStatusColors, etlStatusTints, formatRows } from "../webglConnections/etl";
 import type { TEtlStageKind } from "../webglConnections/etl";
@@ -17,7 +18,6 @@ import {
   effectParts,
   glowOutline,
   marchingBorder,
-  onScales,
   orbitingComet,
   pulsingOutline,
   spinner,
@@ -44,6 +44,8 @@ export type TStageBlock = TBlock & {
   rowsPerSecond: number;
 };
 
+type TStageView = TBlockView<TStageBlock> & { levelTransitions?: boolean };
+
 export function isStageBlock(block: TBlock): block is TStageBlock {
   return block.is === STAGE_IS;
 }
@@ -62,7 +64,7 @@ export const stageStatusColors: Record<TStageStatus, string> = {
   succeeded: etlStatusColors.succeeded,
 };
 
-/** The fill of a far-away stage: the status colour over white. */
+/** The same status tint is used from the overview through the detailed HTML card. */
 const stageStatusTints: Record<TStageStatus, string> = {
   running: etlStatusTints.running,
   queued: "#e4defd",
@@ -79,7 +81,7 @@ export const stageStatusLabels: Record<TStageStatus, string> = {
   succeeded: "Succeeded",
 };
 
-/** The effect parts each status shows; the selection adds the glow. */
+/** The effect parts each status shows independently of interaction. */
 export const stageStatusEffects: Record<TStageStatus, readonly TEffectPart[]> = {
   running: ["march", "particles"],
   queued: ["comet", "spinner"],
@@ -94,14 +96,11 @@ const STAGE_EFFECTS: readonly TEffectPart[] = ["march", "comet", "pulse", "parti
 const fontFamily = '"YS Text", "Helvetica Neue", Helvetica, Arial, sans-serif';
 const secondaryText = "#6b7280";
 const radius = 12;
-/** The selection glow's colour (StageCardView.css repeats it for the HTML card's glow). */
+const stripeWidth = 8;
+/** The original selection glow, also used by the HTML card in the comparison mode. */
 const STAGE_SELECTION_COLOR = "#ffcc00";
 
-/**
- * The look of the effects in one zoom range. Path widths are world units (WebGL resolves them at scale 1), so each
- * range has its own widths, dashes and speeds: about 1.2 to 3 screen pixels wide across the range. The outlines lie
- * inside the card: a stroke's outer edge is the card's edge.
- */
+/** Path widths are in world units. Each zoom range keeps the status strokes legible inside the card. */
 type TEffectsLook = {
   march: number;
   dash: [number, number];
@@ -115,34 +114,36 @@ type TEffectsLook = {
   glow: number;
 };
 
-/**
- * Scales below 0.1: about 1.2 to 2.8 px at 0.05 to 0.1. Inside a card 136 high, a 28-unit ring leaves the middle 80
- * for the tint and the particles.
- */
+/** Scales below 0.1. */
 const farLook: TEffectsLook = {
-  march: 24,
+  march: 12,
   dash: [150, 100],
   marchSpeed: 400,
-  comet: 28,
-  pulse: 28,
+  comet: 14,
+  pulse: 14,
   particles: 36,
   spacing: 130,
   particlesY: (height) => height / 2,
-  glow: 16,
+  glow: 8,
 };
 
 /** Scales from 0.1 to the schematic level (0.225). */
 const midLook: TEffectsLook = {
-  march: 14,
+  march: 5,
   dash: [60, 40],
   marchSpeed: 160,
-  comet: 18,
-  pulse: 18,
+  comet: 6,
+  pulse: 6,
   particles: 20,
   spacing: 64,
   particlesY: (height) => height / 2,
-  glow: 8,
+  glow: 3,
 };
+
+const overviewBands = [
+  { look: farLook, minScale: 0, maxScale: 0.1 },
+  { look: midLook, minScale: 0.1, maxScale: undefined },
+];
 
 /** The schematic and detailed levels. */
 const nearLook: TEffectsLook = {
@@ -209,15 +210,19 @@ function effects(
   ];
 }
 
-/**
- * The status stripe and the body: the stripe colour fills the whole rounded card, and the body covers it from
- * `stripe` to the right edge with only its right corners rounded. The visible band keeps the card's rounded corners
- * at any stripe width (a stripe rect narrower than twice the radius would clamp its corners and stick out).
- */
-function stripeAndBody(width: number, height: number, stripe: number): TScenePrimitive[] {
+/** Exposing the left edge of the rounded body gives the narrow status stripe the same corners at every level. */
+function stageFace(width: number, height: number): TScenePrimitive[] {
   return [
-    { kind: "rect", part: "stripe", x: 0, y: 0, width, height, radius },
-    { kind: "rect", part: "body", x: stripe, y: 0, width: width - stripe, height, radius: [0, radius, radius, 0] },
+    { kind: "rect", part: "body", x: 0, y: 0, width, height, radius },
+    {
+      kind: "rect",
+      part: "surface",
+      x: stripeWidth,
+      y: 0,
+      width: width - stripeWidth,
+      height,
+      radius: [0, radius, radius, 0],
+    },
   ];
 }
 
@@ -229,13 +234,13 @@ class StageAnchor extends Anchor {
 }
 
 /**
- * An ETL stage drawn in the scene on every level. Far away it is a card tinted by its status with thick effect rings
+ * An ETL stage drawn in the scene on every level. Far away it is a card tinted by its status with thin effect rings
  * (two zoom ranges); closer it shows the kind, the name and the throughput. The status stripe and every effect are
  * parts styled by `stageRules`: the status tag decides which effects show.
  */
 export class StageBlock extends CanvasBlock<TStageBlock> {
   public declare readonly __styleParts?: TStyleParts<
-    "body" | "border" | "title" | "halo" | "badge" | "stripe" | TEffectPart
+    "body" | "border" | "title" | "halo" | "badge" | "surface" | TEffectPart
   >;
 
   private schematicCache?: { view: object; primitives: readonly TScenePrimitive[] };
@@ -246,12 +251,21 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
   }
 
   protected override minimalistic(view: TBlockView<TStageBlock>): readonly TScenePrimitive[] {
-    const stripe = 36;
-    return [
-      ...stripeAndBody(view.width, view.height, stripe),
-      ...effects(view, farLook, stripe + 24, this.effectRange).map((primitive) => onScales(primitive, undefined, 0.1)),
-      ...effects(view, midLook, stripe + 24, this.effectRange).map((primitive) => onScales(primitive, 0.1)),
-    ];
+    const primitives = stageFace(view.width, view.height);
+    for (const { look, minScale, maxScale } of overviewBands) {
+      for (const primitive of effects(view, look, stripeWidth + 24, this.effectRange)) {
+        if (primitive.kind === "path" && primitive.part === "particles") {
+          // A solid throughput stroke looks like a full progress bar when the particles are inactive.
+          const start = Math.max(minScale, this.effectRange.minScale ?? 0);
+          if (maxScale === undefined || start < maxScale) {
+            primitives.push({ ...primitive, minScale: start, maxScale, canvasStroke: {} });
+          }
+        } else {
+          primitives.push({ ...primitive, minScale, maxScale });
+        }
+      }
+    }
+    return primitives;
   }
 
   protected override schematic(view: TBlockView<TStageBlock>): readonly TScenePrimitive[] {
@@ -266,11 +280,15 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
     return this.schematic(view);
   }
 
-  private near(view: TBlockView<TStageBlock>): TScenePrimitive[] {
+  private near(view: TStageView): TScenePrimitive[] {
     const { width, height, name, kind, pipeline, rowsPerSecond } = view;
+    const schematicScale = this.context.constants.block.SCALES[1];
+    const labelFade = view.levelTransitions
+      ? { minScale: schematicScale, fadeInUntil: schematicScale + 0.075 }
+      : undefined;
     const left = 24;
     return [
-      ...stripeAndBody(width, height, 8),
+      ...stageFace(width, height),
       {
         kind: "rect",
         part: "border",
@@ -287,6 +305,7 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
         family: fontFamily,
         weight: "bold",
         size: 15,
+        ...labelFade,
         lineHeight: 18,
         color: secondaryText,
         x: left,
@@ -301,6 +320,7 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
         family: fontFamily,
         weight: "bold",
         size: 24,
+        ...labelFade,
         lineHeight: 28,
         x: left,
         y: 38,
@@ -320,6 +340,7 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
         width: width - left - 16,
         wrap: false,
         minScale: 0.35,
+        fadeInUntil: view.levelTransitions ? 0.42 : undefined,
       },
       ...effects(view, nearLook, left, this.effectRange),
       ...spinner(
@@ -334,20 +355,29 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
 }
 
 /** A fixed story configuration: zoom only changes effect activity, not the block's generated primitives. */
-export function createStageBlock(minScale: number): typeof StageBlock {
+export function createStageBlock(minScale: number, levelTransitions: ReadonlySignal<boolean>): typeof StageBlock {
   return class extends StageBlock {
     protected override readonly effectRange = { minScale };
+
+    protected override getViewData(): TStageView {
+      return { ...super.getViewData(), levelTransitions: levelTransitions.value };
+    }
   };
 }
 
 /**
- * The stage stylesheet: the effects are hidden until a status shows them; the status colours the stripe, and far away
- * the whole card; the selection adds the glow and a wider border; "Focus on failures" dims the tagged stages.
+ * The status determines the stripe, surface tint and visible effects. "Focus on failures" dims the tagged stages.
  */
 export const stageRules: TStyleRule<typeof StageBlock>[] = [
   {
     target: StageBlock,
-    style: { parts: { stripe: { color: "#c4c6cc" }, ...effectParts(STAGE_EFFECTS, { visible: false }) } },
+    style: {
+      parts: {
+        body: { color: "#c4c6cc" },
+        surface: { color: "#ffffff" },
+        ...effectParts(STAGE_EFFECTS, { visible: false }),
+      },
+    },
   },
   {
     target: StageBlock,
@@ -356,24 +386,49 @@ export const stageRules: TStyleRule<typeof StageBlock>[] = [
       const status = values.get(statusTag) ?? DEFAULT_STAGE_STATUS;
       return {
         parts: {
-          stripe: { color: stageStatusColors[status] },
+          body: { color: stageStatusColors[status] },
+          surface: { color: stageStatusTints[status] },
           ...effectParts(stageStatusEffects[status], { visible: true }),
         },
       };
     },
   },
-  {
-    target: StageBlock,
-    tags: [statusTag],
-    scope: { levels: ["minimalistic"] },
-    style: (values) => ({
-      parts: { body: { color: stageStatusTints[values.get(statusTag) ?? DEFAULT_STAGE_STATUS] } },
-    }),
-  },
-  {
-    target: StageBlock,
-    tags: [selectedTag],
-    style: { parts: { glow: { visible: true }, border: { width: { px: 2.5, minWorld: 3, maxWorld: 20 } } } },
-  },
   { target: StageBlock, tags: [dimmedTag], style: { dim: 0.75 } },
 ];
+
+export type TStageHighlight = "off" | "base" | "outline" | "outline-and-halo";
+
+/** Keep a legible stroke and a small shadow in the same zoom ranges as the stage's status effects. */
+const highlightBands: { scope: TStyleRule<typeof StageBlock>["scope"]; width: number; reach: number }[] = [
+  { scope: { levels: ["minimalistic"], maxScale: 0.1 }, width: 12, reach: 12 },
+  { scope: { levels: ["minimalistic"], minScale: 0.1 }, width: 4, reach: 4 },
+  { scope: { levels: ["schematic", "detailed"] }, width: 3, reach: 5 },
+];
+
+export function stageHighlightRules(mode: TStageHighlight): TStyleRule<typeof StageBlock>[] {
+  if (mode === "off" || mode === "base") {
+    return [
+      {
+        target: StageBlock,
+        tags: [selectedTag],
+        style: {
+          parts: { glow: { visible: mode === "off" }, border: { width: { px: 2.5, minWorld: 3, maxWorld: 20 } } },
+        },
+      },
+    ];
+  }
+  // Selection wins while the pointer is over a selected stage.
+  return highlightBands.flatMap(({ scope, width, reach }) =>
+    [
+      { tag: hoveredTag, color: "#5787c8", shadow: "rgba(26, 51, 86, 0.18)" },
+      { tag: selectedTag, color: "#2860ba", shadow: "rgba(26, 51, 86, 0.26)" },
+    ].map(({ tag, color, shadow }) => ({
+      target: StageBlock,
+      tags: [tag],
+      scope,
+      style: {
+        outline: { color, width, halo: mode === "outline-and-halo" ? { color: shadow, width: reach } : undefined },
+      },
+    }))
+  );
+}

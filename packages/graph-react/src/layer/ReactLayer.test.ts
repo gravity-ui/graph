@@ -8,7 +8,14 @@ describe("ReactLayer", () => {
   let rootElement: HTMLDivElement;
 
   // Constants for default classes
-  const DEFAULT_LAYER_CLASSES = ["layer", "layer-html", "no-user-select", "no-pointer-events", "layer-with-camera"];
+  const DEFAULT_LAYER_CLASSES = [
+    "layer",
+    "layer-html",
+    "graph-react-layer",
+    "no-user-select",
+    "no-pointer-events",
+    "layer-with-camera",
+  ];
 
   beforeEach(() => {
     graph = new Graph({});
@@ -432,6 +439,21 @@ describe("ReactLayer", () => {
       camera.set({ scale: 0.45 });
       frame();
       expect(layer.isHtmlActive()).toBe(false);
+    });
+
+    it("shows the HTML and its transform for the drawn level when a frame-end listener starts another zoom", () => {
+      camera.set({ scale: 0.6, x: 12 });
+      const stop = graph.scene.onFrameEnd(() => camera.set({ scale: 0.6, x: 30 }));
+      const layer = createLayer();
+      const html = getHTMLElement(layer);
+      camera.set({ scale: 0.8, x: 24 });
+      frame();
+      expect(layer.isHtmlActive()).toBe(true);
+      expect(html.style.transform).toBe("matrix(0.8, 0, 0, 0.8, 24, 0)");
+      stop();
+      frame();
+      expect(layer.isHtmlActive()).toBe(false);
+      layer.detachLayer();
     });
 
     it("reacts to a strategy change without a camera change", () => {

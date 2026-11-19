@@ -2,13 +2,47 @@
 import type { TTileRect } from "../../culling/TileIndex";
 
 import type { InstanceRanges } from "./InstanceRanges";
+import type { TSceneFrame } from "./backendTypes";
 import type { TTranslucentRun } from "./translucentOrder";
 
 const CELLS = 64;
 const WORDS = (CELLS * CELLS) / 32;
 const LOOKAHEAD = 128;
+const MIN_DRAWS_TO_REFINE = 512;
 
 type TOwnerRun = TTranslucentRun & { owners: string[]; position: number; barrier: boolean };
+
+/** A large direct pass may justify packing on the next frame if it still has the same camera and programs. */
+export class TranslucentRefinement {
+  private frame?: TSceneFrame;
+  private activity = 0;
+
+  public clear(): void {
+    this.frame = undefined;
+  }
+
+  public record(frame: TSceneFrame, drawCalls: number, activity: number): boolean {
+    this.frame = drawCalls >= MIN_DRAWS_TO_REFINE ? { ...frame } : undefined;
+    this.activity = activity;
+    return this.frame !== undefined;
+  }
+
+  public take(frame: TSceneFrame, activity: number): boolean {
+    const previous = this.frame;
+    this.clear();
+    return (
+      previous !== undefined &&
+      this.activity === activity &&
+      previous.x === frame.x &&
+      previous.y === frame.y &&
+      previous.scale === frame.scale &&
+      previous.level === frame.level &&
+      previous.width === frame.width &&
+      previous.height === frame.height &&
+      previous.dpr === frame.dpr
+    );
+  }
+}
 
 /** The owners touched by each resident draw range; rebuilt only when the active schedule changes. */
 export function translucentRunOwners(

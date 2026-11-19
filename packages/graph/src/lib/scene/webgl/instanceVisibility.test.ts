@@ -2,7 +2,7 @@ import { InstanceRanges } from "./InstanceRanges";
 import type { TSceneFrame } from "./backendTypes";
 import { InstanceVisibility, OpaqueVisibility } from "./instanceVisibility";
 import type { TVisibilitySpan } from "./instanceVisibility";
-import { STYLE_ROW_TEXELS } from "./tables";
+import { STYLE_ROW_TEXELS, USE_BASE_ALPHA } from "./tables";
 import { filterTranslucentRuns, orderTranslucent } from "./translucentOrder";
 
 const frame = (scale: number, level: TSceneFrame["level"] = "schematic"): TSceneFrame => ({
@@ -337,11 +337,11 @@ describe("instance visibility cohorts", () => {
     expect(visibility.any(384, 1)).toBe(false);
   });
 
-  it("checks only addressed cohorts and repairs cross-chunk queries after reversed table edits", () => {
+  it("checks only addressed owners when the new level shows the same masks", () => {
     const ranges = new InstanceRanges(8);
     const elements = new Float32Array(512 * 4);
     for (let owner = 0; owner < 512; owner++) {
-      ranges.set(String(owner), [owner, 0, 1, 0, 0.1, 0.5, 7, 0]);
+      ranges.set(String(owner), [owner, 0, 1, 0, 0.1, 0.5, owner % 2 ? 7 : 6, 0]);
       elements[owner * 4 + 2] = -1;
     }
     const reads = new Set<number>();
@@ -353,7 +353,7 @@ describe("instance visibility cohorts", () => {
     });
     const visibility = new InstanceVisibility("path");
     const paint = styles();
-    visibility.update(ranges, observed, paint, frame(0.2), 1);
+    visibility.update(ranges, observed, paint, frame(0.2, "detailed"), 1);
     reads.clear();
     const revision = visibility.visibilityRevision;
     for (const owner of [406, 209, 207]) {
@@ -587,6 +587,38 @@ describe("instance visibility cohorts", () => {
 });
 
 describe("opaque batch visibility", () => {
+  it.each([1, USE_BASE_ALPHA, 0.5])("shares faded glyphs between passes according to encoded alpha %s", (alpha) => {
+    const data = new Float32Array(28);
+    data[15] = alpha;
+    data[22] = 0.3;
+    data[24] = 0.2;
+    data[25] = 0.7;
+    data[26] = 6;
+    const ranges = new InstanceRanges(28);
+    ranges.set("label", data);
+    const blended = new InstanceVisibility("glyph-blended");
+    const revealed = new OpaqueVisibility("glyph-revealed");
+    const elements = table.slice();
+    const paint = styles();
+    const shown = (scale: number, level: TSceneFrame["level"] = "schematic", revision = 0): boolean[] => {
+      const camera = frame(scale, level);
+      blended.update(ranges, elements, paint, camera, revision);
+      return [blended.any(0, 1), revealed.any(ranges, elements, paint, camera, revision)];
+    };
+    const complete = alpha === 0.5 ? [true, false] : [false, true];
+    expect(shown(0.19)).toEqual([false, false]);
+    expect(shown(0.25)).toEqual([true, false]);
+    expect(shown(0.3)).toEqual(complete);
+    expect(shown(0.6, "detailed")).toEqual(complete);
+    expect(shown(0.6, "minimalistic")).toEqual([false, false]);
+    expect(shown(0.7)).toEqual([false, false]);
+    expect(shown(0.25)).toEqual([true, false]);
+    elements[2] = -1;
+    expect(shown(0.5, "schematic", 1)).toEqual([false, false]);
+    elements[2] = 0;
+    expect(shown(0.5, "schematic", 2)).toEqual(complete);
+  });
+
   it.each([
     ["rect", 28, 25, 27],
     ["triangle", 12, 10, 3],
