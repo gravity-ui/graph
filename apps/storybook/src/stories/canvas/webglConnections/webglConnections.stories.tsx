@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 
-import { BlockConnection, ECanDrag } from "@gravity-ui/graph";
-import type { Graph, TBlock, TGraphColorsPatch } from "@gravity-ui/graph";
-import { useGraph } from "@gravity-ui/graph-react";
+import { BlockConnection, ECanDrag, MultipointConnection } from "@gravity-ui/graph";
+import type { Graph, TBlock, TGraphColorsPatch, TMultipointConnection } from "@gravity-ui/graph";
+import { GraphBlock, useGraph } from "@gravity-ui/graph-react";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { BlockStory } from "../../main/Block";
 
 import {
+  ConnectionExample,
   ConnectionPreview,
   GeneratedConnections,
   rendererControl,
@@ -78,6 +79,68 @@ export const PerConnectionStyle: StoryObj<DemoArgs> = {
       instruction="Each connection gets its color and width from its ID. Hover or select one to see the same data-driven style on both renderers."
       layersCount={30}
       connectionsPerLayer={densities[size]}
+    />
+  ),
+};
+
+const routePoints = [
+  { x: 160, y: 100 },
+  { x: 270, y: 100 },
+  { x: 270, y: 20 },
+  { x: 490, y: 20 },
+  { x: 490, y: 240 },
+  { x: 650, y: 240 },
+];
+
+const route: TMultipointConnection = {
+  id: "route",
+  sourceBlockId: "source",
+  targetBlockId: "target",
+  points: routePoints,
+  styles: { background: "#285ea8" },
+};
+
+const routeConfig = {
+  blocks: [
+    { id: "source", is: "Block", name: "Extract", x: 0, y: 50, width: 160, height: 100 },
+    { id: "target", is: "Block", name: "Load", x: 650, y: 190, width: 160, height: 100 },
+  ],
+  connections: [route],
+};
+
+const routeCode = `import { MultipointConnection } from "@gravity-ui/graph";
+import type { Graph, TMultipointConnection } from "@gravity-ui/graph";
+
+function addRoute(graph: Graph) {
+  graph.updateSettings({ renderer: "webgl", connection: MultipointConnection });
+  const edge: TMultipointConnection = {
+    sourceBlockId: "source",
+    targetBlockId: "target",
+    points: [
+${routePoints.map(({ x, y }) => `      { x: ${x}, y: ${y} },`).join("\n")}
+    ],
+  };
+  graph.api.addConnection(edge);
+}`;
+
+function renderRouteBlock(graph: Graph, block: TBlock) {
+  return (
+    <GraphBlock graph={graph} block={block}>
+      <div style={{ display: "grid", placeItems: "center", height: "100%" }}>{block.name}</div>
+    </GraphBlock>
+  );
+}
+
+export const MultipointRoute: StoryObj<ConnectionArgs> = {
+  name: "Multipoint route",
+  render: ({ renderer }) => (
+    <ConnectionExample
+      renderer={renderer}
+      connection={MultipointConnection}
+      config={routeConfig}
+      renderBlock={renderRouteBlock}
+      code={routeCode}
+      instruction="Click any segment of the route from Extract to Load to select the connection."
     />
   ),
 };

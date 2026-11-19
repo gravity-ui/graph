@@ -66,7 +66,8 @@ export function ConnectionPreview({ graph, code, instruction, renderBlock = rend
         <Flex direction="column" gap={1} style={{ padding: "8px 16px" }}>
           <Text variant="body-1">{instruction}</Text>
           <Text variant="body-1" color="secondary">
-            {actual} · {blocks.length.toLocaleString()} blocks · {connections.length.toLocaleString()} connections
+            {actual} · {blocks.length.toLocaleString()} {blocks.length === 1 ? "block" : "blocks"} ·{" "}
+            {connections.length.toLocaleString()} {connections.length === 1 ? "connection" : "connections"}
           </Text>
           <details>
             <summary>Connection code</summary>
@@ -81,26 +82,30 @@ export function ConnectionPreview({ graph, code, instruction, renderBlock = rend
   );
 }
 
-type GeneratedProps = ConnectionArgs & {
-  connection: TConnectionClass;
-  code: string;
-  instruction: string;
+type ExampleProps = ConnectionArgs &
+  Pick<PreviewProps, "code" | "instruction" | "renderBlock"> & {
+    connection: TConnectionClass;
+    useBezierConnections?: boolean;
+    initialView?: TRect;
+    config: TGraphConfig;
+  };
+
+type GeneratedProps = Omit<ExampleProps, "config" | "renderBlock"> & {
   layersCount: number;
   connectionsPerLayer: number | "example";
-  useBezierConnections?: boolean;
-  initialView?: TRect;
   variant: string;
 };
 
-function GeneratedView({
+export function ConnectionExample({
   renderer,
   connection,
   code,
   instruction,
+  renderBlock,
   useBezierConnections = true,
   initialView,
   config,
-}: Omit<GeneratedProps, "layersCount" | "connectionsPerLayer" | "variant"> & { config: TGraphConfig }) {
+}: ExampleProps) {
   const { graph, setEntities, setSettings, start, zoomTo } = useGraph({});
   useEffect(() => {
     setSettings({ renderer });
@@ -111,7 +116,7 @@ function GeneratedView({
     start();
     zoomTo(initialView ?? "center", { padding: 100 });
   }, [setSettings, connection, useBezierConnections, setEntities, config, start, zoomTo, initialView]);
-  return <ConnectionPreview graph={graph} code={code} instruction={instruction} />;
+  return <ConnectionPreview graph={graph} code={code} instruction={instruction} renderBlock={renderBlock} />;
 }
 
 export function GeneratedConnections({ layersCount, connectionsPerLayer, variant, ...view }: GeneratedProps) {
@@ -123,5 +128,5 @@ export function GeneratedConnections({ layersCount, connectionsPerLayer, variant
     [layersCount, connectionsPerLayer]
   );
   // A connection class belongs to its mounted graph. A new effect reuses the same generated topology.
-  return <GeneratedView key={variant} {...view} config={config} />;
+  return <ConnectionExample key={variant} {...view} config={config} />;
 }

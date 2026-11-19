@@ -375,16 +375,20 @@ and the ready classes take any line. When a port delegates, the stock geometries
 for that end of the route and preserve the stored points. On expansion the original route is available again.
 For a stock rounded polyline, the arrow follows the final nonzero segment even if the endpoint is repeated.
 
+Use the stock class in the graph settings and supply the full route, including its two endpoints, in
+`connections[].points`. The coordinates are in graph space. A layout that moves a block can publish the
+updated route through `graph.updateEntities()`.
+
 ```typescript
-import { BlockConnection, multipointGeometry } from "@gravity-ui/graph";
-import type { TMultipointConnection } from "@gravity-ui/graph";
+import { Graph, MultipointConnection } from "@gravity-ui/graph";
 
-/** A polyline through `points` on your own connection class. */
-class RouteConnection extends BlockConnection<TMultipointConnection> {
-  public static override geometry = multipointGeometry;
-}
-
+const graph = new Graph({
+  settings: { renderer: "webgl", connection: MultipointConnection },
+});
 ```
+
+Open [Multipoint route in Storybook](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-webglconnections--multipoint-route)
+to follow a routed connection between two blocks. Click a segment after a bend to select it.
 
 ## Effects
 
