@@ -1,8 +1,8 @@
 import { Anchor, CanvasBlock, defineTag, hoveredTag, selectedTag } from "@gravity-ui/graph";
 import type {
   TAnchorClass,
-  TAnchorView,
   TBlock,
+  TBlockProps,
   TBlockView,
   TConnectionEffectScaleRange,
   TScenePrimitive,
@@ -228,8 +228,8 @@ function stageFace(width: number, height: number): TScenePrimitive[] {
 
 /** The detailed scene keeps the ports visible when a stage has no HTML card. */
 class StageAnchor extends Anchor {
-  protected override detailed(view: TAnchorView = this.getViewData()): readonly TScenePrimitive[] {
-    return this.schematic(view);
+  protected override detailed(): readonly TScenePrimitive[] {
+    return this.schematic();
   }
 }
 
@@ -248,6 +248,19 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
 
   protected override getAnchorClass(): TAnchorClass {
     return StageAnchor;
+  }
+
+  /** Selection and status go through the style rules. Only card size and contents change its primitives. */
+  protected override shouldUpdateScene(_nextProps: TBlockProps, next: TStageBlock): boolean {
+    const { width, height, name, kind, pipeline, rowsPerSecond } = this.state;
+    return (
+      width !== next.width ||
+      height !== next.height ||
+      name !== next.name ||
+      kind !== next.kind ||
+      pipeline !== next.pipeline ||
+      rowsPerSecond !== next.rowsPerSecond
+    );
   }
 
   protected override minimalistic(view: TBlockView<TStageBlock>): readonly TScenePrimitive[] {

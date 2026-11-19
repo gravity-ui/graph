@@ -1,8 +1,12 @@
+import { batch } from "@preact/signals-core";
+
 import { Graph } from "../../../../graph";
+import { CoreComponent } from "../../../../lib/CoreComponent";
 import type { ChildDescriptor } from "../../../../lib/CoreComponent";
 import type { TScenePrimitive } from "../../../../lib/scene/types";
 import { entityKey } from "../../../../services/tags/TagStore";
 import type { TPoint } from "../../../../utils/types/shapes";
+import type { GraphComponentContext, TGraphComponentProps } from "../../GraphComponent";
 import { SceneComponent, sceneComponentStats } from "../SceneComponent";
 import type { TSceneParent } from "../SceneComponent";
 
@@ -33,6 +37,132 @@ describe("SceneComponent", () => {
   afterEach(() => {
     graph.unmount();
     jest.restoreAllMocks();
+  });
+
+  describe("level methods reading component data directly", () => {
+    type Props = TGraphComponentProps & { width: number };
+    type State = { x: number; height: number };
+    type Context = GraphComponentContext & { color?: string; unitScale?: number };
+
+    class Marker extends SceneComponent<object, Props, State, Context> {
+      public override state = { x: 0, height: 3 };
+      public runs = 0;
+
+      public change<K extends keyof State>(patch: Pick<State, K>): void {
+        this.setState(patch);
+      }
+
+      public refresh(): void {
+        this.invalidate();
+      }
+
+      protected override getSceneOrigin(): TPoint {
+        return { x: this.state.x, y: 0 };
+      }
+
+      protected override schematic(): TScenePrimitive[] {
+        this.runs++;
+        return [
+          { kind: "rect", x: 0, y: 0, width: this.props.width, height: this.state.height, fill: this.context.color },
+        ];
+      }
+    }
+
+    function mountMarker(Kind: typeof Marker = Marker): Marker {
+      let marker!: Marker;
+      const ref = (instance: Marker): void => {
+        marker = instance;
+      };
+      graph = new Graph({}, document.createElement("div"));
+      graph.start();
+      graph.addLayer(TestLayer, { children: [Kind.create({ width: 8 }, { ref })] });
+      frames();
+      return marker;
+    }
+
+    it("draws applied state, props and context in the scheduled update", () => {
+      const marker = mountMarker();
+      const primitive = () => graph.scene.store.get(marker.getSceneElementId())?.primitives[0];
+      const initial = marker.runs;
+      marker.change({ height: 6 });
+      frames(1);
+      expect(primitive()).toMatchObject({ width: 8, height: 6 });
+      marker.setContext({ color: "#123456" });
+      frames(1);
+      expect(primitive()).toMatchObject({ fill: "#123456" });
+      marker.setProps({ width: 12 });
+      marker.change({ height: 10 });
+      frames(1);
+      expect(primitive()).toMatchObject({ width: 12, height: 10, fill: "#123456" });
+      expect(marker.runs).toBe(initial + 3);
+    });
+
+    class ScaledMarker extends Marker {
+      protected override schematic(): TScenePrimitive[] {
+        this.runs++;
+        return [{ kind: "rect", x: 0, y: 0, width: this.width(this.props, this.state, this.context), height: 1 }];
+      }
+
+      protected override shouldUpdateScene(props: Props, state: State, context: Context): boolean {
+        return this.width(props, state, context) !== this.width(this.props, this.state, this.context);
+      }
+
+      private width(props: Props, state: State, context: Context): number {
+        return props.width * state.height * (context.unitScale ?? 1);
+      }
+    }
+
+    it("draws the final inputs when lifecycle hooks or later edits change a pending update", () => {
+      class ClampedMarker extends ScaledMarker {
+        protected override propsChanged(next: Props): void {
+          super.propsChanged(next);
+          if (next.interactive === false && this.props.interactive !== false) this.change({ height: 2 });
+        }
+
+        protected override stateChanged(next: State): void {
+          super.stateChanged(next);
+          if (this.props.width >= 16 && next.height < 2) this.change({ height: 2 });
+        }
+      }
+      const marker = mountMarker(ClampedMarker);
+      const rect = () => graph.scene.store.get(marker.getSceneElementId())?.primitives[0];
+      const initial = marker.runs;
+      marker.setProps({ interactive: false });
+      frames(1);
+      expect(rect()).toMatchObject({ width: 16 });
+      // The requested 16 × 1 would look the same. The new props make stateChanged clamp the height to 2.
+      marker.setProps({ width: 16 });
+      marker.change({ height: 1 });
+      frames(1);
+      expect(marker.state.height).toBe(2);
+      expect(rect()).toMatchObject({ width: 32 });
+      // Context applies immediately. The pending prop that would cancel the scale is reverted before the frame.
+      marker.setProps({ width: 8 });
+      marker.setContext({ unitScale: 2 });
+      marker.setProps({ width: 16 });
+      frames(1);
+      expect(rect()).toMatchObject({ width: 64 });
+      expect(marker.runs).toBe(initial + 3);
+    });
+
+    it("reuses geometry for equivalent data and position-only changes, until explicitly invalidated", () => {
+      const marker = mountMarker(ScaledMarker);
+      const stored = () => graph.scene.store.get(marker.getSceneElementId());
+      const primitives = stored()?.primitives;
+      const initial = marker.runs;
+      expect(primitives?.[0]).toMatchObject({ width: 24 });
+      marker.change({ x: 17, height: 1 });
+      marker.setProps({ width: 24 });
+      frames(1);
+      expect(stored()?.x).toBe(17);
+      expect(stored()?.primitives).toBe(primitives);
+      marker.performRender();
+      frames(1);
+      expect(marker.runs).toBe(initial);
+      marker.refresh();
+      frames(1);
+      expect(marker.runs).toBe(initial + 1);
+    });
   });
 
   it("writes one element from its level methods without being walked", () => {
@@ -93,6 +223,30 @@ describe("SceneComponent", () => {
     frames();
     expect(box.levelRuns).toBe(runs + 1);
     expect(element()?.primitives.some((p) => p.kind === "text" && p.text === "Beta")).toBe(true);
+  });
+
+  it("follows a replacement signal after a skipped data update, including during a synchronous export flush", () => {
+    class SignalBox extends Box {
+      protected override shouldUpdateScene(): boolean {
+        return false;
+      }
+    }
+    mount(SignalBox);
+    const runs = box.levelRuns;
+    const replacement = boxSource("Alpha", 20);
+    box.setProps({ source: replacement });
+    frames(1);
+    expect(element()?.x).toBe(20);
+    source.title.value = "Detached";
+    frames(1);
+    expect(box.levelRuns).toBe(runs);
+    batch(() => {
+      replacement.title.value = "Export";
+      box.setProps({ zIndex: 300 });
+      CoreComponent.applyUpdatesNow(box);
+      expect(element()?.primitives).toContainEqual(expect.objectContaining({ text: "Export" }));
+    });
+    expect(box.levelRuns).toBe(runs + 1);
   });
 
   it("keeps the written primitives when the level methods return equal ones", () => {
@@ -426,6 +580,10 @@ describe("SceneComponent", () => {
   it("takes a bucket from props on setProps in one update, without running the level methods again", () => {
     class CountingBox extends Box {
       public updates = 0;
+
+      protected override shouldUpdateScene(props: TBoxProps): boolean {
+        return props.source !== this.props.source;
+      }
 
       protected override willIterate(): void {
         this.updates++;

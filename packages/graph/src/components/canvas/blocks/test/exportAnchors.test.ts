@@ -10,7 +10,7 @@ import type { AnchorState } from "../../../../store/anchor/Anchor";
 import { createAnchorPortId } from "../../../../store/connection/port/utils";
 import type { TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../anchors";
-import type { TAnchor, TAnchorClass, TAnchorProps, TAnchorView } from "../../anchors";
+import type { TAnchor, TAnchorClass, TAnchorProps } from "../../anchors";
 import { Block } from "../Block";
 import type { TBlockComponentState } from "../Block";
 import { exportAnchorStats } from "../Blocks";
@@ -276,27 +276,10 @@ class ExportLayer extends Layer {
   }
 }
 
-/**
- * Reads its component state in its view data (invalidated once the state is assigned): its first update applies
- * before the selection state its mount queues (`checkData()` runs before `willMount()`), so it needs a second one.
- */
+/** Its mount queues the selection state; export must apply that update before it reads the anchor's geometry. */
 class SelectionAwareAnchor<T extends TAnchorProps = TAnchorProps> extends Anchor<T> {
-  private drawnSelected = false;
-
-  protected override willIterate(): void {
-    if (this.state.selected !== this.drawnSelected) {
-      this.drawnSelected = this.state.selected;
-      this.invalidate();
-    }
-    super.willIterate();
-  }
-
-  protected override getViewData(): TAnchorView & { selected: boolean } {
-    return { ...super.getViewData(), selected: this.state.selected };
-  }
-
-  protected override schematic(view: TAnchorView & { selected?: boolean }): readonly TScenePrimitive[] {
-    return [{ kind: "rect", x: -4, y: -4, width: 8, height: 8, fill: view.selected ? "#ff0000" : "#888888" }];
+  protected override schematic(): readonly TScenePrimitive[] {
+    return [{ kind: "rect", x: -4, y: -4, width: 8, height: 8, fill: this.state.selected ? "#ff0000" : "#888888" }];
   }
 }
 

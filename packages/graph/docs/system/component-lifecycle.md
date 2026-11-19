@@ -137,27 +137,27 @@ be. In development builds a retained class with per-frame hooks logs a warning. 
 
 ### 7. Scene Components
 
-A `SceneComponent` (the canvas `Block` and `Anchor`) is a retained component that [the scene](scene.md) draws. Its
-element is written in its queued update:
+A `SceneComponent` draws one element in [the scene](scene.md). Its level methods can read
+`this.props`, `this.state` and `this.context` directly. Calling `setState()` or `setProps()` queues an update.
+The component lifecycle applies pending props and state together before the level methods run. A call to
+`setContext()` propagates its context immediately and schedules the component's update with the tree.
 
-1. **Trigger.** In `willMount()` it creates a `computed` of its view data (`getViewData()`), its origin
-   (`getSceneOrigin()`), its bucket (`getSceneZIndex()`) and an invalidation counter. When one of them changes (a
-   store signal it reads, new props, `invalidate()`), it calls `performRender()`, which queues its update. `setState()`
-   and `setProps()` queue it too.
-2. **Update.** In the frame, before painting, the tree applies the queued update: `checkData()`, then `willIterate()`,
-   which writes the element. The level methods run there, lazily: only when the view data changed or after `invalidate()`
-   (normally once per frame; a parent's reconciliation can apply it again in the same frame, and an export can apply
-   it outside a frame). A move writes the origin only, and level output equal to the last one re-encodes nothing.
-   The hidden state (`isSceneHidden()`, and the handover: `isRenderDelegated()`) and the parent (`getSceneParent()`)
-   are read in the update itself, so a change of them must call `performRender()`.
-3. **Children.** The children update after their parent, so a child element (an anchor's, a child component's) is
-   written after its parent element exists. A child whose parent element is missing writes nothing and logs an error.
+- **Choosing when to rebuild.** A plain scene component rebuilds its primitives on component data changes.
+  Override `shouldUpdateScene(nextProps, nextState, nextContext)` to compare the upcoming inputs with the current
+  values on `this`. A context change uses the currently applied props and state. Keep the comparison free of side
+  effects. Returning `false` reuses the primitives for this data change. The component still receives its new data,
+  reconciles its children as needed, and synchronizes position, order, visibility and hit boxes. The first draw always runs.
+- **External inputs.** To follow a signal outside the component lifecycle, read it in the optional `getViewData()`
+  and use the resulting argument in a level method, or subscribe to it and call `invalidate()`. Level methods run
+  without tracking signal reads. Explicit invalidation forces a rebuild in the queued update and also works for
+  changes to resources such as fonts. `performRender()` schedules an update and can
+  be used for a change to placement or visibility. Panning and zooming draw the prepared primitives for the active
+  level.
+- **Children and export.** The parent writes its scene element before its children. A parent's reconciliation can
+  apply a retained child again in the same frame. Export can apply its pending update synchronously.
 
-`willMount()` must call `super.willMount()`, which creates the computeds; without it the element is never written, and
-development builds log an error. `invalidate()` from `stateChanged()` has no effect when the view data reads component
-state: the view data is recomputed at once, before the new state is assigned. Call it in `willIterate()`, before
-`super.willIterate()`. A scene component with `static override readonly mode = "immediate"` (such as `LegacyCanvasBlock`) is walked: its
-update runs in every frame and writes its element only when an input changed.
+Call `super.willMount()` when overriding `willMount()`. A component with `static override readonly mode = "immediate"`
+(such as `LegacyCanvasBlock`) also participates in the frame walk.
 
 ## Examples
 

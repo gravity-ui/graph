@@ -23,8 +23,5 @@ export function warnIfInLevelMethod(input: string): void {
   const key = `${owner}\u0000${input}`;
   if (warned.has(key)) return;
   warned.add(key);
-  console.warn(
-    `${owner}: a level method read ${input}. Level methods are pure functions of their view data: read inputs in ` +
-      "getViewData(), and use camera-aware sizes and minScale / maxScale for zoom."
-  );
+  console.warn(`${owner}: a level method read ${input}. Use camera-aware sizes and minScale / maxScale for zoom.`);
 }

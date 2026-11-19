@@ -1268,7 +1268,6 @@ without a look must declare it. See [Child components](../components/block-compo
 +   public static override entityType = "area1";
 +   public override getEntityId(): string { return this.props.blockId; }
 +   protected override willMount(): void { super.willMount(); this.addEventListener("click", () => onArea1()); }
-+   protected override getViewData(): object { return {}; }
 +   protected override schematic(): readonly TScenePrimitive[] {
 +     return [{ kind: "rect", x: 0, y: 0, width: 50, height: 50, fill: "rgba(0, 120, 255, 0.2)" }];
 +   }
@@ -1588,7 +1587,8 @@ the detailed level starts them at the schematic level, or marks anchor ports `sn
 | `GraphComponent.isRenderDelegated()`, `isHiddenForOtherReason()`, `hiddenChanged(hidden)` (protected) | The delegation input, the other hide reasons, and a hook for the derived `hidden` |
 | `GraphComponent.withCameraDerivedHitBox(update)` (protected) | Hit box changes inside `update` follow the camera and ask for no retarget |
 | `SceneComponent.hitLevels`, `isHitOnLevel(level)`, `isShownOutsideScene()`, `isHitBarrier()` (protected) | Hit levels: a component is hit where it is shown |
-| `SceneComponent.getHitRect(bounds)`, `invalidateChildren()` (protected) | A child's hit box; reading the view data of its child scene components again |
+| `SceneComponent.getHitRect(bounds)`, `invalidateChildren()` (protected) | A child's hit box and explicit invalidation of child scene components |
+| `SceneComponent.shouldUpdateScene(nextProps, nextState, nextContext)` (protected) | Reuse prepared primitives when the inputs to the component's look are equal |
 | `Block.getAnchorClass(anchor)`, `isHoveredBy(target)` (protected) | The anchor classes; when the block shows as hovered |
 | `Block.delegateRender(request)`, `isHeldByHtml()`, `THtmlViewRequest` | The handover to HTML |
 | `Anchor.SIZE`, `LINE_WIDTH`, `CREATION_LEVELS`, `TAnchorClass` | An anchor class's statics |

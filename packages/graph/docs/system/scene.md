@@ -62,7 +62,7 @@ import type { Graph, LayerProps, TGraphComponentProps, TScenePrimitive } from "@
 type MarkerData = { id: string; x: number; y: number; color: string };
 const side = 24;
 
-class Marker extends SceneComponent<{ color: string }, TGraphComponentProps & MarkerData> {
+class Marker extends SceneComponent<object, TGraphComponentProps & MarkerData> {
   public static override entityType = "marker";
 
   public override getEntityId() {
@@ -73,12 +73,12 @@ class Marker extends SceneComponent<{ color: string }, TGraphComponentProps & Ma
     return { x: this.props.x, y: this.props.y };
   }
 
-  protected override getViewData() {
-    return { color: this.props.color };
+  protected override shouldUpdateScene(nextProps: TGraphComponentProps & MarkerData): boolean {
+    return nextProps.color !== this.props.color;
   }
 
-  protected override schematic({ color }: { color: string }): readonly TScenePrimitive[] {
-    return [{ kind: "rect", x: 0, y: 0, width: side, height: side, fill: color }];
+  protected override schematic(): readonly TScenePrimitive[] {
+    return [{ kind: "rect", x: 0, y: 0, width: side, height: side, fill: this.props.color }];
   }
 
   protected override getHitRect() {
@@ -104,8 +104,8 @@ class MarkerLayer extends Layer<MarkerLayerProps> {
 ### Mount, update and remove it
 
 The layer below owns one marker. Its key stays the same when its props change, so the graph updates the same
-component. Moving it changes its origin. Changing its colour updates the rectangle. A click on the marker
-recolours it.
+component. Moving it changes its origin and hit area. The marker rebuilds its rectangle only when its colour
+changes. A click on the marker recolours it.
 
 ```ts
 function mountMarker(graph: Graph) {

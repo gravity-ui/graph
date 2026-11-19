@@ -9,7 +9,7 @@ import { ESelectionStrategy } from "../../../../services/selection/types";
 import { entityKey } from "../../../../services/tags/TagStore";
 import { draggingTag, selectedTag } from "../../../../services/tags/builtinTags";
 import { Block } from "../Block";
-import type { TBlock, TBlockView } from "../Block";
+import type { TBlock, TBlockProps, TBlockView } from "../Block";
 
 const block = (id: string, x: number, patch: Partial<TBlock> = {}): TBlock => ({
   id,
@@ -86,6 +86,13 @@ describe("Block in the scene", () => {
     frames();
     expect(element("a")?.x).toBe(400);
     expect(element("a")?.primitives).toBe(primitives);
+  });
+
+  it("keeps the scene origin at the accepted position when a block-change listener prevents a move", () => {
+    graph.on("block-change", (event) => event.preventDefault());
+    view("a").updatePosition(400, 250);
+    frames();
+    expect([element("a")?.x, element("a")?.y]).toEqual([100, 100]);
   });
 
   it("takes its bucket from the graph constants signal", () => {
@@ -295,9 +302,35 @@ describe("Block in the scene", () => {
     expect(texts).toEqual(["of t"]);
   });
 
+  it("honors object identity for a custom prop read directly in a level method", () => {
+    const widths = new WeakMap<object, number>();
+    class Swatch extends Block<TBlock, TBlockProps & { palette?: object }> {
+      protected override schematic(): readonly TScenePrimitive[] {
+        const width = this.props.palette && widths.get(this.props.palette);
+        return [...super.schematic(), { kind: "rect", x: 0, y: 0, width: width ?? 0, height: 10 }];
+      }
+    }
+    graph.updateSettings({ blockComponents: { Swatch } });
+    graph.setEntities({ blocks: [block("s", 0, { is: "Swatch" })], connections: [] });
+    frames();
+    const swatch = view("s");
+    if (!(swatch instanceof Swatch)) throw new Error("Missing Swatch block");
+    for (const width of [10, 20]) {
+      const palette = {};
+      widths.set(palette, width);
+      swatch.setProps({ palette });
+      frames();
+      expect(element("s")?.primitives).toContainEqual(expect.objectContaining({ kind: "rect", width }));
+    }
+  });
+
   it("draws a subclass's schematic list on the minimalistic level too, from one schematic call per view", () => {
     let calls = 0;
     class Fresh extends Block {
+      public resizeLocally(width: number): void {
+        this.setState({ width });
+      }
+
       // A fresh list on every call, as a subclass without a cache returns it.
       protected override schematic(view: TBlockView): readonly TScenePrimitive[] {
         calls++;
@@ -330,6 +363,14 @@ describe("Block in the scene", () => {
     graph.api.updateBlock({ id: "f", width: 120 });
     frames();
     expect(calls).toBe(2);
+
+    const local = view("f");
+    if (!(local instanceof Fresh)) throw new Error("Missing Fresh block");
+    local.resizeLocally(135);
+    frames();
+    expect(element("f")?.primitives).toContainEqual(expect.objectContaining({ part: "body", width: 135 }));
+    expect(calls).toBe(3);
+    expect(graph.rootStore.blocksList.getBlockState("f")?.width).toBe(120);
   });
 
   it("warns once about imperative members on a Block subclass", () => {

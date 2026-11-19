@@ -1,4 +1,4 @@
-import { computed, signal } from "@preact/signals-core";
+import { computed } from "@preact/signals-core";
 import type { ReadonlySignal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 import isObject from "lodash/isObject";
@@ -21,7 +21,6 @@ import { PortState } from "../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
 import { HAS_NODE_ENV } from "../../../utils/development";
 import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
-import { track } from "../../../utils/functions/track";
 import { TPoint, TRect } from "../../../utils/types/shapes";
 import { isWithinComponent, pointerTargetAfter } from "../EventedComponent/EventedComponent";
 import type { EventedComponent } from "../EventedComponent/EventedComponent";
@@ -32,7 +31,7 @@ import { STOCK_ANCHORS, anchorLimitsOf, describeAnchorClasses } from "../anchors
 import type { TAnchorLook, TResolvedAnchorClasses } from "../anchors/utils/anchorLayout";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 import { SceneComponent } from "../scene/SceneComponent";
-import { sameView } from "../scene/utils/viewData";
+import { sameInputs, sameView } from "../scene/utils/viewData";
 
 import { warnLegacyMembers } from "./utils/blockWarnings";
 
@@ -140,10 +139,16 @@ const blockConstants = new WeakMap<Graph, ReadonlySignal<TBlockConstants>>();
 
 /** Whether a state change moves the block only: `getAnchorClass` is not asked again for it. */
 function onlyPlaceChanged(state: object, next: object): boolean {
-  for (const key of Object.keys(next)) {
+  if (state === next) return true;
+  for (const key in next) {
     if (key === "x" || key === "y") continue;
-    if (Reflect.get(state, key) !== Reflect.get(next, key)) return false;
+    if (
+      !Object.prototype.hasOwnProperty.call(state, key) ||
+      !Object.is(Reflect.get(state, key), Reflect.get(next, key))
+    )
+      return false;
   }
+  for (const key in state) if (!Object.prototype.hasOwnProperty.call(next, key)) return false;
   return true;
 }
 
@@ -228,9 +233,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
    * false, but keeps the hitbox.
    */
   private blockHidden = false;
-
-  /** Bumped when `subscribe()` binds a new BlockState (an undo re-adds an id): the view data reads the new one (I6). */
-  private readonly connectedVersion = signal(0);
 
   private defaultLookCache?: TDefaultLook;
 
@@ -354,7 +356,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     if (previous.$state.peek().id !== id) {
       this.anchorIds = new Set(this.connectedState.$anchors.peek().map((anchor) => anchor.id));
     }
-    this.connectedVersion.value = this.connectedVersion.peek() + 1;
     this.state = { ...cloneDeep(this.connectedState.$state.value), selected: this.connectedState.$selected.value };
     // `connectedState` is assigned first: the connections' endpoint computeds (`ConnectionState.$sourceBlock`,
     // `$targetBlock`, `$hidden`) read a block's state through this component and depend on the bound state's view, so
@@ -364,6 +365,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       // A rebind (the block was removed and added back with its id in one frame): the old state names nothing, and
       // the new state's hidden value applies, `false` included, as for a new component. A hide requested on the new
       // state before this bind was applied by `setViewComponent`.
+      this.invalidate();
       this.unbindConnectedState(previous);
       const hidden = this.connectedState.$hidden.peek();
       if (hidden !== this.blockHidden) this.setHiddenBlock(hidden);
@@ -697,10 +699,34 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.resolvedAnchorClasses?.levels ?? STOCK_ANCHORS.levels;
   }
 
+  /** Moving a block translates its local primitives. A subclass drawing from world x/y can opt into rebuilding. */
+  protected override shouldUpdateScene(
+    nextProps: Props,
+    nextState: TBlockComponentState<T>,
+    nextContext: TGraphLayerContext
+  ): boolean {
+    // The built-in levels read just these fields and the graph's look constants. A subclass may draw from more.
+    if (this.constructor === Block) {
+      return (
+        this.state.name !== nextState.name ||
+        this.state.width !== nextState.width ||
+        this.state.height !== nextState.height ||
+        this.context.graph !== nextContext.graph
+      );
+    }
+    return (
+      !onlyPlaceChanged(this.state, nextState) ||
+      !sameInputs(this.props, nextProps) ||
+      !sameInputs(this.context, nextContext)
+    );
+  }
+
   protected override getViewData(): TBlockView<T> {
-    track(this.connectedVersion);
-    const { x: _x, y: _y, ...data } = this.connectedState.$state.value;
-    return { ...data, look: blockConstantsOf(this.context.graph).value.look };
+    const { x: _x, y: _y, selected: _selected, ...data } = this.state;
+    // Keep the public projection's original shape for models that carry their own selected field.
+    const model = this.connectedState.$state.peek();
+    if ("selected" in model) Object.assign(data, { selected: model.selected });
+    return Object.assign(data, { look: blockConstantsOf(this.context.graph).value.look }) as TBlockView<T>;
   }
 
   /**
@@ -708,18 +734,22 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
    * as `renderMinimalisticBlock` drew `renderSchematicView`: `Block` defines no `minimalistic`, so the level takes this
    * list (`encodeLevels`' fallback), and a subclass that overrides only `schematic` changes both levels with one list.
    */
-  protected override schematic(view: TBlockView<T>): readonly TScenePrimitive[] {
+  protected override schematic(
+    view: TBlockView<T> = this.readSceneView() ?? this.getViewData()
+  ): readonly TScenePrimitive[] {
     return this.defaultLook(view).full;
   }
 
   /** Today's detailed canvas look: no title (decision 4); the HTML handover is plan 3b. */
-  protected override detailed(view: TBlockView<T>): readonly TScenePrimitive[] {
+  protected override detailed(
+    view: TBlockView<T> = this.readSceneView() ?? this.getViewData()
+  ): readonly TScenePrimitive[] {
     return this.defaultLook(view).detailed;
   }
 
   protected override getSceneOrigin(): TPoint {
-    track(this.connectedVersion);
-    const { x, y } = this.connectedState.$state.value;
+    // A prevented block-change leaves the store, the ports and the drawn position where they are.
+    const { x, y } = this.connectedState.$state.peek();
     return { x, y };
   }
 

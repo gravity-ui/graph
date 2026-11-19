@@ -91,13 +91,9 @@ function walkingPose(seconds: number) {
 
 type LimbProps = { limb: Limb; pose: ReadonlySignal<ReturnType<typeof walkingPose>> };
 
-class OrbitLimb extends SceneComponent<{ limb: Limb }, TGraphComponentProps & LimbProps> {
-  protected override getViewData() {
-    return { limb: this.props.limb };
-  }
-
-  protected override schematic({ limb }: { limb: Limb }) {
-    return limbLooks[limb];
+class OrbitLimb extends SceneComponent<object, TGraphComponentProps & LimbProps> {
+  protected override schematic() {
+    return limbLooks[this.props.limb];
   }
 
   protected override getSceneOrigin() {
@@ -120,10 +116,6 @@ class Orbit extends SceneComponent<object, TGraphComponentProps & OrbitProps> {
 
   public override getEntityId(): string {
     return "orbit";
-  }
-
-  protected override getViewData(): object {
-    return {};
   }
 
   protected override getSceneOrigin() {

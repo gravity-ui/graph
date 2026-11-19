@@ -14,7 +14,9 @@ import { HAS_NODE_ENV } from "../../../utils/development";
 import type { TPoint, TRect } from "../../../utils/types/shapes";
 import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
+import type { GraphComponentContext } from "../GraphComponent";
 import { SceneComponent } from "../scene/SceneComponent";
+import { sameInputs } from "../scene/utils/viewData";
 
 import { checkAnchorLook } from "./utils/anchorWarnings";
 
@@ -402,6 +404,20 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     }
   }
 
+  protected override shouldUpdateScene(
+    nextProps: T,
+    nextState: TAnchorState,
+    nextContext: GraphComponentContext
+  ): boolean {
+    // The stock look uses styles for hover and selection. Subclasses may draw directly from their state.
+    if (this.constructor === Anchor) {
+      return this.props.size !== nextProps.size || this.props.lineWidth !== nextProps.lineWidth;
+    }
+    return (
+      !sameInputs(this.props, nextProps) || !sameInputs(this.state, nextState) || !sameInputs(this.context, nextContext)
+    );
+  }
+
   protected override getViewData(): TAnchorView {
     const block = this.getParent();
     return {
@@ -433,7 +449,9 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
    * A prototype method, as every level method of an anchor (see `minimalistic`); a look that reaches farther than
    * `LOOK_EXTENT` from the anchor's point declares its reach there.
    */
-  protected override schematic(view: TAnchorView): readonly TScenePrimitive[] {
+  protected override schematic(
+    view: TAnchorView = this.readSceneView() ?? this.getViewData()
+  ): readonly TScenePrimitive[] {
     return this.anchorLook(view);
   }
 

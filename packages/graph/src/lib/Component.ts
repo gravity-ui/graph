@@ -35,7 +35,12 @@ export class Component<
 
   public state: State;
 
-  protected __data: { nextProps: Props | undefined; nextState: State | undefined; removedStateKeys?: Set<string> } = {
+  protected __data: {
+    nextProps: Props | undefined;
+    nextState: State | undefined;
+    removedStateKeys?: Set<string>;
+    stateComparedWithProps?: boolean;
+  } = {
     nextProps: undefined,
     nextState: undefined,
   };
@@ -52,7 +57,9 @@ export class Component<
   public setContext<K extends keyof Context>(context: Partial<Pick<Context, K>>) {
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
-    super.setContext({ ...this.context, ...context });
+    const nextContext = { ...this.context, ...context };
+    this.willApplyData?.(this.props, this.state, nextContext);
+    super.setContext(nextContext);
     this.contextChanged(this.context);
   }
 
@@ -83,6 +90,7 @@ export class Component<
 
   protected setState<K extends keyof State>(state: Pick<State, K>) {
     const data = this.__data;
+    if (data.stateComparedWithProps) data.stateComparedWithProps = false;
 
     if (data.nextState === undefined) {
       data.nextState = assign(assign({}, this.state), state);
@@ -101,6 +109,7 @@ export class Component<
         data.nextState = { ...this.state };
         this.performRender();
       }
+      if (data.stateComparedWithProps) data.stateComparedWithProps = false;
       delete data.nextState[key];
       (data.removedStateKeys ??= new Set()).add(key);
     }
@@ -118,19 +127,31 @@ export class Component<
     // noop
   }
 
+  /**
+   * Before committing queued props/state, or a synchronous context update. A stateChanged hook can amend a joint
+   * update after props already committed. In that case the first comparison against the old props no longer holds.
+   */
+  protected willApplyData?(nextProps: Props, nextState: State, nextContext: Context, derivedAfterProps?: boolean): void;
+
   protected checkData() {
     const data = this.__data;
     let updated = false;
 
     if (data.nextProps !== undefined) {
       this.propsChanged(data.nextProps);
+      this.willApplyData?.(data.nextProps, data.nextState ?? this.state, this.context);
       assign(this.props, data.nextProps);
       data.nextProps = undefined;
       updated = true;
     }
 
     if (data.nextState !== undefined) {
+      if (updated && this.willApplyData) data.stateComparedWithProps = true;
       this.stateChanged(data.nextState);
+      if (!updated || data.stateComparedWithProps === false) {
+        this.willApplyData?.(this.props, data.nextState, this.context, updated);
+      }
+      data.stateComparedWithProps = undefined;
       this.applyPendingState(this.state, data.nextState);
       data.removedStateKeys = undefined;
       data.nextState = undefined;

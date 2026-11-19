@@ -18,6 +18,7 @@ classDiagram
         +static mode: "retained"
         +static entityType
         +static hitLevels
+        #shouldUpdateScene(nextProps, nextState, nextContext)
         #getViewData()
         #minimalistic(view)
         #schematic(view)
@@ -92,20 +93,20 @@ nested in its parent's element (an anchor, a [child component](#child-components
 
 ## View data
 
-`getViewData()` returns the inputs of the level methods. `Block`'s is `TBlockView<T>`: the block data without `x` and
-`y`, plus `look` (`TBlockLook`: `fontSize`, `padding`, `borderWidth` and `textMinScale`, from the graph constants and
-`scaleFontSize`).
+Level methods can read `this.props`, `this.state` and `this.context` directly. A standalone `SceneComponent`
+needs only the level methods it draws. Its optional `getViewData()` supplies a shared argument to those methods
+and tracks any signals read while preparing it.
 
-- It is read inside a `computed`, so the signals it reads are tracked: a change of the block's `$state` or of the
-  constants reads it again. It is also read again after new props and after `invalidate()`.
-- Return a fresh object on every call. Development builds freeze its top level, so returning an object that something
-  else owns would freeze that object.
-- The new view is compared with the last one (`sameView`): the same keys, each value equal by identity or, for plain
-  objects and arrays (`meta`, `anchors`), one level deep. Equal views keep the last object, and the level methods do
-  not run again, so code that rebuilds `meta` with equal values on every update re-runs nothing. A hole in a sparse
-  array compares as `undefined`.
-- `x` and `y` are not view data: a move writes the element's origin only (`getSceneOrigin()` reads the block's
-  `$state`), and re-encodes nothing.
+The stock block supplies `TBlockView<T>`, which contains the block data except `x` and `y`, plus `look`
+(`fontSize`, `padding`, `borderWidth` and `textMinScale`). Its origin supplies the world coordinates separately,
+so dragging the stock block reuses its primitives. If a subclass's shape also depends on its coordinates,
+include that dependency in its `shouldUpdateScene()` override. A child scene component can read the block's
+projection with `readSceneView()` on its parent.
+
+Return a fresh object from `getViewData()`. Development builds freeze its top level. When a tracked signal changes,
+an equal projection keeps the previous object. Changes to the component's own data follow
+[`shouldUpdateScene`](../system/component-lifecycle.md#7-scene-components), so a level method can also read
+committed component data that the projection omits.
 
 A subclass adds its own view data by widening `getViewData()` and the `view` of its level methods:
 
@@ -144,9 +145,8 @@ level](../system/scene.md#level) as `readonly TScenePrimitive[]` (rects, circles
 world units relative to the block's origin (its `x`, `y`). Do not transform coordinates: the scene applies the
 origin and the camera.
 
-- They run in the block's queued update, in the frame, and only when the view data changed or after `invalidate()`.
-  Normally that is once per frame; a parent's reconciliation can apply a retained child again in the same frame, and
-  an export can apply updates synchronously outside a frame.
+- Level methods run in the queued update when the component needs new primitives. Multiple pending changes are
+  applied together. Export can apply updates synchronously.
 - A level without its own method takes the schematic list, else the minimalistic one, else the detailed one.
 - All levels are encoded into one element, and each primitive is drawn only on the levels that returned it, so a level
   change needs no re-encode of its own (a level-scoped style rule that changes the result still re-encodes). A
@@ -176,7 +176,7 @@ origin and the camera.
 
 `Block` defines no `minimalistic`: that level takes the schematic list, as `renderMinimalisticBlock` drew
 `renderSchematicView` before. A subclass that overrides only `schematic` therefore changes both levels with one list.
-`super.minimalistic(view)` does not exist: call `super.schematic(view)`.
+To include the stock shape, call `super.schematic()` or pass the projection as `super.schematic(view)`.
 
 | Part | Primitive |
 | --- | --- |
@@ -203,12 +203,10 @@ graph.setConstants({ block: { SCALES: [0.125, 0.225, 0.5] } }); // detailed from
 
 ### Purity, `invalidate()` and `measureText`
 
-- Level methods are pure functions of their view data. Read inputs in `getViewData()`. Development builds warn, once
-  per class and camera input, when a level method reads the camera (`getCameraScale()`, `getCameraState()`, `getRelative()`).
-- `invalidate()` reads the view data again and runs the level methods in the next update, for inputs that are not
-  signals. A view data that reads component state (`this.state`) cannot be invalidated from `stateChanged()`: the view
-  data is recomputed at once, before the new state is assigned. Call `invalidate()` in `willIterate()`, before
-  `super.willIterate()`.
+- Keep level methods free of side effects. They describe a local shape in world coordinates. For zoom-dependent details use camera-aware sizes,
+  `minScale` and `maxScale`. Development builds warn if a level method reads the camera.
+- For ordinary component state, call `setState()` and read the applied value in a level method. To rebuild after a
+  change outside the component lifecycle, call `invalidate()`.
 - `this.measureText(text, font)` measures a text in a CSS font for layout in level methods. The component is
   registered with the scene: when late web fonts load (`document.fonts` `loadingdone`), the measures are cleared and
   its level methods run again. A subclass that caches its level output drops the cache in an
@@ -381,10 +379,6 @@ class CloseButton extends SceneComponent<object, TGraphComponentProps & { blockI
       event.stopPropagation();
       this.context.graph.api.deleteSelected();
     });
-  }
-
-  protected override getViewData(): object {
-    return {};
   }
 
   protected override minimalistic(): readonly TScenePrimitive[] {

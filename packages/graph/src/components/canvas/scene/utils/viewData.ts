@@ -39,6 +39,11 @@ function sameData(a: unknown, b: unknown, depth: number): boolean {
   return false;
 }
 
+/** A component may use an object prop or state field by identity. Compare only the fields themselves. */
+export function sameInputs(a: object, b: object): boolean {
+  return sameData(a, b, 1);
+}
+
 /**
  * Whether two view data objects are equal: the same keys, each value equal by identity or, for plain objects and
  * arrays (`meta`, anchors), one level deep. A consumer that rebuilds `meta` on every update then causes no re-run.

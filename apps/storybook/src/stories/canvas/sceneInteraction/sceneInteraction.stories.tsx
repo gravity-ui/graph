@@ -17,7 +17,7 @@ import type {
   TAnchor,
   TAnchorClass,
   TBlock,
-  TBlockView,
+  TBlockComponentState,
   TConnection,
   TGraphComponentProps,
   TSceneLevel,
@@ -45,10 +45,10 @@ const BUTTON_INSET = 8;
 /** The 1px border of GraphBlock's wrapper (`.graph-block-wrapper`): the HTML's offsets start inside it. */
 const WRAPPER_BORDER = 1;
 
-type TRunButtonView = { width: number };
+type TRunButtonProps = TGraphComponentProps & { blockId: string; width: number };
 
 /** A run button at the block's top right: a rounded square and a dot, on the schematic and detailed levels. */
-class RunButton extends SceneComponent<TRunButtonView, TGraphComponentProps & { blockId: string }> {
+class RunButton extends SceneComponent<object, TRunButtonProps> {
   public static override entityType = "runButton";
 
   public declare readonly __styleParts?: TStyleParts<"button" | "glyph">;
@@ -77,21 +77,14 @@ class RunButton extends SceneComponent<TRunButtonView, TGraphComponentProps & { 
     });
   }
 
-  /** The button follows the block's width (its view data). */
-  protected override getViewData(): TRunButtonView {
-    const block = this.getParent();
-    const view = block instanceof SceneComponent ? (block.readSceneView() as TBlockView | undefined) : undefined;
-    return { width: view?.width ?? 200 };
-  }
-
   /** Too small to click on the minimalistic level: no look, so not hit there either. */
   protected override minimalistic(): readonly TScenePrimitive[] {
     return [];
   }
 
   /** The detailed level takes this list too (no `detailed` method). */
-  protected override schematic(view: TRunButtonView): readonly TScenePrimitive[] {
-    const x = view.width - BUTTON_INSET - BUTTON_SIZE;
+  protected override schematic(): readonly TScenePrimitive[] {
+    const x = this.props.width - BUTTON_INSET - BUTTON_SIZE;
     const half = BUTTON_SIZE / 2;
     return [
       {
@@ -129,9 +122,17 @@ class StageBlock extends CanvasBlock {
     return anchor.type === "OUT" ? SquareAnchor : Anchor;
   }
 
+  protected override stateChanged(next: TBlockComponentState): void {
+    if (this.state.width !== next.width) this.shouldUpdateChildren = true;
+    super.stateChanged(next);
+  }
+
   /** The run button first, so the anchors draw over it. */
   protected override updateChildren(): ChildDescriptor[] {
-    return [RunButton.create({ blockId: String(this.props.id) }, { key: "run" }), ...super.updateChildren()];
+    return [
+      RunButton.create({ blockId: String(this.props.id), width: this.state.width }, { key: "run" }),
+      ...super.updateChildren(),
+    ];
   }
 }
 
