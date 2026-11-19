@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { BlockGroups, ECanDrag, Group } from "@gravity-ui/graph";
 import type { BlockState, Graph, TBlock, TSceneRenderer } from "@gravity-ui/graph";
@@ -127,6 +127,30 @@ const FIT_PADDING = 300;
 
 /** Scale interval over which the HTML-only status chip appears after the detailed level starts. */
 const STATUS_CHIP_FADE_RANGE = 0.12;
+const etlSettings = { yieldBeforeSceneLoad: true };
+
+function SceneLoadingOverlay({ graph }: { graph: Graph }) {
+  const subscribe = useCallback((notify: () => void) => graph.on("scene-state-change", notify), [graph]);
+  const snapshot = () => graph.scene.state;
+  const state = useSyncExternalStore(subscribe, snapshot, snapshot);
+  if (state === "ready") return null;
+  return (
+    <div
+      role="status"
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 10,
+        display: "grid",
+        placeItems: "center",
+        background: "var(--g-color-base-float, white)",
+        pointerEvents: "none",
+      }}
+    >
+      {state === "switch" ? "Switching renderer…" : "Loading scene…"}
+    </div>
+  );
+}
 
 const EtlAtScaleApp = ({
   blockCount,
@@ -144,7 +168,7 @@ const EtlAtScaleApp = ({
   selectionGlow,
   effectMinScale,
 }: TEtlAtScaleArgs): React.JSX.Element => {
-  const { graph, setEntities, start, zoomTo } = useGraph({ viewConfiguration });
+  const { graph, setEntities, start, zoomTo } = useGraph({ viewConfiguration, settings: etlSettings });
   const constants = graph.graphConstants;
   const data = useMemo(
     () => createEtlAtScale(blockCount, connectionCount, constants),
@@ -299,6 +323,7 @@ const EtlAtScaleApp = ({
         </Flex>
         <div data-block-highlight={blockHighlight} style={{ flex: 1, minHeight: 400, position: "relative" }}>
           <GraphCanvas graph={graph} className="graph-canvas" renderBlock={html ? renderStage : undefined} />
+          <SceneLoadingOverlay graph={graph} />
         </div>
       </Flex>
     </ThemeProvider>

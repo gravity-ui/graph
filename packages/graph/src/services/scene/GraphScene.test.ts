@@ -3,7 +3,7 @@ import { Graph } from "../../graph";
 import type { TSceneElementInput } from "../../lib/scene/SceneStore";
 import { drawElements } from "../../lib/scene/drawPrimitives";
 import type { TSceneChange } from "../../lib/scene/types";
-import type { ISceneBackend, ISceneBackendModule } from "../../lib/scene/webgl/backendTypes";
+import type { ISceneBackend, ISceneBackendModule, TSceneBackendEvents } from "../../lib/scene/webgl/backendTypes";
 import { Layer } from "../Layer";
 import { ECameraScaleLevel } from "../camera/cameraScaleEnums";
 import { ESelectionStrategy } from "../selection";
@@ -13,7 +13,7 @@ import { entityKey } from "../tags/TagStore";
 import { hoveredTag, selectedTag } from "../tags/builtinTags";
 import { defineTag } from "../tags/defineTag";
 
-import type { TSceneElementView, TSceneRendererState } from "./types";
+import type { TSceneElementView, TSceneRendererState, TSceneState } from "./types";
 
 beforeAll(() => {
   // jest-canvas-mock lacks roundRect and Path2D.addPath; stub them as SceneRendererLayer.test.ts does.
@@ -44,13 +44,20 @@ function waitForRenderer(target: Graph, state: TSceneRendererState, timeoutMs = 
   });
 }
 
-type TFakeGpu = { module: ISceneBackendModule; created: number; disposed: number; drawn: string[][] };
+type TFakeGpu = {
+  module: ISceneBackendModule;
+  events?: TSceneBackendEvents;
+  created: number;
+  disposed: number;
+  drawn: string[][];
+};
 
 /** A backend that records which element ids it knows at every draw. */
 function createFakeGpu(): TFakeGpu {
   const fake: TFakeGpu = { created: 0, disposed: 0, drawn: [], module: undefined as unknown as ISceneBackendModule };
   fake.module = {
-    createSceneBackend: async (): Promise<ISceneBackend> => {
+    createSceneBackend: async (_sibling, events): Promise<ISceneBackend> => {
+      fake.events = events;
       fake.created++;
       const known = new Set<string>();
       return {
@@ -99,6 +106,203 @@ describe("graph.scene", () => {
     expect(graph.scene.$renderer.value).toBe("canvas");
     graph.cameraService.set({ scale: 0.05 });
     expect(graph.scene.$level.value).toBe("minimalistic");
+  });
+
+  describe("scene-state-change", () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    function deliverEvents() {
+      jest.runAllTicks();
+      jest.advanceTimersByTime(0);
+    }
+
+    function startGraph(config: ConstructorParameters<typeof Graph>[0] = {}) {
+      const root = document.createElement("div");
+      Object.defineProperties(root, { clientWidth: { value: 320 }, clientHeight: { value: 200 } });
+      graph = new Graph(config, root);
+      const changes: TSceneState[] = [];
+      graph.on("scene-state-change", (event) => {
+        expect(event.cancelable).toBe(false);
+        changes.push(event.detail.state);
+      });
+      expect(graph.scene.state).toBe("init");
+      graph.start();
+      expect(graph.scene.state).toBe("initialize");
+      expect(changes).toEqual([]);
+      deliverEvents();
+      expect(changes).toEqual(["init", "initialize"]);
+      return changes;
+    }
+
+    it("delivers ready after the populated Canvas draw and repeats only for full replacements", () => {
+      const block = { id: "a", is: "Block", name: "A", x: 10, y: 20, width: 40, height: 30 };
+      const changes = startGraph({ blocks: [block] });
+      graph.scheduler.performUpdate();
+      expect(graph.scene.store.get(entityKey("block", "a"))).toBeDefined();
+      expect(changes).toEqual(["init", "initialize"]);
+      deliverEvents();
+      expect(changes.at(-1)).toBe("ready");
+      graph.updateEntities({ blocks: [{ ...block, x: 20 }] });
+      graph.cameraService.set({ scale: 0.5 });
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(changes).toHaveLength(3);
+      graph.setEntities({});
+      expect(graph.scene.state).toBe("initialize");
+      graph.scheduler.performUpdate();
+      expect(graph.scene.store.get(entityKey("block", "a"))).toBeUndefined();
+      deliverEvents();
+      expect(changes.slice(3)).toEqual(["initialize", "ready"]);
+    });
+
+    it("waits for a visible viewport and cancels pending readiness on detach or unmount", () => {
+      const changes = startGraph();
+      graph.cameraService.set({ width: 0 });
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(graph.scene.state).toBe("initialize");
+      graph.cameraService.set({ width: 320 });
+      graph.scheduler.performUpdate();
+      jest.runAllTicks();
+      expect(graph.scene.state).toBe("ready");
+      graph.stop();
+      deliverEvents();
+      expect(changes).toEqual(["init", "initialize", "init"]);
+      graph.start();
+      graph.scheduler.performUpdate();
+      graph.unmount();
+      deliverEvents();
+      expect(changes).toHaveLength(3);
+    });
+
+    it("waits for the requested WebGL draw, and for a Canvas draw on switch or fallback", async () => {
+      const gpu = createFakeGpu();
+      const changes = startGraph({ settings: { renderer: "webgl", webglBackend: async () => gpu.module } });
+      graph.scheduler.performUpdate();
+      expect(graph.scene.state).toBe("initialize");
+      await waitForRenderer(graph, "webgl");
+      expect(graph.scene.state).toBe("initialize");
+      graph.scheduler.performUpdate();
+      expect(gpu.drawn).toHaveLength(1);
+      deliverEvents();
+      expect(changes.at(-1)).toBe("ready");
+      graph.scene.setRenderer("canvas");
+      expect(graph.scene.state).toBe("switch");
+      graph.scheduler.performUpdate();
+      jest.runAllTicks();
+      graph.updateSettings({
+        webglBackend: async () => {
+          throw new Error("no WebGL");
+        },
+        renderer: "webgl",
+      });
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(changes.slice(3)).toEqual(["switch", "switch"]);
+      const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+      await waitForRenderer(graph, "webgl-fallback");
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(changes.at(-1)).toBe("ready");
+      warn.mockRestore();
+    });
+
+    it("waits for the fitted camera when zoomTo(center) resolves after the first draw", () => {
+      const block = { id: "far", is: "Block", name: "", x: 5000, y: 800, width: 40, height: 30 };
+      const changes = startGraph({ blocks: [block] });
+      graph.zoomTo("center", { padding: 20 });
+      const before = graph.$camera.peek();
+      graph.scheduler.performUpdate();
+      expect(graph.$camera.peek()).not.toEqual(before);
+      deliverEvents();
+      expect(changes).toEqual(["init", "initialize"]);
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(changes.at(-1)).toBe("ready");
+    });
+
+    it("waits for a replacement made by another layer after the graph layer already drew", () => {
+      const changes = startGraph();
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      let replace = true;
+      class ReplacingLayer extends Layer {
+        protected render(): void {
+          if (!replace) return;
+          replace = false;
+          graph.setEntities({ blocks: [{ id: "new", is: "Block", name: "", x: 0, y: 0, width: 40, height: 20 }] });
+        }
+      }
+      graph.addLayer(ReplacingLayer, {});
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(graph.scene.store.get(entityKey("block", "new"))).toBeUndefined();
+      expect(changes.at(-1)).toBe("initialize");
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(graph.scene.store.get(entityKey("block", "new"))).toBeDefined();
+      expect(changes.at(-1)).toBe("ready");
+    });
+
+    it("presents the Canvas fallback on loss and the restored WebGL frame on recovery", async () => {
+      const gpu = createFakeGpu();
+      const changes = startGraph({ settings: { renderer: "webgl", webglBackend: async () => gpu.module } });
+      await waitForRenderer(graph, "webgl");
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      gpu.events?.onLost();
+      expect(graph.scene.state).toBe("switch");
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(changes.at(-1)).toBe("ready");
+      const draws = gpu.drawn.length;
+      gpu.events?.onRestored();
+      await waitForRenderer(graph, "webgl");
+      expect(graph.scene.state).toBe("switch");
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(gpu.drawn.length).toBe(draws + 1);
+      expect(changes).toEqual(["init", "initialize", "ready", "switch", "ready", "switch", "ready"]);
+    });
+
+    it("gives an opted-in overlay a paint before warm GPU creation and cancels an obsolete teardown", async () => {
+      const changes = startGraph();
+      graph.scene.store.add(rectElement("content"));
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      const gpu = createFakeGpu();
+      graph.updateSettings({ renderer: "webgl", webglBackend: async () => gpu.module, yieldBeforeSceneLoad: true });
+      const pending = graph.scene.pendingPresentation;
+      expect(pending).toBeDefined();
+      deliverEvents();
+      await Promise.resolve();
+      expect(changes.at(-1)).toBe("switch");
+      expect(graph.scene.state).toBe("switch");
+      expect(gpu.created).toBe(0);
+      jest.advanceTimersToNextFrame();
+      await Promise.resolve();
+      expect(gpu.created).toBe(0);
+      jest.advanceTimersByTime(1);
+      await waitForRenderer(graph, "webgl");
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(changes.at(-1)).toBe("ready");
+
+      graph.scene.setRenderer("canvas");
+      const secondPaint = graph.scene.pendingPresentation;
+      graph.scene.setRenderer("webgl");
+      deliverEvents();
+      jest.advanceTimersToNextFrame();
+      jest.advanceTimersByTime(1);
+      await secondPaint;
+      graph.scheduler.performUpdate();
+      deliverEvents();
+      expect(graph.scene.$renderer.value).toBe("webgl");
+      expect(graph.scene.state).toBe("ready");
+      expect(gpu.created).toBe(1);
+      expect(gpu.disposed).toBe(0);
+    });
   });
 
   it("plays a hover rule on a stock block through the graph frame task", () => {

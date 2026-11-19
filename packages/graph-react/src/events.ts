@@ -13,6 +13,7 @@ export const GraphCallbacksMap = {
   onBlocksGeometryChange: "blocks-geometry-change",
   onConnectionSelectionChange: "connection-selection-change",
   onStateChanged: "state-change",
+  onSceneStateChanged: "scene-state-change",
 } as const satisfies Record<string, keyof GraphEventsDefinitions>;
 
 export type TGraphEventCallbacks = {

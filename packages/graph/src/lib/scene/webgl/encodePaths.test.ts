@@ -4,7 +4,7 @@ import { INSTANCE_FLOATS } from "../../../components/canvas/connections/webgl/en
 import { blockOutlineSegments } from "../blockOutline";
 import type { TScenePrimitive } from "../types";
 
-import { PATH_ELEMENT_FLOATS, encodePaths } from "./encodePaths";
+import { PATH_ELEMENT_FLOATS, createPathScratch, encodePaths } from "./encodePaths";
 import { CachedGeometryBounds } from "./levelBounds";
 import { USE_BASE_ALPHA } from "./tables";
 
@@ -15,6 +15,25 @@ const curved = new Float32Array([0, 0, 0, 50, 50, 50, 50, 0]);
 const slotOf = (part: string | undefined): number => (part === undefined ? 0 : 5);
 
 describe("encodePaths", () => {
+  it("retains translucent records when the next element reuses the encoder", () => {
+    const primitives: TScenePrimitive[] = [
+      { kind: "path", segments: straight, stroke: { color: "rgba(255,0,0,0.5)", width: 2 } },
+      { kind: "path", segments: curved, stroke: { width: 3 } },
+    ];
+    const scratch = createPathScratch();
+    const encode = (id: number, retain: boolean) =>
+      encodePaths(primitives, id, 1, slotOf, undefined, id, undefined, { scratch, retain });
+    const retained = encode(1, true);
+    const expected = encodePaths(primitives, 1, 1, slotOf, undefined, 1);
+    const borrowed = encode(2, false);
+    const next = encode(3, false);
+    for (const key of ["lines", "curves", "lineElements", "curveElements"] as const) {
+      expect(borrowed[key].buffer).toBe(next[key].buffer);
+      expect(retained[key].buffer).not.toBe(next[key].buffer);
+      expect(retained[key]).toEqual(expected[key]);
+    }
+  });
+
   it("shares the cross-section at every corner of an explicitly closed solid stroke, including its seam", () => {
     const points = [
       { x: 0, y: 0 },

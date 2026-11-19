@@ -32,6 +32,7 @@ import { cameraWorldViewport } from "../visibilityCulling";
 import { BlockOutlines } from "./BlockOutlines";
 import { DelegatedRanks } from "./DelegatedRanks";
 import { SceneClock } from "./SceneClock";
+import { afterScenePaint } from "./afterScenePaint";
 import { exportBlockOutlines } from "./exportBlockOutlines";
 import { isSceneKeyed } from "./sceneKey";
 import { createSceneLevel } from "./sceneLevel";
@@ -45,6 +46,7 @@ import type {
   TSceneQueryOptions,
   TSceneRenderer,
   TSceneRendererState,
+  TSceneState,
 } from "./types";
 
 /** Canvas limits that hold in current browsers (side and area); larger outputs come back blank, so toImage throws. */
@@ -136,6 +138,42 @@ export class GraphScene implements IGraphScene {
 
   public readonly $renderer: ReadonlySignal<TSceneRendererState>;
 
+  private presentationState?: TSceneState;
+  private contentPaint?: Promise<void>;
+
+  /** @internal Shared by the frame task and lazy WebGL preparation; entity writes remain synchronous. */
+  public get pendingPresentation(): Promise<void> | undefined {
+    return this.contentPaint;
+  }
+
+  private yieldForContentPaint(): void {
+    const doc = this.graph.layers.$root?.ownerDocument;
+    if (!this.graph.rootStore.settings.$settings.peek().yieldBeforeSceneLoad || this.contentPaint || !doc || doc.hidden)
+      return;
+    const pending = afterScenePaint(doc);
+    this.contentPaint = pending;
+    pending.then(() => {
+      if (this.contentPaint === pending) {
+        this.contentPaint = undefined;
+        this.layer.performRender();
+      }
+    });
+  }
+
+  private transition = 0;
+  private attachment = 0;
+  private drawnCamera?: TCameraState;
+  private replacement = 0;
+
+  /** @internal The snapshot the graph layer starts a frame with. */
+  public get contentRevision(): number {
+    return this.replacement;
+  }
+
+  public get state(): TSceneState {
+    return this.presentationState ?? "init";
+  }
+
   private readonly cameraFrame = signal<TCameraFrame | undefined>(undefined);
 
   /** @internal Camera and pixel grid used by the scene. HTML presents these together at the end of a draw. */
@@ -174,6 +212,8 @@ export class GraphScene implements IGraphScene {
   private readonly styleUnbinds = new Set<() => void>();
 
   private unsubscribeRenderer?: () => void;
+
+  private readonly unsubscribeBackendState: () => void;
 
   private stopTheme?: () => void;
 
@@ -248,6 +288,8 @@ export class GraphScene implements IGraphScene {
         clock: this.clock,
         level: this.$level,
         textPolicy: this.$textPolicy,
+        onDraw: () => this.frameDrawn(),
+        pendingPresentation: () => this.pendingPresentation,
         renderer: settings.$renderer.value,
         loadBackend: (): Promise<ISceneBackendModule> => (settings.$webglBackend.value ?? defaultLoader)(),
         camera: graph.cameraService,
@@ -256,6 +298,11 @@ export class GraphScene implements IGraphScene {
       { selfUpdated: true }
     );
     this.$renderer = this.layer.$state;
+    this.unsubscribeBackendState = this.$renderer.subscribe(() => {
+      // Includes context loss, restoration, failed draws and font-triggered backend recreation.
+      this.drawnCamera = undefined;
+      if (this.state === "ready") this.setState("switch");
+    });
     this.$scale = computed(() => graph.$camera.value.scale);
     this.resolver = new StyleResolver({
       store: this.store,
@@ -281,9 +328,48 @@ export class GraphScene implements IGraphScene {
     this.unsubscribeRenderer = settings.$renderer.subscribe((value) => {
       if (value === current) return;
       current = value;
+      if (this.state !== "init") this.setState("switch");
       this.layer.setRenderer(value);
     });
+    this.setState("init");
   }
+
+  private setState(state: TSceneState): void {
+    this.drawnCamera = undefined;
+    if (this.disposed || this.presentationState === state) return;
+    this.presentationState = state;
+    const transition = ++this.transition;
+    const attachment = this.attachment;
+    // A subscriber may do application work. Keep it outside rendering and discard obsolete ready events.
+    setTimeout(() => {
+      if (this.disposed || this.attachment !== attachment || (state === "ready" && this.transition !== transition))
+        return;
+      this.graph.emit("scene-state-change", { state });
+    }, 0);
+    if (state === "switch" && this.store.size > 0) this.yieldForContentPaint();
+  }
+
+  /** @internal A full snapshot needs its own presented frame, even when both snapshots are empty. */
+  public entitiesReplacing(): void {
+    if (this.state === "init" || this.disposed) return;
+    this.replacement++;
+    this.setState("initialize");
+    this.yieldForContentPaint();
+    this.layer.performRender();
+  }
+
+  private frameDrawn(): void {
+    if (this.pendingPresentation || (this.state !== "initialize" && this.state !== "switch")) return;
+    const camera = this.graph.$camera.peek();
+    if (camera.width > 0 && camera.height > 0) this.drawnCamera = camera;
+  }
+
+  private readonly finishPresentation = (): void => {
+    if (!this.drawnCamera || this.disposed) return;
+    // A fit waiting on hit boxes can change the camera after the scene draws, at the end of the scheduler tick.
+    if (this.drawnCamera !== this.graph.$camera.peek()) this.drawnCamera = undefined;
+    else if (!this.graph.hitTest.hasPendingUpdates()) this.setState("ready");
+  };
 
   /** @internal Connects an HTML block to the same visual offset as its scene component. */
   public onBlockMotion(id: TEntityId, listener: (x: number, y: number) => void): () => void {
@@ -298,7 +384,7 @@ export class GraphScene implements IGraphScene {
   }
 
   /** @internal Called by Graph's frame task after layers.update(). */
-  public update(): void {
+  public update(contentRevision = this.replacement): void {
     if (this.disposed) return;
     this.delegatedRanks.flush();
     if (this.store.hasBlockMotions) {
@@ -324,6 +410,14 @@ export class GraphScene implements IGraphScene {
         console.error("graph.scene.onFrameEnd: a listener threw", error);
       }
     });
+    if (this.drawnCamera) {
+      if (contentRevision === this.replacement) queueMicrotask(this.finishPresentation);
+      else {
+        // A later layer replaced the snapshot after the graph layer had already reconciled the previous one.
+        this.drawnCamera = undefined;
+        this.layer.performRender();
+      }
+    }
   }
 
   public onFrameEnd(listener: () => void): () => void {
@@ -423,11 +517,19 @@ export class GraphScene implements IGraphScene {
 
   /** @internal */
   public start(): void {
+    this.setState("initialize");
+    this.yieldForContentPaint();
+    this.layer.performRender();
     this.sceneClock.resume();
   }
 
   /** @internal */
   public stop(): void {
+    this.contentPaint = undefined;
+    if (this.state !== "init") {
+      this.attachment++;
+      this.setState("init");
+    }
     this.sceneClock.pause();
     this.cameraFrame.value = undefined;
   }
@@ -903,7 +1005,10 @@ export class GraphScene implements IGraphScene {
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.contentPaint = undefined;
+    this.drawnCamera = undefined;
     this.unsubscribeChanges();
+    this.unsubscribeBackendState();
     this.changedTypes.clear();
     this.movedNestings.clear();
     this.unwatchLimits();

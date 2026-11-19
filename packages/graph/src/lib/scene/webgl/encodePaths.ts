@@ -4,12 +4,20 @@ import type { TUniformTypes } from "../../../components/canvas/connections/effec
 import { stockBezierSegments } from "../../../components/canvas/connections/geometry/segments";
 import type { TWebGLShape } from "../../../components/canvas/connections/lines/types";
 import { INSTANCE_FLOATS, createEncodedChunk, encodeShapes } from "../../../components/canvas/connections/webgl/encode";
-import type { TEncodedChunk } from "../../../components/canvas/connections/webgl/encode";
 import { ALL_LEVELS_MASK } from "../levels";
 import type { TScenePrimitive } from "../types";
 
 import { closeStroke } from "./closedStroke";
-import { MAX_SUB, NO_LIMIT, USE_BASE, checkSub, hasStrokeWidth, scaleBound, writeSize } from "./encodeRects";
+import {
+  InstanceList,
+  MAX_SUB,
+  NO_LIMIT,
+  USE_BASE,
+  checkSub,
+  hasStrokeWidth,
+  scaleBound,
+  writeSize,
+} from "./encodeRects";
 import type { TSlotOf } from "./encodeRects";
 import { markOverviewCurves } from "./overviewCurves";
 
@@ -45,11 +53,26 @@ function useBase(data: Float32Array, from: number, to: number): void {
   for (let i = from; i < to; i++) data.set(USE_BASE, i * INSTANCE_FLOATS + COLOR_OFFSET);
 }
 
-/** The element data of `count` instances of one path. */
-function elementData(data: readonly number[], count: number): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < count; i++) out.push(...data);
-  return out;
+/** Path vertices and their element records share a lifetime within one encode. */
+export function createPathScratch() {
+  return {
+    chunk: createEncodedChunk(),
+    lineElements: new InstanceList(PATH_ELEMENT_FLOATS),
+    curveElements: new InstanceList(PATH_ELEMENT_FLOATS),
+  };
+}
+
+function appendElementData(list: InstanceList, data: readonly number[], count: number): void {
+  const at = list.claim(count);
+  const buffer = list.buffer;
+  for (let i = 0; i < count; i++) buffer.set(data, at + i * PATH_ELEMENT_FLOATS);
+}
+
+const NO_RECORDS = new Float32Array(0);
+
+function pathRecords(data: Float32Array, length: number, retain: boolean): Float32Array {
+  if (length === 0) return NO_RECORDS;
+  return retain ? data.slice(0, length) : data.subarray(0, length);
 }
 
 /**
@@ -70,14 +93,17 @@ export function encodePaths(
   select: (primitive: TScenePrimitive, index: number) => boolean = selectAll,
   subBase = 0,
   maxSub = MAX_SUB,
-  scratch?: TEncodedChunk,
-  overviewChords?: 8 | 16
+  {
+    scratch = createPathScratch(),
+    retain = false,
+    overviewChords,
+  }: { scratch?: ReturnType<typeof createPathScratch>; retain?: boolean; overviewChords?: 8 | 16 } = {}
 ): TEncodedPaths {
-  const chunk = scratch ?? createEncodedChunk();
+  const { chunk, lineElements, curveElements } = scratch;
   chunk.lines.count = 0;
   chunk.curves.count = 0;
-  const lineElements: number[] = [];
-  const curveElements: number[] = [];
+  lineElements.reset();
+  curveElements.reset();
   const effects: TConnectionEffectUse[] = [];
   let hasOverview = false;
   let widthSize: number[] | undefined;
@@ -132,8 +158,8 @@ export function encodePaths(
       useBase(chunk.lines.data, lines, chunk.lines.count);
       useBase(chunk.curves.data, curves, chunk.curves.count);
     }
-    lineElements.push(...elementData(data, chunk.lines.count - lines));
-    curveElements.push(...elementData(data, chunk.curves.count - curves));
+    appendElementData(lineElements, data, chunk.lines.count - lines);
+    appendElementData(curveElements, data, chunk.curves.count - curves);
     if (
       overviewChords &&
       typeof width === "number" &&
@@ -142,21 +168,23 @@ export function encodePaths(
       stockBezierSegments.has(primitive.segments)
     ) {
       hasOverview =
-        markOverviewCurves(chunk.curves.data, curveElements, curves, chunk.curves.count, width, overviewChords) ||
-        hasOverview;
+        markOverviewCurves(
+          chunk.curves.data,
+          curveElements.buffer,
+          curves,
+          chunk.curves.count,
+          width,
+          overviewChords
+        ) || hasOverview;
     }
     if (effect) effects.push(effect);
   });
   return {
-    // The opaque ranges copy both views before this scratch chunk is reused.
-    lines: scratch
-      ? chunk.lines.data.subarray(0, chunk.lines.count * INSTANCE_FLOATS)
-      : chunk.lines.data.slice(0, chunk.lines.count * INSTANCE_FLOATS),
-    curves: scratch
-      ? chunk.curves.data.subarray(0, chunk.curves.count * INSTANCE_FLOATS)
-      : chunk.curves.data.slice(0, chunk.curves.count * INSTANCE_FLOATS),
-    lineElements: new Float32Array(lineElements),
-    curveElements: new Float32Array(curveElements),
+    // Opaque ranges consume the views immediately; translucent writes can outlive this encode.
+    lines: pathRecords(chunk.lines.data, chunk.lines.count * INSTANCE_FLOATS, retain),
+    curves: pathRecords(chunk.curves.data, chunk.curves.count * INSTANCE_FLOATS, retain),
+    lineElements: pathRecords(lineElements.buffer, chunk.lines.count * PATH_ELEMENT_FLOATS, retain),
+    curveElements: pathRecords(curveElements.buffer, chunk.curves.count * PATH_ELEMENT_FLOATS, retain),
     effects,
     hasOverview,
   };

@@ -20,6 +20,10 @@ export type TSceneRendererLayerProps = LayerProps & {
   loadBackend?: () => Promise<ISceneBackendModule>;
   /** Source of `frame.time` in seconds (the graph clock). Without it the layer uses its own clock. */
   clock?: { now(): number };
+  /** Called after submitting a frame to the current renderer. */
+  onDraw?: () => void;
+  /** An application-requested paint opportunity before building or tearing down a backend. */
+  pendingPresentation?: () => Promise<void> | undefined;
   /** The current scene level; a change redraws the layer, and the interpreter skips primitives of other levels. */
   level?: ReadonlySignal<TSceneLevel>;
   /**
@@ -46,8 +50,8 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
   private readonly pendingChanges = new SceneChangeQueue();
   /** Bumped by every load and every leave of webgl: a load that finds another token is stale. */
   private loadToken = 0;
-  /** A context loss that arrived while the backend of the current load was being created. */
-  private pendingLoss = false;
+  /** Native context events can arrive before this load finishes creating a backend. */
+  private pendingContext?: "lost" | "restored";
   private readonly start = performance.now();
 
   constructor(props: TSceneRendererLayerProps) {
@@ -72,10 +76,13 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
   public setRenderer(renderer: TSceneRenderer): void {
     this.requested = renderer;
     if (renderer === "canvas") {
-      this.loadToken++;
-      this.disposeBackend();
-      this.rendererState.value = "canvas";
-      this.performRender();
+      const pending = this.props.pendingPresentation?.();
+      const previous = this.backend;
+      if (pending && previous && this.rendererState.peek() === "webgl") {
+        pending.then(() => {
+          if (this.requested === "canvas" && this.backend === previous) this.activateCanvas();
+        });
+      } else this.activateCanvas();
       return;
     }
     if (!this.attached) return;
@@ -116,7 +123,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
   /** Runs on unmount, detach and re-attach: the backend and its canvas belong to one attachment. */
   protected unmountLayer(): void {
     this.loadToken++;
-    this.pendingLoss = false;
+    this.pendingContext = undefined;
     this.disposeBackend();
     this.rendererState.value = "canvas";
     super.unmountLayer();
@@ -143,7 +150,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
    * clears the shared text metrics on the same event, before the next frame).
    */
   private readonly handleFontsLoaded = (): void => {
-    if (this.rendererState.value !== "webgl") {
+    if (this.requested !== "webgl" || this.rendererState.value !== "webgl") {
       this.performRender();
       return;
     }
@@ -178,6 +185,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     if (backend.draw({ width, height, x, y, scale, scaleMin, dpr: this.getDRP(), time, dimColor, level, textPolicy })) {
       this.performRender();
     }
+    if (this.rendererState.peek() === "webgl") this.props.onDraw?.();
   }
 
   private drawInterpreter(): void {
@@ -195,6 +203,8 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
       level,
       textPolicy: this.textPolicy(),
     });
+    const state = this.rendererState.peek();
+    if (state !== "loading" && state !== "restoring") this.props.onDraw?.();
   }
 
   /** A backend call threw after load (capacity limits, GL errors): drop the backend and draw with Canvas2D. */
@@ -203,6 +213,13 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     this.disposeBackend();
     console.warn("WebGL scene backend failed, drawing with Canvas2D", error);
     this.rendererState.value = "webgl-fallback";
+  }
+
+  private activateCanvas(): void {
+    this.loadToken++;
+    this.disposeBackend();
+    this.rendererState.value = "canvas";
+    this.performRender();
   }
 
   private disposeBackend(): void {
@@ -220,7 +237,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
       if (token !== this.loadToken) return;
       const state = this.rendererState.value;
       if (state === "loading" || state === "restoring") {
-        this.pendingLoss = true;
+        this.pendingContext = "lost";
         return;
       }
       if (state !== "webgl") return;
@@ -228,7 +245,16 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
       this.performRender();
     },
     onRestored: () => {
-      if (token !== this.loadToken || this.rendererState.value !== "lost") return;
+      if (token !== this.loadToken) return;
+      if (this.pendingContext === "lost") {
+        this.pendingContext = "restored";
+        return;
+      }
+      if (this.rendererState.value !== "lost") return;
+      if (this.requested === "canvas") {
+        this.activateCanvas();
+        return;
+      }
       this.rendererState.value = "restoring";
       this.disposeBackend();
       this.performRender();
@@ -238,19 +264,31 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
 
   private async loadBackend(): Promise<void> {
     const token = ++this.loadToken;
-    this.pendingLoss = false;
+    this.pendingContext = undefined;
     let created: ISceneBackend | undefined;
     try {
       const module = await (this.props.loadBackend ?? defaultLoadBackend)();
+      const beforeCreate = this.props.pendingPresentation?.();
+      if (beforeCreate) await beforeCreate;
+      if (token !== this.loadToken) return;
       created = await module.createSceneBackend(this.requireCanvas(), this.createEvents(token));
+      // A start or full replacement may have requested its paint while GPU creation was in flight.
+      const beforeReplay = this.props.pendingPresentation?.();
+      if (token === this.loadToken && beforeReplay) await beforeReplay;
       if (token !== this.loadToken) {
         created.dispose();
         return;
       }
-      if (this.pendingLoss) {
+      if (this.pendingContext === "restored") {
+        created.dispose();
+        this.rendererState.value = "restoring";
+        await this.loadBackend();
+        return;
+      }
+      if (this.pendingContext === "lost") {
         // Lost while being created: keep it aside and never draw with it. A disposed backend can no longer
         // deliver onRestored, so its own onRestored takes the normal lost -> restoring path and disposes it then.
-        this.pendingLoss = false;
+        this.pendingContext = undefined;
         this.backend = created;
         this.rendererState.value = "lost";
         this.performRender();

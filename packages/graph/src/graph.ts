@@ -130,8 +130,10 @@ export class Graph {
   /** Updates this graph's layers on each frame while the graph is started. */
   private readonly frameTask = {
     performUpdate: (): void => {
+      if (this.scene.pendingPresentation) return;
+      const contentRevision = this.scene.contentRevision;
       this.layers.update();
-      this.scene.update();
+      this.scene.update(contentRevision);
     },
   };
 
@@ -378,6 +380,7 @@ export class Graph {
   }>) {
     // Mark hitTest as pending so waitUsableRectUpdate (used by zoomToViewPort)
     // waits for block components to settle without clearing usableRectTracker.
+    this.scene.entitiesReplacing();
     this.hitTest.markPendingUpdate();
     batch(() => {
       this.rootStore.blocksList.setBlocks(blocks || []);
@@ -411,7 +414,7 @@ export class Graph {
     const event = new GraphEvent(eventName, {
       detail,
       bubbles: false,
-      cancelable: true,
+      cancelable: eventName !== "scene-state-change",
     });
     this.eventEmitter.dispatchEvent(event);
 

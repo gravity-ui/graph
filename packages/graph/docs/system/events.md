@@ -46,6 +46,12 @@ controller.abort();
 
 ## Event Types
 
+### Scene lifecycle
+
+`scene-state-change` delivers `{ state }` asynchronously when the scene starts, replaces its contents, switches
+renderers or finishes its first draw. Read `graph.scene.state` for the current snapshot. See
+[Scene readiness and loading overlays](./scene.md#scene-readiness-and-loading-overlays).
+
 ### Mouse Events
 
 The following mouse events are supported:

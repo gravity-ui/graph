@@ -350,16 +350,31 @@ describe("SceneRendererLayer", () => {
     expect(layer.$state.value).toBe("canvas");
     await flushPromises();
     expect(layer.$state.value).toBe("canvas");
-    expect(fake.created).toBe(1);
-    expect(fake.disposed).toBe(1);
+    expect(fake.created).toBe(0);
+    expect(fake.disposed).toBe(0);
     expect(layer.getBackend()).toBeUndefined();
 
     layer.setRenderer("webgl");
     await flushPromises();
     expect(layer.$state.value).toBe("webgl");
     layer.setRenderer("canvas");
-    expect(fake.disposed).toBe(2);
+    expect(fake.disposed).toBe(1);
     expect(layer.$state.value).toBe("canvas");
+  });
+
+  it("disposes the result of a creation already in flight when switching back to Canvas", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { layer, fake } = setup({ renderer: "webgl", gate });
+    await flushPromises();
+    expect(fake.created).toBe(1);
+    layer.setRenderer("canvas");
+    release();
+    await flushPromises();
+    expect(fake.disposed).toBe(1);
+    expect(layer.getBackend()).toBeUndefined();
   });
 
   it("disposes the backend on unmount", async () => {
@@ -436,6 +451,23 @@ describe("SceneRendererLayer", () => {
     expect(layer.$state.value).toBe("lost");
     graph.unmount();
     expect(fake.disposed).toBe(1);
+  });
+
+  it("recovers when a context is both lost and restored before creation finishes", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { layer, fake } = setup({ renderer: "webgl", gate });
+    await flushPromises();
+    fake.events.onLost();
+    fake.events.onRestored();
+    release();
+    await flushPromises();
+    await flushPromises();
+    expect(fake.created).toBe(2);
+    expect(fake.disposed).toBe(1);
+    expect(layer.$state.value).toBe("webgl");
   });
 
   describe("late fonts", () => {

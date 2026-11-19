@@ -17,6 +17,37 @@ function rendersOnNextFrame(graph: Graph): boolean {
 }
 
 describe("Graphs sharing the frame loop", () => {
+  it("gives loading UI a paint on start and replacement without holding up other graphs or entity writes", async () => {
+    jest.useFakeTimers();
+    const root = document.createElement("div");
+    const loading = new Graph({ settings: { yieldBeforeSceneLoad: true } }, root);
+    const other = new Graph({}, document.createElement("div"));
+    const loadingFrames = jest.spyOn(loading.layers, "update");
+    const otherFrames = jest.spyOn(other.layers, "update");
+    try {
+      loading.start();
+      other.start();
+      globalScheduler.performUpdate();
+      expect(loadingFrames).not.toHaveBeenCalled();
+      expect(otherFrames).toHaveBeenCalled();
+      await jest.advanceTimersByTimeAsync(100);
+      expect(loadingFrames).toHaveBeenCalled();
+
+      loadingFrames.mockClear();
+      loading.setEntities({ blocks: [{ id: "new", is: "Block", name: "", x: 0, y: 0, width: 20, height: 20 }] });
+      expect(loading.blocks.getBlockState("new")).toBeDefined();
+      globalScheduler.performUpdate();
+      expect(loadingFrames).not.toHaveBeenCalled();
+      loading.stop();
+      await jest.advanceTimersByTimeAsync(100);
+      expect(loadingFrames).not.toHaveBeenCalled();
+    } finally {
+      loading.unmount();
+      other.unmount();
+      jest.useRealTimers();
+    }
+  });
+
   it("keeps a started graph rendering when another graph stops or unmounts", () => {
     const first = new Graph({}, document.createElement("div"));
     const second = new Graph({}, document.createElement("div"));

@@ -250,6 +250,43 @@ level change needs no re-encode of its own (except the glyphs of camera-aware te
 and if the result changes an element's encoding, for example a level-scoped `opacity`, that element is re-encoded.)
 `minScale` / `maxScale` still apply on top of the mask.
 
+## Scene readiness and loading overlays
+
+`graph.scene.state` is the current loading state. Subscribe to `scene-state-change` for changes. Graph delivers the
+notifications asynchronously, outside the operation that triggered them. Listeners cannot cancel the transition.
+
+| State | When it applies |
+| --- | --- |
+| `init` | The graph has just been created or stopped. |
+| `initialize` | The graph has started, or `setEntities` has replaced the contents of a running graph. |
+| `switch` | A running scene is changing renderers or recovering its rendering context. |
+| `ready` | The scene has drawn the current contents into a viewport with a positive size. A working Canvas fallback can also produce this frame. |
+
+Ordinary edits, selection, pan and zoom keep an already ready scene ready. Enable `yieldBeforeSceneLoad` to give
+the browser a paint for an overlay before the scene prepares a large frame. For application UI, read the current
+snapshot on subscription and when notified. This also works when the overlay mounts after the first frame.
+
+```ts
+const graph = new Graph({ settings: { yieldBeforeSceneLoad: true } }, root);
+const updateOverlay = () => {
+  overlay.hidden = graph.scene.state === "ready";
+};
+const unsubscribe = graph.on("scene-state-change", updateOverlay);
+updateOverlay();
+graph.setEntities({ blocks, connections });
+graph.start();
+
+// When the view unmounts:
+// unsubscribe();
+```
+
+In React, `useGraphEvent` and the `onSceneStateChanged` prop of `GraphCanvas` receive the same event.
+The [ETL at scale example](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-sceneeffects--etl-at-scale)
+shows an overlay during startup and renderer switches. The paint opportunity applies to scene preparation.
+`setEntities` still updates the data synchronously. If your application computes a large layout before passing
+it to Graph, schedule that computation separately. HTML card data and images loaded by the application have
+their own readiness.
+
 ## `$renderer`
 
 `graph.scene.$renderer` is the state of the renderer:

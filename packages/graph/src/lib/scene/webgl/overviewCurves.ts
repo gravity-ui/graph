@@ -81,7 +81,7 @@ function smoothSeam(paths: Float32Array, p: number, extent: number): boolean {
 /** Mode zero ignores the maximum-width field. Keep a private group and ordinal there across resident range moves. */
 export function markOverviewCurves(
   paths: Float32Array,
-  elements: number[],
+  elements: Float32Array,
   first: number,
   end: number,
   width: number,

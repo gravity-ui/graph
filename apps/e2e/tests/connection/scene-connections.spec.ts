@@ -366,6 +366,25 @@ test("one custom SceneLine draws in Canvas and WebGL through switching, loss and
   await assertDrawing();
 });
 
+test("a replacement awaits a drawn frame when WebGL loses its context before the native event", async ({ page }) => {
+  const graph = new GraphPageObject(page);
+  await graph.initialize({ blocks: [], connections: [], settings: { renderer: "webgl" } });
+  await page.waitForFunction(() => window.graph.scene.state === "ready" && window.graph.scene.$renderer.peek() === "webgl");
+  const firstFrame = await page.evaluate(async (block) => {
+    const current = window.graph;
+    const gl = current.scene.layer.getBackend()?.canvas.getContext("webgl2");
+    const extension = gl?.getExtension("WEBGL_lose_context");
+    if (!gl || !extension) throw new Error("Missing WEBGL_lose_context");
+    current.setEntities({ blocks: [block] });
+    extension.loseContext();
+    current.scheduler.performUpdate();
+    await Promise.resolve();
+    return { lost: gl.isContextLost(), renderer: current.scene.$renderer.peek(), scene: current.scene.state };
+  }, START);
+  expect(firstFrame).toEqual({ lost: true, renderer: "lost", scene: "initialize" });
+  await page.waitForFunction(() => window.graph.scene.state === "ready" && window.graph.scene.$renderer.peek() === "lost");
+});
+
 test("reconnecting a resident line reuses its order and mixed plan, while paint width and depth still gate the plane", async ({
   page,
 }) => {

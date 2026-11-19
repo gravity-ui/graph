@@ -98,6 +98,8 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    * @default "canvas"
    */
   renderer: TSceneRenderer;
+  /** Give loading UI a paint before the first scene frame, a full replacement or a renderer switch. */
+  yieldBeforeSceneLoad?: boolean;
   /**
    * Whether scene texts may follow the camera (`cameraAware` texts keep a fixed screen size and re-fit their box as
    * the camera zooms). `false` makes every scene text world-sized, whatever its primitive and the styles say: the
@@ -141,6 +143,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   resolveWheelIntent: createWheelIntentResolver(),
   getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
   renderer: "canvas",
+  yieldBeforeSceneLoad: false,
   cameraAwareText: true,
 };
 

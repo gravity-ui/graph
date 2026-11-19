@@ -16,6 +16,9 @@ import type { TEntityId, TEntityType, TTagSet } from "../tags/types";
 
 export type { TSceneRenderer, TSceneRendererState };
 
+/** Scene presentation lifecycle, reported asynchronously by the graph's `scene-state-change` event. */
+export type TSceneState = "init" | "initialize" | "ready" | "switch";
+
 /** Qualitative zoom tier of the scene; the one level shared by every scene primitive. */
 export type TSceneLevel = "minimalistic" | "schematic" | "detailed";
 
@@ -116,6 +119,8 @@ export interface IGraphScene {
   readonly $level: ReadonlySignal<TSceneLevel>;
   /** State of the renderer; see `TSceneRendererState`. */
   readonly $renderer: ReadonlySignal<TSceneRendererState>;
+  /** Current presentation state, including transitions whose notification is still queued. */
+  readonly state: TSceneState;
   /**
    * The `cameraAwareText` setting: `false` makes every scene text world-sized, whatever its primitive and the styles
    * say. A change redraws the scene, and `explain()` reports `cameraAwareText: "forced-off"` meanwhile.

@@ -94,6 +94,7 @@ export type {
   TSceneQueryOptions,
   TSceneRenderer,
   TSceneRendererState,
+  TSceneState,
 } from "./services/scene/types";
 export type { ISceneKeyed, TSceneKey } from "./services/scene/sceneKey";
 export { SceneComponent } from "./components/canvas/scene";

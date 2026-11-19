@@ -28,7 +28,7 @@ function encoded(
   originalChords: 8 | 16 = 16
 ) {
   const primitive: TScenePrimitive = { kind: "path", part: "line", segments, stroke };
-  return encodePaths([primitive], 17, 1, () => 3, undefined, 5, undefined, undefined, originalChords);
+  return encodePaths([primitive], 17, 1, () => 3, undefined, 5, undefined, { overviewChords: originalChords });
 }
 
 function starts(elements: Float32Array): OverviewCurveGroups {

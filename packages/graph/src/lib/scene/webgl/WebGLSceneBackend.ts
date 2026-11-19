@@ -13,12 +13,7 @@ import type { ConnectionEffect } from "../../../components/canvas/connections/ef
 import { dashFlow, pulse } from "../../../components/canvas/connections/effects/library";
 import type { TConnectionEffectScaleRange, TUniformTypes } from "../../../components/canvas/connections/effects/types";
 import { turnedPolylineStrokes } from "../../../components/canvas/connections/geometry/polylineStroke";
-import {
-  CURVE_CHORDS,
-  INSTANCE_FLOATS,
-  createEncodedChunk,
-  scaleBucket,
-} from "../../../components/canvas/connections/webgl/encode";
+import { CURVE_CHORDS, INSTANCE_FLOATS, scaleBucket } from "../../../components/canvas/connections/webgl/encode";
 import { createCurveTemplate, createLineTemplate } from "../../../components/canvas/connections/webgl/shaders";
 import type { TSceneLevel } from "../../../services/scene/types";
 import { track } from "../../../utils/functions/track";
@@ -45,7 +40,7 @@ import { CameraTextEpochs } from "./cameraTextEpochs";
 import { TranslucentRefinement, coalesceTranslucentRuns, translucentRunOwners } from "./coalesceTranslucent";
 import { canCoarsenCurves, createCurveBins, partitionCurves } from "./curveTessellation";
 import { SCENE_DEPTH, SceneDepth, movesInDepth } from "./depth";
-import { PATH_ELEMENT_FLOATS, encodePaths } from "./encodePaths";
+import { PATH_ELEMENT_FLOATS, createPathScratch, encodePaths } from "./encodePaths";
 import {
   NO_LIMIT,
   RECT_FLOATS,
@@ -843,7 +838,7 @@ class WebGLSceneBackend implements ISceneBackend {
     private readonly device: Device,
     private readonly listeners: AbortController,
     createdAt: number,
-    private readonly requestDraw?: () => void
+    private readonly events: TSceneBackendEvents
   ) {
     this.defaultMultisampled = gl.getParameter(gl.SAMPLES) > 1;
     this.quadTemplate = this.createTemplate(QUAD_TEMPLATE);
@@ -966,7 +961,13 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   public draw(frame: TSceneFrame): boolean {
-    if (this.disposed || this.gl.isContextLost()) return false;
+    if (this.disposed) return false;
+    if (this.gl.isContextLost()) {
+      // The native event may still be queued when a caller explicitly flushes a frame.
+      this.objectsLost = true;
+      this.events.onLost();
+      return false;
+    }
     const start = performance.now();
     this.frameUploadBytes = this.spriteUploadBytes;
     this.frameUploadWrites = this.spriteUploadWrites;
@@ -1662,7 +1663,7 @@ class WebGLSceneBackend implements ISceneBackend {
 
   private readonly slotOf = (part: string | undefined): number => this.styles.slotOf(part);
 
-  private readonly pathScratch = createEncodedChunk();
+  private readonly pathScratch = createPathScratch();
   private readonly curveScratch = createCurveBins();
 
   /**
@@ -2056,22 +2057,15 @@ class WebGLSceneBackend implements ISceneBackend {
     for (const group of groups) {
       if (!previous?.has(group)) group.users++;
       const select = (_: TScenePrimitive, sub: number): boolean => groupOfSub[sub] === group;
-      const scratch = group.pass === "translucent" ? undefined : this.pathScratch;
       const overview =
         this.elements.get(id)?.entityType === "connection" &&
         !group.fallback &&
         (!group.effect || (MIXED_EFFECT_PROGRAMS.has(group.effect.programKey) && (group.minScale ?? 0) > 0));
-      const encoded = encodePaths(
-        primitives,
-        index,
-        PATH_BUCKET,
-        this.slotOf,
-        select,
-        subBase,
-        maxSub,
-        scratch,
-        overview ? (group.coarseCurves ? 8 : 16) : undefined
-      );
+      const encoded = encodePaths(primitives, index, PATH_BUCKET, this.slotOf, select, subBase, maxSub, {
+        scratch: this.pathScratch,
+        retain: group.pass === "translucent",
+        overviewChords: overview ? (group.coarseCurves ? 8 : 16) : undefined,
+      });
       if (encoded.hasOverview) {
         for (const batch of [group.curves, group.coarseCurves]) {
           if (batch?.pathRecords)
@@ -2226,7 +2220,7 @@ class WebGLSceneBackend implements ISceneBackend {
     const effect = group.effect;
     if (!effect) return undefined;
     const uniforms = Object.values(effect.uniforms);
-    const requestDraw = this.requestDraw;
+    const requestDraw = this.events.onInvalidate;
     if (uniforms.length === 0 || !requestDraw) return undefined;
     let subscribed = false;
     return watch(() => {
@@ -4117,7 +4111,7 @@ export const createSceneBackend: TCreateSceneBackend = async (
   try {
     // luma's debug default follows NODE_ENV; the scene reports its own shader errors.
     device = await luma.attachDevice(gl, { adapters: [webgl2Adapter], debug: false, debugShaders: "never" });
-    return new WebGLSceneBackend(canvas, gl, device, listeners, createdAt, events.onInvalidate);
+    return new WebGLSceneBackend(canvas, gl, device, listeners, createdAt, events);
   } catch (error) {
     listeners.abort();
     device?.getDefaultCanvasContext().destroy();
