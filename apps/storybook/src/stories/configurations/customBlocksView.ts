@@ -1,12 +1,13 @@
-import { CanvasBlock, TBlockView, TGraphConfig, TScenePrimitive, TStyleRule, selectedTag } from "@gravity-ui/graph";
+import { CanvasBlock, TGraphConfig, TScenePrimitive, TStyleRule, selectedTag } from "@gravity-ui/graph";
 
 import { storiesSettings } from "./definitions";
 
 const RADIUS = [0, 30, 50, 60];
 
 class SpecificBlockView extends CanvasBlock {
-  protected override schematic(view: TBlockView): TScenePrimitive[] {
-    const { width, height, name, look } = view;
+  protected override schematic(): TScenePrimitive[] {
+    const { width, height, name } = this.state;
+    const look = this.blockLook;
     return [
       { kind: "rect", part: "body", x: 0, y: 0, width, height, radius: RADIUS, fill: "#C4EFC2" },
       {

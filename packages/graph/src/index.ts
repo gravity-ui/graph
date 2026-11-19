@@ -1,10 +1,4 @@
-export {
-  Anchor,
-  type TAnchor,
-  type TAnchorClass,
-  type TAnchorProps,
-  type TAnchorView,
-} from "./components/canvas/anchors";
+export { Anchor, type TAnchor, type TAnchorClass, type TAnchorProps } from "./components/canvas/anchors";
 export {
   Block as CanvasBlock,
   isTBlock,
@@ -13,7 +7,6 @@ export {
   type TBlockComponentState,
   type TBlockLook,
   type TBlockProps,
-  type TBlockView,
   type TBlockViewOptions,
   type THtmlViewRequest,
 } from "./components/canvas/blocks/Block";

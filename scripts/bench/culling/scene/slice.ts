@@ -20,6 +20,7 @@ import type {
   TAnchor,
   TAnchorClass,
   TBlock,
+  TBlockComponentState,
   TCollapsibleGroup,
   TGraphComponentProps,
   TSceneLevel,
@@ -87,7 +88,7 @@ class SliceShapesBlock extends CanvasBlock {
 type TSliceChipProps = TGraphComponentProps & { id: string; x: number; color: string; inner?: ChildDescriptor[] };
 
 /** C31: a 40 x 30 rect at (x, 60) in its block's frame, and what is nested in it, drawn on every level. */
-class SliceChip extends SceneComponent<{ x: number; color: string }, TSliceChipProps> {
+class SliceChip extends SceneComponent<TSliceChipProps> {
   public static override entityType = "sliceChip";
 
   public override getEntityId(): string {
@@ -98,12 +99,8 @@ class SliceChip extends SceneComponent<{ x: number; color: string }, TSliceChipP
     this.setVisibility(!hidden, { removeHitbox: false });
   }
 
-  protected override getViewData(): { x: number; color: string } {
-    return { x: this.props.x, color: this.props.color };
-  }
-
-  protected override schematic(view: { x: number; color: string }): readonly TScenePrimitive[] {
-    return [{ kind: "rect", part: "chip", x: view.x, y: 60, width: 40, height: 30, fill: view.color }];
+  protected override schematic(): readonly TScenePrimitive[] {
+    return [{ kind: "rect", part: "chip", x: this.props.x, y: 60, width: 40, height: 30, fill: this.props.color }];
   }
 
   protected override updateChildren(): ChildDescriptor[] {
@@ -132,7 +129,7 @@ class SliceNestedBlock extends CanvasBlock {
 }
 
 /** C32: a 50 x 30 button at the block's bottom right, drawn on the schematic level, filled #00aaff. */
-class SliceButton extends SceneComponent<{ width: number }, TGraphComponentProps & { id: string }> {
+class SliceButton extends SceneComponent<TGraphComponentProps & { id: string; width: number }> {
   public static override entityType = "sliceButton";
 
   protected override willMount(): void {
@@ -147,18 +144,12 @@ class SliceButton extends SceneComponent<{ width: number }, TGraphComponentProps
     return this.props.id;
   }
 
-  protected override getViewData(): { width: number } {
-    const block = this.getParent();
-    const view = block instanceof SceneComponent ? block.readSceneView() : undefined;
-    return { width: (view as { width?: number } | undefined)?.width ?? 200 };
-  }
-
   protected override minimalistic(): readonly TScenePrimitive[] {
     return [];
   }
 
-  protected override schematic(view: { width: number }): readonly TScenePrimitive[] {
-    return [{ kind: "rect", part: "button", x: view.width - 50, y: 70, width: 50, height: 30, fill: "#00aaff" }];
+  protected override schematic(): readonly TScenePrimitive[] {
+    return [{ kind: "rect", part: "button", x: this.props.width - 50, y: 70, width: 50, height: 30, fill: "#00aaff" }];
   }
 
   protected override detailed(): readonly TScenePrimitive[] {
@@ -170,9 +161,14 @@ class SliceButton extends SceneComponent<{ width: number }, TGraphComponentProps
 class SliceChildBlock extends CanvasBlock {
   public button?: SliceButton;
 
+  protected override stateChanged(next: TBlockComponentState): void {
+    if (this.state.width !== next.width) this.shouldUpdateChildren = true;
+    super.stateChanged(next);
+  }
+
   protected override updateChildren(): ChildDescriptor[] {
     const button = SliceButton.create(
-      { id: String(this.props.id) },
+      { id: String(this.props.id), width: this.state.width },
       {
         key: "button",
         ref: (component: SliceButton): void => {

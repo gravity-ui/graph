@@ -45,14 +45,6 @@ export function sameInputs(a: object, b: object): boolean {
 }
 
 /**
- * Whether two view data objects are equal: the same keys, each value equal by identity or, for plain objects and
- * arrays (`meta`, anchors), one level deep. A consumer that rebuilds `meta` on every update then causes no re-run.
- */
-export function sameView(a: object, b: object): boolean {
-  return sameData(a, b, 2);
-}
-
-/**
  * Whether two primitive lists draw the same: each primitive equal by value through three levels (a border's
  * camera-aware width, a radius list), typed arrays and `Path2D` by identity. Equal output keeps the written array, so
  * nothing is re-encoded.

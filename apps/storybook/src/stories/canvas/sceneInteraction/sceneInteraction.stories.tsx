@@ -48,7 +48,7 @@ const WRAPPER_BORDER = 1;
 type TRunButtonProps = TGraphComponentProps & { blockId: string; width: number };
 
 /** A run button at the block's top right: a rounded square and a dot, on the schematic and detailed levels. */
-class RunButton extends SceneComponent<object, TRunButtonProps> {
+class RunButton extends SceneComponent<TRunButtonProps> {
   public static override entityType = "runButton";
 
   public declare readonly __styleParts?: TStyleParts<"button" | "glyph">;

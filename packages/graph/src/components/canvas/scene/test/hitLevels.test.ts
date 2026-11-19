@@ -25,15 +25,11 @@ import { Box, TestLayer, boxSource, frames } from "./utils/sceneTestKit";
 type TPinProps = TGraphComponentProps & { id: string; inner?: ChildDescriptor[] };
 
 /** A child of its box: a radius-4 dot at (100, 10) in the box's frame, on the schematic level only. */
-class Pin extends SceneComponent<object, TPinProps> {
+class Pin extends SceneComponent<TPinProps> {
   public static override entityType = "pin";
 
   public override getEntityId(): string {
     return this.props.id;
-  }
-
-  protected override getViewData(): object {
-    return {};
   }
 
   // Both empty on purpose: without them encodeLevels gives these levels the schematic list.
@@ -117,33 +113,38 @@ class OrphanPin extends Pin {
   }
 }
 
-type TMovingView = { readonly level: TSceneLevel };
+type TMovingState = { readonly level: TSceneLevel };
 
 /** The level `MovingPin` draws its dot on, read as a signal: a change rewrites the pin. */
 const dotLevel = signal<TSceneLevel>("schematic");
 
 /** A pin whose dot (the `Pin` dot, at the same place) is drawn on the level `dotLevel` names: its bounds stay. */
-class MovingPin extends SceneComponent<TMovingView, TPinProps> {
+class MovingPin extends SceneComponent<TPinProps, TMovingState> {
   public static override entityType = "pin";
 
   public override getEntityId(): string {
     return this.props.id;
   }
 
-  protected override getViewData(): TMovingView {
-    return { level: dotLevel.value };
+  public override state = { level: dotLevel.peek() };
+
+  protected override willMount(): void {
+    super.willMount();
+    this.subscribeSignal(dotLevel, (level) => {
+      if (this.getState().level !== level) this.setState({ level });
+    });
   }
 
-  protected override minimalistic(view: TMovingView): readonly TScenePrimitive[] {
-    return view.level === "minimalistic" ? [{ kind: "circle", cx: 100, cy: 10, r: 4 }] : [];
+  protected override minimalistic(): readonly TScenePrimitive[] {
+    return this.state.level === "minimalistic" ? [{ kind: "circle", cx: 100, cy: 10, r: 4 }] : [];
   }
 
-  protected override schematic(view: TMovingView): readonly TScenePrimitive[] {
-    return view.level === "schematic" ? [{ kind: "circle", cx: 100, cy: 10, r: 4 }] : [];
+  protected override schematic(): readonly TScenePrimitive[] {
+    return this.state.level === "schematic" ? [{ kind: "circle", cx: 100, cy: 10, r: 4 }] : [];
   }
 
-  protected override detailed(view: TMovingView): readonly TScenePrimitive[] {
-    return view.level === "detailed" ? [{ kind: "circle", cx: 100, cy: 10, r: 4 }] : [];
+  protected override detailed(): readonly TScenePrimitive[] {
+    return this.state.level === "detailed" ? [{ kind: "circle", cx: 100, cy: 10, r: 4 }] : [];
   }
 }
 

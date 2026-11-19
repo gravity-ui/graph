@@ -1,15 +1,6 @@
 import React from "react";
 
-import {
-  CanvasBlock,
-  EAnchorType,
-  TAnchor,
-  TBlockView,
-  TPoint,
-  TScenePrimitive,
-  TStyleRule,
-  hoveredTag,
-} from "@gravity-ui/graph";
+import { CanvasBlock, EAnchorType, TAnchor, TPoint, TScenePrimitive, TStyleRule, hoveredTag } from "@gravity-ui/graph";
 
 import { TGravityActionBlock } from "../generateLayout";
 
@@ -59,14 +50,15 @@ function actionIconPath(): Path2D {
 export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
   public cursor = "pointer";
 
-  private cardCache?: { view: object; card: readonly TScenePrimitive[] };
+  private cardCache?: { width: number; height: number; card: readonly TScenePrimitive[] };
 
   /** Body and border, shared by every level; the theme colours them, and the rules below style hover and selection. */
-  private card(view: TBlockView<TGravityActionBlock>): readonly TScenePrimitive[] {
-    if (this.cardCache?.view !== view) {
-      const { width, height } = view;
+  private card(): readonly TScenePrimitive[] {
+    const { width, height } = this.state;
+    if (this.cardCache?.width !== width || this.cardCache.height !== height) {
       this.cardCache = {
-        view,
+        width,
+        height,
         card: [
           { kind: "rect", part: "body", x: 0, y: 0, width, height, radius: 8 },
           {
@@ -85,12 +77,12 @@ export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
     return this.cardCache.card;
   }
 
-  protected override minimalistic(view: TBlockView<TGravityActionBlock>): TScenePrimitive[] {
-    const { width, height, look } = view;
-    const centerX = look.padding + (width - 2 * look.padding) / 2;
-    const centerY = look.padding + (height - 2 * look.padding) / 2;
+  protected override minimalistic(): TScenePrimitive[] {
+    const { width, height } = this.state;
+    const centerX = width / 2;
+    const centerY = height / 2;
     return [
-      ...this.card(view),
+      ...this.card(),
       {
         kind: "icon",
         path: actionIconPath(),
@@ -104,10 +96,11 @@ export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
     ];
   }
 
-  protected override schematic(view: TBlockView<TGravityActionBlock>): TScenePrimitive[] {
-    const { width, height, name, look } = view;
+  protected override schematic(): TScenePrimitive[] {
+    const { width, height, name } = this.state;
+    const look = this.blockLook;
     return [
-      ...this.card(view),
+      ...this.card(),
       {
         // v1 renderTextAtCenter: wrapped in the content rect, a line pitch of the font size, centred vertically.
         kind: "text",
@@ -130,8 +123,8 @@ export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
   }
 
   /** Today's detailed canvas look was this class's body. */
-  protected override detailed(view: TBlockView<TGravityActionBlock>): readonly TScenePrimitive[] {
-    return this.card(view);
+  protected override detailed(): readonly TScenePrimitive[] {
+    return this.card();
   }
 
   public renderHTML() {

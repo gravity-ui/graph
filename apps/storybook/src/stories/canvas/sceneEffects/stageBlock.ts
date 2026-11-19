@@ -2,8 +2,8 @@ import { Anchor, CanvasBlock, defineTag, hoveredTag, selectedTag } from "@gravit
 import type {
   TAnchorClass,
   TBlock,
+  TBlockId,
   TBlockProps,
-  TBlockView,
   TConnectionEffectScaleRange,
   TScenePrimitive,
   TStyleParts,
@@ -44,7 +44,7 @@ export type TStageBlock = TBlock & {
   rowsPerSecond: number;
 };
 
-type TStageView = TBlockView<TStageBlock> & { levelTransitions?: boolean };
+type TStageState = TStageBlock & { levelTransitions?: boolean };
 
 export function isStageBlock(block: TBlock): block is TStageBlock {
   return block.is === STAGE_IS;
@@ -165,12 +165,12 @@ function flowRate(rowsPerSecond: number): number {
 
 /** The effects of one zoom range, from `left` (after the stripe) to the card's right edge. */
 function effects(
-  view: TBlockView<TStageBlock>,
+  stage: TStageBlock,
   look: TEffectsLook,
   left: number,
   range: TConnectionEffectScaleRange
 ): TScenePrimitive[] {
-  const { width, height, rowsPerSecond } = view;
+  const { width, height, rowsPerSecond } = stage;
   const card: TBox = { x: 0, y: 0, width, height, radius };
   return [
     marchingBorder(
@@ -238,12 +238,12 @@ class StageAnchor extends Anchor {
  * (two zoom ranges); closer it shows the kind, the name and the throughput. The status stripe and every effect are
  * parts styled by `stageRules`: the status tag decides which effects show.
  */
-export class StageBlock extends CanvasBlock<TStageBlock> {
+export class StageBlock extends CanvasBlock<TStageState> {
   public declare readonly __styleParts?: TStyleParts<
     "body" | "border" | "title" | "halo" | "badge" | "surface" | TEffectPart
   >;
 
-  private schematicCache?: { view: object; primitives: readonly TScenePrimitive[] };
+  private schematicPrimitives?: readonly TScenePrimitive[];
   protected readonly effectRange: TConnectionEffectScaleRange = {};
 
   protected override getAnchorClass(): TAnchorClass {
@@ -251,7 +251,7 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
   }
 
   /** Selection and status go through the style rules. Only card size and contents change its primitives. */
-  protected override shouldUpdateScene(_nextProps: TBlockProps, next: TStageBlock): boolean {
+  protected override shouldUpdateScene(_nextProps: TBlockProps, next: TStageState): boolean {
     const { width, height, name, kind, pipeline, rowsPerSecond } = this.state;
     return (
       width !== next.width ||
@@ -259,14 +259,15 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
       name !== next.name ||
       kind !== next.kind ||
       pipeline !== next.pipeline ||
-      rowsPerSecond !== next.rowsPerSecond
+      rowsPerSecond !== next.rowsPerSecond ||
+      this.state.levelTransitions !== next.levelTransitions
     );
   }
 
-  protected override minimalistic(view: TBlockView<TStageBlock>): readonly TScenePrimitive[] {
-    const primitives = stageFace(view.width, view.height);
+  protected override minimalistic(): readonly TScenePrimitive[] {
+    const primitives = stageFace(this.state.width, this.state.height);
     for (const { look, minScale, maxScale } of overviewBands) {
-      for (const primitive of effects(view, look, stripeWidth + 24, this.effectRange)) {
+      for (const primitive of effects(this.state, look, stripeWidth + 24, this.effectRange)) {
         if (primitive.kind === "path" && primitive.part === "particles") {
           // A solid throughput stroke looks like a full progress bar when the particles are inactive.
           const start = Math.max(minScale, this.effectRange.minScale ?? 0);
@@ -281,24 +282,20 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
     return primitives;
   }
 
-  protected override schematic(view: TBlockView<TStageBlock>): readonly TScenePrimitive[] {
-    if (this.schematicCache?.view !== view) {
-      this.schematicCache = { view, primitives: this.near(view) };
-    }
-    return this.schematicCache.primitives;
+  protected override schematic(): readonly TScenePrimitive[] {
+    this.schematicPrimitives = this.near();
+    return this.schematicPrimitives;
   }
 
-  /** The same list as the schematic level, so it is merged once. */
-  protected override detailed(view: TBlockView<TStageBlock>): readonly TScenePrimitive[] {
-    return this.schematic(view);
+  /** The encoder visits schematic before detailed. Reuse the same list for both levels. */
+  protected override detailed(): readonly TScenePrimitive[] {
+    return this.schematicPrimitives ?? this.schematic();
   }
 
-  private near(view: TStageView): TScenePrimitive[] {
-    const { width, height, name, kind, pipeline, rowsPerSecond } = view;
+  private near(): TScenePrimitive[] {
+    const { width, height, name, kind, pipeline, rowsPerSecond, levelTransitions } = this.state;
     const schematicScale = this.context.constants.block.SCALES[1];
-    const labelFade = view.levelTransitions
-      ? { minScale: schematicScale, fadeInUntil: schematicScale + 0.075 }
-      : undefined;
+    const labelFade = levelTransitions ? { minScale: schematicScale, fadeInUntil: schematicScale + 0.075 } : undefined;
     const left = 24;
     return [
       ...stageFace(width, height),
@@ -353,9 +350,9 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
         width: width - left - 16,
         wrap: false,
         minScale: 0.35,
-        fadeInUntil: view.levelTransitions ? 0.42 : undefined,
+        fadeInUntil: levelTransitions ? 0.42 : undefined,
       },
-      ...effects(view, nearLook, left, this.effectRange),
+      ...effects(this.state, nearLook, left, this.effectRange),
       ...spinner(
         width - 26,
         26,
@@ -372,8 +369,17 @@ export function createStageBlock(minScale: number, levelTransitions: ReadonlySig
   return class extends StageBlock {
     protected override readonly effectRange = { minScale };
 
-    protected override getViewData(): TStageView {
-      return { ...super.getViewData(), levelTransitions: levelTransitions.value };
+    protected override subscribe(id: TBlockId): void {
+      super.subscribe(id);
+      // Rebinding a retained block replaces its entity state; initialize the local setting for the new binding too.
+      this.setState({ levelTransitions: levelTransitions.peek() });
+    }
+
+    protected override willMount(): void {
+      super.willMount();
+      this.subscribeSignal(levelTransitions, (enabled) => {
+        if (this.getNextState().levelTransitions !== enabled) this.setState({ levelTransitions: enabled });
+      });
     }
   };
 }

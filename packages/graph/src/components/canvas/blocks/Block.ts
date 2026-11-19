@@ -31,7 +31,7 @@ import { STOCK_ANCHORS, anchorLimitsOf, describeAnchorClasses } from "../anchors
 import type { TAnchorLook, TResolvedAnchorClasses } from "../anchors/utils/anchorLayout";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 import { SceneComponent } from "../scene/SceneComponent";
-import { sameInputs, sameView } from "../scene/utils/viewData";
+import { sameInputs } from "../scene/utils/sceneEquality";
 
 import { warnLegacyMembers } from "./utils/blockWarnings";
 
@@ -117,17 +117,17 @@ export type THtmlViewRequest = {
 /** Component state of a block: the block data plus the selection read from `$selected`. */
 export type TBlockComponentState<T extends TBlock = TBlock> = T & { selected?: boolean };
 
-/** Text, border and threshold constants of the default look; in the view data, so setConstants re-runs it. */
+/** Text, border and threshold constants of the default look. */
 export type TBlockLook = { fontSize: number; padding: number; borderWidth: number; textMinScale: number };
-
-/** The inputs of a block's level methods: its data without x and y, plus the look constants (spec §5.3). */
-export type TBlockView<T extends TBlock = TBlock> = Readonly<Omit<T, "x" | "y">> & { readonly look: TBlockLook };
 
 type TBlockConstants = { readonly look: Readonly<TBlockLook>; readonly zIndex: number };
 
 /** The default look of one view: minimalistic and schematic share `full`; `detailed` has no title. */
 type TDefaultLook = {
-  readonly view: object;
+  readonly width: number;
+  readonly height: number;
+  readonly name: string;
+  readonly look: Readonly<TBlockLook>;
   readonly full: readonly TScenePrimitive[];
   readonly detailed: readonly TScenePrimitive[];
 };
@@ -162,7 +162,7 @@ type TExportPort = {
 /**
  * The default look's constants and the block bucket, one computed per graph (review I3). It reads the whole constants
  * and settings, but keeps its object while the values are equal, so a settings change that does not touch them
- * (`canDragCamera`, `renderer`, an inline settings object from React) runs no block's view data again.
+ * (`canDragCamera`, `renderer`, an inline settings object from React) keeps the prepared block primitives.
  */
 function blockConstantsOf(graph: Graph): ReadonlySignal<TBlockConstants> {
   let constants = blockConstants.get(graph);
@@ -177,8 +177,9 @@ function blockConstantsOf(graph: Graph): ReadonlySignal<TBlockConstants> {
         borderWidth: block.BORDER_WIDTH,
         textMinScale: block.SCALES[0],
       };
-      if (last && last.zIndex === block.DEFAULT_Z_INDEX && sameView(last.look, look)) return last;
-      last = Object.freeze({ look: Object.freeze(look), zIndex: block.DEFAULT_Z_INDEX });
+      const nextLook = last && sameInputs(last.look, look) ? last.look : Object.freeze(look);
+      if (last && last.look === nextLook && last.zIndex === block.DEFAULT_Z_INDEX) return last;
+      last = Object.freeze({ look: nextLook, zIndex: block.DEFAULT_Z_INDEX });
       return last;
     });
     blockConstants.set(graph, constants);
@@ -192,7 +193,6 @@ function blockConstantsOf(graph: Graph): ReadonlySignal<TBlockConstants> {
  * stays its parent: it receives events, hit tests and drags there.
  */
 export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlockProps> extends SceneComponent<
-  TBlockView<T>,
   Props,
   TBlockComponentState<T>,
   TGraphLayerContext
@@ -457,8 +457,14 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected willMount(): void {
-    // Sets GraphComponent's mounted flag and creates the scene element's computeds.
     super.willMount();
+    const constants = blockConstantsOf(this.context.graph);
+    let look = constants.peek().look;
+    this.subscribeSignal(constants, (next) => {
+      if (look === next.look) return;
+      look = next.look;
+      this.invalidate();
+    });
     this.addEventListener("click", this.handleClick);
     let anchorsSetting = true;
     this.subscribeSignal(this.context.graph.rootStore.settings.$useBlocksAnchors, (enabled) => {
@@ -634,7 +640,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   /**
    * Whether an update of this block is pending: new props or state not applied yet, or its queued update. What a
-   * `getAnchorClass` override reads (`this.state`, `this.props`, view data derived from them) may be stale then.
+   * `getAnchorClass` override reads (`this.state`, `this.props`) may be stale then.
    */
   private hasPendingUpdate(): boolean {
     const data = this.__data;
@@ -721,12 +727,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     );
   }
 
-  protected override getViewData(): TBlockView<T> {
-    const { x: _x, y: _y, selected: _selected, ...data } = this.state;
-    // Keep the public projection's original shape for models that carry their own selected field.
-    const model = this.connectedState.$state.peek();
-    if ("selected" in model) Object.assign(data, { selected: model.selected });
-    return Object.assign(data, { look: blockConstantsOf(this.context.graph).value.look }) as TBlockView<T>;
+  /** Resolved font, padding, border and scale threshold for the block's default look. */
+  protected get blockLook(): Readonly<TBlockLook> {
+    return blockConstantsOf(this.context.graph).peek().look;
   }
 
   /**
@@ -734,17 +737,13 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
    * as `renderMinimalisticBlock` drew `renderSchematicView`: `Block` defines no `minimalistic`, so the level takes this
    * list (`encodeLevels`' fallback), and a subclass that overrides only `schematic` changes both levels with one list.
    */
-  protected override schematic(
-    view: TBlockView<T> = this.readSceneView() ?? this.getViewData()
-  ): readonly TScenePrimitive[] {
-    return this.defaultLook(view).full;
+  protected override schematic(): readonly TScenePrimitive[] {
+    return this.defaultLook().full;
   }
 
   /** Today's detailed canvas look: no title (decision 4); the HTML handover is plan 3b. */
-  protected override detailed(
-    view: TBlockView<T> = this.readSceneView() ?? this.getViewData()
-  ): readonly TScenePrimitive[] {
-    return this.defaultLook(view).detailed;
+  protected override detailed(): readonly TScenePrimitive[] {
+    return this.defaultLook().detailed;
   }
 
   protected override getSceneOrigin(): TPoint {
@@ -775,7 +774,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
    * has mounted, and calls the returned function when it unmounts or its request changes. A hold counts at the detailed
    * level only (`isHeldByHtml()`): there the block and its children are hit, drawn in the scene or not (D4), and while
    * a holding view asks for `canvasVisible: false` the scene draws nothing of the block: its body, parts, anchors and
-   * children. Its hit box, view data and tags stay current; its connections stay drawn. On the other levels a hold
+   * children. Its hit box and tags stay current; its connections stay drawn. On the other levels a hold
    * changes nothing: zooming out of the detailed level draws the block in the frame that hides the HTML.
    * `setRenderDelegated` is the low-level switch without these rules: on every level.
    */
@@ -1028,7 +1027,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   /**
    * The class of one anchor's component (spec §5.2): `Anchor` by default. Return a subclass for another look: its
-   * level methods describe it, its view data carries this block's (`view.block`), and its statics `SIZE`,
+   * level methods describe it from its props and state. Its statics `SIZE`,
    * `LINE_WIDTH`, `LOOK_EXTENT` and `CREATION_LEVELS` give its size, reach and levels. The block creates the component
    * with the anchor's data and port, keyed by the anchor's id.
    *
@@ -1131,10 +1130,13 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     }
   }
 
-  private defaultLook(view: TBlockView<T>): TDefaultLook {
+  private defaultLook(): TDefaultLook {
+    const { width, height, name } = this.state;
+    const look = this.blockLook;
     const cached = this.defaultLookCache;
-    if (cached && cached.view === view) return cached;
-    const { width, height, name, look } = view;
+    if (cached && cached.width === width && cached.height === height && cached.name === name && cached.look === look) {
+      return cached;
+    }
     const halo: TScenePrimitive = {
       kind: "rect",
       part: "halo",
@@ -1177,7 +1179,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       r: BADGE_RADIUS,
     };
     const next: TDefaultLook = {
-      view,
+      width,
+      height,
+      name,
+      look,
       full: Object.freeze([halo, body, border, title, badge]),
       detailed: Object.freeze([halo, body, border, badge]),
     };

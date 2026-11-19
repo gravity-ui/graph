@@ -110,16 +110,9 @@ class PropsDerivedStateBlock extends PropsChosenBlock {
   }
 }
 
-/** The class follows view data derived from a prop, read through `readSceneView()` (a cached computed). */
-class PropsViewDataBlock extends PropsChosenBlock {
+class PropsChosenWideBlock extends PropsChosenBlock {
   protected override isWide(): boolean {
-    return Boolean((this.readSceneView() as { wide?: boolean } | undefined)?.wide);
-  }
-
-  protected override getViewData(): ReturnType<Block["getViewData"]> {
-    const data: ReturnType<Block["getViewData"]> & { wide?: boolean } = super.getViewData();
-    data.wide = Boolean((this.props as { flag?: boolean }).flag);
-    return data;
+    return Boolean((this.props as { flag?: boolean }).flag);
   }
 }
 
@@ -585,7 +578,7 @@ describe("toImage with lazily created anchors", () => {
 
   it.each([
     ["propsChanged() derives the state its class follows", "PropsState", PropsDerivedStateBlock],
-    ["its view data derives from props, read through readSceneView()", "PropsView", PropsViewDataBlock],
+    ["its class follows props directly", "Props", PropsChosenWideBlock],
   ])("finds the anchors of a block whose pending props pick their class: %s", (_name, is, klass) => {
     graph = startAnchoredGraph([anchored("p", 100, 330, is)], FAR, { blockComponents: { [is]: klass } });
     const rect = { x: 0, y: 0, width: 400, height: 300 };

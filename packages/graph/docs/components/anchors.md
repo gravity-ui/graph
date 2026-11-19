@@ -74,11 +74,14 @@ Apple M3 Pro with 10,000 blocks and about 40,000 anchors, all of a class created
 0.038: each Canvas 2D pan frame takes about 31 ms more (45 ms instead of 14 ms), and the page heap grows by about
 200 MB. WebGL pan frames take no longer. Add the minimalistic level only to anchor classes that must show there.
 
-A class describes its look with level methods (prototype methods, not instance properties). Its view data carries its
-block's (`view.block`). A look that reaches farther than `LOOK_EXTENT` from the anchor's point declares its own:
+A class describes its look with level methods declared on its prototype. A look that reaches farther than
+`LOOK_EXTENT` from the anchor's point declares its own extent:
 `public static override LOOK_EXTENT = 40;`. An anchor class has no props of its own. It reads what it needs from the
 anchor (`this.props.type`, `this.props.index`) and from its block's data in a method of its own, and it shows states
-with tags. The class may follow the block's data (`this.state.meta`): the block asks again after that data changes.
+with tags. The block can return a different anchor class as its own data changes.
+If the same custom anchor draws from a parent field, read that field in the level method and call
+`this.invalidateChildren()` in the block's `stateChanged(next)` when that field changes. This also updates an
+anchor drawing from local block state that is absent from the model.
 
 ```typescript
 import { Anchor, CanvasBlock } from "@gravity-ui/graph";

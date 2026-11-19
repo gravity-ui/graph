@@ -1082,7 +1082,7 @@ and [Tags and styles](../system/tags-and-styles.md).
 
 | v1 member of `Block` | v2 |
 |---|---|
-| `render()`, `renderBody(ctx)`, `renderSchematicView(ctx, options)`, `renderMinimalisticBlock(ctx, options)`, `renderDetailedView(ctx)`, `renderStroke(color)`, `renderText(text, ctx, options)` | Level methods `schematic(view)`, `detailed(view)` and, when it differs, `minimalistic(view)`, which return primitives; states as tags and rules on parts. Or extend `LegacyCanvasBlock` for one release. |
+| `render()`, `renderBody(ctx)`, `renderSchematicView(ctx, options)`, `renderMinimalisticBlock(ctx, options)`, `renderDetailedView(ctx)`, `renderStroke(color)`, `renderText(text, ctx, options)` | Level methods `schematic()`, `detailed()` and, when it differs, `minimalistic()`, which return primitives; states as tags and rules on parts. Or extend `LegacyCanvasBlock` for one release. |
 | `willRender()` override, `shouldRenderText` | The title's `minScale` (`block.SCALES[0]`); `minScale` / `maxScale` on your own primitives. |
 | `calcZIndex()`, `raiseBlock()`, the selection raise in `stateChanged()`, `getRenderIndex()` | Scene raises: the theme's `raise: 1` while selected or dragged, and a new scene order on selection and on drag start. |
 | `shouldRenderHtml`, `raised`, `updateViewState()`, `didIterate()` | Removed. React containers read `$viewState`. |
@@ -1092,7 +1092,7 @@ and [Tags and styles](../system/tags-and-styles.md).
 | `updateChildren()` without a declared type | `updateChildren(): ChildDescriptor[]`, an empty list when anchors are off. It may return child scene components besides the anchors (see [Evented areas are removed](#evented-areas-are-removed)). |
 | `setRenderDelegated(true)` from an HTML view | `delegateRender({ canvasVisible })` (graph-react's `GraphBlock` does it): the scene hides the block only at the detailed level. `setRenderDelegated` remains, without the level rule. |
 | reading `this.hidden` to know the block is handed to HTML | `isRenderDelegated()` (both writers), or `isShownOutsideScene()` to include views that keep the canvas drawing. `isHeldByHtml()` is true while any view holds the block at the detailed level. |
-| `minimalistic(view)` in v2 pre-releases (`this.schematic(view)`) | Not defined: the minimalistic level takes the schematic list. `super.minimalistic(view)` does not compile (TS2722) and throws at runtime: call `super.schematic(view)`. |
+| `minimalistic()` in v2 pre-releases (`this.schematic()`) | Not defined: the minimalistic level takes the schematic list. `super.minimalistic()` does not compile (TS2722) and throws at runtime: call `super.schematic()`. |
 
 `Anchor` lost its `zIndex` getter and `render()`: it is a retained scene component with the parts `anchor` and
 `border` (see [Anchors](#anchors)). The theme rules have new parts: a block's `halo` and `badge` (hidden), an anchor's
@@ -1138,7 +1138,7 @@ Port a block by moving its drawing into level methods:
 + graph.scene.tags.set(failedTag, { block: ["b3"] });
 ```
 
-A look that needs more structure is a subclass with `schematic(view)` (and `detailed(view)` when it differs), with
+A look that needs more structure is a subclass with `schematic()` (and `detailed()` when it differs), with
 coordinates relative to the block's origin; see [Block component](../components/block-component.md#level-methods).
 
 ### Order and hit-testing
@@ -1197,7 +1197,8 @@ its port and the class's `SIZE` and `LINE_WIDTH`, keyed by the anchor's id:
 An anchor with props of its own (a shape, data types, a muted flag) becomes an anchor class that reads its block:
 
 - A shape prop becomes one class per shape, chosen from the block's data (`this.state.meta`).
-- What the look reads (data types for its colour) comes from the block's view data (`view.block`).
+- The anchor can read block data through `this.connectedState.block` or local state on its parent component.
+  If its look depends on a parent field, call `invalidateChildren()` in the block when that field changes.
 - What code outside the look reads (connection validation reading `isGraphEndpoint` or `dataTypes`) becomes a method
   of the anchor class that reads its block's data (`this.connectedState.block`, or the parent block component).
 - A state such as muted becomes a tag with a style rule.
@@ -1208,7 +1209,7 @@ An anchor with props of its own (a shape, data types, a muted flag) becomes an a
 
 ```typescript
 import { Anchor, CanvasBlock, defineTag } from "@gravity-ui/graph";
-import type { Graph, TAnchor, TAnchorClass, TAnchorView, TBlock, TScenePrimitive } from "@gravity-ui/graph";
+import type { Graph, TAnchor, TAnchorClass, TBlock, TScenePrimitive } from "@gravity-ui/graph";
 
 declare const graph: Graph;
 
@@ -1227,9 +1228,9 @@ class StepAnchor extends Anchor {
 
 /** A stream anchor is a square: another shape is another class. */
 class StreamAnchor extends StepAnchor {
-  protected override schematic(view: TAnchorView): readonly TScenePrimitive[] {
-    const half = view.size / 2;
-    return [{ kind: "rect", part: "anchor", x: -half, y: -half, width: view.size, height: view.size }];
+  protected override schematic(): readonly TScenePrimitive[] {
+    const half = this.props.size / 2;
+    return [{ kind: "rect", part: "anchor", x: -half, y: -half, width: this.props.size, height: this.props.size }];
   }
 }
 
@@ -1264,7 +1265,7 @@ without a look must declare it. See [Child components](../components/block-compo
 -     });
 -   }
 - }
-+ class Area1 extends SceneComponent<object, TGraphComponentProps & { blockId: string }> {
++ class Area1 extends SceneComponent<TGraphComponentProps & { blockId: string }> {
 +   public static override entityType = "area1";
 +   public override getEntityId(): string { return this.props.blockId; }
 +   protected override willMount(): void { super.willMount(); this.addEventListener("click", () => onArea1()); }
@@ -1633,8 +1634,6 @@ the detailed level starts them at the schematic level, or marks anchor ports `sn
   changing one in place throws.
 - `PortState.setPoint(x, y)` with the port's current point writes nothing, so its subscribers and the connections at
   the port do not recompute.
-- View data compares a hole in a sparse array as `undefined` (see
-  [View data](../components/block-component.md#view-data)).
 
 ### Minimap, export and the canvas
 

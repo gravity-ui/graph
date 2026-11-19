@@ -2,9 +2,9 @@ import { ALL_LEVELS_MASK, LEVEL_BIT, SCENE_LEVELS, levelMaskOf } from "../../../
 import type { TScenePrimitive } from "../../../../lib/scene/types";
 import type { TSceneLevel } from "../../../../services/scene/types";
 
-import { samePrimitive } from "./viewData";
+import { samePrimitive } from "./sceneEquality";
 
-export type TLevelMethods<TView> = Partial<Record<TSceneLevel, (view: TView) => readonly TScenePrimitive[]>>;
+export type TLevelMethods = Partial<Record<TSceneLevel, () => readonly TScenePrimitive[]>>;
 
 /** A class without a `static hitLevels` declaration, in `declaredHitMasks` (a level mask is never negative). */
 const UNDECLARED = -1;
@@ -71,14 +71,10 @@ function mergeList(entries: readonly TEntry[], list: readonly TScenePrimitive[],
  * once. A primitive shown on every level keeps its object and gets no mask; the others are copies with `levelMask`. A
  * `levelMask` a method set itself is reported through `report` and replaced.
  */
-export function encodeLevels<TView>(
-  methods: TLevelMethods<TView>,
-  view: TView,
-  report?: (level: TSceneLevel) => void
-): TScenePrimitive[] {
-  const minimalistic = runLevel(methods, "minimalistic", view, report);
-  const schematic = runLevel(methods, "schematic", view, report);
-  const detailed = runLevel(methods, "detailed", view, report);
+export function encodeLevels(methods: TLevelMethods, report?: (level: TSceneLevel) => void): TScenePrimitive[] {
+  const minimalistic = runLevel(methods, "minimalistic", report);
+  const schematic = runLevel(methods, "schematic", report);
+  const detailed = runLevel(methods, "detailed", report);
   // A level without its own method takes the schematic list, else the minimalistic one, else the detailed one.
   const fallback = schematic ?? minimalistic ?? detailed;
   if (!fallback) return [];
@@ -111,15 +107,14 @@ function unmasked(primitive: TScenePrimitive): TScenePrimitive {
 }
 
 /** One level method's list (undefined without the method); a `levelMask` in it is reported. */
-function runLevel<TView>(
-  methods: TLevelMethods<TView>,
+function runLevel(
+  methods: TLevelMethods,
   level: TSceneLevel,
-  view: TView,
   report: ((level: TSceneLevel) => void) | undefined
 ): readonly TScenePrimitive[] | undefined {
   const method = methods[level];
   if (!method) return undefined;
-  const list = method(view);
+  const list = method();
   if (report && list.some((primitive) => primitive.levelMask !== undefined)) report(level);
   return list;
 }

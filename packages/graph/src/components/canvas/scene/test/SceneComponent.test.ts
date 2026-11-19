@@ -11,7 +11,7 @@ import { SceneComponent, sceneComponentStats } from "../SceneComponent";
 import type { TSceneParent } from "../SceneComponent";
 
 import { Box, BoxDot, TestLayer, boxSource, frames } from "./utils/sceneTestKit";
-import type { TBoxProps, TBoxSource, TBoxView } from "./utils/sceneTestKit";
+import type { TBoxProps, TBoxSource } from "./utils/sceneTestKit";
 
 describe("SceneComponent", () => {
   let graph: Graph;
@@ -44,7 +44,7 @@ describe("SceneComponent", () => {
     type State = { x: number; height: number };
     type Context = GraphComponentContext & { color?: string; unitScale?: number };
 
-    class Marker extends SceneComponent<object, Props, State, Context> {
+    class Marker extends SceneComponent<Props, State, Context> {
       public override state = { x: 0, height: 3 };
       public runs = 0;
 
@@ -211,12 +211,9 @@ describe("SceneComponent", () => {
     expect(box.getSceneKey()).toBeUndefined();
   });
 
-  it("skips equal view data and runs the level methods once per frame for consecutive changes", () => {
+  it("coalesces model changes into a single build using the last state", () => {
     mount();
     const runs = box.levelRuns;
-    source.meta.value = { tone: "a" };
-    frames();
-    expect(box.levelRuns).toBe(runs);
     source.title.value = "One";
     source.title.value = "Beta";
     expect(box.levelRuns).toBe(runs);
@@ -226,12 +223,7 @@ describe("SceneComponent", () => {
   });
 
   it("follows a replacement signal after a skipped data update, including during a synchronous export flush", () => {
-    class SignalBox extends Box {
-      protected override shouldUpdateScene(): boolean {
-        return false;
-      }
-    }
-    mount(SignalBox);
+    mount();
     const runs = box.levelRuns;
     const replacement = boxSource("Alpha", 20);
     box.setProps({ source: replacement });
@@ -240,8 +232,8 @@ describe("SceneComponent", () => {
     source.title.value = "Detached";
     frames(1);
     expect(box.levelRuns).toBe(runs);
+    replacement.title.value = "Export";
     batch(() => {
-      replacement.title.value = "Export";
       box.setProps({ zIndex: 300 });
       CoreComponent.applyUpdatesNow(box);
       expect(element()?.primitives).toContainEqual(expect.objectContaining({ text: "Export" }));
@@ -414,9 +406,9 @@ describe("SceneComponent", () => {
   it("runs the level methods again after late web fonts when they measured text", () => {
     class MeasuringBox extends Box {
       public width = 0;
-      protected override schematic(view: TBoxView): TScenePrimitive[] {
-        this.width = this.measureText(view.title, "12px sans-serif");
-        return super.schematic(view);
+      protected override schematic(): TScenePrimitive[] {
+        this.width = this.measureText(this.state.title, "12px sans-serif");
+        return super.schematic();
       }
     }
     mount(MeasuringBox);
@@ -441,18 +433,15 @@ describe("SceneComponent", () => {
     }
   });
 
-  it("warns once when a level method reads the camera, and freezes the view in development", () => {
+  it("warns once when a level method reads the camera", () => {
     const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
-    let frozen = false;
     class CameraBox extends Box {
-      protected override schematic(view: TBoxView): TScenePrimitive[] {
-        frozen = Object.isFrozen(view) && !Object.isFrozen(view.meta);
+      protected override schematic(): TScenePrimitive[] {
         this.context.camera.getCameraScale();
-        return super.schematic(view);
+        return super.schematic();
       }
     }
     mount(CameraBox);
-    expect(frozen).toBe(true);
     expect(warn.mock.calls.filter(([message]) => String(message).includes("read the camera"))).toHaveLength(1);
   });
 
@@ -513,9 +502,9 @@ describe("SceneComponent", () => {
     const broken = new Error("broken look");
     let fail = false;
     class FlakyBox extends Box {
-      protected override schematic(view: TBoxView): TScenePrimitive[] {
+      protected override schematic(): TScenePrimitive[] {
         if (fail) throw broken;
-        return super.schematic(view);
+        return super.schematic();
       }
     }
     mount(FlakyBox);
@@ -537,23 +526,6 @@ describe("SceneComponent", () => {
     source.title.value = "Fixed";
     frames();
     expect(element()?.primitives.some((p) => p.kind === "text" && p.text === "Fixed")).toBe(true);
-  });
-
-  it("survives view data that throws on its first run and writes once the view reads again", () => {
-    const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
-    class FlakyViewBox extends Box {
-      protected override getViewData(): TBoxView {
-        const view = super.getViewData();
-        if (view.title === "Alpha") throw new Error("no view yet");
-        return view;
-      }
-    }
-    expect(() => mount(FlakyViewBox)).not.toThrow();
-    expect(error.mock.calls.some(([message]) => String(message).includes("FlakyViewBox"))).toBe(true);
-    expect(element()?.primitives).toEqual([]);
-    source.title.value = "Beta";
-    frames();
-    expect(element()?.primitives.some((p) => p.kind === "text" && p.text === "Beta")).toBe(true);
   });
 
   it("survives an origin that throws: the element keeps its last place", () => {

@@ -19,10 +19,9 @@ classDiagram
         +static entityType
         +static hitLevels
         #shouldUpdateScene(nextProps, nextState, nextContext)
-        #getViewData()
-        #minimalistic(view)
-        #schematic(view)
-        #detailed(view)
+        #minimalistic()
+        #schematic()
+        #detailed()
         #invalidate()
         #measureText(text, font)
         #getHitRect(bounds)
@@ -91,56 +90,43 @@ nested in its parent's element (an anchor, a [child component](#child-components
 - Children of a retained component must be retained, or mounting them throws: a block that draws child components in
   `render()` extends [`LegacyCanvasBlock`](#legacycanvasblock).
 
-## View data
+## Updating the look
 
-Level methods can read `this.props`, `this.state` and `this.context` directly. A standalone `SceneComponent`
-needs only the level methods it draws. Its optional `getViewData()` supplies a shared argument to those methods
-and tracks any signals read while preparing it.
-
-The stock block supplies `TBlockView<T>`, which contains the block data except `x` and `y`, plus `look`
-(`fontSize`, `padding`, `borderWidth` and `textMinScale`). Its origin supplies the world coordinates separately,
-so dragging the stock block reuses its primitives. If a subclass's shape also depends on its coordinates,
-include that dependency in its `shouldUpdateScene()` override. A child scene component can read the block's
-projection with `readSceneView()` on its parent.
-
-Return a fresh object from `getViewData()`. Development builds freeze its top level. When a tracked signal changes,
-an equal projection keeps the previous object. Changes to the component's own data follow
-[`shouldUpdateScene`](../system/component-lifecycle.md#7-scene-components), so a level method can also read
-committed component data that the projection omits.
-
-A subclass adds its own view data by widening `getViewData()` and the `view` of its level methods:
+Declare a component's data with `SceneComponent<Props, State, Context>`. Level methods read the applied
+`this.props`, `this.state` and `this.context`. A custom block can add to the stock shape in one method:
 
 ```typescript
 import { CanvasBlock } from "@gravity-ui/graph";
-import type { TBlockView, TScenePrimitive } from "@gravity-ui/graph";
-
-type TSubtitledView = TBlockView & { subtitle: string };
+import type { TScenePrimitive } from "@gravity-ui/graph";
 
 class SubtitledBlock extends CanvasBlock {
-  protected override getViewData(): TSubtitledView {
-    return { ...super.getViewData(), subtitle: `#${this.props.id}` };
-  }
-
-  protected override schematic(view: TSubtitledView): readonly TScenePrimitive[] {
+  protected override schematic(): readonly TScenePrimitive[] {
+    const { width, height } = this.state;
     const subtitle: TScenePrimitive = {
       kind: "text",
       part: "title",
-      text: view.subtitle,
+      text: `#${this.props.id}`,
       family: "sans-serif",
       size: 12,
       lineHeight: 14,
       x: 8,
-      y: view.height - 22,
-      width: view.width - 16,
+      y: height - 22,
+      width: width - 16,
     };
-    return [...super.schematic(view), subtitle];
+    return [...super.schematic(), subtitle];
   }
 }
 ```
 
+The stock block supplies world coordinates through its origin, so dragging it reuses its local primitives.
+If a subclass's shape changes with its coordinates, include that dependency in its
+[`shouldUpdateScene()`](../system/component-lifecycle.md#7-scene-components) override. When a child draws from
+the parent's data, pass it the fields it needs in `updateChildren()` and reconcile its props when those fields
+change.
+
 ## Level methods
 
-`minimalistic(view)`, `schematic(view)` and `detailed(view)` return the block's look on each [scene
+`minimalistic()`, `schematic()` and `detailed()` return the block's look on each [scene
 level](../system/scene.md#level) as `readonly TScenePrimitive[]` (rects, circles, text, icons, paths, polygons), in
 world units relative to the block's origin (its `x`, `y`). Do not transform coordinates: the scene applies the
 origin and the camera.
@@ -170,13 +156,13 @@ origin and the camera.
 
 `Block` defines two level methods:
 
-- `schematic(view)`: the halo, the body, the border, the title and the badge;
-- `detailed(view)`: the same without the title. A React graph shows its HTML blocks at that level, and the scene stops
+- `schematic()`: the halo, the body, the border, the title and the badge;
+- `detailed()`: the same without the title. A React graph shows its HTML blocks at that level, and the scene stops
   drawing a block once its HTML has mounted (see [The handover to HTML](#the-handover-to-html)).
 
 `Block` defines no `minimalistic`: that level takes the schematic list, as `renderMinimalisticBlock` drew
 `renderSchematicView` before. A subclass that overrides only `schematic` therefore changes both levels with one list.
-To include the stock shape, call `super.schematic()` or pass the projection as `super.schematic(view)`.
+To include the stock shape, call `super.schematic()`.
 
 | Part | Primitive |
 | --- | --- |
@@ -282,7 +268,7 @@ The [story source](../../../../apps/storybook/src/stories/canvas/blockHover/bloc
 
 - A block an HTML view holds (`delegateRender`, used by graph-react's `GraphBlock`) hides its element, its anchors'
   and its children's elements while the scene is at the detailed level and a holding view asks for
-  `canvasVisible: false`. It keeps its hit box, view data and tags. `setRenderDelegated(true)` is the low-level switch
+  `canvasVisible: false`. It keeps its hit box, component state and tags. `setRenderDelegated(true)` is the low-level switch
   without the level rule: it hides them on every level. `isRenderDelegated()` is true in both cases; the `hidden` field
   no longer tells.
 - A block hidden by a collapsed group (`setHiddenBlock(true)`) hides them too, and removes its hit box. Its anchors and
@@ -361,7 +347,7 @@ import type { ChildDescriptor, Graph, TGraphComponentProps, TScenePrimitive } fr
 
 declare const graph: Graph;
 
-class CloseButton extends SceneComponent<object, TGraphComponentProps & { blockId: string }> {
+class CloseButton extends SceneComponent<TGraphComponentProps & { blockId: string }> {
   public static override entityType = "closeButton";
   public override readonly cursor = "pointer";
 
@@ -504,38 +490,38 @@ members never draw on a scene block.
 
 ```typescript
 import { CanvasBlock, EAnchorType, Graph } from "@gravity-ui/graph";
-import type { TBlockView, TScenePrimitive } from "@gravity-ui/graph";
+import type { TScenePrimitive } from "@gravity-ui/graph";
 
 class GoldBlock extends CanvasBlock {
-  protected override schematic(view: TBlockView): readonly TScenePrimitive[] {
+  protected override schematic(): readonly TScenePrimitive[] {
     return [
-      { kind: "rect", part: "body", x: 0, y: 0, width: view.width, height: view.height, radius: 10, fill: "#FFD700" },
+      { kind: "rect", part: "body", x: 0, y: 0, width: this.state.width, height: this.state.height, radius: 10, fill: "#FFD700" },
       {
         kind: "rect",
         part: "border",
         x: 0,
         y: 0,
-        width: view.width,
-        height: view.height,
+        width: this.state.width,
+        height: this.state.height,
         radius: 10,
         border: { width: { px: 2, minWorld: 2, maxWorld: 10 }, align: "inside" },
       },
       {
         kind: "text",
         part: "title",
-        text: view.name,
+        text: this.state.name,
         family: "sans-serif",
         size: 13,
         cameraAware: { maxWorld: 60 },
         lineHeight: 16,
         x: 8,
         y: 8,
-        width: view.width - 16,
-        height: view.height - 16,
+        width: this.state.width - 16,
+        height: this.state.height - 16,
         align: "center",
         verticalAlign: "middle",
         color: "#000000",
-        minScale: view.look.textMinScale,
+        minScale: this.blockLook.textMinScale,
       },
     ];
   }

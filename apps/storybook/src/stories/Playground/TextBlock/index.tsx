@@ -1,6 +1,6 @@
 import React from "react";
 
-import { CanvasBlock, TBlockView, TScenePrimitive } from "@gravity-ui/graph";
+import { CanvasBlock, TScenePrimitive } from "@gravity-ui/graph";
 
 import { TGravityTextBlock } from "../generateLayout";
 
@@ -10,25 +10,23 @@ import "./TextBlock.css";
 
 const TEXT_COLOR = "rgba(189, 142, 75, 1)";
 
-/** The shapes of one view: the frame every level shows, and the text. */
-type TTextShapes = { view: object; frame: readonly TScenePrimitive[]; text: TScenePrimitive };
-
 export class TextBlock extends CanvasBlock<TGravityTextBlock> {
   public cursor = "pointer";
 
-  private shapesCache?: TTextShapes;
+  private frameCache?: { width: number; height: number; primitives: readonly TScenePrimitive[] };
 
   public renderHTML() {
     return <TextBlockHtml graph={this.context.graph} block={this.connectedState.$state.value} />;
   }
 
-  /** The body and the dashed border (shared by every level) and the text. */
-  private shapes(view: TBlockView<TGravityTextBlock>): TTextShapes {
-    if (this.shapesCache?.view === view) return this.shapesCache;
-    const { width, height, look } = view;
-    this.shapesCache = {
-      view,
-      frame: [
+  /** The body and dashed border are shared by all levels. */
+  private frame(): readonly TScenePrimitive[] {
+    const { width, height } = this.state;
+    if (this.frameCache?.width === width && this.frameCache.height === height) return this.frameCache.primitives;
+    this.frameCache = {
+      width,
+      height,
+      primitives: [
         { kind: "rect", part: "body", x: 0, y: 0, width, height, radius: 8, fill: "rgba(189, 142, 75, 0.1)" },
         {
           kind: "rect",
@@ -41,12 +39,25 @@ export class TextBlock extends CanvasBlock<TGravityTextBlock> {
           border: { color: TEXT_COLOR, width: 2, dash: [4, 4] },
         },
       ],
+    };
+    return this.frameCache.primitives;
+  }
+
+  protected override minimalistic(): readonly TScenePrimitive[] {
+    return this.frame();
+  }
+
+  protected override schematic(): readonly TScenePrimitive[] {
+    const { width, height, meta } = this.state;
+    const look = this.blockLook;
+    return [
+      ...this.frame(),
       // v1 drew the text with the block font (`bold ${BASE_FONT_SIZE x scaleFontSize}px sans-serif`, world units),
       // centred and from the top of the content rect, a line pitch of the font size.
-      text: {
+      {
         kind: "text",
         part: "title",
-        text: view.meta?.text ?? "",
+        text: meta?.text ?? "",
         family: "sans-serif",
         weight: "bold",
         size: look.fontSize,
@@ -59,21 +70,10 @@ export class TextBlock extends CanvasBlock<TGravityTextBlock> {
         align: "center",
         minScale: look.textMinScale,
       },
-    };
-    return this.shapesCache;
+    ];
   }
 
-  /** The body and the dashed border, without text, as before. */
-  protected override minimalistic(view: TBlockView<TGravityTextBlock>): readonly TScenePrimitive[] {
-    return this.shapes(view).frame;
-  }
-
-  protected override schematic(view: TBlockView<TGravityTextBlock>): readonly TScenePrimitive[] {
-    const { frame, text } = this.shapes(view);
-    return [...frame, text];
-  }
-
-  protected override detailed(view: TBlockView<TGravityTextBlock>): readonly TScenePrimitive[] {
-    return this.shapes(view).frame;
+  protected override detailed(): readonly TScenePrimitive[] {
+    return this.frame();
   }
 }

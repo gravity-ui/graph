@@ -147,12 +147,12 @@ The component lifecycle applies pending props and state together before the leve
   values on `this`. A context change uses the currently applied props and state. Keep the comparison free of side
   effects. Returning `false` reuses the primitives for this data change. The component still receives its new data,
   reconciles its children as needed, and synchronizes position, order, visibility and hit boxes. The first draw always runs.
-- **External inputs.** To follow a signal outside the component lifecycle, read it in the optional `getViewData()`
-  and use the resulting argument in a level method, or subscribe to it and call `invalidate()`. Level methods run
-  without tracking signal reads. Explicit invalidation forces a rebuild in the queued update and also works for
-  changes to resources such as fonts. `performRender()` schedules an update and can
-  be used for a change to placement or visibility. Panning and zooming draw the prepared primitives for the active
-  level.
+- **External inputs.** Subscribe to an external source in `willMount()` and use `setState()` when the component
+  owns the resulting value. If a level method reads an external resource directly, its change handler can call
+  `invalidate()` to rebuild the primitives. Dispose the subscription on unmount. For a signal read in
+  `getSceneOrigin()` or `getSceneZIndex()` the scene tracks placement automatically. `performRender()` schedules
+  an update. Camera navigation draws the prepared levels.
+
 - **Children and export.** The parent writes its scene element before its children. A parent's reconciliation can
   apply a retained child again in the same frame. Export can apply its pending update synchronously.
 

@@ -62,7 +62,7 @@ import type { Graph, LayerProps, TGraphComponentProps, TScenePrimitive } from "@
 type MarkerData = { id: string; x: number; y: number; color: string };
 const side = 24;
 
-class Marker extends SceneComponent<object, TGraphComponentProps & MarkerData> {
+class Marker extends SceneComponent<TGraphComponentProps & MarkerData> {
   public static override entityType = "marker";
 
   public override getEntityId() {
@@ -534,7 +534,7 @@ it out with one shared layout (`lib/scene/textLayout.ts`), the rules of v1's `la
 const name: TScenePrimitive = {
   kind: "text",
   part: "title",
-  text: view.name,
+  text: this.state.name,
   family: "sans-serif",
   weight: "500",
   size: 9,
@@ -542,8 +542,8 @@ const name: TScenePrimitive = {
   lineHeight: 9,
   x: 10,
   y: 10,
-  width: view.width - 20,
-  height: view.height - 20,
+  width: this.state.width - 20,
+  height: this.state.height - 20,
   align: "center",
   verticalAlign: "middle",
 };
@@ -556,7 +556,7 @@ const status: TScenePrimitive = {
   lineHeight: 24,
   x: 46,
   y: 97,
-  width: view.width - 62,
+  width: this.state.width - 62,
   wrap: false,
   maxLines: 1,
   overflow: "ellipsis",

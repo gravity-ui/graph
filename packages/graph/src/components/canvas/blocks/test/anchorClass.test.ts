@@ -6,7 +6,7 @@ import { Anchor } from "../../anchors";
 import type { TAnchor, TAnchorClass, TAnchorProps } from "../../anchors";
 import { anchorLimitsOf } from "../../anchors/utils/anchorLayout";
 import { Block } from "../Block";
-import type { TBlock } from "../Block";
+import type { TBlock, TBlockComponentState } from "../Block";
 import { LegacyCanvasBlock } from "../LegacyCanvasBlock";
 
 import { FAR, NEAR, anchored as anchoredBlock, frames, startAnchoredGraph } from "./utils/anchoredGraph";
@@ -139,6 +139,39 @@ describe("anchor classes from getAnchorClass", () => {
     expect(anchorOf("a", "in")?.props.size).toBe(18);
     const element = square ? graph.scene.store.get(square.getSceneElementId()) : undefined;
     expect(element?.primitives.map((primitive) => primitive.kind)).toEqual(["rect"]);
+  });
+
+  it("updates a custom anchor from a parent field without rebuilding on a move", () => {
+    class NamedAnchor extends Anchor {
+      protected override schematic(): readonly TScenePrimitive[] {
+        const parent = this.getParent();
+        const r = parent instanceof Block && parent.state.name === "wide" ? 8 : 4;
+        return [{ kind: "circle", cx: 0, cy: 0, r }];
+      }
+    }
+    class NamedBlock extends Block {
+      protected override getAnchorClass(): TAnchorClass {
+        return NamedAnchor;
+      }
+
+      protected override stateChanged(next: TBlockComponentState): void {
+        if (next.name !== this.state.name) this.invalidateChildren();
+        super.stateChanged(next);
+      }
+    }
+
+    graph = startAnchoredGraph([anchored("a", 100, "Named")], NEAR, { blockComponents: { Named: NamedBlock } });
+    const anchor = anchorOf("a", "out");
+    if (!anchor) throw new Error("Missing anchor");
+    const primitives = () => graph.scene.store.get(anchor.getSceneElementId())?.primitives;
+    expect(primitives()).toContainEqual(expect.objectContaining({ kind: "circle", r: 4 }));
+    graph.api.updateBlock({ id: "a", name: "wide" });
+    frames();
+    const wide = primitives();
+    expect(wide).toContainEqual(expect.objectContaining({ kind: "circle", r: 8 }));
+    graph.api.updateBlock({ id: "a", x: 160 });
+    frames();
+    expect(primitives()).toBe(wide);
   });
 
   it("widens the camera search for an offscreen class and narrows it again when that block leaves", () => {

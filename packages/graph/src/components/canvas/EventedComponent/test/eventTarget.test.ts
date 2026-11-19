@@ -14,29 +14,25 @@ import { getEventTarget } from "../eventTarget";
  * parent walk and after it, while the event itself stays the native one.
  */
 
-type TButtonProps = TGraphComponentProps & { id: string };
+type TButtonProps = TGraphComponentProps & { id: string; width: number };
 
 /** The run button of the latest mounted block. */
 let button: RunButton | undefined;
 
 /** A block's run button: a 40 x 30 rect 8 units in from its top right, on the schematic level. It stops nothing. */
-class RunButton extends SceneComponent<{ width: number }, TButtonProps> {
+class RunButton extends SceneComponent<TButtonProps> {
   public static override entityType = "runButton";
 
   public override getEntityId(): string {
     return this.props.id;
   }
 
-  protected override getViewData(): { width: number } {
-    return { width: 200 };
-  }
-
   protected override minimalistic(): readonly TScenePrimitive[] {
     return [];
   }
 
-  protected override schematic(view: { width: number }): readonly TScenePrimitive[] {
-    return [{ kind: "rect", part: "button", x: view.width - 48, y: 8, width: 40, height: 30 }];
+  protected override schematic(): readonly TScenePrimitive[] {
+    return [{ kind: "rect", part: "button", x: this.props.width - 48, y: 8, width: 40, height: 30 }];
   }
 }
 
@@ -45,7 +41,10 @@ class ButtonBlock extends Block {
     const ref = (component: RunButton): void => {
       button = component;
     };
-    return [RunButton.create({ id: String(this.props.id) }, { key: "run", ref }), ...super.updateChildren()];
+    return [
+      RunButton.create({ id: String(this.props.id), width: this.state.width }, { key: "run", ref }),
+      ...super.updateChildren(),
+    ];
   }
 }
 

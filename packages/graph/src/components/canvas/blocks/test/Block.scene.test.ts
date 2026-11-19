@@ -9,7 +9,7 @@ import { ESelectionStrategy } from "../../../../services/selection/types";
 import { entityKey } from "../../../../services/tags/TagStore";
 import { draggingTag, selectedTag } from "../../../../services/tags/builtinTags";
 import { Block } from "../Block";
-import type { TBlock, TBlockProps, TBlockView } from "../Block";
+import type { TBlock, TBlockProps } from "../Block";
 
 const block = (id: string, x: number, patch: Partial<TBlock> = {}): TBlock => ({
   id,
@@ -25,19 +25,6 @@ const block = (id: string, x: number, patch: Partial<TBlock> = {}): TBlock => ({
 
 function frames(count = 5): void {
   for (let i = 0; i < count; i++) globalScheduler.performUpdate();
-}
-
-type TTitledView = TBlockView & { subtitle: string };
-
-/** A subclass adds view data by widening getViewData() and its level methods' view. */
-class TitledBlock extends Block {
-  protected override getViewData(): TTitledView {
-    return { ...super.getViewData(), subtitle: `of ${this.props.id}` };
-  }
-
-  protected override schematic(view: TTitledView): readonly TScenePrimitive[] {
-    return [{ kind: "text", text: view.subtitle, family: "f", size: 10, lineHeight: 12, x: 0, y: 0, width: 80 }];
-  }
 }
 
 describe("Block in the scene", () => {
@@ -115,14 +102,14 @@ describe("Block in the scene", () => {
     expect(element("a")?.primitives.some((p) => p.kind === "text" && p.text === "moved")).toBe(true);
   });
 
-  it("runs no block's view data for a settings change that does not touch the look", () => {
-    const getViewData = jest.spyOn(view("a") as unknown as { getViewData(): unknown }, "getViewData");
+  it("rebuilds a block only for settings that change its look", () => {
+    const draw = jest.spyOn(view("a") as unknown as { schematic(): unknown }, "schematic");
     graph.updateSettings({ canDragCamera: false });
     frames();
-    expect(getViewData).not.toHaveBeenCalled();
+    expect(draw).not.toHaveBeenCalled();
     graph.updateSettings({ scaleFontSize: 2 });
     frames();
-    expect(getViewData).toHaveBeenCalled();
+    expect(draw).toHaveBeenCalled();
   });
 
   it("hides the halo and badge through the theme and styles a selected block", () => {
@@ -292,16 +279,6 @@ describe("Block in the scene", () => {
     expect(iterate).not.toHaveBeenCalled();
   });
 
-  it("draws a subclass's own view data", () => {
-    graph.updateSettings({ blockComponents: { Titled: TitledBlock } });
-    graph.setEntities({ blocks: [block("t", 0, { is: "Titled" })], connections: [] });
-    frames();
-    // schematic (and minimalistic, which takes its list) is the subclass's; detailed keeps the default body without
-    // text.
-    const texts = (element("t")?.primitives ?? []).flatMap((p) => (p.kind === "text" ? [p.text] : []));
-    expect(texts).toEqual(["of t"]);
-  });
-
   it("honors object identity for a custom prop read directly in a level method", () => {
     const widths = new WeakMap<object, number>();
     class Swatch extends Block<TBlock, TBlockProps & { palette?: object }> {
@@ -332,10 +309,10 @@ describe("Block in the scene", () => {
       }
 
       // A fresh list on every call, as a subclass without a cache returns it.
-      protected override schematic(view: TBlockView): readonly TScenePrimitive[] {
+      protected override schematic(): readonly TScenePrimitive[] {
         calls++;
         return [
-          { kind: "rect", part: "body", x: 0, y: 0, width: view.width, height: view.height },
+          { kind: "rect", part: "body", x: 0, y: 0, width: this.state.width, height: this.state.height },
           { kind: "circle", part: "badge", cx: 4, cy: 4, r: 2 },
         ];
       }

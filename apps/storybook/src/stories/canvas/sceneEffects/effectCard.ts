@@ -1,5 +1,5 @@
 import { CanvasBlock, defineTag } from "@gravity-ui/graph";
-import type { Graph, TBlock, TBlockView, TScenePrimitive, TStyleParts, TStyleRule, TTag } from "@gravity-ui/graph";
+import type { Graph, TBlock, TBlockProps, TScenePrimitive, TStyleParts, TStyleRule, TTag } from "@gravity-ui/graph";
 
 import { formatRows } from "../webglConnections/etl";
 
@@ -129,11 +129,11 @@ export function sparkPoints(x0: number, x1: number, top: number, bottom: number)
 export const effectCardStrokes = { march: 3, comet: 5, pulse: 6, glow: 2, gradient: 5 } as const;
 
 /** The effect of a card; every primitive is the effect's part. The outlines' outer edge is the card's edge. */
-function effectPrimitives(view: TBlockView<TEffectCard>): TScenePrimitive[] {
-  const { width, height } = view;
+function effectPrimitives(cardData: TEffectCard): TScenePrimitive[] {
+  const { width, height } = cardData;
   const card: TBox = { x: 0, y: 0, width, height, radius: EFFECT_CARD_RADIUS };
   const { march, comet, pulse, glow, gradient } = effectCardStrokes;
-  switch (view.effect) {
+  switch (cardData.effect) {
     case "march":
       return [marchingBorder(strokeInside(card, march), { width: march, color: blue, on: 14, off: 10, speed: 40 })];
     case "comet":
@@ -146,7 +146,7 @@ function effectPrimitives(view: TBlockView<TEffectCard>): TScenePrimitive[] {
           width: 12,
           color: blue,
           spacing: 36,
-          speed: particleSpeed(view.rowsPerSecond ?? 0),
+          speed: particleSpeed(cardData.rowsPerSecond ?? 0),
         }),
       ];
     case "spinner":
@@ -181,23 +181,32 @@ function effectPrimitives(view: TBlockView<TEffectCard>): TScenePrimitive[] {
 export class EffectCard extends CanvasBlock<TEffectCard> {
   public declare readonly __styleParts?: TStyleParts<"body" | "border" | "title" | "halo" | "badge" | TEffectPart>;
 
-  private cache?: { view: object; primitives: readonly TScenePrimitive[] };
+  private cardPrimitives?: readonly TScenePrimitive[];
 
-  /** Every level takes this list: `Block` has no minimalistic method, and `detailed` returns the same list. */
-  protected override schematic(view: TBlockView<TEffectCard>): readonly TScenePrimitive[] {
-    if (this.cache?.view !== view) {
-      onCardEncode.get(this.context.graph)?.();
-      this.cache = { view, primitives: [...this.card(view), ...effectPrimitives(view)] };
-    }
-    return this.cache.primitives;
+  protected override shouldUpdateScene(_nextProps: TBlockProps, next: TEffectCard): boolean {
+    const { width, height, name, api, effect, rowsPerSecond } = this.state;
+    return (
+      width !== next.width ||
+      height !== next.height ||
+      name !== next.name ||
+      api !== next.api ||
+      effect !== next.effect ||
+      rowsPerSecond !== next.rowsPerSecond
+    );
   }
 
-  protected override detailed(view: TBlockView<TEffectCard>): readonly TScenePrimitive[] {
-    return this.schematic(view);
+  protected override schematic(): readonly TScenePrimitive[] {
+    onCardEncode.get(this.context.graph)?.();
+    this.cardPrimitives = [...this.card(), ...effectPrimitives(this.state)];
+    return this.cardPrimitives;
   }
 
-  private card(view: TBlockView<TEffectCard>): TScenePrimitive[] {
-    const { width, height, name, api, effect, rowsPerSecond } = view;
+  protected override detailed(): readonly TScenePrimitive[] {
+    return this.cardPrimitives ?? this.schematic();
+  }
+
+  private card(): TScenePrimitive[] {
+    const { width, height, name, api, effect, rowsPerSecond } = this.state;
     const out: TScenePrimitive[] = [
       { kind: "rect", part: "body", x: 0, y: 0, width, height, radius: EFFECT_CARD_RADIUS },
       {

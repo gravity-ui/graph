@@ -29,7 +29,7 @@ import {
   reportMissingSuper,
 } from "./utils/diagnostics";
 import { declaredHitMask, encodeLevels } from "./utils/encodeLevels";
-import { samePrimitives, sameView } from "./utils/viewData";
+import { samePrimitives } from "./utils/sceneEquality";
 
 /** The parent element of a child element and the child's place among its siblings (spec §5.2). */
 export type TSceneParent = { readonly elementId: string; readonly order: number };
@@ -113,7 +113,6 @@ function elementPatch(written: TWritten, next: TWritten): TElementPatch | undefi
  * parent's element, at its parent's origin, and is hit where it draws.
  */
 export abstract class SceneComponent<
-    TView extends object = object,
     Props extends TGraphComponentProps = TGraphComponentProps,
     State extends TComponentState = TComponentState,
     Context extends GraphComponentContext = GraphComponentContext,
@@ -136,15 +135,12 @@ export abstract class SceneComponent<
    */
   public static hitLevels?: readonly TSceneLevel[];
 
-  /** Refreshes dependencies read by optional projections and placement hooks after plain component data is applied. */
-  private readonly inputRevision = signal(0);
-  private inputsPending = false;
-  private refreshingInputs = false;
+  /** Placement hooks can read both ordinary component fields and external signals (e.g. a delegated port). */
+  private readonly placementRevision = signal(0);
+  private placementPending = false;
   private levelsPending = true;
 
-  private sceneView?: ReadonlySignal<TView | undefined>;
   private scenePlace?: ReadonlySignal<TScenePlace>;
-  private appliedView?: TView;
   private appliedPlace?: TScenePlace;
 
   private lastLevels?: TLevelOutput;
@@ -186,23 +182,20 @@ export abstract class SceneComponent<
   /** How many times its element was added: after the first, its scene children write theirs again. */
   private adds = 0;
 
-  /** Optional shared inputs for level methods and children. Signals read here update the projection. */
-  protected getViewData?(): TView;
-
   /** Called with the upcoming data while this.props/state/context still hold the current values. */
   protected shouldUpdateScene(_nextProps: Props, _nextState: State, _nextContext: Context): boolean {
     return true;
   }
 
-  protected minimalistic?(view: TView | undefined): readonly TScenePrimitive[];
+  protected minimalistic?(): readonly TScenePrimitive[];
 
-  protected schematic?(view: TView | undefined): readonly TScenePrimitive[];
+  protected schematic?(): readonly TScenePrimitive[];
 
-  protected detailed?(view: TView | undefined): readonly TScenePrimitive[];
+  protected detailed?(): readonly TScenePrimitive[];
 
   /** Rebuilds the primitives in the next component update, including when the data is unchanged (e.g. late fonts). */
   protected invalidate(): void {
-    this.inputsPending = true;
+    this.placementPending = true;
     this.levelsPending = true;
     this.performRender();
   }
@@ -262,10 +255,7 @@ export abstract class SceneComponent<
     return { x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY };
   }
 
-  /**
-   * Reads the view data of its child scene components again in their next update, for inputs of theirs that are not
-   * signals (a field of this component they read). What they read through `readSceneView()` is tracked already.
-   */
+  /** Rebuilds child scene components that depend on a plain field outside their own lifecycle. */
   protected invalidateChildren(): void {
     for (const child of this.getChildComponents()) {
       if (child instanceof SceneComponent) child.invalidate();
@@ -311,11 +301,6 @@ export abstract class SceneComponent<
   /** @internal The written element as a read-only view; undefined before. */
   public getSceneElementView(): TSceneElementView | undefined {
     return this.written ? this.context.graph.scene.store.get(this.getSceneElementId()) : undefined;
-  }
-
-  /** @internal This component's view data, tracked: a child's view data may carry its parent's (spec V6b). */
-  public readSceneView(): TView | undefined {
-    return this.sceneView?.value;
   }
 
   /**
@@ -401,34 +386,16 @@ export abstract class SceneComponent<
     derivedAfterProps = false
   ): void {
     if (!this.scenePlace) return; // The first update always builds the element after mount.
-    this.inputsPending = true;
+    this.placementPending = true;
     this.levelsPending ||= derivedAfterProps || this.shouldUpdateScene(nextProps, nextState, nextContext);
   }
 
   protected willMount(): void {
     super.willMount();
     this.walked = (this.constructor as typeof SceneComponent).mode === "immediate";
-    if (this.getViewData) {
-      let lastView: TView | undefined;
-      this.sceneView = computed(() => {
-        track(this.inputRevision);
-        try {
-          const next = this.getViewData?.();
-          if (next !== undefined && (lastView === undefined || !sameView(lastView, next))) {
-            lastView = HAS_NODE_ENV && process.env.NODE_ENV !== "production" ? Object.freeze(next) : next;
-          }
-        } catch (error) {
-          reportHookError(this.constructor.name, "getViewData()", "the level methods keep the last view data", error);
-        }
-        return lastView;
-      });
-      this.subscribeSignal(this.sceneView, (view) => {
-        if (this.scenePlace && !this.refreshingInputs && view !== this.appliedView) this.performRender();
-      });
-    }
     let lastPlace: TScenePlace | undefined;
     const place = computed(() => {
-      track(this.inputRevision);
+      track(this.placementRevision);
       const next = this.readScenePlace(lastPlace);
       if (!lastPlace || next.x !== lastPlace.x || next.y !== lastPlace.y || next.zIndex !== lastPlace.zIndex) {
         lastPlace = next;
@@ -436,7 +403,7 @@ export abstract class SceneComponent<
       return lastPlace;
     });
     this.subscribeSignal(place, (value) => {
-      if (this.scenePlace && !this.refreshingInputs && value !== this.appliedPlace) this.performRender();
+      if (this.scenePlace && !this.placementPending && value !== this.appliedPlace) this.performRender();
     });
     this.scenePlace = place;
   }
@@ -447,26 +414,16 @@ export abstract class SceneComponent<
       if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") reportMissingSuper(this.constructor.name);
       return;
     }
-    // A tracked input can also change independently of setProps/setState (including inside a signal batch on export).
-    let view = this.sceneView?.peek();
-    const externalViewChanged = view !== this.appliedView;
-    if (this.inputsPending) {
-      this.inputsPending = false;
-      this.refreshingInputs = true;
-      try {
-        this.inputRevision.value = this.inputRevision.peek() + 1;
-        view = this.sceneView?.peek();
-      } finally {
-        this.refreshingInputs = false;
-      }
+    if (this.placementPending) {
+      this.placementRevision.value = this.placementRevision.peek() + 1;
+      this.placementPending = false;
     }
     const place = this.scenePlace.peek();
     const previous = this.lastLevels;
-    if (this.levelsPending || externalViewChanged) {
+    if (this.levelsPending) {
       this.levelsPending = false;
-      if (!this.sceneView || view !== undefined) untracked(() => this.runLevels(view));
+      untracked(() => this.runLevels());
     }
-    this.appliedView = view;
     if (
       this.walked &&
       this.written &&
@@ -619,7 +576,7 @@ export abstract class SceneComponent<
     }
   }
 
-  private runLevels(view: TView | undefined): TLevelOutput {
+  private runLevels(): TLevelOutput {
     const start = HAS_NODE_ENV && process.env.NODE_ENV !== "production" ? sceneComponentStats.start() : undefined;
     let output: TLevelOutput;
     try {
@@ -630,15 +587,15 @@ export abstract class SceneComponent<
       };
       const primitives =
         HAS_NODE_ENV && process.env.NODE_ENV !== "production"
-          ? encodeLevelsWithDiagnostics(this.constructor.name, methods, view)
-          : encodeLevels(methods, view);
+          ? encodeLevelsWithDiagnostics(this.constructor.name, methods)
+          : encodeLevels(methods);
       const previous = this.lastLevels;
       output =
         previous && samePrimitives(previous.primitives, primitives)
           ? previous
           : { primitives, bounds: primitives.length ? elementBounds(primitives) : EMPTY_BOUNDS };
     } catch (error) {
-      // Its origin, bucket and hidden state still update; the next view change or invalidate() runs them again.
+      // Its origin, bucket and hidden state still update; the next rebuild runs them again.
       reportHookError(this.constructor.name, "a level method", "the scene element keeps its last primitives", error);
       output = this.lastLevels ?? EMPTY_LEVELS;
     }

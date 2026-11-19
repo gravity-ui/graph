@@ -39,28 +39,33 @@ const stillEffect = { fragment };
 
 export type SpriteParams = readonly [offset: number, playing: number, shimmer: number, overview: number];
 type SpriteProps = { image: HTMLImageElement; playback: ReadonlySignal<SpriteParams> };
-type SpriteView = { image: HTMLImageElement; params: SpriteParams };
+type SpriteElementProps = TGraphComponentProps & { image: HTMLImageElement; params: SpriteParams };
 
-class TexturedOrbit extends SceneComponent<SpriteView, TGraphComponentProps & SpriteProps> {
+class TexturedOrbit extends SceneComponent<SpriteElementProps> {
   public static override entityType = "mascot";
 
   public override getEntityId() {
     return "orbit";
   }
 
-  protected override getViewData(): SpriteView {
-    return { image: this.props.image, params: this.props.playback.value };
-  }
-
-  protected override schematic({ image, params }: SpriteView): readonly TScenePrimitive[] {
+  protected override schematic(): readonly TScenePrimitive[] {
+    const { image, params } = this.props;
     return [{ kind: "sprite", ...orbitBounds, image, effect: params[1] ? playingEffect : stillEffect, params }];
   }
 }
 
 export class TexturedOrbitLayer extends Layer<LayerProps & SpriteProps> {
+  protected override afterInit(): void {
+    this.onSignal(this.props.playback, () => {
+      this.shouldUpdateChildren = true;
+      this.performRender();
+    });
+    super.afterInit();
+  }
+
   protected override updateChildren(): ChildDescriptor[] {
     const { image, playback } = this.props;
-    return [TexturedOrbit.create({ image, playback })];
+    return [TexturedOrbit.create({ image, params: playback.peek() })];
   }
 }
 

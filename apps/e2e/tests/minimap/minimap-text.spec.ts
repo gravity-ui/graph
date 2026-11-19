@@ -1,4 +1,4 @@
-import type { TBlockView, TScenePrimitive } from "@gravity-ui/graph";
+import type { TScenePrimitive } from "@gravity-ui/graph";
 import { Page, expect, test } from "@playwright/test";
 
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
@@ -35,10 +35,10 @@ test.describe("MiniMap – block text", () => {
     await page.evaluate((blocks) => {
       const { CanvasBlock } = window.GraphModule;
       class TextBlock extends CanvasBlock {
-        protected override minimalistic(view: TBlockView): readonly TScenePrimitive[] {
+        protected override minimalistic(): readonly TScenePrimitive[] {
           const name: TScenePrimitive = {
             kind: "text",
-            text: view.name,
+            text: this.state.name,
             family: "sans-serif",
             size: 12,
             cameraAware: { maxWorld: 40 },
@@ -48,7 +48,7 @@ test.describe("MiniMap – block text", () => {
             y: 0,
             width: 200,
           };
-          return [...this.schematic(view), name];
+          return [...this.schematic(), name];
         }
       }
       window.graph.updateSettings({ blockComponents: { Text: TextBlock } });

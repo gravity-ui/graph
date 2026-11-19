@@ -18,7 +18,6 @@ import type {
   TAnchor,
   TAnchorClass,
   TBlock,
-  TBlockView,
   TGraphComponentProps,
   TPoint,
   TSceneLevel,
@@ -41,26 +40,22 @@ type TSceneBlock = TBlock<TBlockMeta>;
 let lookOptions: TLookOptions = {};
 
 class SceneNirvanaBlock extends CanvasBlock<TSceneBlock> {
-  /** One primitive list per view, shared by every level: encodeLevels then merges nothing. */
-  private look?: { view: TBlockView<TSceneBlock>; primitives: readonly TScenePrimitive[] };
+  private look?: { meta: TBlockMeta | undefined; height: number; primitives: readonly TScenePrimitive[] };
 
   public getAnchorPosition(anchor: TAnchor): TPoint {
     return anchorPosition(anchor.type === "IN", Number(String(anchor.id).replace(/^.*_(in|out)/, "")));
   }
 
-  protected override schematic(view: TBlockView<TSceneBlock>): readonly TScenePrimitive[] {
-    return this.lookOf(view);
-  }
-
-  protected override detailed(view: TBlockView<TSceneBlock>): readonly TScenePrimitive[] {
-    return this.lookOf(view);
-  }
-
-  private lookOf(view: TBlockView<TSceneBlock>): readonly TScenePrimitive[] {
-    if (this.look?.view !== view) {
-      this.look = { view, primitives: view.meta ? blockPrimitives(view.meta, view.height, lookOptions) : [] };
+  protected override schematic(): readonly TScenePrimitive[] {
+    const { meta, height } = this.state;
+    if (!this.look || this.look.meta !== meta || this.look.height !== height) {
+      this.look = { meta, height, primitives: meta ? blockPrimitives(meta, height, lookOptions) : [] };
     }
     return this.look.primitives;
+  }
+
+  protected override detailed(): readonly TScenePrimitive[] {
+    return this.schematic();
   }
 }
 
@@ -80,24 +75,20 @@ class FarAnchorsBlock extends SceneNirvanaBlock {
 }
 
 /** `--child-looks N`: a 12 x 12 chip along the block's top edge, drawn on the schematic level. */
-class BenchChip extends SceneComponent<{ index: number }, TGraphComponentProps & { id: string; index: number }> {
+class BenchChip extends SceneComponent<TGraphComponentProps & { id: string; index: number }> {
   public static override entityType = "benchChip";
 
   public override getEntityId(): string {
     return this.props.id;
   }
 
-  protected override getViewData(): { index: number } {
-    return { index: this.props.index };
-  }
-
   protected override minimalistic(): readonly TScenePrimitive[] {
     return [];
   }
 
-  protected override schematic(view: { index: number }): readonly TScenePrimitive[] {
+  protected override schematic(): readonly TScenePrimitive[] {
     return [
-      { kind: "rect", part: "chip", x: 8 + view.index * 16, y: 4, width: 12, height: 12, fill: COLORS.progress },
+      { kind: "rect", part: "chip", x: 8 + this.props.index * 16, y: 4, width: 12, height: 12, fill: COLORS.progress },
     ];
   }
 

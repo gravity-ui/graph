@@ -63,13 +63,9 @@ export function checkLookLessHitBox(
   );
 }
 
-export function encodeLevelsWithDiagnostics<TView>(
-  owner: string,
-  methods: TLevelMethods<TView>,
-  view: TView
-): TScenePrimitive[] {
+export function encodeLevelsWithDiagnostics(owner: string, methods: TLevelMethods): TScenePrimitive[] {
   return runLevelMethods(owner, () =>
-    encodeLevels(methods, view, (level) =>
+    encodeLevels(methods, (level) =>
       reportOnce(
         owner,
         "levelMask",

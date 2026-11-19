@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 import { GraphConfig, GraphPageObject } from "../page-objects/GraphPageObject";
 
 type TChildWindow = { __childLog: string[]; __nativeLog: string[] };
-type TButtonProps = TGraphComponentProps & { id: string; stop: boolean };
+type TButtonProps = TGraphComponentProps & { id: string; width: number; stop: boolean };
 
 /** Blocks with a child scene component: a run button at the top right, drawn on the schematic and detailed levels. */
 class SceneChildrenPageObject extends GraphPageObject {
@@ -31,7 +31,7 @@ class SceneChildrenPageObject extends GraphPageObject {
        * A 40 x 30 button 8 units in from the block's top right; `stop` stops its clicks there, not its presses. It
        * tags itself while it is the target (the recipe for a child, D5).
        */
-      class RunButton extends SceneComponent<{ width: number }, TButtonProps> {
+      class RunButton extends SceneComponent<TButtonProps> {
         public static override entityType = "runButton";
 
         public override readonly cursor = "pointer";
@@ -53,19 +53,15 @@ class SceneChildrenPageObject extends GraphPageObject {
           return this.props.id;
         }
 
-        protected override getViewData(): { width: number } {
-          const block = this.getParent();
-          const view = block instanceof SceneComponent ? block.readSceneView() : undefined;
-          return { width: (view as { width?: number } | undefined)?.width ?? 200 };
-        }
-
         protected override minimalistic(): readonly TScenePrimitive[] {
           return [];
         }
 
-        protected override schematic(view: { width: number }): readonly TScenePrimitive[] {
+        protected override schematic(): readonly TScenePrimitive[] {
           // Filled, so the visible button is its hit region.
-          return [{ kind: "rect", part: "button", x: view.width - 48, y: 8, width: 40, height: 30, fill: "#2f6fdf" }];
+          return [
+            { kind: "rect", part: "button", x: this.props.width - 48, y: 8, width: 40, height: 30, fill: "#2f6fdf" },
+          ];
         }
       }
 
@@ -83,9 +79,17 @@ class SceneChildrenPageObject extends GraphPageObject {
           }
         }
 
+        protected override stateChanged(next: typeof this.state): void {
+          super.stateChanged(next);
+          if (next.width !== this.state.width) this.shouldUpdateChildren = true;
+        }
+
         protected override updateChildren(): ChildDescriptor[] {
           const id = String(this.props.id);
-          return [RunButton.create({ id, stop: id === "block-2" }, { key: "run" }), ...super.updateChildren()];
+          return [
+            RunButton.create({ id, width: this.state.width, stop: id === "block-2" }, { key: "run" }),
+            ...super.updateChildren(),
+          ];
         }
       }
 

@@ -14,29 +14,25 @@ import type { TGraphSettingsPatch } from "../../../store/settings";
  * draggable ancestor, and `Camera.handleGraphMouseDown` pans only when nothing in the chain is draggable.
  */
 
-type TButtonProps = TGraphComponentProps & { id: string };
+type TButtonProps = TGraphComponentProps & { id: string; width: number };
 
 /** The run buttons of the mounted blocks, by block id. */
 const buttons = new Map<string, RunButton>();
 
 /** A block's run button: a 40 x 30 rect 8 units in from its top right, on the schematic level. It is not draggable. */
-class RunButton extends SceneComponent<{ width: number }, TButtonProps> {
+class RunButton extends SceneComponent<TButtonProps> {
   public static override entityType = "runButton";
 
   public override getEntityId(): string {
     return this.props.id;
   }
 
-  protected override getViewData(): { width: number } {
-    return { width: 200 };
-  }
-
   protected override minimalistic(): readonly TScenePrimitive[] {
     return [];
   }
 
-  protected override schematic(view: { width: number }): readonly TScenePrimitive[] {
-    return [{ kind: "rect", part: "button", x: view.width - 48, y: 8, width: 40, height: 30 }];
+  protected override schematic(): readonly TScenePrimitive[] {
+    return [{ kind: "rect", part: "button", x: this.props.width - 48, y: 8, width: 40, height: 30 }];
   }
 }
 
@@ -46,7 +42,7 @@ class ButtonBlock extends Block {
     const ref = (component: RunButton): void => {
       buttons.set(id, component);
     };
-    return [RunButton.create({ id }, { key: "run", ref }), ...super.updateChildren()];
+    return [RunButton.create({ id, width: this.state.width }, { key: "run", ref }), ...super.updateChildren()];
   }
 }
 

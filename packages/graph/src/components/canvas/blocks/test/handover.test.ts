@@ -186,7 +186,7 @@ describe("the handover to HTML (delegateRender)", () => {
     expect(element("a")?.hidden).toBe(false);
   });
 
-  it("keeps a handed-over block's view data current", () => {
+  it("updates the scene title while HTML draws the block", () => {
     view("a").delegateRender({ canvasVisible: false });
     frame();
     graph.api.updateBlock({ id: "a", name: "renamed" });

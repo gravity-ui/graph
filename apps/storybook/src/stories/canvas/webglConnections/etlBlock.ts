@@ -1,5 +1,5 @@
 import { CanvasBlock, selectedTag } from "@gravity-ui/graph";
-import type { TBlockView, TScenePrimitive, TStyleRule } from "@gravity-ui/graph";
+import type { TScenePrimitive, TStyleRule } from "@gravity-ui/graph";
 
 import { etlKindBadges, etlStatusColors, etlStatusLabels, etlStatusTints, formatRows } from "./etl";
 import type { TEtlBlock } from "./etl";
@@ -20,33 +20,25 @@ const font = (weight: string, size: number): string => `${weight} ${size}px ${fo
  * the name and the status; from the detailed level on the React card (EtlBlockView) covers it.
  */
 export class EtlBlock extends CanvasBlock<TEtlBlock> {
-  private schematicCache?: { view: object; primitives: readonly TScenePrimitive[] };
+  private schematicPrimitives?: readonly TScenePrimitive[];
 
-  /** Late web fonts change the measured badge width: forget the cached look before the level methods run again. */
-  public override invalidateTextMeasures(): void {
-    this.schematicCache = undefined;
-    super.invalidateTextMeasures();
+  protected override minimalistic(): TScenePrimitive[] {
+    return this.card(etlStatusTints[this.state.status], 24);
   }
 
-  protected override minimalistic(view: TBlockView<TEtlBlock>): TScenePrimitive[] {
-    return this.card(view, etlStatusTints[view.status], 24);
+  protected override schematic(): readonly TScenePrimitive[] {
+    this.schematicPrimitives = [...this.card(undefined, 8), ...this.content()];
+    return this.schematicPrimitives;
   }
 
-  protected override schematic(view: TBlockView<TEtlBlock>): readonly TScenePrimitive[] {
-    if (this.schematicCache?.view !== view) {
-      this.schematicCache = { view, primitives: [...this.card(view, undefined, 8), ...this.content(view)] };
-    }
-    return this.schematicCache.primitives;
-  }
-
-  /** The schematic card until the React card mounts, as before; the same list, so it is encoded once. */
-  protected override detailed(view: TBlockView<TEtlBlock>): readonly TScenePrimitive[] {
-    return this.schematic(view);
+  /** The scene prepares schematic before detailed. Share the same list while the React card mounts. */
+  protected override detailed(): readonly TScenePrimitive[] {
+    return this.schematicPrimitives ?? this.schematic();
   }
 
   /** The card, the status stripe on its left and the border (1 screen pixel; the selected width is a rule). */
-  private card(view: TBlockView<TEtlBlock>, fill: string | undefined, stripe: number): TScenePrimitive[] {
-    const { width, height, status } = view;
+  private card(fill: string | undefined, stripe: number): TScenePrimitive[] {
+    const { width, height, status } = this.state;
     return [
       { kind: "rect", part: "body", x: 0, y: 0, width, height, radius, fill },
       {
@@ -75,9 +67,9 @@ export class EtlBlock extends CanvasBlock<TEtlBlock> {
    * The kind badge, the throughput, the name and the status; small texts only where the zoom makes them readable. The
    * name and the status keep one line and end with "…" where the card is too narrow (`overflow: "ellipsis"`).
    */
-  private content(view: TBlockView<TEtlBlock>): TScenePrimitive[] {
+  private content(): TScenePrimitive[] {
     const measure: TMeasure = (text, cssFont) => this.measureText(text, cssFont);
-    const { width, name, kind, status, rowsPerSecond, error } = view;
+    const { width, name, kind, status, rowsPerSecond, error } = this.state;
     const left = paddingLeft;
     const right = width - paddingRight;
     const badge = etlKindBadges[kind];

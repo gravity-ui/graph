@@ -13,13 +13,13 @@ import type { TGraphComponentProps } from "../../../GraphComponent";
 import { SceneComponent } from "../../SceneComponent";
 import type { TSceneParent } from "../../SceneComponent";
 
-export type TBoxSource = { x: Signal<number>; title: Signal<string>; meta: Signal<{ tone: string }> };
-export type TBoxView = { title: string; meta: { tone: string } };
+export type TBoxSource = { x: Signal<number>; title: Signal<string> };
+type TBoxState = { title: string };
 export type TBoxProps = TGraphComponentProps & { id: string; source: TBoxSource; zIndex?: number; dots?: number };
 export type TBoxDotProps = TGraphComponentProps & { id: string; index: number };
 
 export function boxSource(title = "box", x = 0): TBoxSource {
-  return { x: signal(x), title: signal(title), meta: signal({ tone: "a" }) };
+  return { x: signal(x), title: signal(title) };
 }
 
 export function frames(count = 3): void {
@@ -34,19 +34,15 @@ function isDotHost(value: unknown): value is TDotHost {
 }
 
 /** A child element of a Box: a dot at the box's right edge, 10 units apart per index. */
-export class BoxDot extends SceneComponent<{ r: number }, TBoxDotProps> {
+export class BoxDot extends SceneComponent<TBoxDotProps> {
   public static override entityType = "dot";
 
   public getEntityId(): string {
     return this.props.id;
   }
 
-  protected getViewData(): { r: number } {
-    return { r: 4 };
-  }
-
-  protected schematic(view: { r: number }): TScenePrimitive[] {
-    return [{ kind: "circle", cx: 0, cy: 0, r: view.r, part: "dot" }];
+  protected schematic(): TScenePrimitive[] {
+    return [{ kind: "circle", cx: 0, cy: 0, r: 4, part: "dot" }];
   }
 
   protected getSceneOrigin(): TPoint {
@@ -60,12 +56,40 @@ export class BoxDot extends SceneComponent<{ r: number }, TBoxDotProps> {
   }
 }
 
-/** A scene component for tests: a 100 x 50 body and a title, its origin and view data read from signals. */
-export class Box extends SceneComponent<TBoxView, TBoxProps> {
+/** A scene component for tests: a 100 x 50 body and a title, with a signal-driven origin and title. */
+export class Box extends SceneComponent<TBoxProps, TBoxState> {
   public static override entityType = "box";
 
   /** How many times the level methods ran (counted in `minimalistic`). */
   public levelRuns = 0;
+  public override state = { title: this.props.source.title.peek() };
+  private unbind?: () => void;
+
+  private follow(source: TBoxSource): void {
+    this.unbind?.();
+    const offTitle = source.title.subscribe((title) => {
+      if (title !== this.getState().title) this.setState({ title });
+    });
+    const offPosition = source.x.subscribe((x) => this.setHitBox(x, 0, x + 100, 50));
+    this.unbind = () => {
+      offTitle();
+      offPosition();
+    };
+  }
+
+  protected override propsChanged(next: TBoxProps): void {
+    super.propsChanged(next);
+    if (next.source !== this.props.source) this.follow(next.source);
+  }
+
+  protected override shouldUpdateScene(_props: TBoxProps, state: TBoxState): boolean {
+    return state.title !== this.state.title;
+  }
+
+  protected override unmount(): void {
+    this.unbind?.();
+    super.unmount();
+  }
 
   public getEntityId(): string {
     return this.props.id;
@@ -81,17 +105,13 @@ export class Box extends SceneComponent<TBoxView, TBoxProps> {
 
   protected willMount(): void {
     super.willMount();
-    this.subscribeSignal(this.props.source.x, (x: number) => this.setHitBox(x, 0, x + 100, 50));
+    this.follow(this.props.source);
   }
 
   protected updateChildren(): ChildDescriptor[] {
     return Array.from({ length: this.props.dots ?? 0 }, (_, index) =>
       BoxDot.create({ id: `${this.props.id}/${index}`, index }, { key: String(index) })
     );
-  }
-
-  protected getViewData(): TBoxView {
-    return { title: this.props.source.title.value, meta: this.props.source.meta.value };
   }
 
   protected getSceneOrigin(): TPoint {
@@ -102,17 +122,17 @@ export class Box extends SceneComponent<TBoxView, TBoxProps> {
     return this.props.zIndex ?? 200;
   }
 
-  protected minimalistic(_view: TBoxView): TScenePrimitive[] {
+  protected minimalistic(): TScenePrimitive[] {
     this.levelRuns++;
     return [{ kind: "rect", x: 0, y: 0, width: 100, height: 50, part: "body" }];
   }
 
-  protected schematic(view: TBoxView): TScenePrimitive[] {
+  protected schematic(): TScenePrimitive[] {
     return [
       { kind: "rect", x: 0, y: 0, width: 100, height: 50, part: "body" },
       {
         kind: "text",
-        text: view.title,
+        text: this.state.title,
         family: "sans-serif",
         size: 12,
         lineHeight: 14,

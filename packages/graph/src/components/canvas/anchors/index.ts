@@ -16,7 +16,7 @@ import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import type { GraphComponentContext } from "../GraphComponent";
 import { SceneComponent } from "../scene/SceneComponent";
-import { sameInputs } from "../scene/utils/viewData";
+import { sameInputs } from "../scene/utils/sceneEquality";
 
 import { checkAnchorLook } from "./utils/anchorWarnings";
 
@@ -42,19 +42,10 @@ type TAnchorState = {
   selected: boolean;
 };
 
-/** The inputs of an anchor's level methods: its own look values and its block's view data (spec V6b). */
-export type TAnchorView = {
-  readonly type: string;
-  readonly size: number;
-  readonly lineWidth: number;
-  readonly block?: object;
-};
-
 /**
  * An anchor class `Block.getAnchorClass` returns (spec §5.2): `Anchor` or a subclass whose props are `TAnchorProps`.
  * The block creates the component with the anchor's data, its port and the class's `SIZE` and `LINE_WIDTH`; a class
- * reads anything else from its anchor (`this.props`) and its block (its view data `view.block`, or the block's data in
- * a method of its own).
+ * reads its anchor from `this.props` and can use its parent block in a level method.
  */
 export type TAnchorClass = (new (props: TAnchorProps, parent: Component) => Anchor) &
   Pick<typeof Anchor, "SIZE" | "LINE_WIDTH" | "LOOK_EXTENT" | "CREATION_LEVELS" | "create">;
@@ -77,7 +68,7 @@ const NO_PRIMITIVES: readonly TScenePrimitive[] = Object.freeze([]);
  * belong to the block, which positions them, so connections attach to anchors whether or not their components exist.
  * `Block.getAnchorClass` picks the class of each anchor.
  */
-export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponent<TAnchorView, T, TAnchorState> {
+export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponent<T, TAnchorState> {
   /** Updated on change, never walked: the scene draws its element. */
   public static override readonly mode: TComponentMode = "retained";
 
@@ -418,16 +409,6 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     );
   }
 
-  protected override getViewData(): TAnchorView {
-    const block = this.getParent();
-    return {
-      type: String(this.props.type),
-      size: this.props.size,
-      lineWidth: this.props.lineWidth,
-      block: block instanceof SceneComponent ? block.readSceneView() : undefined,
-    };
-  }
-
   /**
    * No look at the minimalistic level (user decision, 2026-11-14): there an anchor is a sub-pixel dot, and the scene
    * skips an element without primitives on the level before any per-element work. A selected anchor shows no ring
@@ -449,10 +430,17 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
    * A prototype method, as every level method of an anchor (see `minimalistic`); a look that reaches farther than
    * `LOOK_EXTENT` from the anchor's point declares its reach there.
    */
-  protected override schematic(
-    view: TAnchorView = this.readSceneView() ?? this.getViewData()
-  ): readonly TScenePrimitive[] {
-    return this.anchorLook(view);
+  protected override schematic(): readonly TScenePrimitive[] {
+    const { size, lineWidth } = this.props;
+    const cached = this.lookCache;
+    if (cached && cached.size === size && cached.lineWidth === lineWidth) return cached.primitives;
+    const r = size / 2;
+    const primitives: readonly TScenePrimitive[] = [
+      { kind: "circle", part: "anchor", cx: 0, cy: 0, r },
+      { kind: "circle", part: "border", cx: 0, cy: 0, r, border: { width: lineWidth + 3 } },
+    ];
+    this.lookCache = { size, lineWidth, primitives };
+    return primitives;
   }
 
   /** Not drawn at the detailed level, as before. A prototype method, as every level method of an anchor. */
@@ -470,23 +458,5 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     return undefined;
   }
 
-  private lookCache?: { readonly view: TAnchorView; readonly primitives: readonly TScenePrimitive[] };
-
-  private anchorLook(view: TAnchorView): readonly TScenePrimitive[] {
-    if (this.lookCache?.view !== view) {
-      const r = view.size / 2;
-      const dot: TScenePrimitive = { kind: "circle", part: "anchor", cx: 0, cy: 0, r };
-      // Paint and visibility come from the theme; the width is today's `lineWidth + 3`, centred on the dot's edge.
-      const ring: TScenePrimitive = {
-        kind: "circle",
-        part: "border",
-        cx: 0,
-        cy: 0,
-        r,
-        border: { width: view.lineWidth + 3 },
-      };
-      this.lookCache = { view, primitives: Object.freeze([dot, ring]) };
-    }
-    return this.lookCache.primitives;
-  }
+  private lookCache?: { size: number; lineWidth: number; primitives: readonly TScenePrimitive[] };
 }

@@ -37,8 +37,6 @@ type TChipProps = TGraphComponentProps & {
   inner?: ChildDescriptor[];
 };
 
-type TChipView = { x: number; look: boolean; width: number };
-
 /** The chips of the next box, set by each test before it mounts one. */
 let chips: ChildDescriptor[] = [];
 
@@ -86,7 +84,7 @@ class ChipBox extends Box {
  * A child chip: a 20 x 10 rect drawn on every level (one schematic list), logging the events it gets. It puts
  * `hoveredTag` on itself while it is the pointer's target (as for other child components).
  */
-class Chip extends SceneComponent<TChipView, TChipProps> {
+class Chip extends SceneComponent<TChipProps> {
   public static override entityType = "chip";
 
   public override readonly cursor = "pointer";
@@ -128,13 +126,11 @@ class Chip extends SceneComponent<TChipView, TChipProps> {
     super.propsChanged(next);
   }
 
-  protected override getViewData(): TChipView {
+  protected override schematic(): readonly TScenePrimitive[] {
+    if (this.props.look === false) return [];
     const box = this.getParent();
-    return { x: this.props.x, look: this.props.look ?? true, width: box instanceof ChipBox ? box.chipWidth : 20 };
-  }
-
-  protected override schematic(view: TChipView): readonly TScenePrimitive[] {
-    return view.look ? [{ kind: "rect", part: "chip", x: view.x, y: 10, width: view.width, height: 10 }] : [];
+    const width = box instanceof ChipBox ? box.chipWidth : 20;
+    return [{ kind: "rect", part: "chip", x: this.props.x, y: 10, width, height: 10 }];
   }
 
   protected override updateChildren(): ChildDescriptor[] {
@@ -170,15 +166,11 @@ class Frame extends ChipBox {
 }
 
 /** A badge drawn right of its anchor's point (x 14..22), outside the anchor's own hit square of +-11 world units. */
-class AnchorBadge extends SceneComponent<object, TGraphComponentProps & { id: string }> {
+class AnchorBadge extends SceneComponent<TGraphComponentProps & { id: string }> {
   public static override entityType = "badge";
 
   public override getEntityId(): string {
     return this.props.id;
-  }
-
-  protected override getViewData(): object {
-    return {};
   }
 
   protected override schematic(): readonly TScenePrimitive[] {
@@ -377,7 +369,7 @@ describe("child scene components", () => {
     expect(view?.getHitBox().slice(0, 4)).toEqual([70, 10, 20, 10]);
   });
 
-  it("reads its view data again when its parent invalidates its children", () => {
+  it("redraws after its parent invalidates a field used by the child", () => {
     mount([chip("c1", 5)]);
     const width = (): number | undefined => {
       const [primitive] = graph.scene.store.get(chipKey("c1"))?.primitives ?? [];
