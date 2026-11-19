@@ -106,6 +106,6 @@ Quality acceptance includes frozen-frame pixel comparisons of plain/dashed/custo
 
 ## Context and limits
 
-The design follows the existing shared text/clock/HTML/lifecycle contracts in `docs/design/scene-blocks-3b/2026-11-10-v2-scene-core-design.md` (§§3–4, 9–11) and the compatibility questions in `2026-11-09-webgl-block-design-questions.md`. Obsidian context consulted: `Inbox/2026-11-14 Graph — связи на GPU через ссылки на концы.md` and `Inbox/2026-11-17 Graph — перенос связей в общую сцену и замеры.md`. The earlier rejection of a raster graph cache remains in force; rendering the same scene directly into a worker-owned display canvas is a different proposal.
+The proposal assumes the existing [scene clock, text and export contracts](../../../packages/graph/docs/system/scene.md) and [HTML handover](../../../packages/graph/docs/migration-guides/v1-to-v2.md#the-handover-to-html). The [original design notes](https://github.com/gravity-ui/graph/tree/fdf03fb76324899490c8bb46e902eb71ecdca5d1/docs/design/scene-blocks-3b) record the earlier decision on raster caching.
 
 No browser worker smoke test, worker FPS result, packaging prototype or new GPU job was performed for this assessment. Capability and code inspection establish feasibility, while the staged experiment must establish value and UX correctness before production migration.

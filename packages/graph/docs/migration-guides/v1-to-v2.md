@@ -1685,9 +1685,11 @@ and `TWebGLStroke` with `TSceneLineStroke`. Remove a `static line` assignment th
 classes. Keep the assignment when it installs your own line subclass. A subclass that only overrides `getStroke()`
 now works in both scene renderers, including when it previously extended the Canvas-specific class.
 
-The experimental line class's static `renderer` field is gone. Read `graph.scene.$renderer` for the graph's
-active renderer, including WebGL loading and recovery states. The experimental `getWebGLConnectionsStats()` and
-`resetWebGLConnectionsStats()` exports were retired with the separate connection renderer.
+If you tested the separate WebGL connections renderer, replace `graph.getGraphLayer().$connectionsRenderer`
+with `graph.scene.$renderer`. Use `TSceneRenderer` for the requested renderer and `TSceneRendererState` for the
+observable state, which includes loading and recovery. The experimental line class's static `renderer` field,
+the `getWebGLConnectionsStats()` and `resetWebGLConnectionsStats()` exports, and the batch's `forEachItem()`
+were retired with that renderer. A custom Canvas item can still check its registration with `batch.has(item)`.
 See [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md) for the API.
 
 | Before | After |

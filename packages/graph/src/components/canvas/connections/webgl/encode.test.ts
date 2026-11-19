@@ -1,6 +1,6 @@
 import type { TLineInteraction, TLineStroke, TWebGLShape } from "../lines/types";
 
-import { INSTANCE_ATTRIBUTES, INSTANCE_FLOATS, createEncodedChunk, encodeShapes, piecesAt } from "./encode";
+import { INSTANCE_FLOATS, createEncodedChunk, encodeShapes, piecesAt } from "./encode";
 import type { TInstances } from "./encode";
 
 const shape = (segments: number[], stroke: Partial<TLineStroke> = {}): TWebGLShape => ({
@@ -19,11 +19,6 @@ function filledChunk(instances: number, fill: number): ReturnType<typeof createE
   return out;
 }
 
-test("an instance is 32 floats, the interaction last at location 8", () => {
-  expect(INSTANCE_FLOATS).toBe(32);
-  expect(INSTANCE_ATTRIBUTES[INSTANCE_ATTRIBUTES.length - 1]).toEqual([8, 4, 28]);
-});
-
 test("writes one instance per cubic with the stroke: color, width, connection length, distances, dash", () => {
   const shapes = [
     shape([0, 0, 10, 0, 20, 0, 30, 0]),
@@ -38,6 +33,7 @@ test("writes one instance per cubic with the stroke: color, width, connection le
   expect([out.lines.count, out.curves.count]).toEqual([3, 0]);
 
   const first = instance(out.lines, 0);
+  expect(first).toHaveLength(32);
   expect(first.slice(0, 8)).toEqual([0, 0, 10, 0, 20, 0, 30, 0]);
   // Straight rgba in 0..1.
   expect(first.slice(8, 12).map((value) => Math.round(value * 255))).toEqual([255, 128, 0, 255]);

@@ -29,9 +29,6 @@ class RecordingBatch implements IConnectionBatch {
     this.dirty.push(item);
   }
   public markBoundsDirty(): void {}
-  public forEachItem(visit: (item: IConnectionBatchItem, params: TBatchParams) => void): void {
-    for (const [item, params] of this.items) visit(item, params);
-  }
 }
 
 type TStubState = Partial<TConnection & { hovered: boolean; selected: boolean }>;

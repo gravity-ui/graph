@@ -459,17 +459,14 @@ Hook to subscribe to a signal and get the current value. Re-renders component wh
 
 ```typescript
 import { useSignal } from "@gravity-ui/graph-react";
-import type { Signal } from "@preact/signals-core";
-import type { BlockState, TBlockGeometry } from "@gravity-ui/graph";
+import type { BlockState } from "@gravity-ui/graph";
 
 interface Props {
   blockState: BlockState;
 }
 
 function BlockGeometry({ blockState }: Props): JSX.Element {
-  // blockState.$geometry is Signal<TBlockGeometry>
-  // useSignal returns: TBlockGeometry
-  const geometry: TBlockGeometry = useSignal(blockState.$geometry);
+  const geometry = useSignal(blockState.$geometry);
 
   return (
     <div>
@@ -997,47 +994,16 @@ All three feed the same debounced callback.
 
 ### Combining Hooks
 
-```typescript
-import { 
-  useGraph, 
-  useGraphEvent, 
-  useBlockState, 
-  useSignal,
-  GraphCanvas,
-} from "@gravity-ui/graph-react";
-import { ECanDrag, type TBlockId, type TBlockGeometry, type BlockState } from "@gravity-ui/graph";
+```tsx
+import type { Graph } from "@gravity-ui/graph";
+import { useSignal } from "@gravity-ui/graph-react";
 
-function MyGraph(): JSX.Element {
-  const { graph, setEntities, start } = useGraph({
-    settings: { canDrag: ECanDrag.ALL },
-  });
+function SelectedBlockPosition({ graph }: { graph: Graph }) {
+  const [block] = useSignal(graph.rootStore.blocksList.blockSelectionBucket.$selectedEntities);
+  const geometry = useSignal(block?.$geometry);
+  if (!block || !geometry) return null;
 
-  // Track selected block
-  const [selectedBlockId, setSelectedBlockId] = useState<TBlockId | null>(null);
-  
-  useGraphEvent(graph, "blocks-selection-change", ({ changes }) => {
-    if (changes.add.length > 0) {
-      setSelectedBlockId(changes.add[0]);
-    }
-  });
-
-  // Get selected block state
-  const selectedBlock = useBlockState(graph, selectedBlockId);
-  
-  // Subscribe to geometry changes (conditional hook usage - be careful!)
-  const geometry: TBlockGeometry | null = useSignal(selectedBlock.$geometry) 
-
-  return (
-    <div>
-      <GraphCanvas graph={graph} />
-      {geometry && (
-        <div className="info-panel">
-          Selected: {selectedBlockId}
-          Position: ({geometry.x}, {geometry.y})
-        </div>
-      )}
-    </div>
-  );
+  return <div>Selected: {block.id} at ({geometry.x}, {geometry.y})</div>;
 }
 ```
 

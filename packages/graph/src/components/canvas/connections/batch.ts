@@ -13,5 +13,4 @@ export interface IConnectionBatch {
   has(item: IConnectionBatchItem): boolean;
   markDirty(item: IConnectionBatchItem): void;
   markBoundsDirty(item: IConnectionBatchItem): void;
-  forEachItem(visit: (item: IConnectionBatchItem, params: TBatchParams) => void): void;
 }

@@ -25,9 +25,6 @@ class RecordingBatch implements IConnectionBatch {
   }
   public markDirty(): void {}
   public markBoundsDirty(): void {}
-  public forEachItem(visit: (item: IConnectionBatchItem, params: TBatchParams) => void): void {
-    for (const [item, params] of this.items) visit(item, params);
-  }
 }
 
 const closedArrow = multipointGeometry({

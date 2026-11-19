@@ -612,8 +612,7 @@ void main() {
  */
 const PATH_PRELUDE_MODULE: ShaderModule = {
   name: "sceneConnectionFragment",
-  // The assembler writes its own #version line.
-  fs: FRAGMENT_PRELUDE.slice(FRAGMENT_PRELUDE.indexOf("\n") + 1),
+  fs: FRAGMENT_PRELUDE,
 };
 
 /**

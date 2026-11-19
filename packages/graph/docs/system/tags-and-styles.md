@@ -196,7 +196,9 @@ colour, the theme's `colors.canvas.layerBackground`, by that amount (`rgb = mix(
 change, so an opaque block stays opaque. `dim` on the style sets it for the whole element; `dim` on a part overrides it
 for that part's primitives, so `{ dim: 0.6, parts: { title: { dim: 0 } } }` fades a block but keeps its title. Because
 `dim` touches no colour, it combines with any rule that does: a selected block under a focus `dim` keeps the theme's
-selection border, faded. Both renderers read the paints and the layer background in any CSS colour syntax.
+selection border, faded. Use hex or `rgb()` / `rgba()` colours for paints and the layer background shared with
+WebGL. A browser can preserve `oklch()` when normalizing it on Canvas, leaving the WebGL colour parser unable
+to resolve it.
 
 **`opacity`** (0 to 1, clamped) is real transparency: it multiplies the alpha of every paint of a primitive (`a = a ×
 opacity`), whether the paint comes from the primitive's data, a base rule or a state rule, so whatever lies under the
@@ -461,9 +463,3 @@ Rows are shared: a thousand blocks with the same class and tags use one row.
 - React: `GraphBlock` and `GraphBlockAnchor` get a `graph-tag-<name>` class per tag and `--graph-block-<part>-color` /
   `--graph-block-anchor-<part>-color` variables; the `selected` classes stay as aliases. `useEntityStyle(graph, entity,
   target, prefix)` gives the same for your own components.
-
-## Testing note
-
-Do not compare a live component with Jest's `toMatchObject` or another deep subset matcher: a component links preact
-signal graphs, and the traversal can take minutes. Compare components by identity (`expect(a).toBe(b)`) or compare
-their ids.

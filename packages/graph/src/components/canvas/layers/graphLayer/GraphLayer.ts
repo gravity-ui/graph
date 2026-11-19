@@ -18,7 +18,6 @@ import { GraphComponent } from "../../GraphComponent";
 import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
 import { BlockConnections } from "../../connections/BlockConnections";
-import type { TConnectionsRendererState } from "../../connections/lines";
 
 export type TGraphLayerProps = LayerProps & {
   camera: ICamera;
@@ -137,11 +136,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
    * change, so its hover ends when the pointer is not on it any more (round 3, finding 3).
    */
   private lostTargetOwner?: GraphComponent;
-
-  private readonly connectionsRendererState = signal<TConnectionsRendererState>("canvas");
-
-  /** Compatibility view of the scene renderer. Use `graph.scene.$renderer` for loading and recovery states. */
-  public readonly $connectionsRenderer: ReadonlySignal<TConnectionsRendererState> = this.connectionsRendererState;
 
   constructor(props: TGraphLayerProps) {
     super({
@@ -606,7 +600,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   public updateChildren() {
     const cameraProps: TCameraProps = {
-      children: [BlockConnections.create({ rendererState: this.connectionsRendererState }), Blocks.create()],
+      children: [BlockConnections.create({}), Blocks.create()],
       root: this.root,
     };
 

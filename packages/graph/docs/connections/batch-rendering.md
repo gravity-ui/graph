@@ -63,7 +63,7 @@ The batch (`context.batch` of the connections, an `IConnectionBatch`) has these 
 - **`add(item, params)`** registers an item with `{ zIndex, group }`.
 - **`update(item, params)`** changes the item's z-level or group, or adds it when it is not registered.
 - **`delete(item)`** removes the item.
-- **`has(item)`**, **`markDirty(item)`**, **`markBoundsDirty(item)`** and **`forEachItem(visit)`**.
+- **`has(item)`**, **`markDirty(item)`** and **`markBoundsDirty(item)`**.
 
 For connections in the compatibility batch, the line registers its items when the component is constructed,
 updates their group and z-level when their inputs change, and removes them on unmount.

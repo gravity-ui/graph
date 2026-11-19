@@ -15,18 +15,6 @@ import type { TLineInteraction, TLineStroke, TWebGLShape } from "../lines/types"
  */
 export const INSTANCE_FLOATS = 32;
 
-/** Instance attributes of the line program: location, components, float offset (see `INSTANCE_FLOATS`). */
-export const INSTANCE_ATTRIBUTES: ReadonlyArray<readonly [number, number, number]> = [
-  [1, 4, 0],
-  [2, 4, 4],
-  [3, 4, 8],
-  [4, 4, 12],
-  [5, 4, 16],
-  [6, 4, 20],
-  [7, 4, 24],
-  [8, 4, 28],
-];
-
 /** Numbers of a dash pattern the instance holds: two on/off pairs. */
 export const DASH_FLOATS = 4;
 

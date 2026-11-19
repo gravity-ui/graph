@@ -9,7 +9,6 @@ import type { TConnection } from "../../../store/connection/ConnectionState";
 import type { TBaseConnectionState } from "./BaseConnection";
 import { BlockConnection } from "./BlockConnection";
 import { SceneLine } from "./lines";
-import { installFakeWebGL2 } from "./webgl/fakeGL";
 
 class StyledLine extends SceneLine {
   public override getStroke(state: TBaseConnectionState) {
@@ -226,14 +225,11 @@ describe("connection drawing ownership", () => {
   });
 
   it("lets the scene own renderer choice even when a SceneLine style is configured", () => {
-    const installed = installFakeWebGL2();
-    try {
-      const graph = mount(StyledConnection);
-      expect(graph.scene.store.get(entityKey("connection", "edge"))).toBeDefined();
-      expect(installed.contexts).toHaveLength(0);
-      expect(graph.getGraphLayer().$connectionsRenderer.value).toBe("canvas");
-    } finally {
-      installed.restore();
-    }
+    const getContext = jest.mocked(HTMLCanvasElement.prototype.getContext);
+    getContext.mockClear();
+    const graph = mount(StyledConnection);
+    expect(graph.scene.store.get(entityKey("connection", "edge"))).toBeDefined();
+    expect(graph.scene.$renderer.value).toBe("canvas");
+    expect(getContext.mock.calls.map(([type]) => type)).not.toContain("webgl2");
   });
 });

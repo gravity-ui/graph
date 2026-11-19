@@ -1,4 +1,6 @@
-import { createFragmentShader } from "../webgl/shaders";
+import { assembleGLSLShaderPair, resolveShaderPlugins } from "@luma.gl/shadertools";
+
+import { PATH_FRAGMENT, PATH_VERTEX, createPathPlugin } from "../../../../lib/scene/webgl/shaders";
 
 import { toConnectionEffect } from "./ConnectionEffect";
 import { dashFlow, pulse } from "./library";
@@ -42,14 +44,27 @@ describe("pulse", () => {
 });
 
 describe("GLSL helpers", () => {
-  const source = createFragmentShader();
-
   it("defines each helper once, after ConnectionFragment and before the effect", () => {
+    const plugin = resolveShaderPlugins([createPathPlugin(toConnectionEffect(dashFlow))], "glsl");
+    const { fs: source } = assembleGLSLShaderPair({
+      platformInfo: {
+        type: "webgl",
+        shaderLanguage: "glsl",
+        shaderLanguageVersion: 300,
+        gpu: "test",
+        features: new Set(),
+      },
+      vs: PATH_VERTEX,
+      fs: PATH_FRAGMENT,
+      modules: plugin.modules,
+      pluginInjections: plugin.injections,
+    });
     for (const name of ["graph_dashPhase", "graph_comet", "graph_wave"]) {
       expect(source.match(new RegExp(`\\b\\w+ ${name}\\(`, "g"))).toHaveLength(1);
     }
     const struct = source.indexOf("struct ConnectionFragment");
     const line = source.indexOf("#line 1");
+    expect(struct).toBeGreaterThanOrEqual(0);
     expect(source.indexOf("float graph_dashPhase(")).toBeGreaterThan(struct);
     expect(source.indexOf("float graph_wave(")).toBeLessThan(line);
   });

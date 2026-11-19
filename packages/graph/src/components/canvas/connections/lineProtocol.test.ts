@@ -1,6 +1,5 @@
 import { Graph } from "../../../graph";
 import { globalScheduler } from "../../../lib/Scheduler";
-import type { TBatchParams } from "../../../lib/batch/types";
 import type { TScenePrimitive } from "../../../lib/scene/types";
 import type { HitBoxData } from "../../../services/HitTest";
 import type { TConnection } from "../../../store/connection/ConnectionState";
@@ -8,7 +7,7 @@ import type { TConnection } from "../../../store/connection/ConnectionState";
 import type { TBaseConnectionState } from "./BaseConnection";
 import { BlockConnection } from "./BlockConnection";
 import type { BlockConnections } from "./BlockConnections";
-import type { IConnectionBatch, IConnectionBatchItem } from "./batch";
+import type { IConnectionBatch } from "./batch";
 import { generateBezierParams, getArrowCoords } from "./bezierHelpers";
 import { defineConnectionEffect } from "./effects";
 import { bezierGeometry, multipointGeometry } from "./geometry";
@@ -67,13 +66,6 @@ function internals(graph: Graph): TBlockConnectionsInternals {
 
 function lineOf(connection: BlockConnection<TConnection>): ConnectionLine {
   return (connection as unknown as { line: ConnectionLine }).line;
-}
-
-/** Every item of the connections batch with its z-level and group. */
-function registered(graph: Graph): Map<IConnectionBatchItem, TBatchParams> {
-  const items = new Map<IConnectionBatchItem, TBatchParams>();
-  internals(graph).batch.forEachItem((item, params) => items.set(item, { ...params }));
-  return items;
 }
 
 function pathsOf(graph: Graph, id: string): Extract<TScenePrimitive, { kind: "path" }>[] {
@@ -249,8 +241,11 @@ describe("BlockConnection line protocol", () => {
   it("puts the default shaft and open arrow into each connection's scene element", () => {
     graph = mount();
     const color = view(graph, "a").context.colors.connection.background;
-    expect(registered(graph).size).toBe(0);
+    const { batch } = internals(graph);
     for (const id of ["a", "b"]) {
+      const line = lineOf(view(graph, id));
+      expect(batch.has(line)).toBe(false);
+      expect(batch.has(line.arrow)).toBe(false);
       expect(pathsOf(graph, id).map(({ part, stroke }) => [part, stroke])).toEqual([
         ["line", { color, width: 2 }],
         ["arrow", { color, width: 2 }],

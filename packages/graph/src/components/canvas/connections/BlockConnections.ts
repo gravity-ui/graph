@@ -1,4 +1,4 @@
-import { ReadonlySignal, Signal, computed, signal } from "@preact/signals-core";
+import { ReadonlySignal, computed, signal } from "@preact/signals-core";
 
 import { Component, TComponentState } from "../../../lib/Component";
 import { CoreComponentProps } from "../../../lib/CoreComponent";
@@ -15,7 +15,6 @@ import { BatchPath2DRenderer } from "./BatchPath2D";
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import { ConnectionLabelRenderer } from "./Label";
 import type { IConnectionBatch } from "./batch";
-import type { TConnectionsRendererState } from "./lines";
 
 export type TGraphConnectionsContext = TGraphLayerContext & {
   batch: IConnectionBatch;
@@ -29,16 +28,11 @@ export type TGraphConnectionsContext = TGraphLayerContext & {
   isLabelFontSizeFromCamera?: () => boolean;
 };
 
-export type TBlockConnectionsProps = CoreComponentProps & {
-  /** Receives what draws the lines now; BlockConnections is its only writer. Read once, at construction. */
-  rendererState?: Signal<TConnectionsRendererState>;
-};
-
 /** Starts every replacement key, and escapes the ids that start with it (`BlockConnections.keyOf`). */
 const KEY_ESCAPE = "\u0000";
 
 /** Owns connection views and the Canvas batch for imperative connection extensions. */
-export class BlockConnections extends Component<TBlockConnectionsProps, TComponentState, TGraphConnectionsContext> {
+export class BlockConnections extends Component<CoreComponentProps, TComponentState, TGraphConnectionsContext> {
   public get connections(): ConnectionState[] {
     return this.context.graph.rootStore.connectionsList.$connections.value;
   }
@@ -46,9 +40,6 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
   protected readonly unsubscribe: (() => void)[];
 
   protected readonly batch: BatchPath2DRenderer;
-
-  /** What draws the lines now. */
-  private readonly rendererState: Signal<TConnectionsRendererState>;
 
   protected labels: ConnectionLabelRenderer;
 
@@ -86,9 +77,8 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
     }
   );
 
-  constructor(props: TBlockConnectionsProps, parent: Component) {
+  constructor(props: CoreComponentProps, parent: Component) {
     super(props, parent);
-    this.rendererState = this.props.rendererState ?? signal<TConnectionsRendererState>("canvas");
     const { chunkSize, cellSize } = this.getChunking();
     this.batch = new BatchPath2DRenderer(() => this.performRender(), chunkSize, cellSize);
     this.labels = new ConnectionLabelRenderer(() => this.performRender(), chunkSize, cellSize);
@@ -137,13 +127,6 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
         // An eager signal stops unchanged camera updates before they reach individual connections.
         this.connectionLabelFontSize.value = fontSize;
       }),
-      this.context.graph.scene.$renderer.subscribe((renderer) => {
-        if (renderer === "lost" || renderer === "webgl-fallback") {
-          this.rendererState.value = "webgl-fallback";
-        } else {
-          this.rendererState.value = renderer === "webgl" ? "webgl" : "canvas";
-        }
-      }),
       settings.$connectionsSettings.subscribe(() => this.scheduleUpdate()),
       viewConnections.subscribe(() => this.scheduleUpdate()),
       settings.$connection.subscribe(() => this.scheduleUpdate()),
@@ -154,7 +137,6 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
     super.unmount();
     this.scheduleUpdate.cancel();
     this.unsubscribe.forEach((dispose) => dispose());
-    this.rendererState.value = "canvas";
   }
 
   protected updateChildren() {

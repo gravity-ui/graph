@@ -673,7 +673,7 @@ struct ConnectionFragment {
   float coverage;       // 0..1: how much of the pixel the stroke itself covers, anti-aliased
   float scale;          // CSS pixels per world unit
   vec2 world;           // the fragment's world position
-  float time;           // seconds since the renderer started
+  float time;           // seconds on graph.scene.clock, shared across renderer switches
   vec4 params0;         // params[0..3]
   vec4 params1;         // params[4..7]
   float hovered;        // 1.0 while the connection is hovered, else 0.0
@@ -783,13 +783,12 @@ export const pulsingComets = defineConnectionEffect({
 });
 ```
 
-## Fallback and `$connectionsRenderer`
+## Renderer state and fallback
 
 When WebGL2 is unavailable or the scene loses its context, the Canvas2D interpreter draws the scene using the same
 geometry and the base strokes of effect lines. The scene manages context restoration.
 
-Read `graph.scene.$renderer` for renderer state, including loading and restoration. The compatibility signal
-`graph.getGraphLayer().$connectionsRenderer` maps the scene to `"canvas"`, `"webgl"` or `"webgl-fallback"`.
+Read [`graph.scene.$renderer`](../system/scene.md#renderer) to observe the active renderer, loading, fallback and restoration.
 
 ## Hit testing
 

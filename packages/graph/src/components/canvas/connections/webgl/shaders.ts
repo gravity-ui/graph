@@ -6,8 +6,7 @@
 import { CURVE_CHORDS } from "./encode";
 
 /** Everything an effect can read, before the effect's source. */
-export const FRAGMENT_PRELUDE = /* glsl */ `#version 300 es
-precision highp float;
+export const FRAGMENT_PRELUDE = /* glsl */ `precision highp float;
 #define GRAPH_CONNECTION_FRAGMENT 1
 
 in vec4 graph_vColor;
@@ -115,16 +114,6 @@ void main() {
   graph_fragColor = vec4(color.rgb * alpha, alpha);
 }
 `;
-
-/**
- * The line program's fragment shader. `effect` is GLSL ES 3.00 defining `vec4 effect(ConnectionFragment f, vec4
- * color)` that recolors every fragment the stroke draws (straight RGBA in and out); without it the stroke keeps its
- * color. The library anti-aliases, fades hairlines and premultiplies afterwards. `uniforms` declares the effect's
- * `u_<name>` uniforms. Compiler logs count lines from the effect's first line.
- */
-export function createFragmentShader(effect: string = IDENTITY_EFFECT, uniforms = ""): string {
-  return `${FRAGMENT_PRELUDE}\n${uniforms}#line 1\n${effect}\n${FRAGMENT_MAIN}`;
-}
 
 /** Triangle strip of uniform chords along one piece: (t, side) pairs. */
 export function createCurveTemplate(chords = CURVE_CHORDS): Float32Array {

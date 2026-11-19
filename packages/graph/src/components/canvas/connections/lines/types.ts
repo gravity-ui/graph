@@ -3,11 +3,6 @@ import type { TConnectionEffectScaleRange, TUniformTypes } from "../effects/type
 
 import type { ConnectionLine } from "./ConnectionLine";
 
-export type TConnectionsRenderer = "canvas" | "webgl";
-
-/** Compatibility view of the scene renderer (`graph.getGraphLayer().$connectionsRenderer`). */
-export type TConnectionsRendererState = "canvas" | "webgl" | "webgl-fallback";
-
 /** What Path2D and WebGL draw the same way; lengths in world units. */
 export type TLineStroke = { color: string; width: number; dash?: { pattern: readonly number[] } };
 
