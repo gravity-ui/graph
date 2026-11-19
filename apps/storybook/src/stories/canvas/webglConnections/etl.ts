@@ -93,13 +93,6 @@ export function getFlowStatus(source: TEtlStageStatus, target: TEtlStageStatus):
   return "running";
 }
 
-/** The selected effect, read by the lines in getStroke(): the look depends on data outside the connection's store. */
-let etlEffect: TEtlEffect = "comets";
-
-export function setEtlEffect(effect: TEtlEffect): void {
-  etlEffect = effect;
-}
-
 /** The look of a running flow; `volume` (1..10, relative rows per second) sets speed, spacing and width. */
 function runningLook(effect: TEtlEffect, volume: number, range?: TConnectionEffectScaleRange): TLook {
   switch (effect) {
@@ -159,8 +152,6 @@ export function createEtlConnection(
     return runningLook(readEffect(), volume, range);
   });
 }
-
-export const etlConnection = createEtlConnection(() => etlEffect);
 
 const blockWidth = 280;
 const blockHeight = 136;

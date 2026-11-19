@@ -76,7 +76,8 @@ function BlockOutlineScene({ renderer, html }: Args) {
 }
 
 const meta: Meta<Args> = {
-  title: "Canvas/Block outline",
+  id: "canvas-block-outline",
+  title: "Scene/Examples/Block styles",
   component: BlockOutlineScene,
   args: { renderer: "webgl", html: false },
   argTypes: {
@@ -87,3 +88,4 @@ const meta: Meta<Args> = {
 };
 export default meta;
 export const Selected: StoryFn<Args> = (args) => <BlockOutlineScene {...args} />;
+Selected.storyName = "Selection outline";

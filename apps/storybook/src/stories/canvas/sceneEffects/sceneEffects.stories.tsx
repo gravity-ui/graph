@@ -1,32 +1,17 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { BlockGroups, ECanDrag, Group } from "@gravity-ui/graph";
-import type { BlockState, Graph, TBlock, TGraphColorsPatch } from "@gravity-ui/graph";
+import type { BlockState, Graph, TBlock, TSceneRenderer } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
-import { GraphBlock, GraphCanvas, useGraph, useLayer, useSignal } from "@gravity-ui/graph-react";
-import { Button, Flex, SegmentedRadioGroup, Slider, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { GraphCanvas, useGraph, useLayer, useSignal } from "@gravity-ui/graph-react";
+import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import { computed, signal } from "@preact/signals-core";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { glow } from "../webglConnections/lines";
 
-import { EffectCardView } from "./EffectCardView";
 import { StageCardView } from "./StageCardView";
-import {
-  EFFECT_CARD_IS,
-  EffectCard,
-  effectCardId,
-  effectCardRules,
-  effectCards,
-  effectTags,
-  effectTitles,
-  getCardEncodes,
-  isEffectCard,
-  resetCardEncodes,
-} from "./effectCard";
-import type { TEffectCard } from "./effectCard";
-import { EFFECT_PARTS } from "./effectPaths";
-import type { TEffectPart } from "./effectPaths";
+import { PlainView, viewConfiguration } from "./blockView";
 import { EtlSimulation, createEtlAtScale, pipelineRect } from "./etlAtScale";
 import { startEtlCameraMotion } from "./etlCameraMotion";
 import type { TEtlCameraMotion } from "./etlCameraMotion";
@@ -46,66 +31,6 @@ import type { TStageHighlight, TStageStatus } from "./stageBlock";
 
 import "@gravity-ui/graph-minimap/styles.css";
 import "@gravity-ui/uikit/styles/styles.css";
-
-type TRenderer = "canvas" | "webgl";
-
-const renderers: { value: TRenderer; content: string }[] = [
-  { value: "canvas", content: "Canvas" },
-  { value: "webgl", content: "WebGL" },
-];
-
-type THtmlMode = "on" | "off";
-
-const htmlModes: { value: THtmlMode; content: string }[] = [
-  { value: "on", content: "HTML on" },
-  { value: "off", content: "HTML off" },
-];
-
-/** A block of another class: its name in a plain view (both stories render their own class only). */
-const PlainView = ({ graph, block }: { graph: Graph; block: TBlock }): React.JSX.Element => (
-  <GraphBlock graph={graph} block={block}>
-    {block.name}
-  </GraphBlock>
-);
-
-/** White cards on the light canvas; the selection keeps the theme colour. */
-const viewConfiguration: { colors: TGraphColorsPatch } = {
-  colors: { block: { background: "#ffffff", border: "#d9dce1", text: "#1f2329" } },
-};
-
-/** A slider writing an effect's float uniform (a signal shared by every path that uses the effect). */
-const UniformSlider = ({
-  label,
-  uniform,
-  min,
-  max,
-  step,
-}: {
-  label: string;
-  uniform: { value: number };
-  min: number;
-  max: number;
-  step: number;
-}): React.JSX.Element => {
-  const [value, setValue] = useState(uniform.value);
-  return (
-    <Flex alignItems="center" gap={2}>
-      <Text variant="body-1">{label}</Text>
-      <div style={{ width: 180 }}>
-        <Slider
-          value={value}
-          min={min}
-          max={max}
-          step={step}
-          onUpdate={(next) => {
-            uniform.value = next;
-            setValue(next);
-          }}
-        />
-      </div>
-    </Flex>
-  );
-};
 
 /** Frames per second of the page, counted with requestAnimationFrame over each second; only this text re-renders. */
 const Fps = (): React.JSX.Element => {
@@ -128,124 +53,6 @@ const Fps = (): React.JSX.Element => {
   }, []);
   return <b>{fps}</b>;
 };
-
-/* ------------------------------------------------------------------------------------------------------------------ */
-/* Block effects                                                                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
-
-const glowUniform = glow.uniforms.intensity;
-
-/** The gallery's HTML view: a React card that replaces the scene card at the detailed level. */
-const renderEffectCard = (graph: Graph, block: TBlock): React.JSX.Element =>
-  isEffectCard(block) ? <EffectCardView graph={graph} block={block} /> : <PlainView graph={graph} block={block} />;
-
-const BlockEffectsApp = (): React.JSX.Element => {
-  const { graph, setEntities, start, zoomTo } = useGraph({ viewConfiguration });
-  const [renderer, setRenderer] = useState<TRenderer>("webgl");
-  // Off by default: the gallery shows the WebGL effects up close, and the HTML would replace them there.
-  const [html, setHtml] = useState<THtmlMode>("off");
-  const [enabled, setEnabled] = useState<ReadonlySet<TEffectPart>>(() => new Set(EFFECT_PARTS));
-  const [rowsPerSecond, setRowsPerSecond] = useState(18400);
-  const [encodes, setEncodes] = useState(0);
-  const rendererState = useSignal(graph.scene.$renderer);
-  const level = useSignal(graph.scene.$level);
-
-  useEffect(() => {
-    graph.updateSettings({ renderer });
-  }, [graph, renderer]);
-
-  useEffect(() => {
-    graph.updateSettings({ blockComponents: { [EFFECT_CARD_IS]: EffectCard }, canDrag: ECanDrag.ALL });
-    const remove = graph.scene.styles.add(effectCardRules);
-    resetCardEncodes();
-    setEntities({ blocks: effectCards });
-    start();
-    zoomTo("center", { padding: 60 });
-    return remove;
-  }, [graph, setEntities, start, zoomTo]);
-
-  // Each effect's tag is on its card while the effect is enabled: the rules show the part, nothing is re-encoded.
-  useEffect(() => {
-    for (const part of EFFECT_PARTS) {
-      if (enabled.has(part)) graph.scene.tags.set(effectTags[part], { block: [effectCardId(part)] });
-      else graph.scene.tags.clear(effectTags[part]);
-    }
-  }, [graph, enabled]);
-
-  // The throughput is card data: the card is encoded again with the new text and particle speed.
-  useEffect(() => {
-    const patch: { id: string } & Partial<TEffectCard> = { id: effectCardId("particles"), rowsPerSecond };
-    graph.api.updateBlock(patch);
-  }, [graph, rowsPerSecond]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setEncodes(getCardEncodes()), 300);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const toggle = (part: TEffectPart): void => {
-    const next = new Set(enabled);
-    if (next.has(part)) next.delete(part);
-    else next.add(part);
-    setEnabled(next);
-  };
-
-  return (
-    <ThemeProvider theme="light">
-      <Flex direction="column" style={{ height: "100vh" }}>
-        <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">What can be animated on a block</Text>
-          <Text variant="body-1">
-            Eight scene blocks, one animated WebGL effect each. An effect is a path primitive with an effect (built-in
-            dashFlow and pulse, or a defineConnectionEffect shader from the WebGL connections story), drawn as its own
-            part. A base rule hides every effect part; a tag per effect shows its part. The buttons write the tags: the
-            effect switches with no geometry change, the encode counter below stays put. The throughput slider changes
-            card data instead: that card is encoded again. Canvas 2D does not run effects: it draws each effect path as
-            its static stroke (a solid line, no dash). With HTML on, a React card replaces each scene card at the
-            detailed level (from scale 0.7) and shows a CSS version of its effect; the effect tags reach it as
-            graph-tag-fx-* classes, so the buttons switch it too. Zoom out below 0.7 to see the WebGL effects again.
-          </Text>
-          <Flex alignItems="center" gap={2} wrap>
-            <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />
-            <SegmentedRadioGroup options={htmlModes} value={html} onUpdate={setHtml} />
-            <Button onClick={() => graph.zoom({ scale: 1 })}>Detailed (1)</Button>
-            <Button onClick={() => graph.zoom({ scale: 0.5 })}>Schematic (0.5)</Button>
-            <Button onClick={() => setEnabled(new Set(EFFECT_PARTS))}>All effects on</Button>
-            <Button onClick={() => setEnabled(new Set())}>All effects off</Button>
-            {EFFECT_PARTS.map((part) => (
-              <Button key={part} view={enabled.has(part) ? "action" : "outlined"} onClick={() => toggle(part)}>
-                {effectTitles[part]}
-              </Button>
-            ))}
-          </Flex>
-          <Flex alignItems="center" gap={4} wrap>
-            <UniformSlider label="Glow intensity" uniform={glowUniform} min={0} max={1.5} step={0.05} />
-            <Flex alignItems="center" gap={2}>
-              <Text variant="body-1">Throughput</Text>
-              <div style={{ width: 180 }}>
-                <Slider value={rowsPerSecond} min={0} max={60000} step={200} onUpdate={setRowsPerSecond} />
-              </div>
-            </Flex>
-            <Text variant="body-1" color="secondary">
-              graph.scene.$renderer: <b>{rendererState}</b> · level: <b>{level}</b> · card encodes: <b>{encodes}</b>
-            </Text>
-          </Flex>
-        </Flex>
-        <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
-          <GraphCanvas
-            graph={graph}
-            className="graph-canvas"
-            renderBlock={html === "on" ? renderEffectCard : undefined}
-          />
-        </div>
-      </Flex>
-    </ThemeProvider>
-  );
-};
-
-/* ------------------------------------------------------------------------------------------------------------------ */
-/* ETL at scale                                                                                                       */
-/* ------------------------------------------------------------------------------------------------------------------ */
 
 const PipelineGroup = Group.define({
   style: {
@@ -279,7 +86,7 @@ const ETL_COUNT_CONTROL = { type: "number", min: 100, max: 10_000, step: 1 } as 
 type TEtlAtScaleArgs = {
   blockCount: number;
   connectionCount: number;
-  renderer: TRenderer;
+  renderer: TSceneRenderer;
   html: boolean;
   minimap: boolean;
   retargetOrdersFlow: boolean;
@@ -423,7 +230,12 @@ const EtlAtScaleApp = ({
   }, [cameraMotion, data, graph, view]);
 
   useEffect(() => {
-    glowUniform.value = selectionGlow;
+    const intensity = glow.uniforms.intensity;
+    const previous = intensity.value;
+    intensity.value = selectionGlow;
+    return () => {
+      intensity.value = previous;
+    };
   }, [selectionGlow]);
 
   useEffect(() => {
@@ -494,28 +306,12 @@ const EtlAtScaleApp = ({
 };
 
 const meta: Meta = {
-  title: "Canvas/SceneEffects",
-  component: BlockEffectsApp,
+  id: "canvas-sceneeffects",
+  title: "Scene/Diagnostics/ETL",
   parameters: { layout: "fullscreen" },
 };
 
 export default meta;
-
-export const BlockEffects: StoryFn = () => <BlockEffectsApp />;
-BlockEffects.storyName = "Block effects";
-BlockEffects.parameters = {
-  docs: {
-    description: {
-      story:
-        "Each card is a `CanvasBlock` subclass whose level methods return a path primitive with an effect " +
-        "(`dashFlow`, `pulse`, or the `particles`, `glow` and `gradient` shaders) in its own part. A base rule hides " +
-        "the effect parts and one tag per effect shows its part, so `graph.scene.tags` switches an effect without " +
-        "running the level methods again. WebGL animates the effects; Canvas 2D draws their static strokes. " +
-        '"HTML on" adds a React card (`GraphBlock`) that replaces the scene card at the detailed level and shows a ' +
-        "CSS version of its effect, so the WebGL effects show when zoomed out.",
-    },
-  },
-};
 
 export const EtlAtScale: StoryFn<TEtlAtScaleArgs> = (args) => {
   const blockCount = boundedCount(args.blockCount, etlDefaults.blockCount);
@@ -536,32 +332,36 @@ export const EtlAtScale: StoryFn<TEtlAtScaleArgs> = (args) => {
 EtlAtScale.storyName = "ETL at scale";
 EtlAtScale.args = etlDefaults;
 EtlAtScale.argTypes = {
-  blockCount: { name: "Blocks", control: ETL_COUNT_CONTROL },
-  connectionCount: { name: "Connections", control: ETL_COUNT_CONTROL },
-  renderer: { name: "Renderer", control: "radio", options: ["webgl", "canvas"] },
-  html: { name: "HTML cards", control: "boolean" },
-  minimap: { name: "Minimap", control: "boolean" },
+  blockCount: { name: "Blocks", table: { category: "Data" }, control: ETL_COUNT_CONTROL },
+  connectionCount: { name: "Connections", table: { category: "Data" }, control: ETL_COUNT_CONTROL },
+  renderer: { name: "Renderer", table: { category: "Appearance" }, control: "radio", options: ["webgl", "canvas"] },
+  html: { name: "HTML cards", table: { category: "Appearance" }, control: "boolean" },
+  minimap: { name: "Minimap", table: { category: "Appearance" }, control: "boolean" },
   retargetOrdersFlow: {
     name: "Retarget Orders DB flow",
+    table: { category: "Data" },
     description:
       "Choose View → One pipeline. Switch the Orders DB output from Extract orders (in-0) to Ingest events (in-1). Switch off to restore it.",
     control: "boolean",
   },
-  live: { name: "Live", control: "boolean" },
-  levelTransitions: { name: "Level transitions", control: "boolean" },
-  focusOnFailures: { name: "Focus on failures", control: "boolean" },
+  live: { name: "Live", table: { category: "Data" }, control: "boolean" },
+  levelTransitions: { name: "Level transitions", table: { category: "Appearance" }, control: "boolean" },
+  focusOnFailures: { name: "Focus on failures", table: { category: "Appearance" }, control: "boolean" },
   view: {
     name: "View",
+    table: { category: "Camera" },
     options: [...ETL_VIEWS],
     control: { type: "select", labels: { fit: "Fit all", pipeline: "One pipeline" } },
   },
   cameraMotion: {
     name: "Camera motion",
+    table: { category: "Camera" },
     options: ["manual", "zoom", "pan"],
     control: { type: "select", labels: { manual: "Manual", zoom: "Zoom cycle", pan: "Circular pan" } },
   },
   blockHighlight: {
     name: "Block highlight",
+    table: { category: "Appearance" },
     options: ["off", "base", "outline", "outline-and-halo"],
     control: {
       type: "select",
@@ -575,11 +375,13 @@ EtlAtScale.argTypes = {
   },
   selectionGlow: {
     name: "Original selection glow",
+    table: { category: "Appearance" },
     if: { arg: "blockHighlight", eq: "off" },
     control: { type: "range", min: 0, max: 1.5, step: 0.05 },
   },
   effectMinScale: {
     name: "Effect min scale",
+    table: { category: "Appearance" },
     description:
       "Below this scale, status outlines and running flows become steady. Overview throughput particles disappear. Set 0 to keep WebGL effects active at every scale.",
     control: { type: "number", min: 0, max: 0.7, step: 0.05 },

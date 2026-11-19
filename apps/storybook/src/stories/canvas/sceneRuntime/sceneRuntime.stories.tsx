@@ -3,18 +3,13 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { dashFlow } from "@gravity-ui/graph";
 import type { Graph, TScenePrimitive } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useSignal } from "@gravity-ui/graph-react";
-import { Button, Flex, SegmentedRadioGroup, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { Button, Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
 type TRenderer = "canvas" | "webgl";
 type TBounds = { minX: number; minY: number; maxX: number; maxY: number };
-
-const renderers: { value: TRenderer; content: string }[] = [
-  { value: "canvas", content: "Canvas" },
-  { value: "webgl", content: "WebGL" },
-];
 
 const BLOCK_WIDTH = 200;
 const BLOCK_HEIGHT = 100;
@@ -130,9 +125,10 @@ function addMany(graph: Graph, count: number): void {
   }
 }
 
-const SceneRuntimeApp = (): React.JSX.Element => {
+type RuntimeArgs = { renderer: TRenderer };
+
+const SceneRuntimeApp = ({ renderer }: RuntimeArgs): React.JSX.Element => {
   const { graph, start, zoomTo } = useGraph({});
-  const [renderer, setRenderer] = useState<TRenderer>("canvas");
   const [lowered, setLowered] = useState(false);
   const [tagged, setTagged] = useState(false);
   const [many, setMany] = useState(false);
@@ -141,11 +137,14 @@ const SceneRuntimeApp = (): React.JSX.Element => {
   const level = useSignal(graph.scene.$level);
 
   useEffect(() => {
-    // For poking at the scene from the devtools console.
-    (window as unknown as { sceneGraph?: Graph }).sceneGraph = graph;
+    const debugWindow = window as Window & { sceneGraph?: Graph };
+    debugWindow.sceneGraph = graph;
     fillScene(graph);
     start();
     zoomTo({ x: -80, y: -40, width: 620, height: 280 }, { padding: 40 });
+    return () => {
+      if (debugWindow.sceneGraph === graph) delete debugWindow.sceneGraph;
+    };
   }, [graph, start, zoomTo]);
 
   useEffect(() => {
@@ -187,12 +186,12 @@ const SceneRuntimeApp = (): React.JSX.Element => {
     <ThemeProvider theme="light">
       <Flex direction="column" style={{ height: "100vh" }}>
         <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">Scene runtime</Text>
+          <Text variant="header-1">Draw order and context recovery</Text>
           <Text variant="body-1">
-            Zoom to change the level of detail, or switch between Canvas and WebGL to compare the same scene.
+            Lower Alpha to check draw order. Choose WebGL in Controls to test whether the scene recovers after context
+            loss.
           </Text>
           <Flex alignItems="center" gap={3} wrap>
-            <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />
             <Button onClick={toggleLowered}>
               {lowered ? "Raise Alpha above the line" : "Lower Alpha under the line"}
             </Button>
@@ -227,9 +226,12 @@ const SceneRuntimeApp = (): React.JSX.Element => {
   );
 };
 
-const meta: Meta = {
-  title: "Canvas/SceneRuntime",
+const meta: Meta<RuntimeArgs> = {
+  id: "canvas-sceneruntime",
+  title: "Scene/Diagnostics/Rendering",
   component: SceneRuntimeApp,
+  args: { renderer: "canvas" },
+  argTypes: { renderer: { name: "Renderer", control: "inline-radio", options: ["canvas", "webgl"] } },
   parameters: {
     layout: "fullscreen",
   },
@@ -237,7 +239,8 @@ const meta: Meta = {
 
 export default meta;
 
-export const SceneRuntime: StoryFn = () => <SceneRuntimeApp />;
+export const SceneRuntime: StoryFn<RuntimeArgs> = (args) => <SceneRuntimeApp {...args} />;
+SceneRuntime.storyName = "Draw order and context recovery";
 SceneRuntime.parameters = {
   docs: {
     description: {

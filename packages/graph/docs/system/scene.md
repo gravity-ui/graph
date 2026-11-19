@@ -24,6 +24,23 @@ then composites it below the rest of the scene. Blocks and their text retain the
 is redrawn each frame that uses it. Eligibility is internal and respects the authored scene order. See
 [connection draw calls and order](../connections/webgl-connections.md#draw-calls-and-order).
 
+## Explore the scene in Storybook
+
+Open **Scene → Examples** to try block styles, connection effects and custom elements on small graphs.
+The [ETL pipeline](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-webglconnections--etl-pipeline) shows how changing one stage updates its flows.
+
+Use **Scene → Diagnostics** to reproduce rendering and interaction issues. Copy the Storybook URL after setting
+Controls to share the same input. For performance comparisons, keep the viewport, device pixel ratio and camera
+motion fixed when switching renderers.
+
+| Investigate | Story and starting conditions |
+| --- | --- |
+| Status updates, reconnects and zoom | [ETL at scale](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-sceneeffects--etl-at-scale) opens with 10,000 blocks, 10,000 connections and the minimap off. Enable **Live** for status updates, or choose **One pipeline** and toggle **Retarget Orders DB flow**. |
+| Large graphs with Bézier connections | [Nirvana overview](https://preview.gravity-ui.com/graph/v2/?path=/story/stories-main-grapheditor--nirvana-max-graph-test) opens on the whole graph. [Nirvana effects](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-webglconnections--nirvana-effects) opens on the central layers. At their default sizes both use the same seeded layout. |
+| Stroke coverage at a sharp turn | [Polyline bends](https://preview.gravity-ui.com/graph/v2/?path=/story/scene-diagnostics-polyline-bends--stroke-coverage) opens with a half-opacity stroke, width 16 and a 19/13 dash. Switch renderers, repeat the vertex or magnify the lower bend. |
+| Click targets at the HTML handover | [HTML handover and picking](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-sceneinteraction--scene-interaction) reports the last clicked component. Click the blue button before and after switching to detailed zoom. |
+| Draw order and context loss | [Draw order and context recovery](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-sceneruntime--scene-runtime) lets you lower a block below a line and trigger WebGL context loss and restoration. |
+
 ## Add an element to the scene
 
 For an annotation, badge or character with its own position and pointer target, return a `SceneComponent` from a
@@ -130,7 +147,7 @@ Omit a descriptor from the next `updateChildren()` result to remove just that co
 block with anchors and connections, register a [custom block](../components/block-component.md#registering-custom-blocks)
 and use `graph.api.addBlock()` and `graph.api.updateBlock()` to manage its data.
 
-In Storybook, open [Canvas / Scene elements / Orbit mascot](../../../../apps/storybook/src/stories/canvas/sceneRuntime/mascot.stories.tsx)
+In Storybook, open [Scene / Examples / Custom elements / Orbit Mascot](../../../../apps/storybook/src/stories/canvas/sceneRuntime/mascot.stories.tsx)
 to see a component walk and wave in the WebGL scene. Orbit owns its body and returns keyed children for its limbs.
 Each child adds its pose offset to `super.getSceneOrigin()`, so the hand can wave while the feet stand still.
 All parts share one animation clock and keep their primitive geometry across frames. Moving them still redraws the

@@ -1,8 +1,7 @@
 import { CanvasBlock, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
 
-import { random } from "../../storyUtils";
-
 import { storiesSettings } from "./definitions";
+import { mulberry32 } from "./seededRandom";
 
 export function createBlock(x: number, y: number, index: number | string): TBlock {
   const blockId = `block_${index}`;
@@ -18,10 +17,6 @@ export function createBlock(x: number, y: number, index: number | string): TBloc
   };
 }
 
-function getRandomArbitrary(min: number, max: number): number {
-  return (Math.random() * (max - min) + min) | 0;
-}
-
 /** Generated config: `blocks` and `connections` are always present. */
 export type TGeneratedGraphConfig = TGraphConfig & { blocks: TBlock[]; connections: TConnection[] };
 
@@ -31,6 +26,7 @@ type Props = {
   dashedLine?: boolean;
   overrideSettings?: Partial<TGraphConfig["settings"]>;
   startIndex?: number;
+  seed?: number;
 };
 
 export function generatePrettyBlocks({
@@ -39,7 +35,10 @@ export function generatePrettyBlocks({
   dashedLine,
   overrideSettings = {},
   startIndex = 0,
+  seed,
 }: Props): TGeneratedGraphConfig {
+  const random = seed === undefined ? Math.random : mulberry32(seed);
+  const getRandomArbitrary = (min: number, max: number): number => Math.floor(random() * (max - min) + min);
   const config: TGeneratedGraphConfig = {
     configurationName: "power of 2",
     blocks: [],
@@ -96,7 +95,7 @@ export function generatePrettyBlocks({
           sourceBlockId: sourceBlockId,
           targetBlockId: targetBlockId,
           label: "Some label",
-          dashed: dashedLine && Boolean(Math.floor(random(0, 2))),
+          dashed: dashedLine && random() >= 0.5,
         });
       }
       prevLayerBlocks = [...currentLayerBlocks];

@@ -265,8 +265,8 @@ class GradientCanvasConnection extends BlockConnection {
 }
 ```
 
-The same look in WebGL is an effect with the colors in its parameters (the `Gradient (shader)` option of the Storybook
-`Canvas/WebGLConnections` `NirvanaEffects` story), where the scene can batch connections that share the effect.
+The WebGL example passes both colors as effect parameters. Choose the gradient effect in
+[Nirvana effects](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-webglconnections--nirvana-effects) to see the scene batch connections that share it.
 
 ## Geometry
 
@@ -857,5 +857,6 @@ draw calls, instances and uploaded bytes for the whole scene.
 - [Connection System](canvas-connection-system.md): creating, styling and customizing connections.
 - [Batch Rendering](batch-rendering.md): groups, chunks and culling of custom Canvas lines.
 - [Migrating to v2: connection lines and geometry](../migration-guides/v1-to-v2.md#connection-lines-and-geometry).
-- Storybook `Canvas/WebGLConnections`: `RunningDash`, `PerConnectionStyle`, `GraphStress` and `NirvanaEffects`, with
-  the code of every option.
+- **Scene → Examples → Connections** includes [Running dash](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-webglconnections--running-dash),
+  [Style from connection data](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-webglconnections--per-connection-style) and the editable ETL pipeline.
+- [Scene diagnostics](../system/scene.md#explore-the-scene-in-storybook) covers load, stroke coverage, camera motion and HTML handover.

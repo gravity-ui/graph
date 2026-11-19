@@ -92,7 +92,8 @@ function OrbitScene({ present, animate, shimmer = true, textured = false }: Orbi
 }
 
 const meta: Meta<OrbitArgs> = {
-  title: "Canvas/Scene elements",
+  id: "canvas-scene-elements",
+  title: "Scene/Examples/Custom elements",
   args: { present: true, animate: true },
   argTypes: {
     present: { name: "Show mascot", control: "boolean" },

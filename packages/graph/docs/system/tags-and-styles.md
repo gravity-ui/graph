@@ -169,7 +169,7 @@ graph.scene.styles.add([
 
 While the outline applies, it replaces the stock rectangular border. Canvas 2D, WebGL and React `GraphBlock` use
 the same rule. See [Outline a block and its anchors](../components/block-component.md#outline-a-block-and-its-anchors)
-for the supported shapes and [Block outline / Selected](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-block-outline--selected)
+for the supported shapes and [Block styles / Selection outline](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-block-outline--selected)
 to compare renderers.
 
 **`cameraAware`** (`true` or `false`) turns the camera-aware mode of the part's texts on or off (see
@@ -297,8 +297,8 @@ The default `Block` draws five parts (see [Block component](../components/block-
 | `badge` | a circle in the top-right corner | hidden |
 
 The theme hides the halo and the badge with a base rule, so a state rule shows them. The theme also raises a selected
-or dragged block by one bucket. Every state of the T1 story (`Canvas/SceneBlocks`) is a tag and a rule on these
-parts, with no `Block` subclass:
+or dragged block by one bucket. [Block parts and zoom levels](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-sceneblocks--scene-blocks)
+shows how to style those parts with a tag and a rule.
 
 ```ts
 import { CanvasBlock, defineTag } from "@gravity-ui/graph";

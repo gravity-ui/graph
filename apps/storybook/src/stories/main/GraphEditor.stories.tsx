@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 
-import { ECanDrag, Graph, TGraphConfig, TGraphSettingsConfig, TStyleRule } from "@gravity-ui/graph";
-import { ThemeProvider } from "@gravity-ui/uikit";
+import type { TStyleRule } from "@gravity-ui/graph";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { CustomLayerConfig } from "../configurations/CustomLayerConfig";
@@ -15,86 +14,11 @@ import { oneStraightConfig } from "../configurations/oneConnection";
 import { verticalGraphConfig } from "../configurations/verticalGraph";
 import { withAnchorsConfig } from "../configurations/withAnchors";
 
-import { GraphComponentStory, TGraphComponentProps } from "./GraphEditor";
+import { GraphApp, graphEditorMeta } from "./GraphEditorExample";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
-const GraphApp = ({
-  config,
-  constants,
-  rules,
-  ...settings
-}: {
-  config: TGraphConfig;
-  constants?: TGraphComponentProps["constants"];
-  /** Style rules of the story's custom blocks, registered on the graph's scene while the story is mounted. */
-  rules?: readonly TStyleRule[];
-} & Partial<TGraphSettingsConfig>) => {
-  const graphRef = useRef<Graph | undefined>(undefined);
-
-  useEffect(() => graphRef.current?.scene.styles.add(rules ?? []), [rules]);
-
-  useEffect(() => {
-    if (graphRef.current) {
-      graphRef.current.updateSettings(settings);
-    }
-  }, [settings, graphRef]);
-
-  return (
-    <ThemeProvider theme={"light"}>
-      <GraphComponentStory graphRef={graphRef} config={config} constants={constants} />
-    </ThemeProvider>
-  );
-};
-
-const meta: Meta<typeof GraphApp> = {
-  component: GraphApp,
-  parameters: {
-    layout: "fullscreen",
-  },
-  argTypes: {
-    canDragCamera: {
-      control: "boolean",
-      description: "Allow drag camera's viewport",
-    },
-    canZoomCamera: {
-      control: "boolean",
-      description: "Allow zoom camera",
-    },
-    canDrag: {
-      control: "select",
-      options: [ECanDrag.ALL, ECanDrag.ONLY_SELECTED, ECanDrag.NONE],
-      description: "allow drag blocks",
-    },
-    showConnectionArrows: {
-      control: "boolean",
-      description: "Show connection arrow",
-    },
-    useBezierConnections: {
-      control: "boolean",
-      description: "use bezier connections. May be slow for giant graphs",
-    },
-    showConnectionLabels: {
-      control: "boolean",
-      description: "Render connection's label",
-    },
-    viewportCulling: {
-      control: "boolean",
-      description: "Cull canvas components by the viewport; off walks every component without viewport culling",
-    },
-  },
-  args: {
-    useBezierConnections: true,
-    showConnectionLabels: false,
-    canDragCamera: true,
-    canZoomCamera: true,
-    canDrag: ECanDrag.ALL,
-    scaleFontSize: 1,
-    showConnectionArrows: true,
-    viewportCulling: true,
-  },
-};
-
+const meta: Meta<typeof GraphApp> = { ...graphEditorMeta };
 export default meta;
 type Story = StoryObj<typeof GraphApp>;
 
@@ -143,40 +67,6 @@ export const FiveThousandsBlocks: Story = {
   render: (args) => (
     <GraphApp {...args} config={generatePrettyBlocks({ layersCount: 40, connectionsPerLayer: 300 })}></GraphApp>
   ),
-};
-
-export const GraphStressTest: Story = {
-  args: {
-    useBezierConnections: false,
-  },
-  render: (args) => {
-    return (
-      <GraphApp
-        {...args}
-        config={generatePrettyBlocks({
-          layersCount: 110,
-          connectionsPerLayer: 1000,
-          overrideSettings: { useBezierConnections: false },
-        })}
-      ></GraphApp>
-    );
-  },
-};
-export const NirvanaMaxGraphTest: Story = {
-  args: { renderer: "canvas" },
-  argTypes: {
-    renderer: { control: "select", options: ["canvas", "webgl"] },
-  },
-  render: function Render(args) {
-    const [config] = useState(() =>
-      generatePrettyBlocks({
-        layersCount: 55,
-        connectionsPerLayer: 400,
-        overrideSettings: { useBezierConnections: true },
-      })
-    );
-    return <GraphApp {...args} config={config} />;
-  },
 };
 
 export const CustomSchematicBlock: Story = {

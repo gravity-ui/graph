@@ -83,7 +83,8 @@ function BlockHoverScene({ renderer, html }: MotionArgs) {
 }
 
 const meta: Meta<MotionArgs> = {
-  title: "Canvas/Block hover",
+  id: "canvas-block-hover",
+  title: "Scene/Examples/Block styles",
   component: BlockHoverScene,
   args: { renderer: "webgl", html: false },
   argTypes: {
@@ -96,3 +97,4 @@ const meta: Meta<MotionArgs> = {
 export default meta;
 
 export const BounceAndShake: StoryFn<MotionArgs> = (args) => <BlockHoverScene {...args} />;
+BounceAndShake.storyName = "Hover motion";

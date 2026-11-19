@@ -9,6 +9,9 @@ import "@gravity-ui/graph-react/styles.css";
 import "@gravity-ui/uikit/styles/styles.css";
 
 const preview: Preview = {
+  parameters: {
+    options: { storySort: { order: ["Playground", "Scene", ["Examples", "Diagnostics"], "*"] } },
+  },
   decorators: [
     (Story) => (
       <StrictMode>

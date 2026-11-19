@@ -315,7 +315,7 @@ its rounded corners and protruding anchors. The halo stays still while the point
 
 Call `removeOutline()` to unregister the rule. A higher-priority rule with `outline: null` turns the outline off and
 restores the block's normal border. Select either block or hover its ports in
-[Block outline / Selected](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-block-outline--selected).
+[Block styles / Selection outline](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-block-outline--selected).
 
 ## Order, selection and drag
 

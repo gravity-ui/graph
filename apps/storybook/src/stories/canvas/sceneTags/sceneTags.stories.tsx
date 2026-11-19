@@ -1,19 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import { CanvasBlock, ESelectionStrategy, defineTag } from "@gravity-ui/graph";
 import type { Graph, TScenePrimitive } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useSignal } from "@gravity-ui/graph-react";
-import { Button, Flex, SegmentedRadioGroup, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { Button, Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
-type TRenderer = "canvas" | "webgl";
-
-const renderers: { value: TRenderer; content: string }[] = [
-  { value: "canvas", content: "Canvas" },
-  { value: "webgl", content: "WebGL" },
-];
+type TagArgs = { renderer: "canvas" | "webgl"; running: boolean; presence: boolean; focus: boolean; ghost: boolean };
 
 const runningTag = defineTag("running");
 const presenceTag = defineTag<string>("presence");
@@ -79,14 +74,9 @@ function fillScene(graph: Graph): void {
 
 const PRESENCE_COLORS = ["#ff4081", "#7c4dff"];
 
-const SceneTagsApp = (): React.JSX.Element => {
+const SceneTagsApp = ({ renderer, running, presence, focus, ghost }: TagArgs): React.JSX.Element => {
   const { graph, start, zoomTo } = useGraph({});
-  const [renderer, setRenderer] = useState<TRenderer>("canvas");
   const [selectedId, setSelectedId] = useState<string>("a");
-  const [running, setRunning] = useState(false);
-  const [presence, setPresence] = useState(false);
-  const [focus, setFocus] = useState(false);
-  const [ghost, setGhost] = useState(false);
   const rendererState = useSignal(graph.scene.$renderer);
   const level = useSignal(graph.scene.$level);
   const generation = useSignal(graph.scene.$styleGeneration);
@@ -94,8 +84,8 @@ const SceneTagsApp = (): React.JSX.Element => {
   const selection = useSignal(graph.selectionService.$selection);
 
   useEffect(() => {
-    // For poking at the scene from the devtools console.
-    (window as unknown as { sceneGraph?: Graph }).sceneGraph = graph;
+    const debugWindow = window as Window & { sceneGraph?: Graph };
+    debugWindow.sceneGraph = graph;
     fillScene(graph);
     // The running rules: a green border on every level, a green body on the minimalistic level only.
     const remove = graph.scene.styles.add([
@@ -120,7 +110,10 @@ const SceneTagsApp = (): React.JSX.Element => {
     ]);
     start();
     zoomTo({ x: -40, y: -40, width: 3 * WIDTH + 2 * GAP + 80, height: 240 }, { padding: 40 });
-    return remove;
+    return () => {
+      remove();
+      if (debugWindow.sceneGraph === graph) delete debugWindow.sceneGraph;
+    };
   }, [graph, start, zoomTo]);
 
   useEffect(() => {
@@ -135,64 +128,42 @@ const SceneTagsApp = (): React.JSX.Element => {
     [graph]
   );
 
-  const toggleRunning = useCallback((): void => {
-    if (running) graph.scene.tags.clear(runningTag);
-    else graph.scene.tags.set(runningTag, { block: ["b", "c"] });
-    setRunning(!running);
-  }, [graph, running]);
-
-  const togglePresence = useCallback((): void => {
-    if (presence) graph.scene.tags.clear(presenceTag);
-    else {
-      graph.scene.tags.set(presenceTag, {
+  useEffect(() => {
+    const { tags } = graph.scene;
+    tags.set(runningTag, { block: running ? ["b", "c"] : [] });
+    if (presence)
+      tags.set(presenceTag, {
         block: new Map([
           ["a", PRESENCE_COLORS[0]],
           ["c", PRESENCE_COLORS[1]],
         ]),
       });
-    }
-    setPresence(!presence);
-  }, [graph, presence]);
+    else tags.clear(presenceTag);
+    tags.set(highlightedTag, { block: focus ? ["a"] : [] });
+    tags.setRoot(focusTag, focus);
+    tags.set(ghostTag, { block: ghost ? ["b"] : [] });
+  }, [graph, running, presence, focus, ghost]);
 
-  const toggleFocus = useCallback((): void => {
-    if (focus) graph.scene.tags.clear(highlightedTag);
-    else graph.scene.tags.set(highlightedTag, { block: ["a"] });
-    graph.scene.tags.setRoot(focusTag, !focus);
-    setFocus(!focus);
-  }, [graph, focus]);
-
-  const toggleGhost = useCallback((): void => {
-    if (ghost) graph.scene.tags.clear(ghostTag);
-    else graph.scene.tags.set(ghostTag, { block: ["b"] });
-    setGhost(!ghost);
-  }, [graph, ghost]);
-
-  const explanation = useMemo(
-    () => JSON.stringify(graph.scene.explain("block", selectedId), null, 2),
-    // explain reads no signal: recompute when anything it depends on changes.
-    [graph, selectedId, selection, running, presence, focus, ghost, level, generation, renderer]
-  );
+  const [explanation, setExplanation] = useState("");
+  // Read after the tag updates have reached the scene.
+  useEffect(() => {
+    setExplanation(JSON.stringify(graph.scene.explain("block", selectedId), null, 2));
+  }, [graph, selectedId, selection, running, presence, focus, ghost, level, generation, renderer]);
 
   return (
     <ThemeProvider theme="light">
       <Flex direction="column" style={{ height: "100vh" }}>
         <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">Scene tags and styles</Text>
           <Text variant="body-1">
-            Three scene elements leave the body fill and border colour unset; the theme and the rules colour them. Zoom
-            out to the minimalistic level to see the second running rule.
+            Select an element to inspect its rules. Enable presence, focus or opacity in Controls to see how they
+            combine.
           </Text>
           <Flex alignItems="center" gap={3} wrap>
-            <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />
             {IDS.map((id) => (
               <Button key={id} view={selectedId === id ? "action" : "normal"} onClick={() => select(id)}>
                 Select {id}
               </Button>
             ))}
-            <Button onClick={toggleRunning}>{running ? "Stop running (b, c)" : "Run b and c"}</Button>
-            <Button onClick={togglePresence}>{presence ? "Clear presence" : "Presence on a and c"}</Button>
-            <Button onClick={toggleFocus}>{focus ? "Clear focus" : "Focus a (dim the others)"}</Button>
-            <Button onClick={toggleGhost}>{ghost ? "Unghost b" : "Ghost b (opacity 0.4)"}</Button>
           </Flex>
           <Text variant="body-1" color="secondary">
             graph.scene.$renderer: <b>{rendererState}</b> · graph.scene.$level: <b>{level}</b>
@@ -211,9 +182,18 @@ const SceneTagsApp = (): React.JSX.Element => {
   );
 };
 
-const meta: Meta = {
-  title: "Canvas/SceneTags",
+const meta: Meta<TagArgs> = {
+  id: "canvas-scenetags",
+  title: "Scene/Diagnostics/Style inspector",
   component: SceneTagsApp,
+  args: { renderer: "canvas", running: false, presence: false, focus: false, ghost: false },
+  argTypes: {
+    renderer: { name: "Renderer", control: "inline-radio", options: ["canvas", "webgl"] },
+    running: { name: "Running (b, c)", control: "boolean" },
+    presence: { name: "Presence colors (a, c)", control: "boolean" },
+    focus: { name: "Focus on a", control: "boolean" },
+    ghost: { name: "Apply 40% opacity to b", control: "boolean" },
+  },
   parameters: {
     layout: "fullscreen",
   },
@@ -221,7 +201,8 @@ const meta: Meta = {
 
 export default meta;
 
-export const SceneTags: StoryFn = () => <SceneTagsApp />;
+export const SceneTags: StoryFn<TagArgs> = (args) => <SceneTagsApp {...args} />;
+SceneTags.storyName = "Tag precedence and opacity";
 SceneTags.parameters = {
   docs: {
     description: {

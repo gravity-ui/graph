@@ -26,7 +26,7 @@ import type {
 } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import { GraphBlock, GraphCanvas, useGraph, useGraphEvent, useLayer, useSignal } from "@gravity-ui/graph-react";
-import { Button, Flex, SegmentedRadioGroup, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { Button, Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import "@gravity-ui/graph-minimap/styles.css";
@@ -216,12 +216,10 @@ const renderBlock = <T extends TBlock>(graph: Graph, block: T): React.JSX.Elemen
   <StageHtml graph={graph} block={block} />
 );
 
-type SceneInteractionArgs = { minimap: boolean };
+type SceneInteractionArgs = { renderer: "canvas" | "webgl"; html: boolean; minimap: boolean };
 
-const SceneInteractionApp = ({ minimap }: SceneInteractionArgs): React.JSX.Element => {
+const SceneInteractionApp = ({ renderer, html, minimap }: SceneInteractionArgs): React.JSX.Element => {
   const { graph, start, setEntities, zoomTo } = useGraph({});
-  const [renderer, setRenderer] = useState<"canvas" | "webgl">("canvas");
-  const [html, setHtml] = useState<"on" | "off">("on");
   const level = useSignal(graph.scene.$level);
   const rendererState = useSignal(graph.scene.$renderer);
   const [lastClick, setLastClick] = useState("none yet");
@@ -255,30 +253,12 @@ const SceneInteractionApp = ({ minimap }: SceneInteractionArgs): React.JSX.Eleme
     <ThemeProvider theme="light">
       <Flex direction="column" style={{ height: "100vh" }}>
         <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">Child components, anchor classes, the HTML handover and the minimap</Text>
+          <Text variant="header-1">HTML handover and picking</Text>
           <Text variant="body-1">
-            The blue button is a child scene component of each block: click it to toggle the block&apos;s running tag,
-            hover it to see its hover rule. OUT anchors are a square anchor class. With HTML on, the detailed level
-            shows HTML blocks after a short &quot;loading&quot;; the scene draws each block until its view is ready,
-            zooming out draws the blocks again in the same frame, and the HTML button reaches the same component.
+            Click a blue button to toggle its block’s running state. At detailed zoom the HTML card takes over after 400
+            ms. The button should keep the same click target through the handover. The last click appears below.
           </Text>
           <Flex alignItems="center" gap={3} wrap>
-            <SegmentedRadioGroup
-              options={[
-                { value: "canvas", content: "Canvas" },
-                { value: "webgl", content: "WebGL" },
-              ]}
-              value={renderer}
-              onUpdate={setRenderer}
-            />
-            <SegmentedRadioGroup
-              options={[
-                { value: "on", content: "HTML on" },
-                { value: "off", content: "HTML off" },
-              ]}
-              value={html}
-              onUpdate={setHtml}
-            />
             {LEVEL_SCALES.map(({ level: target, scale }) => (
               <Button key={target} view={level === target ? "action" : "normal"} onClick={() => zoomToScale(scale)}>
                 Zoom to {target} ({scale})
@@ -291,7 +271,7 @@ const SceneInteractionApp = ({ minimap }: SceneInteractionArgs): React.JSX.Eleme
           </Text>
         </Flex>
         <div style={{ flex: 1, position: "relative", minHeight: 400 }}>
-          <GraphCanvas graph={graph} className="graph-canvas" renderBlock={html === "on" ? renderBlock : undefined} />
+          <GraphCanvas graph={graph} className="graph-canvas" renderBlock={html ? renderBlock : undefined} />
         </div>
       </Flex>
     </ThemeProvider>
@@ -299,13 +279,19 @@ const SceneInteractionApp = ({ minimap }: SceneInteractionArgs): React.JSX.Eleme
 };
 
 const meta: Meta<SceneInteractionArgs> = {
-  title: "Canvas/SceneInteraction",
+  id: "canvas-sceneinteraction",
+  title: "Scene/Diagnostics/Interaction",
   component: SceneInteractionApp,
-  args: { minimap: false },
-  argTypes: { minimap: { name: "Minimap", control: "boolean" } },
+  args: { renderer: "canvas", html: true, minimap: false },
+  argTypes: {
+    renderer: { name: "Renderer", control: "inline-radio", options: ["canvas", "webgl"] },
+    html: { name: "HTML at detailed zoom", control: "boolean" },
+    minimap: { name: "Minimap", control: "boolean" },
+  },
   parameters: { layout: "fullscreen" },
 };
 
 export default meta;
 
 export const SceneInteraction: StoryFn<SceneInteractionArgs> = (args) => <SceneInteractionApp {...args} />;
+SceneInteraction.storyName = "HTML handover and picking";

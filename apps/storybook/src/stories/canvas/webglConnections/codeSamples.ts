@@ -44,18 +44,12 @@ class DataStyledConnection extends BlockConnection {
 }
 // graph.updateSettings({ connection: DataStyledConnection });`;
 
-export const stressCode = `${imports("BlockConnection, SceneLine, dashFlow")}
-// GraphEditor/GraphStressTest: generatePrettyBlocks({ layersCount: 110, connectionsPerLayer: 1000 }), straight lines
-class StressLine extends SceneLine {
-  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
-    const effect = dashFlow.use({ pattern: [12, 8], speed: 40 });
-    return this.withInteraction({ color: "#4e79a7", width: 2, effect }, state);
-  }
-}
-class StressConnection extends BlockConnection {
-  public static override line = StressLine;
-}
-// graph.updateSettings({ connection: StressConnection, useBezierConnections: false });`;
+export const stressCode = `import { BlockConnection } from "@gravity-ui/graph";
+import type { Graph } from "@gravity-ui/graph";
+
+function showStraightConnections(graph: Graph): void {
+  graph.updateSettings({ connection: BlockConnection, useBezierConnections: false });
+}`;
 
 export const pipelineCode = `${imports("BlockConnection, SceneLine, dashFlow, pulse")}
 ${hashHelper}
@@ -212,45 +206,43 @@ type TStageStatus = "running" | "succeeded" | "idle" | "paused" | "failed";
 type TStage = TBlock & { status: TStageStatus };
 type TFlow = TConnection & { volume: number; status: "running" | "idle" | "failed" };
 
-// The look depends on data outside the connection's store: the selected effect
-let flowEffect: "comets" | "pulse" | "plain" = "comets";
+type FlowEffect = "comets" | "pulse" | "plain";
+function installFlowEffect(graph: Graph, initial: FlowEffect) {
+  let flowEffect = initial;
 
-class FlowLine extends SceneLine {
-  public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
-    const { status, volume = 1 } = state as TBaseConnectionState & Partial<TFlow>;
-    // failed and idle flows keep their own look, whatever the effect
-    if (status === "failed") {
-      return this.withInteraction({ color: "#e5484d", width: 3, dash: { pattern: [10, 8] } }, state);
+  class FlowLine extends SceneLine {
+    public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
+      const { status, volume = 1 } = state as TBaseConnectionState & Partial<TFlow>;
+      // failed and idle flows keep their own look, whatever the effect
+      if (status === "failed") {
+        return this.withInteraction({ color: "#e5484d", width: 3, dash: { pattern: [10, 8] } }, state);
+      }
+      if (status === "idle") return this.withInteraction({ color: "#888888", width: 1 }, state);
+      const width = 2 + volume * 0.4;
+      if (flowEffect === "comets") {
+        const effect = dashFlow.use({ pattern: [40, 50], speed: 40 + volume * 20, fade: true });
+        return this.withInteraction({ color: "#2f7cf6", width, effect }, state);
+      }
+      if (flowEffect === "pulse") {
+        const effect = pulse.use({ period: 4.5 - volume * 0.3, wavelength: 3000 });
+        return this.withInteraction({ color: "#2f7cf6", width, effect }, state);
+      }
+      return this.withInteraction({ color: "#2f7cf6", width }, state);
     }
-    if (status === "idle") return this.withInteraction({ color: "#888888", width: 1 }, state);
-    const width = 2 + volume * 0.4;
-    if (flowEffect === "comets") {
-      const effect = dashFlow.use({ pattern: [40, 50], speed: 40 + volume * 20, fade: true });
-      return this.withInteraction({ color: "#2f7cf6", width, effect }, state);
-    }
-    if (flowEffect === "pulse") {
-      const effect = pulse.use({ period: 4.5 - volume * 0.3, wavelength: 3000 });
-      return this.withInteraction({ color: "#2f7cf6", width, effect }, state);
-    }
-    return this.withInteraction({ color: "#2f7cf6", width }, state);
   }
-}
-class FlowConnection extends BlockConnection {
-  public static override line = FlowLine;
-}
+  class FlowConnection extends BlockConnection {
+    public static override line = FlowLine;
+  }
 
-function setupGraph(graph: Graph): void {
-  // the stages can be dragged; the flows follow them
   graph.updateSettings({ renderer: "webgl", connection: FlowConnection, canDrag: ECanDrag.ALL });
-}
 
-// On change, every connection reads its line again:
-function setFlowEffect(graph: Graph, next: typeof flowEffect): void {
-  flowEffect = next;
-  for (const state of graph.rootStore.connectionsList.$connections.value) {
-    const view = state.getViewComponent();
-    if (view instanceof BlockConnection) view.invalidateLine();
-  }
+  return (next: FlowEffect) => {
+    flowEffect = next;
+    for (const state of graph.rootStore.connectionsList.$connections.value) {
+      const view = state.getViewComponent();
+      if (view instanceof BlockConnection) view.invalidateLine();
+    }
+  };
 }
 
 // A flow takes its status from its stages

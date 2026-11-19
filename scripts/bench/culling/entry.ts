@@ -3,6 +3,8 @@
 import * as GRAPH from "GRAPH";
 import { BlockConnection, CanvasBlock, ECanDrag, EAnchorType, Graph } from "GRAPH";
 
+import { mulberry32 } from "../../../apps/storybook/src/stories/configurations/seededRandom";
+
 type TBlockData = Record<string, unknown> & { x: number; y: number; width: number; height: number };
 type TScene = { blocks: TBlockData[]; connections: Array<Record<string, unknown>> };
 
@@ -38,15 +40,6 @@ const unified = api === "new" && !glStats.getWebGLConnectionsStats;
 type TLayerInternals = {
   __comp: { context: { scheduler: { update: () => void } }; treeNode: { children: Set<unknown> } };
 };
-
-function mulberry32(seed: number): () => number {
-  return () => {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 function anchorY(index: number): number {
   return 18 * index + (index >= 1 ? 8 * index : 0) + 18;

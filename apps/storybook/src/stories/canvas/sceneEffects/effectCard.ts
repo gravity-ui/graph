@@ -1,5 +1,5 @@
 import { CanvasBlock, defineTag } from "@gravity-ui/graph";
-import type { TBlock, TBlockView, TScenePrimitive, TStyleParts, TStyleRule, TTag } from "@gravity-ui/graph";
+import type { Graph, TBlock, TBlockView, TScenePrimitive, TStyleParts, TStyleRule, TTag } from "@gravity-ui/graph";
 
 import { formatRows } from "../webglConnections/etl";
 
@@ -111,16 +111,8 @@ export const effectCards: TEffectCard[] = EFFECT_PARTS.map((effect, index) => ({
   anchors: [],
 }));
 
-/** Encodes of every card since the last reset: a tag that switches an effect does not add one. */
-let cardEncodes = 0;
-
-export function getCardEncodes(): number {
-  return cardEncodes;
-}
-
-export function resetCardEncodes(): void {
-  cardEncodes = 0;
-}
+/** The gallery subscribes only while the encode counter is visible. */
+export const onCardEncode = new WeakMap<Graph, () => void>();
 
 /** A sparkline over 24 values: two waves, so it looks like data. */
 export function sparkPoints(x0: number, x1: number, top: number, bottom: number): [number, number][] {
@@ -194,7 +186,7 @@ export class EffectCard extends CanvasBlock<TEffectCard> {
   /** Every level takes this list: `Block` has no minimalistic method, and `detailed` returns the same list. */
   protected override schematic(view: TBlockView<TEffectCard>): readonly TScenePrimitive[] {
     if (this.cache?.view !== view) {
-      cardEncodes++;
+      onCardEncode.get(this.context.graph)?.();
       this.cache = { view, primitives: [...this.card(view), ...effectPrimitives(view)] };
     }
     return this.cache.primitives;

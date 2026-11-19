@@ -3,15 +3,20 @@ import React, { useEffect, useState } from "react";
 import { CanvasBlock, ECanDrag, defineTag } from "@gravity-ui/graph";
 import type { TBlock, TConnection, TSceneLevel, TStyleRule } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useSignal } from "@gravity-ui/graph-react";
-import { Button, Flex, SegmentedRadioGroup, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { Button, Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
-type TRenderer = "canvas" | "webgl";
-
-/** How the default Block's title follows the camera: world text (the default), or a fixed screen size. */
-type TTitleMode = "world" | "camera-aware";
+type BlockArgs = {
+  renderer: "canvas" | "webgl";
+  titleMode: "world" | "camera-aware";
+  cameraAwareText: boolean;
+  running: boolean;
+  failed: boolean;
+  highlight: boolean;
+  focus: boolean;
+};
 
 const runningTag = defineTag("running");
 const failedTag = defineTag("failed");
@@ -86,12 +91,16 @@ function downloadPng(canvas: HTMLCanvasElement, name: string): void {
   }, "image/png");
 }
 
-const SceneBlocksApp = (): React.JSX.Element => {
+const SceneBlocksApp = ({
+  renderer,
+  titleMode,
+  cameraAwareText,
+  running,
+  failed,
+  highlight,
+  focus,
+}: BlockArgs): React.JSX.Element => {
   const { graph, start, setEntities, zoomTo } = useGraph({});
-  const [renderer, setRenderer] = useState<TRenderer>("canvas");
-  const [titleMode, setTitleMode] = useState<TTitleMode>("world");
-  const [cameraAwareText, setCameraAwareText] = useState(true);
-  const [state, setState] = useState({ running: false, failed: false, highlight: false, focus: false });
   const rendererState = useSignal(graph.scene.$renderer);
   const level = useSignal(graph.scene.$level);
   const generation = useSignal(graph.scene.$styleGeneration);
@@ -123,20 +132,19 @@ const SceneBlocksApp = (): React.JSX.Element => {
   }, [graph, cameraAwareText]);
 
   useEffect(() => {
-    graph.scene.tags.set(runningTag, { block: state.running ? ["b1", "b2"] : [] });
-    graph.scene.tags.set(failedTag, { block: state.failed ? ["b3"] : [] });
-    graph.scene.tags.set(highlightTag, { block: state.highlight || state.focus ? ["b2", "b5"] : [] });
-    graph.scene.tags.setRoot(focusTag, state.focus);
-  }, [graph, state]);
+    graph.scene.tags.set(runningTag, { block: running ? ["b1", "b2"] : [] });
+    graph.scene.tags.set(failedTag, { block: failed ? ["b3"] : [] });
+    graph.scene.tags.set(highlightTag, { block: highlight || focus ? ["b2", "b5"] : [] });
+    graph.scene.tags.setRoot(focusTag, focus);
+  }, [graph, running, failed, highlight, focus]);
 
   const [explanation, setExplanation] = useState("");
   // After the tag effect above (effects run in order): explain reads the tags without subscribing, so it must run
   // once they are written, not while rendering.
   useEffect(() => {
     setExplanation(JSON.stringify(graph.scene.explain("block", "b2"), null, 2));
-  }, [graph, state, selection, level, generation, renderer, titleMode, cameraAwareText]);
+  }, [graph, running, failed, highlight, focus, selection, level, generation, renderer, titleMode, cameraAwareText]);
 
-  const toggle = (key: keyof typeof state): void => setState((current) => ({ ...current, [key]: !current[key] }));
   const exportImage = (): void => downloadPng(graph.scene.toImage({ background: "#ffffff" }), "scene-blocks.png");
   const zoomToScale = (scale: number): void => {
     const { width, height } = graph.cameraService.getCameraState();
@@ -147,40 +155,12 @@ const SceneBlocksApp = (): React.JSX.Element => {
     <ThemeProvider theme="light">
       <Flex direction="column" style={{ height: "100vh" }}>
         <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">Default blocks in the scene</Text>
           <Text variant="body-1">
-            Running, failed, highlight and focus are tags and rules on the default Block parts (border, body, badge,
-            halo); no Block subclass. Select a block to see the theme&apos;s border and the raise, with its anchors.
-            Anchors are drawn on the schematic level only; the detailed level has no title.
+            Change a tag in Controls to inspect the matching rules on b2. Drag one block over another to check drawing
+            order.
           </Text>
           <Flex alignItems="center" gap={3} wrap>
-            <SegmentedRadioGroup
-              options={[
-                { value: "canvas", content: "Canvas" },
-                { value: "webgl", content: "WebGL" },
-              ]}
-              value={renderer}
-              onUpdate={setRenderer}
-            />
-            <Button onClick={() => toggle("running")}>{state.running ? "Stop b1, b2" : "Run b1, b2"}</Button>
-            <Button onClick={() => toggle("failed")}>{state.failed ? "Clear failure" : "Fail b3"}</Button>
-            <Button onClick={() => toggle("highlight")}>{state.highlight ? "Unhighlight" : "Highlight b2, b5"}</Button>
-            <Button onClick={() => toggle("focus")}>{state.focus ? "Clear focus" : "Focus b2, b5"}</Button>
-            <Button onClick={exportImage}>Export PNG (toImage)</Button>
-          </Flex>
-          <Flex alignItems="center" gap={3} wrap>
-            <Text variant="body-1">Title</Text>
-            <SegmentedRadioGroup
-              options={[
-                { value: "world", content: "World" },
-                { value: "camera-aware", content: "Camera-aware" },
-              ]}
-              value={titleMode}
-              onUpdate={setTitleMode}
-            />
-            <Button view={cameraAwareText ? "action" : "normal"} onClick={() => setCameraAwareText((on) => !on)}>
-              cameraAwareText: {cameraAwareText ? "on" : "off"}
-            </Button>
+            <Button onClick={exportImage}>Export PNG</Button>
             {LEVEL_SCALES.map(({ level: target, scale }) => (
               <Button key={target} view={level === target ? "action" : "normal"} onClick={() => zoomToScale(scale)}>
                 Zoom to {target} ({scale})
@@ -204,17 +184,41 @@ const SceneBlocksApp = (): React.JSX.Element => {
   );
 };
 
-const meta: Meta = { title: "Canvas/SceneBlocks", component: SceneBlocksApp, parameters: { layout: "fullscreen" } };
+const meta: Meta<BlockArgs> = {
+  id: "canvas-sceneblocks",
+  title: "Scene/Diagnostics/Style inspector",
+  component: SceneBlocksApp,
+  args: {
+    renderer: "canvas",
+    titleMode: "world",
+    cameraAwareText: true,
+    running: false,
+    failed: false,
+    highlight: false,
+    focus: false,
+  },
+  argTypes: {
+    renderer: { name: "Renderer", control: "inline-radio", options: ["canvas", "webgl"] },
+    titleMode: { name: "Title sizing", control: "inline-radio", options: ["world", "camera-aware"] },
+    cameraAwareText: { name: "Enable camera-aware text", control: "boolean" },
+    running: { name: "Running (b1, b2)", control: "boolean" },
+    failed: { name: "Failed (b3)", control: "boolean" },
+    highlight: { name: "Highlight (b2, b5)", control: "boolean" },
+    focus: { name: "Focus (b2, b5)", control: "boolean" },
+  },
+  parameters: { layout: "fullscreen" },
+};
 
 export default meta;
 
-export const SceneBlocks: StoryFn = () => <SceneBlocksApp />;
+export const SceneBlocks: StoryFn<BlockArgs> = (args) => <SceneBlocksApp {...args} />;
+SceneBlocks.storyName = "Block parts and zoom levels";
 
 SceneBlocks.parameters = {
   docs: {
     description: {
       story:
-        "The default `Block` drawn by `graph.scene`, styled only by tags and rules (T1): `running` colours the " +
+        "The default `Block` drawn by `graph.scene`, styled by tags and rules: `running` colours the " +
         "border of b1 and b2 (and their bodies on the minimalistic level), `failed` shows b3's red border and badge, " +
         "`highlight` shows the halo of b2 and b5, and a root `focus` tag dims every other block with its anchors. " +
         "Selecting a block raises it and its anchors over a neighbour it overlaps (drag one onto another). " +
