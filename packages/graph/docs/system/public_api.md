@@ -31,7 +31,8 @@ For a full graph snapshot, call `graph.setEntities({ blocks, connections })`. Bo
 Pass the complete data for each row, including rows with existing IDs. A connection whose new snapshot omits
 `label` loses its previous label. Omitting a collection empties it. For incremental changes,
 `graph.updateEntities({ blocks, connections })` merges the supplied rows by ID. Other entities and omitted
-top-level fields on existing rows keep their values.
+top-level fields on existing rows keep their values. The call batches both collections, so a subscriber reading
+`graph.blocks.$blocks` and `graph.connections.$connections` sees the updated blocks and connections together.
 
 Built-in connections become drawable and hittable when both endpoint ports and their delegates resolve. A multipoint
 route then uses its stored points, substituting the effective port position at each delegated end. An empty route uses

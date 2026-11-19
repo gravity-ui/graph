@@ -74,6 +74,37 @@ or extra block or connection, differs by a much larger delta.
 Chromium comes from Playwright (`npx playwright install chromium`). On macOS it uses ANGLE Metal for a
 hardware canvas. Inside a sandbox that blocks Mach ports, run it outside the sandbox.
 
+## ETL selection, drag and edits
+
+The selection benchmark uses the **ETL at scale** story with 10,000 blocks and 10,000 connections.
+Build the workspace packages and start the development Storybook on port 6017.
+
+```sh
+pnpm run build
+pnpm --filter @gravity-ui/graph-storybook exec storybook dev -p 6017
+```
+
+Run the selection benchmark from the worktree root in another terminal.
+
+```sh
+node scripts/bench/etl-block-highlight.mjs /tmp/etl-highlight.json 3
+```
+
+The runner compares four highlight modes on Canvas and WebGL with Live, HTML cards and the minimap off.
+It selects the 19 stages in pipeline `p01`, then drags the selection with pointer input at 60 Hz.
+The JSON separates the selection action (`select`), its following frame (`selectionPresent`) and the drag.
+For a slow drag, compare the browser frame interval (`p95`), synchronous scene update (`scene95`) and time
+handling delivered pointer moves (`input95`).
+
+The standalone test `node --test scripts/bench/etl-camera-motion.test.mjs` checks camera motion, restart and
+cancellation with a deterministic clock.
+
+For a **Live** profile, take the longest animation-frame interval overlapping each simulation tick and its first
+scene paint. The story updates every 500 ms, so including idle frames can hide stalls at a status change.
+For reconnects, choose **View → One pipeline** and toggle **Retarget Orders DB flow** on and off. Measure the
+first edit after loading separately from repeated edits. Check that the same edge changes target and returns
+with the connection count intact.
+
 ## Scene bench (WebGL scene research, E1 and E2)
 
 `scene-run.mjs` measures the working tree only. It draws one Nirvana-like scene in two columns:

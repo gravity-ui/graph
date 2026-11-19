@@ -1,4 +1,3 @@
-// Run with node --test docs/superpowers/research/2026-11-17-etl-camera-motion.test.mjs.
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { build } from "esbuild";
 
-const repo = new URL("../../../", import.meta.url);
+const repo = new URL("../../", import.meta.url);
 const scratch = await mkdtemp(join(tmpdir(), "etl-camera-motion-"));
 const outfile = join(scratch, "motion.cjs");
 let motion;

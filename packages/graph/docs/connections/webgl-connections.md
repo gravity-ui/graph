@@ -412,6 +412,9 @@ fields can appear on a literal `{ effect, params, minScale, maxScale }`. Outside
 plain stroke, including its normal selection color. WebGL batches uses of the same effect instance with matching
 bounds, so distinct per-connection bounds can increase draw calls.
 
+An idle WebGL renderer stays idle when a uniform changes and every use of that effect in the graph is outside
+its scale range. The effect draws with the latest values when the camera re-enters an active range.
+
 ### Writing a tagged shader effect
 
 To show the direction of a transfer, draw a bright band that travels from source to target. This example uses a

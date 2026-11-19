@@ -114,7 +114,9 @@ if (graph.connections.hasPort("block-1_output")) {
 While delegated, a port follows the final delegate's position. Updates to the original port are saved until it is undelegated. Moving the delegate moves the drawn
 connection and its hit area. A collapsed group uses this to attach connections to its edge. A multipoint route keeps its
 stored bends and substitutes the delegated endpoint for its first or last point. Expanding the group restores the
-original route. A connection waits for both effective endpoints to resolve before drawing.
+original route. A connection waits for both effective endpoints to resolve before drawing. For ports owned by
+blocks or their anchors, visibility follows the original blocks. When both blocks are hidden, their connection
+is hidden even if the ports delegate to visible group edges.
 
 ```typescript
 blockPort.delegate(groupEdgePort);
