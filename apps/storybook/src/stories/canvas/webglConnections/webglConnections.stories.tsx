@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 
-import { BlockConnection, ECanDrag, MultipointConnection } from "@gravity-ui/graph";
+import { BlockConnection, ECanDrag, MultipointConnection, dashFlow, defineTag } from "@gravity-ui/graph";
 import type { Graph, TBlock, TGraphColorsPatch, TMultipointConnection } from "@gravity-ui/graph";
 import { GraphBlock, useGraph } from "@gravity-ui/graph-react";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
@@ -8,7 +8,6 @@ import type { Meta, StoryObj } from "@storybook/react-webpack5";
 import { BlockStory } from "../../main/Block";
 
 import {
-  ConnectionExample,
   ConnectionPreview,
   GeneratedConnections,
   rendererControl,
@@ -92,12 +91,23 @@ const routePoints = [
   { x: 650, y: 240 },
 ];
 
+type RoutePreset = "plain" | "dashed" | "flow";
+type RouteArgs = ConnectionArgs & { preset: RoutePreset };
+
+const flowing = defineTag("route-flow");
+const routePattern = [18, 10];
+const flowSpeed = 40;
+const plainColor = "#285ea8";
+const dashColor = "#087e67";
+const routeMember = { connection: ["route"] };
+const routeFlow = dashFlow.use({ pattern: routePattern, speed: flowSpeed });
+
 const route: TMultipointConnection = {
   id: "route",
   sourceBlockId: "source",
   targetBlockId: "target",
   points: routePoints,
-  styles: { background: "#285ea8" },
+  styles: { background: plainColor },
 };
 
 const routeConfig = {
@@ -108,20 +118,52 @@ const routeConfig = {
   connections: [route],
 };
 
-const routeCode = `import { MultipointConnection } from "@gravity-ui/graph";
+const flowCode = `
+  const flowing = defineTag("route-flow");
+  const effect = dashFlow.use({ pattern: [${routePattern.join(", ")}], speed: ${flowSpeed} });
+  const removeRule = graph.scene.styles.add([{
+    target: MultipointConnection, tags: [flowing],
+    style: { parts: { line: { color: "${dashColor}", effect } } },
+  }]);
+  const routeMember = { connection: ["route"] };
+  graph.scene.tags.add(flowing, routeMember);
+  return () => {
+    graph.scene.tags.delete(flowing, routeMember);
+    removeRule();
+  };`;
+
+function routePaint(preset: RoutePreset) {
+  return {
+    dashed: preset === "dashed",
+    styles: {
+      background: preset === "plain" ? plainColor : dashColor,
+      dashes: preset === "dashed" ? routePattern : undefined,
+    },
+  };
+}
+
+function routeCode({ renderer, preset }: RouteArgs) {
+  const { dashed, styles } = routePaint(preset);
+  const paint = dashed
+    ? `dashed: true,\n    styles: { background: "${styles.background}", dashes: [${styles.dashes?.join(", ")}] },`
+    : `styles: { background: "${styles.background}" },`;
+  return `import { MultipointConnection${preset === "flow" ? ", dashFlow, defineTag" : ""} } from "@gravity-ui/graph";
 import type { Graph, TMultipointConnection } from "@gravity-ui/graph";
 
 function addRoute(graph: Graph) {
-  graph.updateSettings({ renderer: "webgl", connection: MultipointConnection });
+  graph.updateSettings({ renderer: "${renderer}", connection: MultipointConnection });
   const edge: TMultipointConnection = {
+    id: "route",
     sourceBlockId: "source",
     targetBlockId: "target",
     points: [
 ${routePoints.map(({ x, y }) => `      { x: ${x}, y: ${y} },`).join("\n")}
     ],
+    ${paint}
   };
   graph.api.addConnection(edge);
-}`;
+${preset === "flow" ? flowCode + "\n" : ""}}`;
+}
 
 function renderRouteBlock(graph: Graph, block: TBlock) {
   return (
@@ -131,18 +173,59 @@ function renderRouteBlock(graph: Graph, block: TBlock) {
   );
 }
 
-export const MultipointRoute: StoryObj<ConnectionArgs> = {
-  name: "Multipoint route",
-  render: ({ renderer }) => (
-    <ConnectionExample
-      renderer={renderer}
-      connection={MultipointConnection}
-      config={routeConfig}
+const routeInstructions: Record<RoutePreset, string> = {
+  plain: "Follow the solid route from Extract to Load.",
+  dashed: "The green dashes follow every bend and stay still on both renderers.",
+  flow: "Dashes move from Extract to Load in WebGL. Canvas shows the solid green base stroke.",
+};
+
+function MultipointScene({ renderer, preset }: RouteArgs) {
+  const { graph, setEntities, start, zoomTo } = useGraph({
+    settings: { renderer, connection: MultipointConnection, showConnectionLabels: false },
+  });
+
+  useEffect(() => {
+    setEntities(routeConfig);
+    const remove = graph.scene.styles.add([
+      {
+        target: MultipointConnection,
+        tags: [flowing],
+        style: { parts: { line: { color: dashColor, effect: routeFlow } } },
+      },
+    ]);
+    start();
+    zoomTo("center", { padding: 100 });
+    return remove;
+  }, [graph, setEntities, start, zoomTo]);
+
+  useEffect(() => {
+    graph.api.updateConnection("route", routePaint(preset));
+    if (preset !== "flow") return undefined;
+    graph.scene.tags.add(flowing, routeMember);
+    return () => graph.scene.tags.delete(flowing, routeMember);
+  }, [graph, preset]);
+
+  return (
+    <ConnectionPreview
+      graph={graph}
       renderBlock={renderRouteBlock}
-      code={routeCode}
-      instruction="Click any segment of the route from Extract to Load to select the connection."
+      code={routeCode({ renderer, preset })}
+      instruction={`${routeInstructions[preset]} Click any segment to select the connection.`}
     />
-  ),
+  );
+}
+
+export const MultipointRoute: StoryObj<RouteArgs> = {
+  name: "Multipoint route",
+  args: { preset: "plain" },
+  argTypes: {
+    preset: {
+      name: "Route style",
+      options: ["plain", "dashed", "flow"],
+      control: { type: "inline-radio", labels: { plain: "Solid", dashed: "Static dash", flow: "Dash flow" } },
+    },
+  },
+  render: (args) => <MultipointScene {...args} />,
 };
 
 const etlViewConfiguration: { colors: TGraphColorsPatch } = {

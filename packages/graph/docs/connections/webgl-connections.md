@@ -388,7 +388,11 @@ const graph = new Graph({
 ```
 
 Open [Multipoint route in Storybook](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-webglconnections--multipoint-route)
-to follow a routed connection between two blocks. Click a segment after a bend to select it.
+to compare a solid stroke, a static dash and a running dash on the same route. A `parts.line` rule styles its
+entire shaft. Use `parts.arrow` for the arrow. On WebGL, `dashFlow` uses the accumulated distance from the
+source, so the pattern continues around bends. Canvas and image export show the base stroke. Click any segment
+to select the connection, including in a gap between dashes. To vary color along a single route, a
+[custom effect](#writing-a-tagged-shader-effect) can use `f.t` (0 at the source, 1 at the target).
 
 ## Effects
 

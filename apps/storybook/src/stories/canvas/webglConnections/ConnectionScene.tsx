@@ -82,30 +82,26 @@ export function ConnectionPreview({ graph, code, instruction, renderBlock = rend
   );
 }
 
-type ExampleProps = ConnectionArgs &
-  Pick<PreviewProps, "code" | "instruction" | "renderBlock"> & {
-    connection: TConnectionClass;
-    useBezierConnections?: boolean;
-    initialView?: TRect;
-    config: TGraphConfig;
-  };
-
-type GeneratedProps = Omit<ExampleProps, "config" | "renderBlock"> & {
+type GeneratedProps = ConnectionArgs & {
+  connection: TConnectionClass;
+  code: string;
+  instruction: string;
   layersCount: number;
   connectionsPerLayer: number | "example";
+  useBezierConnections?: boolean;
+  initialView?: TRect;
   variant: string;
 };
 
-export function ConnectionExample({
+function GeneratedView({
   renderer,
   connection,
   code,
   instruction,
-  renderBlock,
   useBezierConnections = true,
   initialView,
   config,
-}: ExampleProps) {
+}: Omit<GeneratedProps, "layersCount" | "connectionsPerLayer" | "variant"> & { config: TGraphConfig }) {
   const { graph, setEntities, setSettings, start, zoomTo } = useGraph({});
   useEffect(() => {
     setSettings({ renderer });
@@ -116,7 +112,7 @@ export function ConnectionExample({
     start();
     zoomTo(initialView ?? "center", { padding: 100 });
   }, [setSettings, connection, useBezierConnections, setEntities, config, start, zoomTo, initialView]);
-  return <ConnectionPreview graph={graph} code={code} instruction={instruction} renderBlock={renderBlock} />;
+  return <ConnectionPreview graph={graph} code={code} instruction={instruction} />;
 }
 
 export function GeneratedConnections({ layersCount, connectionsPerLayer, variant, ...view }: GeneratedProps) {
@@ -128,5 +124,5 @@ export function GeneratedConnections({ layersCount, connectionsPerLayer, variant
     [layersCount, connectionsPerLayer]
   );
   // A connection class belongs to its mounted graph. A new effect reuses the same generated topology.
-  return <ConnectionExample key={variant} {...view} config={config} />;
+  return <GeneratedView key={variant} {...view} config={config} />;
 }
