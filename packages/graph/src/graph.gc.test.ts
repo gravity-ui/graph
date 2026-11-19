@@ -56,6 +56,15 @@ async function countCollected(refs: IWeakRef<Graph>[]): Promise<number> {
 }
 
 describe("Graph garbage collection", () => {
+  beforeAll(() => {
+    // Exercise document-level font subscriptions, which jsdom's document omits.
+    Object.defineProperty(document, "fonts", { configurable: true, value: new EventTarget() });
+  });
+
+  afterAll(() => {
+    Reflect.deleteProperty(document, "fonts");
+  });
+
   it("releases unmounted graphs without another scheduler frame", async () => {
     const refs = Array.from({ length: GRAPH_COUNT }, () => mountAndUnmountGraph(false));
     expect(await countCollected(refs)).toBe(GRAPH_COUNT);

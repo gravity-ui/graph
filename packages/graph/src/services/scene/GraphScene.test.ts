@@ -627,6 +627,34 @@ describe("graph.scene", () => {
   });
 
   describe("frame order", () => {
+    it("defers new and renewed frame-end subscriptions and skips removed ones", () => {
+      graph = new Graph({}, document.createElement("div"));
+      graph.start();
+      const renewed = jest.fn();
+      const removed = jest.fn();
+      const next = jest.fn();
+      const first = jest.fn();
+      const stopFirst = graph.scene.onFrameEnd(first);
+      const stopRenewed = graph.scene.onFrameEnd(renewed);
+      const stopRemoved = graph.scene.onFrameEnd(removed);
+      first.mockImplementation(() => {
+        stopFirst();
+        stopRenewed();
+        stopRemoved();
+        graph.scene.onFrameEnd(renewed);
+        graph.scene.onFrameEnd(next);
+      });
+
+      graph.scheduler.performUpdate();
+      expect(renewed).not.toHaveBeenCalled();
+      expect(removed).not.toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+      stopRenewed();
+      graph.scheduler.performUpdate();
+      expect(renewed).toHaveBeenCalledTimes(1);
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
     it("aligns stationary HTML to the renderer that drew the frame, including an in-draw fallback", async () => {
       const fake = createFakeGpu();
       graph = new Graph({ settings: { renderer: "webgl", webglBackend: async () => fake.module } });

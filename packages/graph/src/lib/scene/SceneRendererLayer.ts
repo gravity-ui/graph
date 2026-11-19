@@ -22,6 +22,8 @@ export type TSceneRendererLayerProps = LayerProps & {
   clock?: { now(): number };
   /** Called after submitting a frame to the current renderer. */
   onDraw?: () => void;
+  /** Refreshes the graph's text measurements before the renderer uses newly loaded fonts. */
+  onFontsLoaded?: () => void;
   /** An application-requested paint opportunity before building or tearing down a backend. */
   pendingPresentation?: () => Promise<void> | undefined;
   /** The current scene level; a change redraws the layer, and the interpreter skips primitives of other levels. */
@@ -52,6 +54,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
   private loadToken = 0;
   /** Native context events can arrive before this load finishes creating a backend. */
   private pendingContext?: "lost" | "restored";
+  private observedFonts = false;
   private readonly start = performance.now();
 
   constructor(props: TSceneRendererLayerProps) {
@@ -112,9 +115,12 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     if (level) this.onSignal(level, () => this.performRender());
     const textPolicy = this.props.textPolicy;
     if (textPolicy) this.onSignal(textPolicy, () => this.performRender());
-    const fonts = typeof document === "undefined" ? undefined : document.fonts;
+    const fonts = this.context.ownerDocument?.fonts;
     if (fonts) {
       fonts.addEventListener("loadingdone", this.handleFontsLoaded, { signal: this.eventAbortController.signal });
+      // Fonts can finish loading while the graph is detached.
+      if (this.observedFonts) this.props.onFontsLoaded?.();
+      this.observedFonts = true;
     }
     super.afterInit();
     if (this.requested === "webgl") this.setRenderer("webgl");
@@ -147,9 +153,10 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
   /**
    * Late web fonts. On WebGL the glyph atlas is stale, so the backend is recreated and replays the store, laying every
    * text out again. Otherwise the interpreter draws: it redraws, laying text out again (`GraphScene.onFontsLoaded`
-   * clears the shared text metrics on the same event, before the next frame).
+   * clears the shared text metrics before the next draw).
    */
   private readonly handleFontsLoaded = (): void => {
+    this.props.onFontsLoaded?.();
     if (this.requested !== "webgl" || this.rendererState.value !== "webgl") {
       this.performRender();
       return;

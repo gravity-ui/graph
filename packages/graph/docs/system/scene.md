@@ -404,8 +404,9 @@ redraws on it, one frame after the change; the minimap follows `"block"` and the
 draws. Every call with one type returns the same signal.
 
 `onFrameEnd(listener)` calls the listener at the end of every graph frame, after every layer and the scene updated.
-It returns the function that removes the listener. GraphLayer finds the pointer's target again there, and ReactLayer
-switches its HTML there, so the frame that hides the HTML draws the scene blocks that go with it.
+It returns the function that removes the listener. A listener registered during notification starts on the next
+frame. Removing a listener before its turn skips it in the current frame. GraphLayer finds the pointer's target again
+there, and ReactLayer switches its HTML there, so the frame that hides the HTML draws the scene blocks that go with it.
 
 `graph.scene.store` is `@internal`: it is the write side used by the library components and the benches.
 

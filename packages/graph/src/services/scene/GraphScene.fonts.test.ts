@@ -24,8 +24,27 @@ describe("graph.scene and late web fonts", () => {
     Reflect.deleteProperty(document, "fonts");
   });
 
+  it("observes fonts only while attached and refreshes their measurements on reattach", () => {
+    const graph = new Graph({});
+    const measurer = { invalidateTextMeasures: jest.fn() };
+    graph.scene.trackTextMeasure(measurer);
+    fonts.dispatchEvent(new Event("loadingdone"));
+    expect(measurer.invalidateTextMeasures).not.toHaveBeenCalled();
+
+    const root = document.createElement("div");
+    graph.attach(root);
+    graph.detach();
+    measurer.invalidateTextMeasures.mockClear();
+    fonts.dispatchEvent(new Event("loadingdone"));
+    expect(measurer.invalidateTextMeasures).not.toHaveBeenCalled();
+    graph.attach(root);
+    expect(measurer.invalidateTextMeasures).toHaveBeenCalledTimes(1);
+    graph.unmount();
+  });
+
   it("clears the measures and the wrapped lines and runs the measurers again on loadingdone, until dispose", () => {
     const graph = new Graph({}, document.createElement("div"));
+    jest.mocked(clearMeasureTextCache).mockClear();
     jest.mocked(clearTextCache).mockClear();
     const onFontsLoaded = jest.spyOn(graph.scene, "onFontsLoaded");
     const measurer = { invalidateTextMeasures: jest.fn() };

@@ -222,16 +222,14 @@ export class GraphScene implements IGraphScene {
   /** Components whose level methods measured text; late web fonts run them again. */
   private readonly textMeasurers = new Set<ITextMeasurer>();
 
-  private readonly fontEvents = new AbortController();
-
   /** What prepares an export before it queries (`Blocks`: the anchors that do not exist yet), in the order added. */
   private readonly exportPreparers = new Set<TSceneExportPreparer>();
 
   /** Set while `toImage()` prepares, draws and cleans up: a nested call throws. */
   private exporting = false;
 
-  /** What `onFrameEnd` registered, called at the end of every graph frame. */
-  private readonly frameEndListeners = new Set<() => void>();
+  /** Listener to unsubscribe function. Copy on registration changes so a frame visits its original subscriptions. */
+  private frameEndListeners = new Map<() => void, () => void>();
 
   /** One counter per entity type a caller asked for (`revisionOf`); "" for elements without a type. */
   private readonly revisions = new Map<string, Signal<number>>();
@@ -289,6 +287,7 @@ export class GraphScene implements IGraphScene {
         level: this.$level,
         textPolicy: this.$textPolicy,
         onDraw: () => this.frameDrawn(),
+        onFontsLoaded: () => this.onFontsLoaded(),
         pendingPresentation: () => this.pendingPresentation,
         renderer: settings.$renderer.value,
         loadBackend: (): Promise<ISceneBackendModule> => (settings.$webglBackend.value ?? defaultLoader)(),
@@ -320,10 +319,6 @@ export class GraphScene implements IGraphScene {
       // `dim` fades elements into the background they are drawn on.
       this.store.setDimColor(colors.canvas.layerBackground);
     });
-    if (typeof document !== "undefined" && document.fonts) {
-      document.fonts.addEventListener("loadingdone", () => this.onFontsLoaded(), { signal: this.fontEvents.signal });
-    }
-
     let current = settings.$renderer.value;
     this.unsubscribeRenderer = settings.$renderer.subscribe((value) => {
       if (value === current) return;
@@ -403,7 +398,8 @@ export class GraphScene implements IGraphScene {
     }
     // Before the frame-end listeners: a change they make steps at the next frame's end.
     this.stepRevisions();
-    this.frameEndListeners.forEach((listener) => {
+    this.frameEndListeners.forEach((unsubscribe, listener) => {
+      if (this.frameEndListeners.get(listener) !== unsubscribe) return;
       try {
         listener();
       } catch (error) {
@@ -421,10 +417,15 @@ export class GraphScene implements IGraphScene {
   }
 
   public onFrameEnd(listener: () => void): () => void {
-    this.frameEndListeners.add(listener);
-    return (): void => {
+    const existing = this.frameEndListeners.get(listener);
+    if (existing) return existing;
+    const unsubscribe = (): void => {
+      if (this.frameEndListeners.get(listener) !== unsubscribe) return;
+      this.frameEndListeners = new Map(this.frameEndListeners);
       this.frameEndListeners.delete(listener);
     };
+    this.frameEndListeners = new Map(this.frameEndListeners).set(listener, unsubscribe);
+    return unsubscribe;
   }
 
   public revisionOf(entityType: string): ReadonlySignal<number> {
@@ -1019,7 +1020,6 @@ export class GraphScene implements IGraphScene {
     this.stopTheme = undefined;
     this.unfollowVisibility?.();
     this.unfollowVisibility = undefined;
-    this.fontEvents.abort();
     this.textMeasurers.clear();
     this.exportPreparers.clear();
     this.frameEndListeners.clear();
