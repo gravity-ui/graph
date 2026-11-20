@@ -38,7 +38,8 @@ export function GraphBlockAnchor({
     () => ({ type: "anchor", id: anchorEntityId(anchor.blockId, anchor.id) }),
     [anchor.blockId, anchor.id]
   );
-  const entityStyle = useEntityStyle(graph, entity, Anchor, "graph-block-anchor");
+  const target = viewComponent ? (viewComponent.constructor as typeof Anchor) : Anchor;
+  const entityStyle = useEntityStyle(graph, entity, target, "graph-block-anchor");
 
   const classNames = useMemo(() => {
     return cn(

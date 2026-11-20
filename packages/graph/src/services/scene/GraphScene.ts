@@ -197,8 +197,6 @@ export class GraphScene implements IGraphScene {
 
   private readonly sceneClock = new SceneClock();
 
-  private motionPreference?: MediaQueryList;
-
   private readonly $scale: ReadonlySignal<number>;
 
   private readonly resolver: StyleResolver;
@@ -210,6 +208,7 @@ export class GraphScene implements IGraphScene {
   private readonly styleUnbinds = new Set<() => void>();
 
   private unsubscribeRenderer?: () => void;
+  private readonly stopConfiguredStyles: () => void;
 
   private readonly unsubscribeBackendState: () => void;
 
@@ -307,6 +306,11 @@ export class GraphScene implements IGraphScene {
     this.$styleGeneration = this.resolver.$generation;
     this.$styleCascadeGeneration = this.resolver.$cascadeGeneration;
 
+    this.stopConfiguredStyles = effect(() => {
+      const targets: (TStyleTarget | undefined)[] = Object.values(settings.$blockComponents.value);
+      targets.push(settings.$connection.value);
+      untracked(() => this.styles.setConfiguredClasses(targets));
+    });
     this.stopTheme = effect(() => {
       const colors = graph.$graphColors.value;
       this.styles.setThemeRules(createThemeRules(colors));
@@ -360,13 +364,6 @@ export class GraphScene implements IGraphScene {
     else if (!this.graph.hitTest.hasPendingUpdates()) this.setState("ready");
   };
 
-  /** @internal Connects an HTML block to the same visual offset as its scene component. */
-  public onBlockMotion(id: TEntityId, listener: (x: number, y: number) => void): () => void {
-    if (this.disposed) return noop;
-    const view = this.graph.rootStore.blocksList.getBlockState(id)?.getViewComponent();
-    return this.store.onBlockMotion(view?.getSceneElementId() ?? entityKey("block", id), listener);
-  }
-
   /** @internal The physical pixel grid used by the active Canvas2D renderer. WebGL uses fractional positions. */
   public get canvasDpr(): number | undefined {
     return this.$renderer.peek() === "webgl" ? undefined : this.layer.getDRP();
@@ -376,10 +373,6 @@ export class GraphScene implements IGraphScene {
   public update(contentRevision = this.replacement): void {
     if (this.disposed) return;
     this.delegatedRanks.flush();
-    if (this.store.hasBlockMotions) {
-      this.motionPreference ??= globalThis.matchMedia?.("(prefers-reduced-motion: reduce)");
-      this.store.advanceBlockMotions(this.clock.now(), this.motionPreference?.matches ?? false);
-    }
     const camera = this.graph.$camera.peek();
     const level = this.$level.peek();
     Component.update(this.layer);
@@ -1011,6 +1004,7 @@ export class GraphScene implements IGraphScene {
     this.delegatedRanks.dispose();
     this.unsubscribeRenderer?.();
     this.unsubscribeRenderer = undefined;
+    this.stopConfiguredStyles();
     this.stopTheme?.();
     this.stopTheme = undefined;
     this.unfollowVisibility?.();
@@ -1019,7 +1013,6 @@ export class GraphScene implements IGraphScene {
     this.exportPreparers.clear();
     this.frameEndListeners.clear();
     for (const unbind of [...this.styleUnbinds]) unbind();
-    this.store.clearBlockMotionListeners();
     this.resolver.dispose();
     this.tags.dispose();
     this.graph.layers.removeLayer(this.layer);

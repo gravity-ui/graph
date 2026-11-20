@@ -1,5 +1,5 @@
 import type { TTileRect } from "../../../lib/culling/TileIndex";
-import type { TElementPatch, TSceneElementInput, TSceneWriter } from "../../../lib/scene/store/SceneStore";
+import type { TElementPatch, TSceneElementInput } from "../../../lib/scene/store/SceneStore";
 import type { TSceneElement, TSceneStyle } from "../../../lib/scene/types";
 import type { GraphScene } from "../../../services/scene/GraphScene";
 import type { TSceneKey } from "../../../services/scene/sceneKey";
@@ -19,7 +19,7 @@ export class SceneElementWriter {
   constructor(
     private readonly scene: GraphScene,
     input: TSceneElementInput,
-    owner?: TSceneWriter
+    owner?: object
   ) {
     this.element = scene.store.add(input, owner);
     this.key = { elementId: input.id, sub: 0 };
@@ -33,11 +33,8 @@ export class SceneElementWriter {
     this.unbind = this.scene.bindStyle(this.element, entity, target, onChange);
   }
 
-  /** Components with animated placement compare their own layout snapshot; connections compare the live record. */
-  public update(
-    next: TElementPatch,
-    previous: Pick<TSceneElement, keyof TElementPatch> = this.element
-  ): TElementPatch | undefined {
+  public update(next: TElementPatch): TElementPatch | undefined {
+    const previous = this.element;
     const patch: TElementPatch = {};
     if (next.x !== undefined && previous.x !== next.x) patch.x = next.x;
     if (next.y !== undefined && previous.y !== next.y) patch.y = next.y;

@@ -9,8 +9,7 @@ as a `path`. Its regular rectangular fill and text keep their own rendering.
 | Textured `sprite`                                               | `TSceneSpriteEffect` on the sprite, with `params` on the primitive       | `vec4 spriteColor(sampler2D atlas, vec2 uv, float time, vec4 params)` |
 
 `TSceneEffectKind` currently contains `"path"`. The scene applies `parts.*.effect` only to path primitives. For
-regular rects, circles and text, use the appearance fields in [Tags and styles](tags-and-styles.md). Use
-[`style.motion`](tags-and-styles.md#rules) to bounce or shake a block in WebGL, Canvas 2D or HTML.
+regular rects, circles and text, use the appearance fields in [Tags and styles](tags-and-styles.md).
 
 ## Path effect types
 

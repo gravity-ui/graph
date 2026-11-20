@@ -23,60 +23,6 @@ function element(id: string, zIndex: number): TSceneElementInput {
 const ALL = { minX: -1e6, minY: -1e6, maxX: 1e6, maxY: 1e6 };
 
 describe("SceneStore", () => {
-  it("animates only the block's drawn origin, rebases edits, and stops at rest", () => {
-    const store = new SceneStore();
-    const block = store.add(input("b", { entityType: "block", x: 0.25, y: 20 }));
-    const child = store.add(input("a", { entityType: "anchor", parent: "b", y: 20 }));
-    const row = store.defineStyle({ motion: "bounce" });
-    const other = store.defineStyle({ motion: "bounce", raise: 1 });
-    store.setStyle("b", row);
-    store.setStyle("a", row);
-    store.advanceBlockMotions(0, false);
-    store.advanceBlockMotions(0.15, false);
-    expect(block.y).toBe(12);
-    expect(child.y).toBe(20);
-    expect(store.query({ minX: 0, minY: 10, maxX: 1, maxY: 13 })).toEqual([block]);
-    store.update("b", { x: 9.25, y: 30 });
-    expect(block).toMatchObject({ x: 9.25, y: 22 });
-    store.setStyle("b", other);
-    store.advanceBlockMotions(0.31, false);
-    expect(block).toMatchObject({ x: 9.25, y: 30 });
-    expect(store.hasBlockMotions).toBe(false);
-    store.setStyle("b", row);
-    expect(store.hasBlockMotions).toBe(false);
-  });
-
-  it("handles a live rule replacement, reduced motion, hiding and deletion", () => {
-    const store = new SceneStore();
-    const block = store.add(input("b", { entityType: "block", x: 10 }));
-    const row = store.defineStyle({});
-    store.setStyle("b", row);
-    store.replaceStyles(new Map([[row, { motion: "shake" }]]));
-    store.advanceBlockMotions(1, false);
-    store.advanceBlockMotions(1.025, false);
-    expect(block.x).toBeGreaterThan(14);
-    store.replaceStyles(new Map([[row, { motion: "bounce" }]]));
-    expect(block.x).toBe(10);
-    store.advanceBlockMotions(1.03, false);
-    store.advanceBlockMotions(1.18, false);
-    expect(block.y).toBeCloseTo(-8);
-    store.advanceBlockMotions(1.2, true);
-    expect(block.y).toBe(0);
-    expect(store.hasBlockMotions).toBe(false);
-    store.setStyle("b", 0);
-    store.setStyle("b", row);
-    store.advanceBlockMotions(2, false);
-    store.advanceBlockMotions(2.15, false);
-    store.update("b", { hidden: true, y: 100 });
-    expect(block.y).toBe(100);
-    expect(store.hasBlockMotions).toBe(false);
-    store.update("b", { hidden: false });
-    store.setStyle("b", 0);
-    store.setStyle("b", row);
-    store.delete("b");
-    expect(store.hasBlockMotions).toBe(false);
-  });
-
   it("rejects invalid literal effect scale bounds before replacing scene primitives or styles", () => {
     const effect = defineSceneEffect({
       kind: "path",

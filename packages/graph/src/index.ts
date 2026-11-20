@@ -131,6 +131,7 @@ export { createThemeRules } from "./services/styles/themeRules";
 export type {
   TPartsOf,
   TRuleStyle,
+  TSceneStyles,
   TStyleExplanation,
   TStyleParts,
   TStyleRule,
@@ -140,7 +141,6 @@ export type {
 } from "./services/styles/types";
 export type {
   TSceneCameraAware,
-  TSceneMotion,
   TScenePartStyle,
   TScenePrimitive,
   TSceneSize,

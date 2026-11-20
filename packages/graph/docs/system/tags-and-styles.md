@@ -1,15 +1,77 @@
 # Tags and styles (`graph.scene.tags`, `graph.scene.styles`)
 
-A visual state of a graph element (selected, hovered, running) is a **tag** plus a **rule**, not code in a component
-class:
+## Overview
 
-1. **Systems write tags.** Selection, drag, hover and your own code say "this entity has this tag".
-2. **Rules map tags to part values.** A stylesheet says "a block with `selected` gets this border colour".
-3. **The scene draws computed styles.** For each element the scene resolves its class and tags into a style row and
-   draws the row's values.
+A **tag** records a visual state such as selection, hover or a running job. A **style rule** gives that state a
+look. The scene matches rules by component class and tags, then applies the resulting styles and effects.
+The graph manages built-in tags such as `selectedTag` and `hoveredTag`. Use `defineTag()` for your application's states.
 
-For a complete example that styles a block and animates its outgoing connection, see [Show a running ETL step](#show-a-running-etl-step).
-See [Scene](scene.md) for the renderer itself.
+## Usage
+
+### Show a running ETL step
+
+This example gives ETL blocks a static palette. While the extraction job runs,
+the `extract` block gets a teal border and the `extract-to-load` connection gets a teal stroke with moving dashes.
+
+```ts
+import { BlockConnection, CanvasBlock, Graph, dashFlow, defineTag, selectedTag } from "@gravity-ui/graph";
+import type { TSceneStyles } from "@gravity-ui/graph";
+import "@gravity-ui/graph/styles.css";
+
+const runningTag = defineTag("etl-running");
+const color = "#087e67";
+const flow = dashFlow.use({ pattern: [12, 8], speed: 40 }, { minScale: 0.4 });
+
+class StageBlock extends CanvasBlock {
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [
+      { style: { parts: { body: { color: "#e8f0ff" }, border: { color: "#607caf" } } } },
+      { tags: [runningTag], notTags: [selectedTag], style: { parts: { border: { color } } } },
+    ];
+  }
+}
+
+class StageConnection extends BlockConnection {
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [{ tags: [runningTag], style: { parts: { line: { color, effect: flow } } } }];
+  }
+}
+
+export function startPipeline(container: HTMLDivElement) {
+  const graph = new Graph(
+    {
+      settings: { renderer: "webgl", blockComponents: { stage: StageBlock }, connection: StageConnection },
+      blocks: [
+        { id: "extract", is: "stage", name: "Extract", x: 60, y: 60, width: 160, height: 80 },
+        { id: "load", is: "stage", name: "Load", x: 340, y: 60, width: 160, height: 80 },
+      ],
+      connections: [{ id: "extract-to-load", sourceBlockId: "extract", targetBlockId: "load" }],
+    },
+    container
+  );
+  graph.start();
+
+  const step = { block: ["extract"], connection: ["extract-to-load"] };
+  return {
+    graph,
+    startJob: () => graph.scene.tags.add(runningTag, step),
+    finishJob: () => graph.scene.tags.delete(runningTag, step),
+  };
+}
+```
+
+1. **Set the static palette.** A rule without tags supplies default part values. A colour explicitly set on a
+   primitive takes precedence over its default. The scene picks up both classes' rules from the graph configuration.
+2. **Add and remove the job tag.** `startJob()` adds the same tag to the block and the connection by ID.
+   `finishJob()` removes it from just those entities. The running rule leaves the selection border in place
+   because it excludes `selectedTag`.
+3. **Keep the effect active while the tag is present.** The moving dashes run on the visible WebGL path from
+   scale 0.4. Canvas 2D and smaller scales use the teal base stroke. Removing the tag also removes the effect
+   supplied by the rule, revealing the connection's normal style.
+
+Use [rules declared on a component](#rules-declared-on-a-component) for a look that travels with a class.
+Use [`graph.scene.styles.add()`](#rules) to layer rules onto an existing graph, for example to theme built-in classes.
+For more examples, see [Effects](https://preview.gravity-ui.com/graph/v2/?path=/docs/scene-guides-effects--docs) in Storybook.
 
 ## Tags
 
@@ -24,6 +86,7 @@ import { defineTag } from "@gravity-ui/graph";
 
 const runningTag = defineTag("running"); // TTag<true>
 const presenceTag = defineTag<string>("presence"); // a tag with a value per entity
+const focusTag = defineTag("focus");
 
 graph.scene.tags.set(runningTag, { block: ["a", "b"] }); // exactly these blocks
 graph.scene.tags.add(presenceTag, { block: new Map([["a", "#ff4081"]]) }); // add members
@@ -84,7 +147,9 @@ the selection API (`graph.selectionService`).
 `TagStore`). The graph creates both; the package exports their types only.
 
 ```ts
-import { CanvasBlock } from "@gravity-ui/graph";
+import { CanvasBlock, defineTag } from "@gravity-ui/graph";
+
+const highlightedTag = defineTag("highlighted");
 
 const remove = graph.scene.styles.add([
   {
@@ -122,32 +187,12 @@ remove(); // removes exactly these rules
 | `notTags` | None of these tags is on the entity. |
 | `root` | These graph-wide tags are on. |
 | `scope` | Where the rule applies, like a media query: `levels` (scene levels) and `minScale` / `maxScale` (`[min, max)`). |
-| `priority` | Higher applies later and wins, over theme and user rules alike; at equal priority theme rules come first, then registration order. Default 0. |
-| `style` | `{ parts?, raise?, dim?, opacity?, motion? }`, or a function of the entity's tag values returning the same. |
+| `priority` | Higher applies later and wins. At equal priority, theme rules come first, then component rules, then explicit graph rules. Default 0. |
+| `style` | `{ parts?, raise?, dim?, opacity? }`, or a function of the entity's tag values returning the same. |
 
 A part value (`TScenePartStyle`) is `color`, `visible`, `width` (stroke or border), `scale` (circle radius factor),
 `dim`, `opacity`, `cameraAware` (the mode of the part's texts) and `effect` (WebGL paths). `raise` is added to the element's `zIndex` bucket
 while the rule applies: a selected block draws above its neighbour.
-
-**`motion`** applies to a block's own primitives in Canvas 2D and WebGL. The last matching rule that sets it wins.
-A change to `"bounce"` or `"shake"` plays that preset once. An unrelated tag change that resolves to the same
-preset keeps its progress. An explicit `"none"`, or removal of the last matching motion, returns the face to rest.
-Use the rule's `scope` to enable motion at selected levels or scales.
-
-```ts
-import { CanvasBlock, hoveredTag } from "@gravity-ui/graph";
-
-graph.scene.styles.add([
-  { target: CanvasBlock, tags: [hoveredTag], scope: { levels: ["schematic", "detailed"] }, style: { motion: "shake" } },
-]);
-```
-
-Each preset lasts 300 ms. The bounce moves up to 8 world units vertically and the shake up to 5 horizontally.
-Child scene elements, anchors, ports and hit boxes stay at their layout positions. The stock React `GraphBlock`
-applies the same motion to its background, border and content while `GraphBlockAnchor` stays at its port.
-Switching between the scene and HTML preserves the progress of the animation, including its resting position
-after it ends. See [Bounce or shake on hover](../components/block-component.md#bounce-or-shake-on-hover)
-and [the interactive example](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-block-hover--bounce-and-shake).
 
 **`cameraAware`** (`true` or `false`) turns the camera-aware mode of the part's texts on or off (see
 [Text primitives](scene.md#text-primitives)): on, a text's `size` is in screen pixels and the text re-fits its box as
@@ -193,6 +238,42 @@ is transparent, and the browser composites it over them).
 
 Use `dim` to move a colour towards the layer background while keeping its alpha. Use `opacity` to let
 underlying content show through. Changing opacity can move affected primitives to another render pass.
+
+### Rules declared on a component
+
+Override `static getSceneStyles()` from `SceneComponent` to ship rules with a block, connection, anchor or custom
+scene component. The scene supplies each rule's target. Use `TSceneStyles<typeof this>` as the return type to
+check the names in `style.parts` against that class.
+
+```ts
+import { CanvasBlock, Graph, hoveredTag, selectedTag } from "@gravity-ui/graph";
+import type { TSceneStyles } from "@gravity-ui/graph";
+
+class PipelineBlock extends CanvasBlock {
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [
+      { tags: [hoveredTag], style: { parts: { border: { width: 2 } } } },
+      { tags: [selectedTag], style: { parts: { border: { color: "#2563eb" } } } },
+    ];
+  }
+}
+
+class ReportBlock extends PipelineBlock {
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [{ tags: [hoveredTag], style: { parts: { border: { width: 4 } } } }];
+  }
+}
+
+const graph = new Graph({ settings: { blockComponents: { report: ReportBlock } } });
+```
+
+Each method returns the rules declared by its own class. The scene gathers the declarations from base to derived
+and caches them per graph. Here a selected report keeps its blue border and uses the subclass's wider border on hover.
+
+The scene loads these declarations when applying `settings.blockComponents` and `settings.connection`. It discovers
+other classes when it binds their first element, including custom anchors chosen by `getAnchorClass()`. A class's
+rules stay active while it is configured or in use by a scene element. Use `graph.scene.styles.add()` to override
+component rules for an individual graph.
 
 ### Cascade
 
@@ -241,11 +322,10 @@ graph.scene.styles.add([
 ]);
 ```
 
-Within a step, rules apply in one order, a later one winning per property: by `priority` (a higher priority applies
-later), theme and user rules alike; at equal priority the **theme rules** (created from `TGraphColors` by
-`createThemeRules` and replaced when the colours change) come before user rules; then registration order. The theme's
-rules have the default priority 0, so a user rule of priority 0 or more overrides them, and a user rule with
-`priority: -1` applies before them: it sets a default the theme's selection, drag and hover rules still win over.
+Within a step, rules apply by ascending `priority`, with later rules winning per property. At equal priority, the
+**theme rules** from `TGraphColors` come first, then the component's declarations from base to derived, then explicit
+graph rules in registration order. Theme rules have priority 0. A rule with `priority: -1` can give a default that
+the theme's selection, drag and hover rules override.
 
 ### Part schemas
 
@@ -350,50 +430,6 @@ Set `parts.line.effect` to `effect.use(input, { minScale, maxScale })` or to `nu
 The optional scale range includes its lower bound and excludes its upper bound. Canvas draws the base stroke.
 See [Connection styles](../connections/webgl-connections.md#scene-styles) for examples and
 [WebGL scene effect types](scene-effects.md) for the path shader contract.
-
-### Show a running ETL step
-
-Suppose the `extract` block publishes results through the `extract-to-load` connection. Give the block a teal
-border and its outgoing connection a teal stroke while the step runs. WebGL adds moving dashes at camera scales
-of 0.4 and above. At smaller scales and on Canvas2D, the stroke keeps the status colour.
-
-```ts
-import { BlockConnection, CanvasBlock, dashFlow, defineTag, selectedTag } from "@gravity-ui/graph";
-
-const runningTag = defineTag("etl-running");
-const color = "#087e67";
-const flow = dashFlow.use({ pattern: [12, 8], speed: 40 }, { minScale: 0.4 });
-const removeRules = graph.scene.styles.add([
-  {
-    target: CanvasBlock,
-    tags: [runningTag],
-    notTags: [selectedTag], // Keep the theme's selection border.
-    style: { parts: { border: { color } } },
-  },
-  {
-    target: BlockConnection,
-    tags: [runningTag],
-    style: { parts: { line: { color, effect: flow } } },
-  },
-]);
-```
-
-Register the rules once per graph. When the job starts, apply the tag to the block and connection by ID.
-The graph maintains `selectedTag` as the selection changes.
-
-```ts
-const step = { block: ["extract"], connection: ["extract-to-load"] };
-graph.scene.tags.add(runningTag, step);
-```
-
-When the job finishes, remove its tag. The same rules still apply to other running steps.
-
-```ts
-graph.scene.tags.delete(runningTag, step);
-```
-
-Call `removeRules()` when the view that installed the rules closes.
-To design your own animation, see [Writing a tagged shader effect](../connections/webgl-connections.md#writing-a-tagged-shader-effect).
 
 ## Elements and `explain`
 

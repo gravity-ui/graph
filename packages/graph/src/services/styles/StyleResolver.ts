@@ -97,10 +97,17 @@ export class StyleResolver {
     const signature = this.signatureOf(target, tags);
     let row = this.rows.get(signature);
     if (!row) {
-      const own = new Map(tags);
-      const style = this.compute(target, own);
-      const styleId = this.deps.store.defineStyle(style);
-      row = { signature, target, tags: own, styleId, refs: 0, style, lookKey: styleLookKey(style) };
+      this.deps.sheet.retainClass(target);
+      try {
+        const own = new Map(tags);
+        const style = this.compute(target, own);
+        const lookKey = styleLookKey(style);
+        const styleId = this.deps.store.defineStyle(style);
+        row = { signature, target, tags: own, styleId, refs: 0, style, lookKey };
+      } catch (error) {
+        this.deps.sheet.releaseClass(target);
+        throw error;
+      }
       this.rows.set(signature, row);
       this.rowsById.set(row.styleId, row);
     }
@@ -117,6 +124,7 @@ export class StyleResolver {
     this.rows.delete(row.signature);
     this.rowsById.delete(styleId);
     this.deps.store.freeStyle(styleId);
+    this.deps.sheet.releaseClass(row.target);
   }
 
   /** The computed style for a target and tags: the live row's style when one exists. Reads no signal. */

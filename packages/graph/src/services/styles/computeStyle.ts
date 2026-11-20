@@ -75,7 +75,6 @@ export function computeStyle(input: {
     if (style.raise !== undefined) element.raise = style.raise;
     if (style.dim !== undefined) element.dim = style.dim;
     if (style.opacity !== undefined) element.opacity = style.opacity;
-    if (style.motion !== undefined) element.motion = style.motion;
   }
   // Computed styles are frozen (spec §7.5): renderers and React may keep references to them.
   const style: TSceneStyle = Object.freeze({ base: freezeParts(base), parts: freezeParts(parts), ...element });

@@ -10,7 +10,7 @@ import { EMPTY_BOUNDS, elementBounds } from "../../../lib/scene/utils/elementBou
 import type { HitBoxData } from "../../../services/HitTest";
 import type { ISceneKeyed, TSceneKey } from "../../../services/scene/sceneKey";
 import type { ITextMeasurer, TSceneElementView, TSceneLevel } from "../../../services/scene/types";
-import type { TStyleTarget } from "../../../services/styles/types";
+import type { TSceneStyles, TStyleTarget } from "../../../services/styles/types";
 import { entityKey } from "../../../services/tags/TagStore";
 import { HAS_NODE_ENV } from "../../../utils/development";
 import { measureText } from "../../../utils/functions/text";
@@ -106,6 +106,14 @@ export abstract class SceneComponent<
   public static entityType?: string;
 
   /**
+   * Declares this class's own scene style rules. The scene adds the class target and collects ancestor rules.
+   * Annotate an override with `TSceneStyles<typeof this>` to check the class's part names.
+   */
+  public static getSceneStyles(): TSceneStyles {
+    return [];
+  }
+
+  /**
    * The levels on which the hit test finds components of this class, whatever shows them (spec §9, D4). Without a
    * declaration: an element owner on every level; a sub-component with a look on the levels its primitives are on, and
    * on every level while it or a scene component above it is shown outside the scene; a look-less sub-component on
@@ -124,7 +132,7 @@ export abstract class SceneComponent<
 
   private lastLevels?: TLevelOutput;
 
-  private written?: TWritten;
+  private written?: TSceneElement;
 
   /**
    * Whether the frame walks this component (`static override readonly mode = "immediate";`): its update then runs in
@@ -442,10 +450,11 @@ export abstract class SceneComponent<
    * Whether the inputs the update reads untracked still match the last write: the hidden state, the hit barrier and
    * the parent. A child element also has to be in the store still: its parent's element, added again, takes it along.
    */
-  private writtenPlaceHolds(written: TWritten): boolean {
+  private writtenPlaceHolds(written: TSceneElement): boolean {
     if (this.isWrittenHidden() !== written.hidden || this.isHitBarrier() !== this.syncedBarrier) return false;
     const parent = this.getSceneParent();
-    if (parent?.elementId !== written.parent || (parent?.order ?? 0) !== written.childOrder) return false;
+    if (parent?.elementId !== (written.nestedIn ?? written.parent) || (parent?.order ?? 0) !== written.childOrder)
+      return false;
     return written.parent === undefined || this.context.graph.scene.store.get(this.getSceneElementId()) !== undefined;
   }
 
@@ -610,7 +619,6 @@ export abstract class SceneComponent<
     if (!this.written || !writer?.isCurrent()) return;
     const patch = writer.update({ hidden, zIndex });
     if (!patch) return;
-    if (this.written !== writer.element) this.written = { ...this.written, ...patch };
     this.requestRetarget();
   }
 
@@ -623,12 +631,11 @@ export abstract class SceneComponent<
     // Before any early return: the barrier can change while the element stays as written (a delegated one hidden by
     // another input).
     this.syncHitBarrier();
-    if (written && this.writer?.isCurrent() && written.parent === next.parent) {
+    if (written && this.writer?.isCurrent() && (written.nestedIn ?? written.parent) === next.parent) {
       if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && written.primitives !== next.primitives)
         checkScenePrimitives(this.constructor.name, next.primitives);
-      const patch = this.writer.update(next, written);
+      const patch = this.writer.update(next);
       if (!patch) return;
-      if (written !== this.writer.element) this.written = next;
       const geometry =
         patch.x !== undefined || patch.y !== undefined || patch.bounds !== undefined || patch.primitives !== undefined;
       if (geometry) this.syncHitRect(next);
@@ -672,10 +679,8 @@ export abstract class SceneComponent<
       checkScenePrimitives(this.constructor.name, next.primitives);
     const type = this.getSceneEntityType();
     const levels = this.usesSceneLevels();
-    // Only level-based elements supply a scene substitute for a delegated drawing during export.
     this.writer = new SceneElementWriter(scene, { id, entityType: type, ...next }, levels ? this : undefined);
-    // Level placements retain their requested origin while the store animates it. Prepared routes use the live record.
-    this.written = levels ? next : this.writer.element;
+    this.written = this.writer.element;
     this.syncHitMask(next, this.adds === 0);
     if (type !== undefined)
       this.writer.bindStyle(

@@ -1,6 +1,7 @@
 import React, { StrictMode } from "react";
 
 import { Anchor, CanvasBlock as Block, ESelectionStrategy, Graph, defineTag, selectedTag } from "@gravity-ui/graph";
+import type { TAnchorClass, TSceneStyles } from "@gravity-ui/graph";
 import { act, render, renderHook } from "@testing-library/react";
 
 import { GraphBlockAnchor } from "../../Anchor";
@@ -26,20 +27,6 @@ it("keeps an HTML style across equivalent levels and follows a level rule withou
   graph.unmount();
 });
 
-it("exposes the effective block motion to an HTML face and removes it when the rule stops matching", () => {
-  const graph = new Graph({});
-  const running = defineTag("running");
-  const { result } = renderHook(() => useEntityStyle(graph, { type: "block", id: "a" }, Block, "graph-block"));
-  act(() => graph.scene.tags.add(running, { block: ["a"] }));
-  let remove: () => void;
-  act(() => {
-    remove = graph.scene.styles.add([{ target: Block, tags: [running], style: { motion: "shake" } }]);
-  });
-  expect(result.current.className.split(" ")).toContain("graph-motion-shake");
-  act(() => remove());
-  expect(result.current.className).toBe("graph-tag-running");
-});
-
 it("keeps tag classes and part colour variables current under StrictMode, without another style subscriber", () => {
   // No block "a" exists, so nothing but the hook subscribes to its tags. StrictMode subscribes, unsubscribes (the
   // store releases the signal) and subscribes again to the same signal.
@@ -60,7 +47,17 @@ it("keeps tag classes and part colour variables current under StrictMode, withou
 });
 
 describe("React wrappers", () => {
-  class CustomBlock extends Block {}
+  class CustomAnchor extends Anchor {
+    public static override getSceneStyles(): TSceneStyles<typeof CustomAnchor> {
+      return [{ tags: [selectedTag], style: { parts: { anchor: { color: "#13579b" } } } }];
+    }
+  }
+
+  class CustomBlock extends Block {
+    protected override getAnchorClass(): TAnchorClass {
+      return CustomAnchor;
+    }
+  }
 
   function setup(): { graph: Graph; container: HTMLElement; cleanup: () => void } {
     const graph = new Graph({
@@ -155,41 +152,6 @@ describe("React wrappers", () => {
     cleanup();
   });
 
-  it("subscribes only the styled block and applies the scene's current offset before paint", () => {
-    const { graph, container, cleanup } = setup();
-    const running = defineTag("motion-test");
-    let notify: ((x: number, y: number) => void) | undefined;
-    const release = jest.fn();
-    const subscribe = jest.spyOn(graph.scene, "onBlockMotion").mockImplementation((_id, listener) => {
-      notify = listener;
-      listener(0, -6);
-      return release;
-    });
-    act(() => {
-      graph.scene.styles.add([{ target: CustomBlock, tags: [running], style: { motion: "bounce" } }]);
-    });
-    expect(subscribe).not.toHaveBeenCalled();
-    const body = wrapper(container, "c1");
-    const element = body.parentElement as HTMLElement;
-    const offsetY = () => element.style.getPropertyValue("--graph-block-motion-y");
-
-    act(() => graph.scene.tags.add(running, { block: ["c1"] }));
-    expect(subscribe).toHaveBeenCalledTimes(1);
-    expect(subscribe).toHaveBeenCalledWith("c1", expect.any(Function));
-    expect(offsetY()).toBe("-6px");
-    act(() => notify?.(0, -3));
-    expect(offsetY()).toBe("-3px");
-    expect(wrapper(container, "c1")).toBe(body);
-    act(() => notify?.(0, 0));
-    expect(element.hasAttribute("data-graph-block-motion")).toBe(false);
-    expect(offsetY()).toBe("");
-    act(() => notify?.(0, -1));
-    act(() => graph.scene.tags.clear(running));
-    expect(release).toHaveBeenCalledTimes(1);
-    expect(offsetY()).toBe("");
-    cleanup();
-  });
-
   it("applies the selected tag, alias and part colour to the anchor of the selected block", () => {
     const { graph, container, cleanup } = setup();
     const selected = container.querySelector<HTMLElement>(".n-p1-a1") as HTMLElement;
@@ -208,6 +170,16 @@ describe("React wrappers", () => {
       expect(selected.classList.contains(name)).toBe(true);
       expect(other.classList.contains(name)).toBe(false);
     }
+    cleanup();
+  });
+
+  it("applies a dynamically chosen anchor class's own rules to its HTML view", () => {
+    const { graph, container, cleanup } = setup();
+    const color = "--graph-block-anchor-anchor-color";
+    act(() => graph.api.setAnchorSelection("c1", "a1", true));
+    expect(container.querySelector<HTMLElement>(".n-c1-a1")?.style.getPropertyValue(color)).toBe("#13579b");
+    act(() => graph.api.setAnchorSelection("p1", "a1", true));
+    expect(container.querySelector<HTMLElement>(".n-p1-a1")?.style.getPropertyValue(color)).not.toBe("#13579b");
     cleanup();
   });
 

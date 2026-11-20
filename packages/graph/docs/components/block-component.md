@@ -215,40 +215,6 @@ The theme colours the body, border and title, hides the halo and the badge, and 
 `selectedBorder` colour. A new look that needs structure (a status icon) is a part the class draws, hidden by a base
 rule and shown by a state rule. At most 15 distinct part names exist in a scene.
 
-### Bounce or shake on hover
-
-A hover rule on the stock `CanvasBlock` animates its face in Canvas 2D, WebGL and the detailed React `GraphBlock` view.
-
-```ts
-import { CanvasBlock, hoveredTag } from "@gravity-ui/graph";
-
-const removeRule = graph.scene.styles.add([
-  { target: CanvasBlock, tags: [hoveredTag], style: { motion: "bounce" } },
-]);
-```
-
-Both presets play once in 300 ms and respect the system’s reduced-motion preference.
-`"bounce"` lifts the face by up to 8 world units and returns it to rest.
-`"shake"` moves it horizontally with a decreasing amplitude of up to 5 world units. The preset plays when the
-resolved `motion` changes to that value. Moving from the face onto its anchor keeps the block hovered, so the
-animation continues. Leaving the block restores its resting position. Hovering it again replays the preset.
-Call `removeRule()` to unregister the rule, or set `motion: "none"` in a higher-priority rule to disable it.
-
-The body, border, title and other primitives drawn by the block move together. Child elements, including anchors,
-keep their own positions. Dragging, hit testing, ports and connection endpoints use the block's layout coordinates.
-
-At detailed zoom, `GraphBlock` moves its background, border and the markup you render inside it together.
-`GraphBlockAnchor` keeps its attachment point. Both views follow the same animation. If React mounts the HTML view
-halfway through a bounce, the block continues from its current position. If the bounce has finished, the HTML
-appears at rest. Zooming back out follows the same timing. If your view already starts a CSS bounce or shake on
-hover, remove that animation when adopting the scene preset so the two offsets do not add up.
-
-For anchors nested in a rotated or scaled HTML layout, `GraphBlock` accounts for a fixed, invertible 2D transform.
-Perspective or an ancestor that independently animates its rotation or scale can shift the HTML anchor during the preset.
-
-Switch renderers or turn on the HTML view in [Bounce and Shake](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-block-hover--bounce-and-shake).
-The [story source](../../../../apps/storybook/src/stories/canvas/blockHover/blockHover.stories.tsx) shows the rules and the React markup.
-
 ## Order, selection and drag
 
 - A block's element is in bucket `block.DEFAULT_Z_INDEX` (200). The theme raises it by 1 while it is selected or

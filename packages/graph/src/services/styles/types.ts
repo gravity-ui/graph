@@ -1,4 +1,4 @@
-import type { TSceneMotion, TScenePartStyle, TSceneStyle } from "../../lib/scene/types";
+import type { TScenePartStyle, TSceneStyle } from "../../lib/scene/types";
 import type { TSceneLevel } from "../scene/types";
 import type { TTag } from "../tags/types";
 
@@ -20,8 +20,6 @@ export type TRuleStyle<C extends TStyleTarget> = {
   parts?: Partial<Record<TPartsOf<C>, TScenePartStyle>>;
   /** Added to the element's zIndex bucket while the rule applies. */
   raise?: number;
-  /** Visual motion of a block in Canvas and WebGL. `"none"` overrides a lower-priority motion. */
-  motion?: TSceneMotion;
   /**
    * In [0, 1]: moves the element's paints towards the scene's dim colour (the theme's layer background) without
    * touching their colours otherwise; a part's own `dim` wins over it. The last matching rule that sets it wins.
@@ -53,12 +51,15 @@ export type TStyleRule<C extends TStyleTarget = TStyleTarget> = {
   root?: readonly TTag<true>[];
   scope?: TStyleScope;
   /**
-   * Higher applies later and wins, over theme and user rules alike; at equal priority theme rules come first, then
-   * registration order. Default 0.
+   * Higher applies later and wins. At equal priority, theme rules come first, then component rules (base before
+   * derived), then explicitly registered rules. Default 0.
    */
   priority?: number;
   style: TRuleStyle<C> | ((values: TTagValues) => TRuleStyle<C>);
 };
+
+/** The rules declared by a class's static getSceneStyles(). The scene supplies their target. */
+export type TSceneStyles<C extends TStyleTarget = TStyleTarget> = readonly Omit<TStyleRule<C>, "target">[];
 
 export type TStyleExplanation = {
   tags: readonly { name: string; value: unknown }[];

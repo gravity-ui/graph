@@ -17,7 +17,7 @@ import {
   styleGeometryKey,
   styleRaise,
 } from "../styles/style";
-import type { TSceneChange, TSceneElement, TSceneMotion, TSceneStyle, TSceneStyleChange } from "../types";
+import type { TSceneChange, TSceneElement, TSceneStyle, TSceneStyleChange } from "../types";
 import { paintedGeometryBounds } from "../webgl/order/levelBounds";
 
 import { preparePrimitives, validateStyleEffects } from "./validateScenePaint";
@@ -30,22 +30,9 @@ export type TSceneElementInput = Omit<TSceneElement, "order" | "styleId" | "hidd
 /** The dim colour of a store until it is set: the default theme's layer background (`initGraphColors`). */
 const DEFAULT_DIM_COLOR = "#f9f9f9";
 
-export type TSceneWriter = { isRenderDelegated(): boolean; isHiddenForOtherReason(): boolean };
-
-type TMotionListener = (x: number, y: number) => void;
-
 export type TElementPatch = Partial<
   Pick<TSceneElement, "x" | "y" | "bounds" | "primitives" | "hidden" | "zIndex" | "childOrder">
 >;
-
-type TBlockMotion = {
-  axis: "x" | "y";
-  base: number;
-  offset: number;
-  start?: number;
-};
-
-const MOTION_FIELDS = { x: new Set<keyof TSceneElement>(["x"]), y: new Set<keyof TSceneElement>(["y"]) };
 
 const NO_ELEMENTS: readonly TSceneElement[] = Object.freeze([]);
 
@@ -76,7 +63,7 @@ function sameRect(a: TTileRect | undefined, b: TTileRect | undefined): boolean {
  */
 type TNode = {
   readonly element: TSceneElement;
-  readonly writer?: TSceneWriter;
+  readonly writer?: object;
   /** A child's owner node (the root of its nesting); undefined for an owner. */
   readonly parent: TNode | undefined;
   /** A child's scene parent: its owner, or the child element it is nested in; undefined for an owner. */
@@ -137,9 +124,6 @@ type TCanvasQuery = {
 export class SceneStore {
   private readonly nodes = new Map<string, TNode>();
 
-  private readonly motions = new Map<TNode, TBlockMotion>();
-  private readonly motionListeners = new Map<string, Set<TMotionListener>>();
-
   private readonly index: TileIndex<TNode>;
   private canvasQuery?: TCanvasQuery;
 
@@ -194,7 +178,7 @@ export class SceneStore {
   }
 
   /** The component that wrote an element. Direct store writers have no component. */
-  public writerOf(id: string): TSceneWriter | undefined {
+  public writerOf(id: string): object | undefined {
     return this.nodes.get(id)?.writer;
   }
 
@@ -204,7 +188,7 @@ export class SceneStore {
    * `order` of its own (0), and its drawn row starts composed with its scene parent's drawn row. The element keeps the
    * input's `entityType`. A `childOrder` that is not an integer of at least 0 is a development error.
    */
-  public add(input: TSceneElementInput, writer?: TSceneWriter): TSceneElement {
+  public add(input: TSceneElementInput, writer?: object): TSceneElement {
     if (this.nodes.has(input.id)) {
       throw new Error(`Scene element ${input.id} already exists`);
     }
@@ -434,9 +418,6 @@ export class SceneStore {
     this.styles = Object.freeze(next);
     for (const [id, previous, style] of changes) {
       if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") warnUnboundedWidth(this, style);
-      if (previous.motion !== style.motion) {
-        this.styleUsers.get(id)?.forEach((elementId) => this.setBlockMotion(this.requireNode(elementId), style.motion));
-      }
       // The elements drawn with it bake their grown bounds again; a change that keeps the geometry costs none.
       if (styleGeometryKey(previous) !== styleGeometryKey(style)) {
         this.styleUsers.get(id)?.forEach((elementId) => {
@@ -548,8 +529,6 @@ export class SceneStore {
     const { element } = node;
     if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") checkChildOrder(id, patch.childOrder);
     if (patch.primitives !== undefined) preparePrimitives(patch.primitives);
-    const motion = this.motions.get(node);
-    if (motion) patch = this.positionDuringMotion(node, motion, patch);
     Object.assign(element, patch);
     if (patch.primitives !== undefined) {
       node.levels = levelMaskOfPrimitives(patch.primitives);
@@ -601,7 +580,6 @@ export class SceneStore {
     if (!node) return;
     const { element } = node;
     [...node.kids].forEach((kid) => this.delete(kid.element.id));
-    if (this.motions.delete(node)) this.notifyBlockMotion(id, 0, 0);
     this.nodes.delete(id);
     this.styleUsers.get(element.styleId)?.delete(id);
     this.index.delete(node);
@@ -790,91 +768,10 @@ export class SceneStore {
       users.add(element.id);
     }
     const next = this.styles[styleId];
-    if (previous?.motion !== next?.motion) this.setBlockMotion(node, next?.motion);
     if (!emit) return;
     const fields = this.fieldsOf(element, this.styleFields(previous, next));
     fields.add("styleId");
     this.emit({ type: "update", element, fields, previousStyleId });
-  }
-
-  /** Delivers the current world offset on mount and subsequent samples only for this element. */
-  public onBlockMotion(id: string, listener: TMotionListener): () => void {
-    let listeners = this.motionListeners.get(id);
-    if (!listeners) {
-      listeners = new Set();
-      this.motionListeners.set(id, listeners);
-    }
-    listeners.add(listener);
-    const node = this.nodes.get(id);
-    const current = node && this.motions.get(node);
-    listener(current?.axis === "x" ? current.offset : 0, current?.axis === "y" ? current.offset : 0);
-    return () => {
-      if (listeners.delete(listener) && listeners.size === 0) this.motionListeners.delete(id);
-    };
-  }
-
-  public clearBlockMotionListeners(): void {
-    this.motionListeners.clear();
-  }
-
-  private positionDuringMotion(node: TNode, motion: TBlockMotion, patch: TElementPatch): TElementPatch {
-    const { axis } = motion;
-    if (patch[axis] === undefined && patch.hidden === undefined) return patch;
-    motion.base = patch[axis] ?? motion.base;
-    if (patch.hidden && !this.isDelegatedOnly(node)) {
-      this.motions.delete(node);
-      this.notifyBlockMotion(node.element.id, 0, 0);
-    }
-    // The hidden scene keeps its layout origin. Revealing it installs the current offset in the same write.
-    const hidden = patch.hidden ?? node.element.hidden;
-    return { ...patch, [axis]: motion.base + (hidden ? 0 : motion.offset) };
-  }
-
-  public get hasBlockMotions(): boolean {
-    return this.motions.size > 0;
-  }
-
-  /** Samples only playing blocks, in seconds of scene time. Each renderer receives an ordinary origin update. */
-  public advanceBlockMotions(now: number, reducedMotion: boolean): void {
-    for (const [node, motion] of this.motions) {
-      motion.start ??= now;
-      const t = (now - motion.start) / 0.3;
-      if (reducedMotion || t >= 1 || this.isNodeHidden(node, false)) {
-        this.motions.delete(node);
-        this.moveBlock(node, motion, 0);
-      } else {
-        const offset = motion.axis === "y" ? -8 * Math.sin(Math.PI * t) : 5 * (1 - t) * Math.sin(6 * Math.PI * t);
-        this.moveBlock(node, motion, offset);
-      }
-    }
-  }
-
-  private setBlockMotion(node: TNode, next: TSceneMotion | undefined): void {
-    if (node.element.entityType !== "block") return;
-    const current = this.motions.get(node);
-    if (current) {
-      this.motions.delete(node);
-      this.moveBlock(node, current, 0);
-    }
-    if (!next || next === "none" || this.isNodeHidden(node, false)) return;
-    const axis = next === "bounce" ? "y" : "x";
-    this.motions.set(node, { axis, base: node.element[axis], offset: 0 });
-  }
-
-  private moveBlock(node: TNode, motion: TBlockMotion, offset: number): void {
-    if (motion.offset === offset) return;
-    motion.offset = offset;
-    const { axis } = motion;
-    if (!node.element.hidden) {
-      node.element[axis] = motion.base + offset;
-      this.place(node);
-      this.emit({ type: "update", element: node.element, fields: MOTION_FIELDS[axis] });
-    }
-    this.notifyBlockMotion(node.element.id, axis === "x" ? offset : 0, axis === "y" ? offset : 0);
-  }
-
-  private notifyBlockMotion(id: string, x: number, y: number): void {
-    this.motionListeners.get(id)?.forEach((listener) => listener(x, y));
   }
 
   /** Place of an element under its root: 0 for the root, 1 + its index in `childrenOf` for a child. */
@@ -882,13 +779,9 @@ export class SceneStore {
     return element.parent === undefined ? 0 : 1 + (this.nodes.get(element.id)?.childIndex ?? 0);
   }
 
-  private isDelegatedOnly(node: TNode): boolean {
-    return node.writer?.isRenderDelegated() === true && !node.writer.isHiddenForOtherReason();
-  }
-
-  private isNodeHidden(node: TNode, includeDelegated = true): boolean {
+  private isNodeHidden(node: TNode): boolean {
     for (let current: TNode | undefined = node; current; current = current.up) {
-      if (current.element.hidden && (includeDelegated || !this.isDelegatedOnly(current))) return true;
+      if (current.element.hidden) return true;
     }
     return false;
   }

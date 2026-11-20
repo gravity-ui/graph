@@ -44,6 +44,10 @@ graph.scene.styles.add([
 graph.scene.tags.add(running, { connection: [connectionId] });
 ```
 
+To ship rules with a reusable connection class, override `static getSceneStyles()` on a `BlockConnection`
+subclass and set `settings.connection` to that class. The graph takes its rules from the configuration.
+See [Show a running ETL step](../system/tags-and-styles.md#show-a-running-etl-step) for a complete example.
+
 Use `width: { px: 3, maxWorld: 20 }` for a stroke sized in screen pixels with a world-unit cap. Both renderers
 and the hit test resolve that width at the current zoom. A rule can also hide a part or set `opacity` or `dim`.
 Color and dim changes can use the WebGL style table without rebuilding the route. The default selection and hover
@@ -51,7 +55,6 @@ rules raise the connection one bucket.
 
 A rule can set `parts.line.effect` to an effect use such as `flow.use(params)`, or set it to `null` to disable an
 effect. `SceneLine.getStroke()` can also supply one. Canvas draws the base stroke with the matching paint rules.
-For a built-in moving dash, see [Show a running ETL step](../system/tags-and-styles.md#show-a-running-etl-step).
 For a custom pattern on a stock connection, see [Writing a tagged shader effect](#writing-a-tagged-shader-effect).
 
 ## Lines

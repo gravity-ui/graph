@@ -80,9 +80,6 @@ export type TScenePartStyle = {
   effect?: Readonly<TSceneEffectUse<"path">> | null;
 };
 
-/** Visual motion for a scene block. `"none"` clears motion from an earlier rule. */
-export type TSceneMotion = "bounce" | "shake" | "none";
-
 /** A computed style row. */
 export type TSceneStyle = Readonly<{
   /** State rules: override the primitive's own values. */
@@ -94,8 +91,6 @@ export type TSceneStyle = Readonly<{
   base?: Readonly<Record<TScenePart, Readonly<TScenePartStyle>>>;
   /** Added to the element's zIndex bucket while the style is on. */
   raise?: number;
-  /** Translates the drawn block without changing its layout coordinates. */
-  motion?: TSceneMotion;
   /** The dim of every part that sets none (`TScenePartStyle.dim`) and of primitives without a part. */
   dim?: number;
   /**

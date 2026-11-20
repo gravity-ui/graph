@@ -1,7 +1,8 @@
 // Type test: checked by `pnpm --dir packages/graph run typecheck`, not run by Jest.
 import { Block } from "../../../components/canvas/blocks/Block";
+import { BlockConnection } from "../../../components/canvas/connections/BlockConnection";
 import { SceneStyleSheet } from "../SceneStyleSheet";
-import type { TPartsOf, TStyleParts } from "../types";
+import type { TPartsOf, TSceneStyles, TStyleParts } from "../types";
 
 type TExpectEqual<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
@@ -61,6 +62,43 @@ sheet.add([
 sheet.add([{ target: IconBlock, style: { parts: { icn: { color: "#000000" } } } }]);
 // @ts-expect-error "icon" is a part of IconBlock only, not of the canvas Block.
 sheet.add([{ target: PlainBlock, style: { parts: { icon: { color: "#000000" } } } }]);
+
+class BlockWithStyles extends Block {
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [{ style: { parts: { border: { width: 2 } } } }];
+  }
+}
+
+export class BlockWithIconStyles extends BlockWithStyles {
+  public declare readonly __styleParts?: TStyleParts<"body" | "border" | "title" | "halo" | "badge" | "icon">;
+
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [
+      { style: { parts: { icon: { color: "#000000" } } } },
+      // @ts-expect-error "line" belongs to a connection.
+      { style: { parts: { line: { color: "#000000" } } } },
+    ];
+  }
+}
+
+export class BlockWithoutIconStyles extends BlockWithStyles {
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [
+      // @ts-expect-error "icon" only exists on BlockWithIconStyles.
+      { style: { parts: { icon: { color: "#000000" } } } },
+    ];
+  }
+}
+
+export class ConnectionWithStyles extends BlockConnection {
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [
+      { style: { parts: { line: { color: "#000000" } } } },
+      // @ts-expect-error "border" belongs to a block.
+      { style: { parts: { border: { color: "#000000" } } } },
+    ];
+  }
+}
 
 export const partChecks: [
   TExpectEqual<TPartsOf<typeof Block>, "body" | "border" | "title" | "halo" | "badge">,

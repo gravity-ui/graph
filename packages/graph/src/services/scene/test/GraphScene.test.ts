@@ -1,4 +1,5 @@
 import { Block } from "../../../components/canvas/blocks/Block";
+import { BlockConnection } from "../../../components/canvas/connections/BlockConnection";
 import { Graph } from "../../../graph";
 import { drawElements } from "../../../lib/scene/canvas/drawPrimitives";
 import type { ISceneBackend, ISceneBackendModule, TSceneBackendEvents } from "../../../lib/scene/renderer/backendTypes";
@@ -8,7 +9,7 @@ import { Layer } from "../../Layer";
 import { ECameraScaleLevel } from "../../camera/cameraScaleEnums";
 import { ESelectionStrategy } from "../../selection";
 import { StyleResolver } from "../../styles/StyleResolver";
-import type { TStyleParts } from "../../styles/types";
+import type { TSceneStyles, TStyleParts } from "../../styles/types";
 import { entityKey } from "../../tags/TagStore";
 import { hoveredTag, selectedTag } from "../../tags/builtinTags";
 import { defineTag } from "../../tags/defineTag";
@@ -291,27 +292,6 @@ describe("graph.scene", () => {
       expect(gpu.created).toBe(1);
       expect(gpu.disposed).toBe(0);
     });
-  });
-
-  it("plays a hover rule on a stock block through the graph frame task", () => {
-    graph = new Graph({}, document.createElement("div"));
-    graph.setEntities({ blocks: [{ is: "Block", id: "b", name: "B", x: 9, y: 20, width: 80, height: 40 }] });
-    graph.start();
-    graph.scheduler.performUpdate();
-    const { scene } = graph;
-    const block = scene.store.get(entityKey("block", "b"));
-    expect(block?.y).toBe(20);
-    scene.tags.add(hoveredTag, { block: ["b"] });
-    const remove = scene.styles.add([{ target: Block, tags: [hoveredTag], style: { motion: "bounce" } }]);
-    const now = jest.spyOn(scene.clock, "now").mockReturnValue(1);
-    graph.scheduler.performUpdate();
-    now.mockReturnValue(1.15);
-    graph.scheduler.performUpdate();
-    expect(block?.y).toBeCloseTo(12);
-    remove();
-    expect(block?.y).toBe(20);
-    expect(scene.store.hasBlockMotions).toBe(false);
-    now.mockRestore();
   });
 
   it("queries elements as read-only views", () => {
@@ -922,6 +902,82 @@ describe("bindStyle and explain", () => {
     } finally {
       acquire.mockRestore();
     }
+  });
+
+  it("applies configured component styles before mounting and inherits selection while overriding hover", () => {
+    class Pipeline extends Block {
+      public static override getSceneStyles(): TSceneStyles<typeof Pipeline> {
+        return [
+          { tags: [hoveredTag], style: { parts: { border: { width: 2 } } } },
+          { tags: [selectedTag], style: { parts: { border: { color: "#2563eb" } } } },
+        ];
+      }
+    }
+    class Report extends Pipeline {
+      public static override getSceneStyles(): TSceneStyles<typeof Report> {
+        return [{ tags: [hoveredTag], style: { parts: { border: { width: 4 } } } }];
+      }
+    }
+    class ReportConnection extends BlockConnection {
+      public static override getSceneStyles(): TSceneStyles<typeof ReportConnection> {
+        return [{ tags: [hoveredTag], style: { parts: { line: { width: 3 } } } }];
+      }
+    }
+    graph = new Graph(
+      {
+        blocks: [{ is: "report", id: "r", name: "Report", x: 0, y: 0, width: 100, height: 50 }],
+        settings: { blockComponents: { report: Report }, connection: ReportConnection },
+      },
+      document.createElement("div")
+    );
+    const tags = new Map([
+      [hoveredTag, true],
+      [selectedTag, true],
+    ] as const);
+    expect(graph.scene.styleFor(Report, tags)).toMatchObject({
+      parts: { border: { color: "#2563eb", width: 4 } },
+    });
+    expect(graph.scene.styleFor(Pipeline, tags).parts?.border?.width).toBe(2);
+    expect(graph.scene.styleFor(ReportConnection, tags).parts?.line?.width).toBe(3);
+
+    graph.start();
+    graph.cameraService.set({ scale: 0.5 });
+    graph.selectionService.select("block", ["r"], ESelectionStrategy.REPLACE);
+    graph.scene.tags.add(hoveredTag, { block: ["r"] });
+    graph.scheduler.performUpdate();
+    expect(graph.scene.explain("block", "r").style).toMatchObject({
+      parts: { border: { color: "#2563eb", width: 4 } },
+    });
+
+    const remove = graph.scene.styles.add([
+      { target: Report, tags: [hoveredTag], style: { parts: { border: { width: 6 } } } },
+    ]);
+    expect(graph.scene.styleFor(Report, tags).parts?.border?.width).toBe(6);
+    remove();
+    expect(graph.scene.styleFor(Report, tags).parts?.border?.width).toBe(4);
+  });
+
+  it("keeps a scoped class rule while an element of a replaced configured class is still bound", () => {
+    class Scoped extends Block {
+      public static override getSceneStyles(): TSceneStyles<typeof Scoped> {
+        return [{ scope: { minScale: 0.4 }, style: { parts: { title: { color: "#225588" } } } }];
+      }
+    }
+    graph = new Graph({});
+    graph.cameraService.set({ scale: 0.3 });
+    graph.updateSettings({ blockComponents: { scoped: Scoped } });
+    expect(graph.scene.styles.$thresholds.value).toContain(0.4);
+    addElement("e");
+    const unbind = graph.scene.bindStyle("e", { type: "block", id: "e" }, Scoped);
+    graph.resetSettings(["blockComponents"]);
+    graph.cameraService.set({ scale: 0.5 });
+    expect(graph.scene.explain("block", "e").style?.base?.title?.color).toBe("#225588");
+
+    unbind();
+    expect(graph.scene.styles.$thresholds.value).not.toContain(0.4);
+    const unbindDiscovered = graph.scene.bindStyle("e", { type: "block", id: "e" }, Scoped);
+    expect(graph.scene.explain("block", "e").style?.base?.title?.color).toBe("#225588");
+    unbindDiscovered();
   });
 
   it("styleFor and $styleGeneration follow the stylesheet", () => {
