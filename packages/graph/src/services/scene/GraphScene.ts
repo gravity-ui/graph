@@ -591,15 +591,16 @@ export class GraphScene implements IGraphScene {
   /**
    * @internal Keeps an element's style row on its entity's tags: the element is styled as `target` with the entity's
    * current tags. Returns a function that releases the row, resets the element to row 0 and forgets the binding.
-   * Add the element first: a tag change sets the row of an element that exists, binding does not wait for one.
+   * A mounted writer binds its record by identity, so releasing it cannot reset a replacement with the same id.
    */
   public bindStyle(
-    elementId: string,
+    record: string | TSceneElement,
     entity: TEntityAddress,
     target: TStyleTarget,
     onStyleChange?: (style: TSceneStyle) => void
   ): () => void {
     if (this.disposed) return noop;
+    const elementId = typeof record === "string" ? record : record.id;
     const key = entityKey(entity.type, entity.id);
     const binding = { target, elementId };
     const $tags = this.tags.$of(entity.type, entity.id);
@@ -611,6 +612,7 @@ export class GraphScene implements IGraphScene {
       if (onStyleChange) track(this.$styleCascadeGeneration);
       untracked(() => {
         const element = this.store.get(elementId);
+        if (typeof record !== "string" && element !== record) return;
         if (tags !== previousTags) {
           // Acquire before release: a row both signatures share is not freed and defined again.
           const next = this.resolver.acquire(target, tags);
@@ -636,7 +638,8 @@ export class GraphScene implements IGraphScene {
     const unbind = (): void => {
       if (!this.styleUnbinds.delete(unbind)) return;
       stop();
-      if (this.store.get(elementId)) this.store.setStyle(elementId, 0);
+      const element = this.store.get(elementId);
+      if (element && (typeof record === "string" || element === record)) this.store.setStyle(elementId, 0);
       if (current !== 0) this.resolver.release(current);
       current = 0;
       const list = this.styleBindings.get(key) ?? [];

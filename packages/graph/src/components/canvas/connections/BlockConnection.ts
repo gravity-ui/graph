@@ -14,6 +14,7 @@ import { HAS_NODE_ENV } from "../../../utils/development";
 import { isMetaKeyEvent } from "../../../utils/functions";
 import { cachedMeasureText } from "../../../utils/renderers/text";
 import { TPoint, TRect } from "../../../utils/types/shapes";
+import { SceneElementWriter } from "../scene/SceneElementWriter";
 
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
 import { Path2DRenderInstance, TPathBounds } from "./BatchPath2D";
@@ -165,11 +166,9 @@ export class BlockConnection<T extends TConnection = TConnection>
   /** World rectangle of `labelGeometry` from the last bounds update. */
   private labelWorldBounds: TPathBounds | undefined;
 
-  private sceneKey?: TSceneKey;
+  private writer?: SceneElementWriter;
 
   private submittedPrimitives?: readonly TScenePrimitive[];
-
-  private unbindSceneStyle?: () => void;
 
   private sceneHitStyle?: TSceneStyle;
 
@@ -221,7 +220,7 @@ export class BlockConnection<T extends TConnection = TConnection>
   }
 
   public getSceneKey(): TSceneKey | undefined {
-    return this.sceneKey;
+    return this.writer?.key;
   }
 
   private updateDrawing(state: TBaseConnectionState = this.state, props: TConnectionProps = this.props): void {
@@ -235,12 +234,12 @@ export class BlockConnection<T extends TConnection = TConnection>
 
   private syncScene(state: TBaseConnectionState, props: TConnectionProps): void {
     const scene = this.context.graph.scene;
-    const key = this.sceneKey;
+    const writer = this.writer;
     const geometry = this.shape;
     const pathBounds = this.pathBounds;
     const visible = this.isRenderAllowed();
     if (!visible || !geometry || !pathBounds) {
-      if (key && !scene.store.get(key.elementId)?.hidden) scene.store.update(key.elementId, { hidden: true });
+      if (writer?.isCurrent() && !writer.element.hidden) writer.update({ hidden: true });
       return;
     }
     const primitives = this.scenePrimitives(geometry, state, props);
@@ -251,45 +250,42 @@ export class BlockConnection<T extends TConnection = TConnection>
       maxX: Math.max(pathBounds[2], label[2]),
       maxY: Math.max(pathBounds[3], label[3]),
     };
-    const zIndex = this.zIndex;
     const standardLabels = this.appendSceneLabels === BlockConnection.prototype.appendSceneLabels;
-    if (key) {
-      const element = scene.store.get(key.elementId);
-      const patch: Parameters<typeof scene.store.update>[1] = {};
-      if (!element || hasChangedValue(bounds, element.bounds)) patch.bounds = bounds;
-      if (
-        !element ||
-        !standardLabels ||
-        element.primitives !== this.submittedPrimitives ||
-        element.primitives.length !== primitives.length ||
-        !primitives.every((primitive, i) => samePrimitive(primitive, element.primitives[i]))
-      )
-        patch.primitives = snapshotShaft(primitives);
-      if (element?.zIndex !== zIndex) patch.zIndex = zIndex;
-      if (element?.hidden) patch.hidden = false;
-      if (Object.keys(patch).length) scene.store.update(key.elementId, patch);
-      if (patch.primitives) this.submittedPrimitives = standardLabels ? primitives : undefined;
-    } else {
-      const id = this.getEntityId();
-      const elementId = entityKey("connection", id);
-      scene.store.add({
-        id: elementId,
-        entityType: "connection",
-        x: 0,
-        y: 0,
-        zIndex,
-        bounds,
-        primitives: snapshotShaft(primitives),
-      });
-      this.submittedPrimitives = standardLabels ? primitives : undefined;
-      this.sceneKey = { elementId, sub: 0 };
-      this.unbindSceneStyle = scene.bindStyle(
-        elementId,
-        { type: "connection", id },
-        this.constructor as TStyleTarget,
-        (style) => this.updateSceneHitStyle(style)
-      );
+    if (writer?.isCurrent()) {
+      const current = writer.element.primitives;
+      const reuse =
+        standardLabels &&
+        current === this.submittedPrimitives &&
+        current.length === primitives.length &&
+        primitives.every((primitive, i) => samePrimitive(primitive, current[i]));
+      const next = reuse ? current : snapshotShaft(primitives);
+      writer.update({ bounds, primitives: next, zIndex: this.zIndex, hidden: false });
+      this.submittedPrimitives = standardLabels ? next : undefined;
+      return;
     }
+
+    const id = this.getEntityId();
+    const elementId = entityKey("connection", id);
+    if (writer) {
+      writer.dispose();
+      this.writer = undefined;
+      this.submittedPrimitives = undefined;
+    }
+    if (scene.store.get(elementId)) return;
+    const next = snapshotShaft(primitives);
+    this.writer = new SceneElementWriter(scene, {
+      id: elementId,
+      entityType: "connection",
+      x: 0,
+      y: 0,
+      zIndex: this.zIndex,
+      bounds,
+      primitives: next,
+    });
+    this.submittedPrimitives = standardLabels ? next : undefined;
+    this.writer.bindStyle({ type: "connection", id }, this.constructor as TStyleTarget, (style) =>
+      this.updateSceneHitStyle(style)
+    );
   }
 
   private updateSceneHitStyle(style: TSceneStyle): void {
@@ -839,9 +835,8 @@ export class BlockConnection<T extends TConnection = TConnection>
   protected unmount(): void {
     this.unsubscribeLabelFontSize?.();
     this.unsubscribeLabelFontSize = undefined;
-    this.unbindSceneStyle?.();
-    if (this.sceneKey) this.context.graph.scene.store.delete(this.sceneKey.elementId);
-    this.sceneKey = undefined;
+    this.writer?.dispose();
+    this.writer = undefined;
     this.submittedPrimitives = undefined;
     super.unmount();
     this.line.dispose();

@@ -4,7 +4,6 @@ import type { ReadonlySignal } from "@preact/signals-core";
 import type { TComponentState } from "../../../lib/Component";
 import type { CoreComponent, TComponentMode } from "../../../lib/CoreComponent";
 import type { TTileRect } from "../../../lib/culling/TileIndex";
-import type { SceneStore } from "../../../lib/scene/SceneStore";
 import { EMPTY_BOUNDS, elementBounds } from "../../../lib/scene/elementBounds";
 import { isOnLevel, levelMaskOfPrimitives } from "../../../lib/scene/levels";
 import type { TSceneElement, TScenePrimitive } from "../../../lib/scene/types";
@@ -20,6 +19,7 @@ import type { TPoint, TRect } from "../../../utils/types/shapes";
 import { GraphComponent } from "../GraphComponent";
 import type { GraphComponentContext, TGraphComponentProps } from "../GraphComponent";
 
+import { SceneElementWriter } from "./SceneElementWriter";
 import {
   checkLookLessHitBox,
   checkScenePrimitives,
@@ -45,10 +45,6 @@ type TWritten = TLevelOutput & {
   readonly parent?: string;
   readonly childOrder: number;
 };
-type TElementPatch = Partial<
-  Pick<TSceneElement, "x" | "y" | "bounds" | "primitives" | "hidden" | "zIndex" | "childOrder">
->;
-
 let anonymousElements = 0;
 
 /** The output of an element without primitives, and of one whose level methods never ran without an error. */
@@ -63,10 +59,6 @@ const EMPTY_LEVELS: TLevelOutput = Object.freeze({
  */
 function reportHookError(owner: string, hook: string, outcome: string, error: unknown): void {
   console.error(`${owner}: ${hook} threw; ${outcome}`, error);
-}
-
-function sameBounds(a: TTileRect, b: TTileRect): boolean {
-  return a === b || (a.minX === b.minX && a.minY === b.minY && a.maxX === b.maxX && a.maxY === b.maxY);
 }
 
 /**
@@ -89,19 +81,6 @@ export const sceneComponentStats = {
     this.writes = 0;
   },
 };
-
-/** The fields of a written element that the next write changes; undefined when it changes none. */
-function elementPatch(written: TWritten, next: TWritten): TElementPatch | undefined {
-  const patch: TElementPatch = {};
-  if (written.x !== next.x) patch.x = next.x;
-  if (written.y !== next.y) patch.y = next.y;
-  if (!sameBounds(written.bounds, next.bounds)) patch.bounds = next.bounds;
-  if (written.primitives !== next.primitives) patch.primitives = next.primitives;
-  if (written.zIndex !== next.zIndex) patch.zIndex = next.zIndex;
-  if (written.hidden !== next.hidden) patch.hidden = next.hidden;
-  if (written.childOrder !== next.childOrder) patch.childOrder = next.childOrder;
-  return Object.keys(patch).length > 0 ? patch : undefined;
-}
 
 /**
  * A component drawn by the scene (spec §5.1). It owns one scene element, or one child element of its parent's (spec
@@ -153,11 +132,9 @@ export abstract class SceneComponent<
    */
   private walked = false;
 
-  private sceneKey?: TSceneKey;
+  private writer?: SceneElementWriter;
 
   private elementId?: string;
-
-  private unbindStyle?: () => void;
 
   private measuresText = false;
 
@@ -295,12 +272,12 @@ export abstract class SceneComponent<
 
   /** `{ elementId, sub: 0 }` while the element is written: one object until the element is added again or reordered. */
   public getSceneKey(): TSceneKey | undefined {
-    return this.sceneKey;
+    return this.writer?.key;
   }
 
   /** @internal The written element as a read-only view; undefined before. */
   public getSceneElementView(): TSceneElementView | undefined {
-    return this.written ? this.context.graph.scene.store.get(this.getSceneElementId()) : undefined;
+    return this.writer?.isCurrent() ? this.writer.element : undefined;
   }
 
   /**
@@ -437,21 +414,12 @@ export abstract class SceneComponent<
   }
 
   protected unmount(): void {
-    this.unbindStyle?.();
-    this.unbindStyle = undefined;
+    this.writer?.dispose();
+    this.writer = undefined;
     if (this.measuresText) this.context.graph.scene.untrackTextMeasure(this);
     this.measuresText = false;
-    if (this.written) {
-      const store = this.context.graph.scene.store;
-      const id = this.getSceneElementId();
-      // The store deletes the element's child elements with it.
-      if (store.writerOf(id) === this) {
-        store.delete(id);
-      }
-    }
     this.written = undefined;
     this.appliedPlace = undefined;
-    this.sceneKey = undefined;
     super.unmount();
   }
 
@@ -609,8 +577,6 @@ export abstract class SceneComponent<
 
   private syncSceneElement(place: TScenePlace, levels: TLevelOutput): void {
     const start = HAS_NODE_ENV && process.env.NODE_ENV !== "production" ? sceneComponentStats.start() : undefined;
-    const store = this.context.graph.scene.store;
-    const id = this.getSceneElementId();
     const parent = this.getSceneParent();
     const next: TWritten = {
       primitives: levels.primitives,
@@ -628,14 +594,12 @@ export abstract class SceneComponent<
     // Before any early return: the barrier can change while the element stays as written (a delegated one hidden by
     // another input).
     this.syncHitBarrier();
-    if (written && store.get(id) && written.parent === next.parent) {
-      const patch = elementPatch(written, next);
+    if (written && this.writer?.isCurrent() && written.parent === next.parent) {
+      if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && written.primitives !== next.primitives)
+        checkScenePrimitives(this.constructor.name, next.primitives);
+      const patch = this.writer.update(next, written);
       if (!patch) return;
-      if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
-        checkScenePrimitives(this.constructor.name, patch.primitives);
-      store.update(id, patch);
       this.written = next;
-      if (patch.childOrder !== undefined) this.sceneKey = { elementId: id, sub: 0 };
       const geometry =
         patch.x !== undefined || patch.y !== undefined || patch.bounds !== undefined || patch.primitives !== undefined;
       if (geometry) this.syncHitRect(next);
@@ -644,7 +608,7 @@ export abstract class SceneComponent<
         if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
           checkLookLessHitBox(this.constructor as typeof SceneComponent, next, this.hasHitBox);
       }
-    } else if (!this.addSceneElement(store, id, next)) {
+    } else if (!this.addSceneElement(next)) {
       // Nothing written: no look of its own is hit.
       this.syncHitMask(undefined);
       return;
@@ -659,59 +623,34 @@ export abstract class SceneComponent<
    * Adds the element, or adds it again under a new parent. Returns false without writing when another component owns
    * the id (a development error names both classes) or the parent element is missing.
    */
-  private addSceneElement(store: SceneStore, id: string, next: TWritten): boolean {
-    if (store.get(id)) {
-      const holder = store.writerOf(id);
-      if (holder !== this) {
-        this.written = undefined;
-        this.sceneKey = undefined;
-        if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
-          reportElementIdConflict(this.constructor.name, id, holder);
-        return false;
-      }
-      store.delete(id);
-    }
+  private addSceneElement(next: TWritten): boolean {
+    const scene = this.context.graph.scene;
+    const store = scene.store;
+    const id = this.getSceneElementId();
+    this.writer?.dispose();
+    this.writer = undefined;
     this.written = undefined;
-    this.sceneKey = undefined;
+    if (store.get(id)) {
+      if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
+        reportElementIdConflict(this.constructor.name, id, store.writerOf(id));
+      return false;
+    }
     if (next.parent !== undefined && !store.get(next.parent)) {
       reportMissingParent(this.constructor.name, next.parent);
       return false;
     }
     if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
       checkScenePrimitives(this.constructor.name, next.primitives);
-    store.add(
-      {
-        id,
-        // The type is the class's, whatever the id (`createSceneElementId` may be overridden).
-        entityType: (this.constructor as typeof SceneComponent).entityType,
-        primitives: next.primitives,
-        bounds: next.bounds,
-        x: next.x,
-        y: next.y,
-        zIndex: next.zIndex,
-        hidden: next.hidden,
-        parent: next.parent,
-        childOrder: next.childOrder,
-      },
-      this
-    );
+    const type = (this.constructor as typeof SceneComponent).entityType;
+    this.writer = new SceneElementWriter(scene, { id, entityType: type, ...next }, this);
     this.written = next;
     this.syncHitMask(next, this.adds === 0);
-    this.sceneKey = { elementId: id, sub: 0 };
-    this.bindSceneStyle(id);
+    if (type !== undefined) this.writer.bindStyle({ type, id: this.getEntityId() }, this.getStyleTarget());
     this.syncHitRect(next);
     // A hit box set before the first write (by hand, as `Anchor` does) is checked once the look is known.
     if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
       checkLookLessHitBox(this.constructor as typeof SceneComponent, next, this.hasHitBox);
     if (this.adds++ > 0) this.rewriteChildren();
     return true;
-  }
-
-  private bindSceneStyle(id: string): void {
-    const type = (this.constructor as typeof SceneComponent).entityType;
-    if (type === undefined) return;
-    this.unbindStyle?.();
-    // After store.add: adding an element resets its style row (plan 2).
-    this.unbindStyle = this.context.graph.scene.bindStyle(id, { type, id: this.getEntityId() }, this.getStyleTarget());
   }
 }

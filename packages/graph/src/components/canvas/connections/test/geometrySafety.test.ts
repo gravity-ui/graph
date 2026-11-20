@@ -55,6 +55,7 @@ test("missing endpoint geometry does not create an origin hitbox or visible path
   expect(view.connectionPoints).toBeUndefined();
   expect(view.bounds()).toEqual([0, 0, 0, 0]);
   expect(view.isPathVisible()).toBe(false);
+  expect(view.getSceneKey()).toBeUndefined();
   Component.unmount(view);
   expect(view.isEntityAvailable()).toBe(false);
 });
@@ -96,7 +97,7 @@ test("a geometry function that returns none leaves resolved endpoints invisible 
   Component.unmount(view);
 });
 
-test("restoring endpoint geometry at unchanged coordinates restores hit testing", () => {
+test("restoring endpoint geometry at unchanged coordinates restores hits in the same draw order", () => {
   const graph = new Graph({ connections: [{ id: "c", sourcePortId: "s", targetPortId: "t" }] });
   const hitTest = new TestHitTest(graph);
   graph.hitTest = hitTest;
@@ -110,14 +111,20 @@ test("restoring endpoint geometry at unchanged coordinates restores hit testing"
   const search = { minX: 0, minY: 0, maxX: 110, maxY: 110 };
   view.refresh();
   hitTest.flush();
+  const key = view.getSceneKey();
+  if (!key) throw new Error("Expected a scene element for the resolved connection");
+  const element = () => graph.scene.store.get(key.elementId);
+  const order = element()?.order;
   expect(graph.hitTest.testBox(search)).toContain(view);
   source.removeOwner();
   view.refresh();
   hitTest.flush();
+  expect(element()).toMatchObject({ hidden: true, order });
   expect(graph.hitTest.testBox(search)).not.toContain(view);
   source.updatePort({ lookup: false });
   view.refresh();
   hitTest.flush();
+  expect(element()).toMatchObject({ hidden: false, order });
   expect(graph.hitTest.testBox(search)).toContain(view);
   Component.unmount(view);
 });

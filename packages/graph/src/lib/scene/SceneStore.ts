@@ -32,9 +32,9 @@ export type TSceneElementInput = Omit<TSceneElement, "order" | "styleId" | "hidd
 /** The dim colour of a store until it is set: the default theme's layer background (`initGraphColors`). */
 const DEFAULT_DIM_COLOR = "#f9f9f9";
 
-type TSceneWriter = { isRenderDelegated(): boolean; isHiddenForOtherReason(): boolean };
+export type TSceneWriter = { isRenderDelegated(): boolean; isHiddenForOtherReason(): boolean };
 type TMotionListener = (x: number, y: number) => void;
-type TElementPatch = Partial<
+export type TElementPatch = Partial<
   Pick<TSceneElement, "x" | "y" | "bounds" | "primitives" | "hidden" | "zIndex" | "childOrder">
 >;
 

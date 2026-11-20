@@ -234,6 +234,46 @@ describe("BlockConnection line protocol", () => {
     expect(refresh().segments[2]).toBe(165);
   });
 
+  it("restores a connection's primitives in place after a direct store edit", () => {
+    graph = mount();
+    const connection = view(graph, "a");
+    const key = connection.getSceneKey();
+    const element = key && graph.scene.store.get(key.elementId);
+    if (!element) throw new Error("Expected a scene element for connection a");
+    const { primitives, order, styleId } = element;
+    graph.scene.store.update(element.id, { primitives: [] });
+    connection.invalidateLine();
+    expect(graph.scene.store.get(element.id)).toMatchObject({ primitives, order, styleId });
+  });
+
+  it("leaves a replacement scene element and its style alone when the old connection updates and unmounts", () => {
+    graph = mount();
+    const old = view(graph, "a");
+    const key = old.getSceneKey();
+    const state = graph.connections.getConnectionState("a");
+    if (!key || !state) throw new Error("Expected a published connection a");
+    const store = graph.scene.store;
+    store.delete(key.elementId);
+    const replacement = store.add({
+      id: key.elementId,
+      x: 0,
+      y: 0,
+      zIndex: 42,
+      bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+      primitives: [],
+    });
+    const styleId = store.defineStyle({ raise: 1 });
+    store.setStyle(replacement.id, styleId);
+
+    graph.api.selectConnections(["a"], true);
+    old.invalidateLine();
+    old.invalidateLine();
+    graph.connections.deleteConnections([state]);
+    frames();
+    expect(store.get(replacement.id)).toBe(replacement);
+    expect(replacement).toMatchObject({ zIndex: 42, primitives: [], styleId });
+  });
+
   it("puts the default shaft and open arrow into each connection's scene element", () => {
     graph = mount();
     const color = view(graph, "a").context.colors.connection.background;
