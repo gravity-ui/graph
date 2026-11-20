@@ -101,9 +101,6 @@ cancellation with a deterministic clock.
 
 For a **Live** profile, take the longest animation-frame interval overlapping each simulation tick and its first
 scene paint. The story updates every 500 ms, so including idle frames can hide stalls at a status change.
-For reconnects, choose **View → One pipeline** and toggle **Retarget Orders DB flow** on and off. Measure the
-first edit after loading separately from repeated edits. Check that the same edge changes target and returns
-with the connection count intact.
 
 ## Scene bench (WebGL scene research, E1 and E2)
 

@@ -5,7 +5,7 @@ import type { BlockState, Graph, TBlock, TSceneRenderer } from "@gravity-ui/grap
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import { GraphCanvas, useGraph, useLayer, useSignal } from "@gravity-ui/graph-react";
 import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
-import { computed, signal } from "@preact/signals-core";
+import { signal } from "@preact/signals-core";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { glow } from "../webglConnections/lines";
@@ -88,7 +88,6 @@ type TEtlAtScaleArgs = {
   renderer: TSceneRenderer;
   html: boolean;
   minimap: boolean;
-  retargetOrdersFlow: boolean;
   live: boolean;
   focusOnFailures: boolean;
   view: (typeof ETL_VIEWS)[number];
@@ -104,7 +103,6 @@ const etlDefaults: TEtlAtScaleArgs = {
   renderer: "webgl",
   html: true,
   minimap: false,
-  retargetOrdersFlow: false,
   live: false,
   focusOnFailures: false,
   view: "fit",
@@ -122,8 +120,6 @@ function boundedCount(value: number, fallback: number): number {
 /** World units around the graph when it is fitted: the group frames and the far-zoom rings stay inside. */
 const FIT_PADDING = 300;
 
-/** Scale interval over which the HTML-only status chip appears after the detailed level starts. */
-const STATUS_CHIP_FADE_RANGE = 0.12;
 const etlSettings = { yieldBeforeSceneLoad: true };
 
 function SceneLoadingOverlay({ graph }: { graph: Graph }) {
@@ -155,7 +151,6 @@ const EtlAtScaleApp = ({
   renderer,
   html,
   minimap,
-  retargetOrdersFlow,
   live,
   focusOnFailures,
   view,
@@ -185,16 +180,6 @@ const EtlAtScaleApp = ({
   const [counts, setCounts] = useState(() => simulation.counts());
   const sceneState = useSignal(graph.scene.$renderer);
   const level = useSignal(graph.scene.$level);
-  const statusOpacity = useMemo(
-    () =>
-      computed(() => {
-        if (!transitions.value) return 1;
-        const scale = graph.scene.$cameraFrame.value?.camera.scale ?? graph.$camera.peek().scale;
-        return Math.min(1, Math.max(0, (scale - graph.graphConstants.block.SCALES[2]) / STATUS_CHIP_FADE_RANGE));
-      }),
-    [graph, transitions]
-  );
-
   useLayer(graph, PipelineGroups, { draggable: true, updateBlocksOnDrag: true });
   useLayer(minimap ? graph : null, MiniMapLayer, { location: "bottomRight", width: 280, height: 124 });
 
@@ -218,11 +203,6 @@ const EtlAtScaleApp = ({
     start();
     return remove;
   }, [graph, data, simulation, components, setEntities, start]);
-
-  useEffect(() => {
-    // Changing effect classes also reloads the original entities above.
-    simulation.retargetOrdersFlow(data.connections[0], retargetOrdersFlow);
-  }, [components, data, simulation, retargetOrdersFlow]);
 
   useEffect(() => {
     if (view === "fit") {
@@ -278,15 +258,15 @@ const EtlAtScaleApp = ({
     [simulation]
   );
 
-  // Stable while the simulation is: a new function would render every mounted card again.
+  // A new render function re-renders every mounted card.
   const renderStage = useCallback(
     (graphInstance: Graph, block: TBlock): React.JSX.Element =>
       isStageBlock(block) ? (
-        <StageCardView graph={graphInstance} block={block} onAction={act} statusOpacity={statusOpacity} />
+        <StageCardView graph={graphInstance} block={block} onAction={act} />
       ) : (
         <PlainView graph={graphInstance} block={block} />
       ),
-    [act, statusOpacity]
+    [act]
   );
 
   return (
@@ -356,15 +336,13 @@ EtlAtScale.argTypes = {
   renderer: { name: "Renderer", table: { category: "Appearance" }, control: "radio", options: ["webgl", "canvas"] },
   html: { name: "HTML cards", table: { category: "Appearance" }, control: "boolean" },
   minimap: { name: "Minimap", table: { category: "Appearance" }, control: "boolean" },
-  retargetOrdersFlow: {
-    name: "Retarget Orders DB flow",
-    table: { category: "Data" },
-    description:
-      "Choose View → One pipeline. Switch the Orders DB output from Extract orders (in-0) to Ingest events (in-1). Switch off to restore it.",
+  live: { name: "Live", table: { category: "Data" }, control: "boolean" },
+  levelTransitions: {
+    name: "Level transitions",
+    table: { category: "Appearance" },
+    description: "Gradually reveal scene labels and throughput as the camera zooms.",
     control: "boolean",
   },
-  live: { name: "Live", table: { category: "Data" }, control: "boolean" },
-  levelTransitions: { name: "Level transitions", table: { category: "Appearance" }, control: "boolean" },
   focusOnFailures: { name: "Focus on failures", table: { category: "Appearance" }, control: "boolean" },
   view: {
     name: "View",
@@ -401,7 +379,7 @@ EtlAtScale.parameters = {
         "input and output anchors, with room for every port in the scene blocks and HTML cards. " +
         "Select a stage to highlight it. Hover over a connection to highlight its route. Enable Minimap in Controls to show the graph overview. " +
         "In the overview, throughput particles appear only while WebGL animates them. Below Effect min scale, " +
-        "status outlines and running flows become steady. Enable Level transitions to reveal stage labels, throughput and the HTML status chip gradually as you zoom in. " +
+        "status outlines and running flows become steady. Enable Level transitions to reveal scene labels and throughput as you zoom. " +
         "The stage keeps its status tint through zoom and HTML handoff. " +
         "Hover highlighting still animates one connection at any scale. " +
         "Changing the control reconfigures the scene; zooming across the cutoff keeps the same geometry. " +

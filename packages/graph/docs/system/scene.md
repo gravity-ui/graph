@@ -37,7 +37,7 @@ motion fixed when switching renderers.
 
 | Investigate | Story and starting conditions |
 | --- | --- |
-| Status updates, reconnects and zoom | [ETL at scale](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-sceneeffects--etl-at-scale) opens with 10,000 blocks, 10,000 connections and the minimap off. Enable **Live** for status updates, or choose **One pipeline** and toggle **Retarget Orders DB flow**. |
+| Status updates and zoom | [ETL at scale](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-sceneeffects--etl-at-scale) opens with 10,000 blocks, 10,000 connections and the minimap off. Enable **Live** for status updates or choose **Camera motion → Zoom cycle** to exercise zoom. |
 | Large graphs with Bézier connections | [Nirvana overview](https://preview.gravity-ui.com/graph/v2/?path=/story/stories-main-grapheditor--nirvana-max-graph-test) opens on the whole graph. [Nirvana effects](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-webglconnections--nirvana-effects) opens on the central layers. At their default sizes both use the same seeded layout. |
 | A connection routed around bends | [Multipoint route](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-webglconnections--multipoint-route) shows a stock WebGL connection. Click a segment after a bend to select it. |
 | Stroke coverage at a sharp turn | [Polyline bends](https://preview.gravity-ui.com/graph/v2/?path=/story/scene-diagnostics-polyline-bends--stroke-coverage) opens with a half-opacity stroke, width 16 and a 19/13 dash. Switch renderers, repeat the vertex or magnify the lower bend. |
