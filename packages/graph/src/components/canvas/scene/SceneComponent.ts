@@ -1,12 +1,12 @@
 import { computed, signal, untracked } from "@preact/signals-core";
-import type { ReadonlySignal } from "@preact/signals-core";
+import type { ReadonlySignal, Signal } from "@preact/signals-core";
 
 import type { TComponentState } from "../../../lib/Component";
 import type { CoreComponent, TComponentMode } from "../../../lib/CoreComponent";
 import type { TTileRect } from "../../../lib/culling/TileIndex";
 import { EMPTY_BOUNDS, elementBounds } from "../../../lib/scene/elementBounds";
 import { isOnLevel, levelMaskOfPrimitives } from "../../../lib/scene/levels";
-import type { TSceneElement, TScenePrimitive } from "../../../lib/scene/types";
+import type { TSceneElement, TScenePrimitive, TSceneStyle } from "../../../lib/scene/types";
 import type { HitBoxData } from "../../../services/HitTest";
 import type { ISceneKeyed, TSceneKey } from "../../../services/scene/sceneKey";
 import type { ITextMeasurer, TSceneElementView, TSceneLevel } from "../../../services/scene/types";
@@ -115,7 +115,7 @@ export abstract class SceneComponent<
   public static hitLevels?: readonly TSceneLevel[];
 
   /** Placement hooks can read both ordinary component fields and external signals (e.g. a delegated port). */
-  private readonly placementRevision = signal(0);
+  private placementRevision?: Signal<number>;
   private placementPending = false;
   private levelsPending = true;
 
@@ -159,6 +159,14 @@ export abstract class SceneComponent<
   /** How many times its element was added: after the first, its scene children write theirs again. */
   private adds = 0;
 
+  /** @internal Connections publish prepared world-space routes and keep their Canvas children independent. */
+  protected usesSceneLevels(): boolean {
+    return true;
+  }
+
+  /** Receives the resolved style of this element, including later changes to its parts. */
+  protected onSceneStyleChange?(style: TSceneStyle): void;
+
   /** Called with the upcoming data while this.props/state/context still hold the current values. */
   protected shouldUpdateScene(_nextProps: Props, _nextState: State, _nextContext: Context): boolean {
     return true;
@@ -201,7 +209,7 @@ export abstract class SceneComponent<
    */
   protected getSceneOrigin(): TPoint {
     const parent = this.getParent();
-    return parent instanceof SceneComponent ? parent.readSceneOrigin() : { x: 0, y: 0 };
+    return parent instanceof SceneComponent && parent.usesSceneLevels() ? parent.readSceneOrigin() : { x: 0, y: 0 };
   }
 
   /** The element's zIndex bucket; tracked, and read again after new props. Ignored for a child element. */
@@ -217,7 +225,7 @@ export abstract class SceneComponent<
    */
   protected getSceneParent(): TSceneParent | undefined {
     const parent = this.getParent();
-    if (!(parent instanceof SceneComponent)) return undefined;
+    if (!(parent instanceof SceneComponent) || !parent.usesSceneLevels()) return undefined;
     return { elementId: parent.getSceneElementId(), order: this.renderOrder };
   }
 
@@ -259,9 +267,13 @@ export abstract class SceneComponent<
     return this.constructor as TStyleTarget;
   }
 
+  protected getSceneEntityType(): string | undefined {
+    return (this.constructor as typeof SceneComponent).entityType;
+  }
+
   /** The element id: the entity key of `static entityType` and the entity id. Override it when entity ids repeat. */
   protected createSceneElementId(): string {
-    const type = (this.constructor as typeof SceneComponent).entityType;
+    const type = this.getSceneEntityType();
     return type === undefined ? `scene\u0000${++anonymousElements}` : entityKey(type, this.getEntityId());
   }
 
@@ -369,10 +381,12 @@ export abstract class SceneComponent<
 
   protected willMount(): void {
     super.willMount();
+    if (!this.usesSceneLevels()) return;
+    const revision = (this.placementRevision = signal(0));
     this.walked = (this.constructor as typeof SceneComponent).mode === "immediate";
     let lastPlace: TScenePlace | undefined;
     const place = computed(() => {
-      track(this.placementRevision);
+      track(revision);
       const next = this.readScenePlace(lastPlace);
       if (!lastPlace || next.x !== lastPlace.x || next.y !== lastPlace.y || next.zIndex !== lastPlace.zIndex) {
         lastPlace = next;
@@ -387,7 +401,8 @@ export abstract class SceneComponent<
 
   protected willIterate(): void {
     super.willIterate();
-    if (!this.scenePlace) {
+    if (!this.scenePlace || !this.placementRevision) {
+      if (!this.usesSceneLevels()) return;
       if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") reportMissingSuper(this.constructor.name);
       return;
     }
@@ -502,7 +517,7 @@ export abstract class SceneComponent<
     if (this.isHitBarrier()) return "hidden";
     let outside = this.isShownOutsideScene();
     let node: CoreComponent | undefined = this.getParent();
-    while (node instanceof SceneComponent) {
+    while (node instanceof SceneComponent && node.usesSceneLevels()) {
       // The walk goes on past a node shown outside: a hidden one above it still hides the whole subtree.
       if (node.isHitBarrier()) return "hidden";
       if (!outside) outside = node.isShownOutsideScene();
@@ -576,9 +591,8 @@ export abstract class SceneComponent<
   }
 
   private syncSceneElement(place: TScenePlace, levels: TLevelOutput): void {
-    const start = HAS_NODE_ENV && process.env.NODE_ENV !== "production" ? sceneComponentStats.start() : undefined;
     const parent = this.getSceneParent();
-    const next: TWritten = {
+    this.writeSceneElement({
       primitives: levels.primitives,
       bounds: levels.bounds,
       x: place.x,
@@ -587,7 +601,22 @@ export abstract class SceneComponent<
       hidden: this.isWrittenHidden(),
       parent: parent?.elementId,
       childOrder: parent?.order ?? 0,
-    };
+    });
+  }
+
+  /** Updates visibility and order while retaining the prepared geometry and its element identity. */
+  protected updateScenePlacement(hidden: boolean, zIndex?: number): void {
+    const writer = this.writer;
+    if (!this.written || !writer?.isCurrent()) return;
+    const patch = writer.update({ hidden, zIndex });
+    if (!patch) return;
+    if (this.written !== writer.element) this.written = { ...this.written, ...patch };
+    this.requestRetarget();
+  }
+
+  /** Publishes a prepared shape and its bounds through the same owner as a level-based component. */
+  protected writeSceneElement(next: TWritten): void {
+    const start = HAS_NODE_ENV && process.env.NODE_ENV !== "production" ? sceneComponentStats.start() : undefined;
     const written = this.written;
     // Before the write: a child whose add fails is still no element owner (`isHitOnLevel`).
     this.writesChild = next.parent !== undefined;
@@ -599,7 +628,7 @@ export abstract class SceneComponent<
         checkScenePrimitives(this.constructor.name, next.primitives);
       const patch = this.writer.update(next, written);
       if (!patch) return;
-      this.written = next;
+      if (written !== this.writer.element) this.written = next;
       const geometry =
         patch.x !== undefined || patch.y !== undefined || patch.bounds !== undefined || patch.primitives !== undefined;
       if (geometry) this.syncHitRect(next);
@@ -641,11 +670,19 @@ export abstract class SceneComponent<
     }
     if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
       checkScenePrimitives(this.constructor.name, next.primitives);
-    const type = (this.constructor as typeof SceneComponent).entityType;
-    this.writer = new SceneElementWriter(scene, { id, entityType: type, ...next }, this);
-    this.written = next;
+    const type = this.getSceneEntityType();
+    const levels = this.usesSceneLevels();
+    // Only level-based elements supply a scene substitute for a delegated drawing during export.
+    this.writer = new SceneElementWriter(scene, { id, entityType: type, ...next }, levels ? this : undefined);
+    // Level placements retain their requested origin while the store animates it. Prepared routes use the live record.
+    this.written = levels ? next : this.writer.element;
     this.syncHitMask(next, this.adds === 0);
-    if (type !== undefined) this.writer.bindStyle({ type, id: this.getEntityId() }, this.getStyleTarget());
+    if (type !== undefined)
+      this.writer.bindStyle(
+        { type, id: this.getEntityId() },
+        this.getStyleTarget(),
+        this.onSceneStyleChange?.bind(this)
+      );
     this.syncHitRect(next);
     // A hit box set before the first write (by hand, as `Anchor` does) is checked once the look is known.
     if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")

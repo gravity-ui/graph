@@ -5,16 +5,13 @@ import type { TScenePrimitive, TSceneStroke, TSceneStyle } from "../../../lib/sc
 import { resolveSceneSize } from "../../../lib/scene/utils/size";
 import { largestSize } from "../../../lib/scene/webgl/levelBounds";
 import { HitBoxData } from "../../../services/HitTest";
-import type { TSceneKey } from "../../../services/scene/sceneKey";
 import { ESelectionStrategy } from "../../../services/selection/types";
-import type { TStyleParts, TStyleTarget } from "../../../services/styles/types";
-import { entityKey } from "../../../services/tags/TagStore";
+import type { TStyleParts } from "../../../services/styles/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
 import { HAS_NODE_ENV } from "../../../utils/development";
 import { isMetaKeyEvent } from "../../../utils/functions";
 import { cachedMeasureText } from "../../../utils/renderers/text";
 import { TPoint, TRect } from "../../../utils/types/shapes";
-import { SceneElementWriter } from "../scene/SceneElementWriter";
 
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
 import { Path2DRenderInstance, TPathBounds } from "./BatchPath2D";
@@ -166,7 +163,7 @@ export class BlockConnection<T extends TConnection = TConnection>
   /** World rectangle of `labelGeometry` from the last bounds update. */
   private labelWorldBounds: TPathBounds | undefined;
 
-  private writer?: SceneElementWriter;
+  private pendingSceneUpdate?: "appearance" | "placement";
 
   private submittedPrimitives?: readonly TScenePrimitive[];
 
@@ -219,10 +216,6 @@ export class BlockConnection<T extends TConnection = TConnection>
     return mode === "retained" && !this.lineUsesCanvasHooks && !this.hasCanvasDecorations();
   }
 
-  public getSceneKey(): TSceneKey | undefined {
-    return this.writer?.key;
-  }
-
   private updateDrawing(state: TBaseConnectionState = this.state, props: TConnectionProps = this.props): void {
     if (this.usesSceneDrawing()) {
       this.syncScene(state, props);
@@ -233,13 +226,12 @@ export class BlockConnection<T extends TConnection = TConnection>
   }
 
   private syncScene(state: TBaseConnectionState, props: TConnectionProps): void {
-    const scene = this.context.graph.scene;
-    const writer = this.writer;
+    this.pendingSceneUpdate = undefined;
     const geometry = this.shape;
     const pathBounds = this.pathBounds;
     const visible = this.isRenderAllowed();
     if (!visible || !geometry || !pathBounds) {
-      if (writer?.isCurrent() && !writer.element.hidden) writer.update({ hidden: true });
+      this.updateScenePlacement(true);
       return;
     }
     const primitives = this.scenePrimitives(geometry, state, props);
@@ -251,44 +243,19 @@ export class BlockConnection<T extends TConnection = TConnection>
       maxY: Math.max(pathBounds[3], label[3]),
     };
     const standardLabels = this.appendSceneLabels === BlockConnection.prototype.appendSceneLabels;
-    if (writer?.isCurrent()) {
-      const current = writer.element.primitives;
-      const reuse =
-        standardLabels &&
-        current === this.submittedPrimitives &&
-        current.length === primitives.length &&
-        primitives.every((primitive, i) => samePrimitive(primitive, current[i]));
-      const next = reuse ? current : snapshotShaft(primitives);
-      writer.update({ bounds, primitives: next, zIndex: this.zIndex, hidden: false });
-      this.submittedPrimitives = standardLabels ? next : undefined;
-      return;
-    }
-
-    const id = this.getEntityId();
-    const elementId = entityKey("connection", id);
-    if (writer) {
-      writer.dispose();
-      this.writer = undefined;
-      this.submittedPrimitives = undefined;
-    }
-    if (scene.store.get(elementId)) return;
-    const next = snapshotShaft(primitives);
-    this.writer = new SceneElementWriter(scene, {
-      id: elementId,
-      entityType: "connection",
-      x: 0,
-      y: 0,
-      zIndex: this.zIndex,
-      bounds,
-      primitives: next,
-    });
+    const current = this.getSceneElementView()?.primitives;
+    const reuse =
+      standardLabels &&
+      current !== undefined &&
+      current === this.submittedPrimitives &&
+      current.length === primitives.length &&
+      primitives.every((primitive, i) => samePrimitive(primitive, current[i]));
+    const next = reuse ? current : snapshotShaft(primitives);
+    this.writeSceneElement({ x: 0, y: 0, zIndex: this.zIndex, bounds, primitives: next, hidden: false, childOrder: 0 });
     this.submittedPrimitives = standardLabels ? next : undefined;
-    this.writer.bindStyle({ type: "connection", id }, this.constructor as TStyleTarget, (style) =>
-      this.updateSceneHitStyle(style)
-    );
   }
 
-  private updateSceneHitStyle(style: TSceneStyle): void {
+  protected override onSceneStyleChange(style: TSceneStyle): void {
     const previous = this.sceneHitStyle;
     this.sceneHitStyle = style;
     const line = style.parts?.line?.width;
@@ -515,27 +482,55 @@ export class BlockConnection<T extends TConnection = TConnection>
 
   protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
-    if (hasChangedValue(nextProps, this.props)) this.updateLine(this.state, nextProps);
+    if (!this.usesSceneDrawing() && hasChangedValue(nextProps, this.props)) this.updateLine(this.state, nextProps);
   }
 
   protected override stateChanged(nextState: TBaseConnectionState) {
     super.stateChanged(nextState);
-    this.updateLine(nextState);
+    if (!this.usesSceneDrawing()) this.updateLine(nextState);
+  }
+
+  protected override willApplyData(
+    nextProps: TConnectionProps,
+    nextState: TBaseConnectionState,
+    nextContext: TGraphConnectionsContext,
+    derivedAfterProps = false
+  ): void {
+    if (!this.geometryContext) return; // The initial port subscription builds from the applied data.
+    const scene = this.usesSceneDrawing();
+    if (scene && !derivedAfterProps && !this.shouldUpdateScene(nextProps, nextState, nextContext)) {
+      // Vetoing an appearance rebuild still applies standard route edits, visibility and painter order.
+      if (
+        (nextState as Partial<TMultipointConnection>).points ===
+          (this.state as Partial<TMultipointConnection>).points &&
+        !hasChangedValue(nextProps, this.props)
+      ) {
+        this.pendingSceneUpdate ??= "placement";
+        return;
+      }
+    }
+    if (
+      derivedAfterProps ||
+      nextContext !== this.geometryContext ||
+      hasChangedValue(nextProps, this.props) ||
+      hasChangedValue(nextState, this.state)
+    ) {
+      this.geometryDirty = true;
+    } else if (scene && this.__data.nextState) {
+      // Re-read custom strokes on an explicit update even when the stored fields are equal.
+      this.pendingSceneUpdate = "appearance";
+    }
   }
 
   protected override checkData(): boolean {
-    // Mounting computes the first geometry from the $geometry subscription; afterwards changed inputs recompute it
-    // once, after every pending change is applied (BaseConnection.checkData).
-    const { nextProps, nextState } = this.__data;
-    if (
-      this.geometryContext !== undefined &&
-      (this.context !== this.geometryContext ||
-        hasChangedValue(nextProps, this.props) ||
-        hasChangedValue(nextState, this.state))
-    ) {
-      this.geometryDirty = true;
-    }
     const changed = super.checkData();
+    const pending = this.pendingSceneUpdate;
+    if (pending) {
+      this.pendingSceneUpdate = undefined;
+      const visible = this.isRenderAllowed();
+      if (pending === "appearance" || (visible && this.getSceneElementView()?.hidden !== false)) this.updateLine();
+      else this.updateScenePlacement(!visible, this.zIndex);
+    }
     if (changed) this.syncLabelSubscription();
     return changed;
   }
@@ -699,7 +694,7 @@ export class BlockConnection<T extends TConnection = TConnection>
     const x = (shape.minX + shape.maxX) / 2;
     const y = (shape.minY + shape.maxY) / 2;
     const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
-    if (!this.isRenderAllowed()) return false;
+    if (!this.isRenderAllowed() || !this.isHitOnLevel(this.context.graph.scene.$level.peek())) return false;
     if (!this.usesSceneDrawing()) return this.line.hitTest(x, y, threshold) || this.hitTestLabel(shape);
     const paintedLabel = this.isScenePartVisible("label") || this.isScenePartVisible("labelBackground");
     return this.hitSceneStroke(x, y, threshold) || (paintedLabel && this.hitTestLabel(shape));
@@ -835,8 +830,6 @@ export class BlockConnection<T extends TConnection = TConnection>
   protected unmount(): void {
     this.unsubscribeLabelFontSize?.();
     this.unsubscribeLabelFontSize = undefined;
-    this.writer?.dispose();
-    this.writer = undefined;
     this.submittedPrimitives = undefined;
     super.unmount();
     this.line.dispose();

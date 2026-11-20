@@ -5,6 +5,8 @@ import { entityKey } from "../../../../services/tags/TagStore";
 import { selectedTag } from "../../../../services/tags/builtinTags";
 import { defineTag } from "../../../../services/tags/defineTag";
 import type { TConnection } from "../../../../store/connection/ConnectionState";
+import { SceneComponent } from "../../scene/SceneComponent";
+import { BaseConnection } from "../BaseConnection";
 import type { TBaseConnectionState } from "../BaseConnection";
 import { BlockConnection } from "../BlockConnection";
 import { SceneLine } from "../lines";
@@ -41,10 +43,20 @@ class CustomHitConnection extends BlockConnection {
   public static override line = CustomHitLine;
 }
 
+class ConnectionDecoration extends SceneComponent {
+  protected override createSceneElementId(): string {
+    return "decoration";
+  }
+}
+
 class ImmediateConnection extends BlockConnection {
   public static override readonly mode = "immediate";
 
   public override render(): void {}
+
+  protected override updateChildren() {
+    return [ConnectionDecoration.create({})];
+  }
 }
 
 function frames(): void {
@@ -84,6 +96,10 @@ describe("connection drawing ownership", () => {
     const id = entityKey("connection", "edge");
     const view = graph.connections.getConnectionState("edge")?.getViewComponent();
     const element = graph.scene.store.get(id);
+    expect(view).toBeInstanceOf(BaseConnection);
+    expect(view).toBeInstanceOf(SceneComponent);
+    expect(view?.getSceneElementView()).toBe(element);
+    expect(view?.getSceneKey()).toEqual({ elementId: id, sub: 0 });
     expect(element?.zIndex).toBe(100);
     expect(element?.primitives.map(({ kind }) => kind)).toEqual(["path", "path", "rect", "text"]);
     expect(graph.getElementOverPoint({ x: 180, y: 100 })).toBe(view);
@@ -112,6 +128,7 @@ describe("connection drawing ownership", () => {
     const view = graph.connections.getConnectionState("edge")?.getViewComponent();
     expect(view).toBeInstanceOf(ImmediateConnection);
     expect(graph.scene.store.get(entityKey("connection", "edge"))).toBeUndefined();
+    expect(graph.scene.store.get("decoration")).toMatchObject({ id: "decoration", parent: undefined });
   });
 
   it("draws a Canvas decoration initialized as a connection field", () => {

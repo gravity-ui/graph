@@ -539,6 +539,21 @@ import { Graph } from "@gravity-ui/graph";
 const graph = new Graph({ settings: { connection: CustomPathConnection } }, container);
 ```
 
+### Scene lifecycle
+
+`BlockConnection` extends `BaseConnection`, which extends `SceneComponent`. A built-in connection publishes its
+shaft, arrow and labels as one scene element. `getSceneElementView()` returns that element and `getSceneKey()`
+identifies it for picking. A direct `BaseConnection` subclass keeps its immediate Canvas lifecycle. A
+`BlockConnection` with custom Canvas drawing hooks continues to use the Canvas batch.
+
+The resolved ports supply the world-space route at every level of detail. Connections customize their scene
+primitives through `static geometry` for routing, `static line` for appearance, and `appendSceneLabels()` for
+label decorations.
+To skip a rebuild for an unrelated data change, override `shouldUpdateScene(nextProps, nextState, nextContext)`.
+Include any custom data that your geometry or drawing reads. Reconnecting a port, moving its delegate or changing
+the stored route still updates the geometry and hit area. Call `invalidate()` after changing a component field
+that affects the drawing, or `updateGeometry()` when the new shape and hit area are needed synchronously.
+
 ### When to Use Custom Connections
 
 - Use `BlockConnection` for a scene connection. Set `static geometry` for a custom route.

@@ -1,12 +1,14 @@
 import { Component, ESchedulerPriority } from "../../../lib";
 import { TComponentState } from "../../../lib/Component";
+import type { TComponentMode } from "../../../lib/CoreComponent";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
 import { debounce } from "../../../utils/functions";
 import { TPoint, TRect } from "../../../utils/types/shapes";
 import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
-import { GraphComponent, GraphComponentContext } from "../GraphComponent";
+import type { GraphComponentContext } from "../GraphComponent";
 import { TAnchor } from "../anchors";
 import { Block } from "../blocks/Block";
+import { SceneComponent } from "../scene/SceneComponent";
 
 import { hasChangedValue } from "./utils/hasChangedValue";
 
@@ -84,9 +86,25 @@ export class BaseConnection<
   State extends TBaseConnectionState = TBaseConnectionState,
   Context extends GraphComponentContext = GraphComponentContext,
   Connection extends TConnection = TConnection,
-> extends GraphComponent<Props, State, Context> {
+> extends SceneComponent<Props, State, Context> {
+  /** Direct subclasses draw on the graph canvas unless they explicitly opt into retained updates. */
+  public static override readonly mode: TComponentMode = "immediate";
+
+  protected override usesSceneLevels(): boolean {
+    return false;
+  }
+
+  protected override getSceneEntityType(): string {
+    return "connection";
+  }
+
+  protected override invalidate(): void {
+    this.geometryDirty = true;
+    this.performRender();
+  }
+
   /** The entity type of the selection bucket and of tag addresses. */
-  public static entityType = "connection";
+  public static override entityType = "connection";
 
   /**
    * @deprecated use port system instead
