@@ -128,6 +128,51 @@ describe("element steps", () => {
 });
 
 describe("translucent order", () => {
+  it("repairs a large level delta alongside reused slots without rereading unrelated ranges", () => {
+    const paths = new InstanceRanges(1);
+    const upper = new InstanceRanges(1);
+    const levels = new Map<string, number>([["label", 80]]);
+    for (let i = 0; i < 1800; i++) {
+      paths.set(String(i), [i]);
+      levels.set(String(i), i % 2);
+    }
+    upper.set("label", [1]);
+    paths.retainLayout();
+    upper.retainLayout();
+    const sources = [{ instances: paths }, { instances: upper }];
+    const levelOf = (id: string) => levels.get(id) ?? 0;
+    const cache: TTranslucentOrderCache = { levelRevision: 0 };
+    const order = () => flatten(orderTranslucentChunks(sources, levelOf, () => 0, BITS, false, cache));
+    order();
+
+    const changed = Array.from({ length: 1100 }, (_, i) => String(i));
+    changed.forEach((id, i) => levels.set(id, 2 + (i % 3)));
+    paths.delete("905");
+    paths.set("replacement", [91]);
+    paths.setSteps("903", [
+      { step: 1, instances: Float32Array.of(1) },
+      { step: 2, instances: Float32Array.of(2) },
+    ]);
+    cache.levelRevision = 1;
+    cache.changedLevelIds = changed;
+    cache.changedLevelRange = [0, 7];
+    const scan = jest.spyOn(paths, "forEachRange");
+    const lookup = jest.spyOn(upper, "ownerRanges");
+    const scanUpper = jest.spyOn(upper, "forEachRange");
+    const repaired = order();
+    expect(scan).not.toHaveBeenCalled();
+    expect(lookup).not.toHaveBeenCalled();
+    expect(scanUpper).not.toHaveBeenCalled();
+    expect(repaired).toEqual(orderTranslucent(sources, levelOf, () => 0, BITS, false));
+
+    // The level delta still excludes the label, but its resized physical range must be drawn.
+    cache.levelRevision = 2;
+    cache.changedLevelIds = ["0"];
+    levels.set("0", 7);
+    upper.set("label", [1, 2]);
+    expect(order()).toEqual(orderTranslucent(sources, levelOf, () => 0, BITS, false));
+  });
+
   it("reuses source snapshots and the merged schedule when their effective buckets stay unchanged", () => {
     const a = new InstanceRanges(3);
     const b = new InstanceRanges(3);

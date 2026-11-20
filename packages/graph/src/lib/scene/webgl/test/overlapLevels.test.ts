@@ -127,6 +127,21 @@ describe("overlapLevels", () => {
 });
 
 describe("OverlapGrid.move", () => {
+  it("keeps previously filed neighbors when a caller rewrites the box twice before moving it", () => {
+    const boxes = Float64Array.of(0, 0, 10, 10, 5, 0, 15, 10, 70, 0, 80, 10);
+    const levels = new Int32Array(3);
+    const grid = new OverlapGrid();
+    grid.compute(boxes, 3, levels);
+    grid.writeBox(0, [30, 0, 40, 10]);
+    grid.writeBox(0, [60, 0, 70, 10]);
+    expect(grid.move([0])).toEqual([1, 2]);
+    expect([...levels]).toEqual([0, 0, 1]);
+
+    boxes.set([0, 0, 10, 10]);
+    expect(grid.move([0])).toEqual([1, 2]);
+    expect([...levels]).toEqual([0, 1, 0]);
+  });
+
   it("refiles a single wide box in both directions without relabeling unsupported successors", () => {
     const count = 1000;
     const boxes = Array.from({ length: count }, (_, i) =>
@@ -422,7 +437,7 @@ describe("TranslucentLevels", () => {
     }
   });
 
-  it("limits a dense fallback to the changed band and reports every dropped transitive level", () => {
+  it("repairs a dense band from its resident boxes and reports every changed level in both directions", () => {
     const count = 512;
     const elements: Record<string, TPlaced> = {};
     for (let i = 0; i < count; i++)
@@ -436,27 +451,30 @@ describe("TranslucentLevels", () => {
     elements.block = placed(0, 0, 200, count);
     elements.label = placed(0, 0, 200, count + 1);
     const { depth, levels } = scene(elements);
+    const read = jest.fn((id: string) => elements[id]);
     const update = () =>
       levels.update(
         (id) => depth.keyOf(id),
-        (id) => elements[id],
+        read,
         (id) => elements[id].zIndex
       );
     for (const id of Object.keys(elements)) levels.set(id, undefined);
     update();
-    const compute = jest.spyOn(OverlapGrid.prototype, "compute");
-    try {
-      elements.edge0.bounds = box(1, 1, 9, 9);
+    const original = elements.edge0.bounds;
+    const edges = Array.from({ length: count }, (_, i) => `edge${i}`);
+    for (const bounds of [box(1, 1, 9, 9), box(-Infinity, NaN, Infinity, 10), original]) {
+      const before = edges.map((id) => levels.levelOf(id));
+      read.mockClear();
+      elements.edge0.bounds = bounds;
       levels.moved("edge0");
-      expect(update()).toBe(true);
-      expect(compute.mock.calls.map((call) => call[1])).toEqual([count]);
-      expect(Array.from({ length: count }, (_, i) => levels.levelOf(`edge${i}`))).toEqual(
-        Array.from({ length: count }, (_, i) => Math.max(0, i - 1))
-      );
+      const changed = update();
+      expect(read.mock.calls).toEqual([["edge0"]]);
+      const expected = bruteForce(edges.map((id) => elements[id].bounds));
+      expect(edges.map((id) => levels.levelOf(id))).toEqual(expected);
+      const delta = edges.filter((_, i) => expected[i] !== before[i]);
+      expect(changed).toBe(delta.length > 0);
+      if (changed) expect(levels.changedLevelIds).toEqual(delta);
       expect([levels.levelOf("block"), levels.levelOf("label")]).toEqual([count, count + 1]);
-      expect(levels.changedLevelIds).toEqual(Array.from({ length: count - 1 }, (_, i) => `edge${i + 1}`));
-    } finally {
-      compute.mockRestore();
     }
   });
 

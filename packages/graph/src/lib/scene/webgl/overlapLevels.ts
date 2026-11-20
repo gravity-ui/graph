@@ -161,10 +161,16 @@ export class OverlapGrid {
     return this.levels;
   }
 
-  public writeBox(slot: number, [x0, y0, x1, y1]: TBox): boolean {
+  public writeBox(slot: number, [x0, y0, x1, y1]: TBox, previous?: TBox): boolean {
     const at = slot * 4;
     const { boxes } = this;
     if (boxes[at] === x0 && boxes[at + 1] === y0 && boxes[at + 2] === x1 && boxes[at + 3] === y1) return false;
+    if (previous) {
+      previous[0] = boxes[at];
+      previous[1] = boxes[at + 1];
+      previous[2] = boxes[at + 2];
+      previous[3] = boxes[at + 3];
+    }
     boxes[at] = x0;
     boxes[at + 1] = y0;
     boxes[at + 2] = x1;
@@ -181,7 +187,7 @@ export class OverlapGrid {
    * Levels of the first `count` boxes of `boxes` (minX, minY, maxX, maxY each), given in scene order, into `out`. Keeps
    * both arrays: `move` reads the boxes the caller changes in place and writes the levels.
    */
-  public compute(boxes: Float64Array, count: number, out: Int32Array): void {
+  public compute(boxes: Float64Array, count: number, out: Int32Array, delta?: number[]): void {
     this.boxes = boxes;
     this.levels = out;
     this.count = count;
@@ -209,7 +215,9 @@ export class OverlapGrid {
     for (let box = 0; box < count; box++) {
       // Every box filed so far is earlier: the level comes before the box enters the grid.
       this.setRange(box);
-      out[box] = this.levelFor(box);
+      const level = this.levelFor(box);
+      if (delta && level !== out[box]) delta.push(box);
+      out[box] = level;
       this.top = Math.max(this.top, out[box]);
       this.file(box);
     }
@@ -222,8 +230,21 @@ export class OverlapGrid {
    * the previous levels and returns undefined if the scan budget runs out or a multi-move touches a wide box. The
    * caller then rebuilds the grid with `compute`.
    */
-  public move(moved: readonly number[], compare?: TCompareSlots): number[] | undefined {
+  public move(moved: readonly number[], compare?: TCompareSlots, previousBox?: TBox): number[] | undefined {
     const single = moved.length === 1;
+    if (single && !compare && previousBox) {
+      const slot = moved[0];
+      const at = slot * 4;
+      const { boxes } = this;
+      const left = Math.min(boxes[at], previousBox[0]);
+      const top = Math.min(boxes[at + 1], previousBox[1]);
+      const right = Math.max(boxes[at + 2], previousBox[2]);
+      const bottom = Math.max(boxes[at + 3], previousBox[3]);
+      const cells = ((right - left) / this.cell + 1) * ((bottom - top) / this.cell + 1);
+      // A broad move can queue most later owners many times through their shared cells.
+      if (cells * this.count > ((this.count - slot) * this.rows * this.columns) / 16)
+        return this.sweepMoved(slot, left, top, right, bottom);
+    }
     return this.repair(
       compare,
       (enqueue, budget) => {
@@ -235,6 +256,50 @@ export class OverlapGrid {
       },
       single
     )?.changed;
+  }
+
+  /** In painter order a changed level can only reach a later owner intersecting the growing affected bounds. */
+  private sweepMoved(slot: number, left: number, top: number, right: number, bottom: number): number[] | undefined {
+    const { boxes, levels } = this;
+    const changed: number[] = [];
+    const previous: number[] = [];
+    const budget = { remaining: 2 * (this.count + this.entries) };
+    if (!this.unfile(slot, budget)) return undefined;
+    this.setRange(slot);
+    this.file(slot);
+    for (let owner = slot; owner < this.count; owner++) {
+      const at = owner * 4;
+      if (
+        owner !== slot &&
+        (boxes[at] > right || boxes[at + 2] < left || boxes[at + 1] > bottom || boxes[at + 3] < top)
+      )
+        continue;
+      const level = this.levelFor(owner, budget);
+      if (level < 0) return this.abortMove(changed, previous);
+      if (level === levels[owner]) continue;
+      previous.push(levels[owner]);
+      levels[owner] = level;
+      changed.push(owner);
+      this.raiseCells(owner);
+      left = Math.min(left, boxes[at]);
+      top = Math.min(top, boxes[at + 1]);
+      right = Math.max(right, boxes[at + 2]);
+      bottom = Math.max(bottom, boxes[at + 3]);
+    }
+    if (changed.length) this.updateTop();
+    return changed;
+  }
+
+  private updateTop(): void {
+    this.top = -1;
+    for (let slot = 0; slot < this.count; slot++) this.top = Math.max(this.top, this.levels[slot]);
+  }
+
+  /** Geometry-only fallback for a dense band; its slots are still in painter order. */
+  public recompute(): number[] {
+    const changed: number[] = [];
+    this.compute(this.boxes, this.count, this.levels, changed);
+    return changed;
   }
 
   /** Refiles only edited slots. Old neighbors can lose support and new neighbors can gain it. */
@@ -339,10 +404,7 @@ export class OverlapGrid {
       if (!this.nearby(slot, visit, budget)) return this.abortMove(changed, previous);
     }
     this.compare = undefined;
-    if (structural || changed.length > 0) {
-      this.top = -1;
-      for (let slot = 0; slot < this.count; slot++) this.top = Math.max(this.top, this.levels[slot]);
-    }
+    if (structural || changed.length > 0) this.updateTop();
     return { changed, previous };
   }
 
@@ -612,6 +674,9 @@ export class TranslucentLevels {
     return this.changes;
   }
 
+  /** Contains both old and new painter levels when only geometry changed. */
+  public changedLevelRange?: readonly [number, number];
+
   /** Changes to orderLevelOf in the latest revision; undefined when the previous order was discarded. */
   public get changedLevelIds(): readonly string[] | undefined {
     return this.changedIds;
@@ -668,6 +733,7 @@ export class TranslucentLevels {
     this.serial = 0;
     this.full = true;
     this.changedIds = undefined;
+    this.changedLevelRange = undefined;
     this.changes++;
   }
 
@@ -716,20 +782,26 @@ export class TranslucentLevels {
 
   private move(keyOf: (id: string) => number, elementOf: (id: string) => TLevelElement | undefined): boolean {
     const moved = new Map<TLevelBand, number[]>();
+    const previousBox: TBox | undefined = this.moves.size === 1 ? [0, 0, 0, 0] : undefined;
     for (const id of this.moves) {
       const at = this.indexOf.get(id);
       if (!at) continue;
       const { band, slot } = at;
-      if (!band.grid.writeBox(slot, this.readBox(id, elementOf))) continue;
+      if (!band.grid.writeBox(slot, this.readBox(id, elementOf), previousBox)) continue;
       let slots = moved.get(band);
       if (!slots) moved.set(band, (slots = []));
       slots.push(slot);
     }
     this.moves.clear();
     const changedIds: string[] = [];
+    let first = Infinity,
+      last = -Infinity;
     for (const [band, slots] of moved) {
       const { grid } = band;
-      const changed = grid.move(slots, band.sparse ? this.compareSlots(band, keyOf) : undefined);
+      first = Math.min(first, band.orderBase);
+      last = Math.max(last, band.orderBase + band.size - 1);
+      let changed = grid.move(slots, band.sparse ? this.compareSlots(band, keyOf) : undefined, previousBox);
+      if (!changed && !band.sparse) changed = grid.recompute();
       if (changed === undefined) {
         const before = new Map<string, number | undefined>();
         this.rebuildBand(band, before, keyOf, elementOf);
@@ -738,7 +810,7 @@ export class TranslucentLevels {
         for (const slot of changed) changedIds.push(band.slots[slot] as string);
       }
     }
-    return this.publish(changedIds);
+    return this.publish(changedIds, [first, last]);
   }
 
   private patch(
@@ -857,9 +929,10 @@ export class TranslucentLevels {
     }
   }
 
-  private publish(changedIds: string[]): boolean {
+  private publish(changedIds: string[], range?: readonly [number, number]): boolean {
     if (changedIds.length === 0) return false;
     this.changedIds = changedIds;
+    this.changedLevelRange = range;
     this.changes++;
     return true;
   }

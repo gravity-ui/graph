@@ -134,6 +134,7 @@ export type TTranslucentOrderCache = {
   levelRevision?: number;
   /** All IDs whose levels changed from the previous numeric revision to this one, when known. */
   changedLevelIds?: readonly string[];
+  changedLevelRange?: readonly [number, number];
   /** Consecutive parts of the returned order. Unchanged windows retain their groups across local edits. */
   partGroups?: readonly (readonly TTranslucentPart[])[];
   chunks?: TOrderChunks;
@@ -750,6 +751,63 @@ function readRetainedSource(
   };
 }
 
+/** Redistribute a large overlap delta in physical slot order, retaining unchanged draw records. */
+function replacePhysicalPages(
+  snapshot: TRetainedOrder,
+  replacements: Map<number, TBucket | undefined>,
+  source: number,
+  dirty: Set<TRetainedPage>
+): void {
+  const edits = new Map<number, number[]>();
+  for (const first of replacements.keys()) {
+    const key = physicalPage(first);
+    let offsets = edits.get(key);
+    if (!offsets) edits.set(key, (offsets = []));
+    offsets.push(first);
+  }
+  const slots: (TTranslucentRun | undefined)[] = new Array(ORDER_PAGE_SLOTS);
+  const buckets = new Float64Array(ORDER_PAGE_SLOTS);
+  for (const [key, offsets] of edits) {
+    slots.fill(undefined);
+    const start = key * ORDER_PAGE_SLOTS;
+    const pages = snapshot.physical.get(key);
+    if (pages) {
+      for (const [bucket, page] of pages) {
+        for (const entry of page.entries) {
+          slots[entry.first - start] = entry;
+          buckets[entry.first - start] = bucket;
+        }
+      }
+    }
+    const touched = new Map<number, TRetainedPage>();
+    for (const first of offsets) {
+      const at = first - start;
+      const entry = slots[at];
+      const bucket = buckets[at];
+      const next = replacements.get(first);
+      if (entry && next?.bucket === bucket && next.count === entry.count) continue;
+      if (entry) touched.set(bucket, retainedPage(snapshot.physical, first, bucket));
+      if (next) {
+        touched.set(next.bucket, retainedPage(snapshot.physical, first, next.bucket));
+        buckets[at] = next.bucket;
+        if (entry?.count !== next.count) slots[at] = { source, first, count: next.count };
+        snapshot.bucketAt.set(first, next.bucket);
+      } else {
+        slots[at] = undefined;
+        snapshot.bucketAt.delete(first);
+      }
+    }
+    for (const page of touched.values()) {
+      page.entries = [];
+      dirty.add(page);
+    }
+    for (let at = 0; at < slots.length; at++) {
+      const entry = slots[at];
+      if (entry) touched.get(buckets[at])?.entries.push(entry);
+    }
+  }
+}
+
 function patchRetainedPages(
   snapshot: TRetainedOrder,
   source: InstanceRanges,
@@ -764,37 +822,39 @@ function patchRetainedPages(
   const layout = source.layoutRevision;
   const shapes = snapshot.layout === layout ? undefined : source.retainedChangesSince(snapshot.layout);
   if (snapshot.layout !== layout && !shapes) return false;
-  const touched = new Set(changed);
   const replacements = new Map<number, TBucket | undefined>();
-  for (const shape of shapes ?? []) {
-    touched.add(shape.id);
-    for (const span of shape.previous) replacements.set(span.offset, undefined);
-  }
-  for (const id of touched) {
-    const current = source.ownerRanges(id);
-    if (!current.length) continue;
+  const replaceOwner = (id: string): void => {
+    const ranges = source.ownerRanges(id);
+    if (!ranges.length) return;
     const level = levelOf(id);
-    for (const { offset: first, count, step } of current)
+    for (const { offset: first, count, step } of ranges)
       replacements.set(first, { first, count, bucket: bucketOf(level, step, subBits) });
+  };
+  for (const shape of shapes ?? []) for (const span of shape.previous) replacements.set(span.offset, undefined);
+  for (const shape of shapes ?? []) replaceOwner(shape.id);
+  if (source.liveCount > 0) {
+    for (const id of changed) replaceOwner(id);
   }
-  // Group by the exact former and new painter buckets. Other buckets sharing the same physical page keep their runs.
-  if (replacements.size > ORDER_PAGE_SLOTS && replacements.size * 2 > snapshot.bucketAt.size) return false;
   const dirty = new Set<TRetainedPage>();
-  for (const [first, next] of replacements) {
-    const bucket = snapshot.bucketAt.get(first);
-    if (bucket !== undefined) {
-      const page = retainedPage(snapshot.physical, first, bucket);
-      const at = firstSlot(page.entries, first);
-      if (next?.bucket === bucket && next.count === page.entries[at].count) continue;
-      page.entries.splice(at, 1);
-      dirty.add(page);
+  if (replacements.size > ORDER_PAGE_SLOTS) {
+    replacePhysicalPages(snapshot, replacements, index, dirty);
+  } else {
+    for (const [first, next] of replacements) {
+      const bucket = snapshot.bucketAt.get(first);
+      if (bucket !== undefined) {
+        const page = retainedPage(snapshot.physical, first, bucket);
+        const at = firstSlot(page.entries, first);
+        if (next?.bucket === bucket && next.count === page.entries[at].count) continue;
+        page.entries.splice(at, 1);
+        dirty.add(page);
+      }
+      if (next) {
+        snapshot.bucketAt.set(first, next.bucket);
+        const page = retainedPage(snapshot.physical, first, next.bucket);
+        page.entries.splice(firstSlot(page.entries, first), 0, { source: index, first, count: next.count });
+        dirty.add(page);
+      } else snapshot.bucketAt.delete(first);
     }
-    if (next) {
-      snapshot.bucketAt.set(first, next.bucket);
-      const page = retainedPage(snapshot.physical, first, next.bucket);
-      page.entries.splice(firstSlot(page.entries, first), 0, { source: index, first, count: next.count });
-      dirty.add(page);
-    } else snapshot.bucketAt.delete(first);
   }
   snapshot.layout = layout;
   snapshot.levelRevision = levelRevision;
@@ -830,7 +890,21 @@ function retainedSourcePages(
   if (before && levelRevision !== undefined) {
     const sameLevels = before.levelRevision === levelRevision;
     if (sameLevels && before.layout === source.layoutRevision) return before.ordered;
-    const changed = sameLevels ? [] : before.levelRevision === levelRevision - 1 ? cache.changedLevelIds : undefined;
+    let changed = sameLevels ? [] : before.levelRevision === levelRevision - 1 ? cache.changedLevelIds : undefined;
+    const span = cache.changedLevelRange;
+    const positions = before.ordered.positions;
+    if (
+      changed?.length &&
+      span &&
+      (positions.length === 0 ||
+        positions[0].bucket >= bucketOf(span[1] + 1, 0, subBits) ||
+        positions[positions.length - 1].bucket < bucketOf(span[0], 0, subBits))
+    )
+      changed = [];
+    if (changed?.length === 0 && before.layout === source.layoutRevision) {
+      before.levelRevision = levelRevision;
+      return before.ordered;
+    }
     if (patchRetainedPages(before, source, index, levelOf, subBits, levelRevision, changed, state))
       return before.ordered;
   }

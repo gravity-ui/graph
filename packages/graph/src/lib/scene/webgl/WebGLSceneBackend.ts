@@ -57,7 +57,7 @@ import { GlyphAtlas, glyphRun } from "./glyphs";
 import { InstanceVisibility, OpaqueVisibility } from "./instanceVisibility";
 import { CachedGeometryBounds, MIN_CAMERA_SCALE, geometryBounds } from "./levelBounds";
 import { firstOverlappingOwnerRange, updateMixedOwnerRanges } from "./mixedOwnerRanges";
-import type { TMixedOwnerRange, TMixedOwnerSnapshot } from "./mixedOwnerRanges";
+import type { TMixedOwnerSnapshot } from "./mixedOwnerRanges";
 import {
   MIXED_PATH_MAX_SOURCES,
   MIXED_PATH_SOURCE_STRIDE,
@@ -729,7 +729,7 @@ class WebGLSceneBackend implements ISceneBackend {
   private mixedOwnershipRevision = 0;
   private readonly mixedBands = new MixedStockDepthBands<TBatch>();
   private readonly mixedPages = new WeakMap<object, TMixedPage>();
-  private readonly mixedOwnedRanges = new WeakMap<TBatch, TMixedOwnerSnapshot>();
+  private readonly mixedOwnedRanges = new WeakMap<TBatch, TMixedOwnerSnapshot & { connectionCount?: number }>();
   private mixedPlan?: {
     layouts: number[];
     opaque: readonly TDraw[];
@@ -2692,6 +2692,7 @@ class WebGLSceneBackend implements ISceneBackend {
     const layout = (): number[] => batches.map((batch) => batch.ranges.layoutRevision);
     this.translucentOrderCache.levelRevision = this.levels.revision;
     this.translucentOrderCache.changedLevelIds = this.levels.changedLevelIds;
+    this.translucentOrderCache.changedLevelRange = this.levels.changedLevelRange;
     this.translucentParts = orderTranslucentChunks(
       batches.map((batch) => ({ instances: batch.ranges, companion: batch.companion?.ranges })),
       this.orderLevelOf,
@@ -2921,23 +2922,23 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   /** Ownership follows the existing scene root, even for a path painted by a block's child. */
-  private ownedDrawRanges(batch: TBatch): readonly TMixedOwnerRange[] {
+  private drawOwnership(batch: TBatch): TMixedOwnerSnapshot & { connectionCount?: number } {
     const cached = this.mixedOwnedRanges.get(batch);
     if (cached?.layout === batch.ranges.layoutRevision && cached.ownership === this.mixedOwnershipRevision)
-      return cached.ranges;
+      return cached;
     const updated = updateMixedOwnerRanges(batch.ranges, this.mixedOwnershipRevision, cached, (id) => {
       const element = this.elements.get(id);
       const root = element && this.elements.get(this.rootIdOf(element));
       return (root ?? element)?.entityType === "connection";
     });
     this.mixedOwnedRanges.set(batch, updated);
-    return updated.ranges;
+    return updated;
   }
 
   /** Splits physical ranges before gatherPathDraws can map their first indices to compact addresses. */
   private splitMixedDraws(draws: readonly TDraw[], upper: TDraw[], connection: TDraw[]): void {
     for (const draw of draws) {
-      const ranges = this.ownedDrawRanges(draw.batch);
+      const ranges = this.drawOwnership(draw.batch).ranges;
       if (ranges.length === 1 && ranges[0].first === 0) {
         (ranges[0].connection ? connection : upper).push({ ...draw });
         continue;
@@ -3132,6 +3133,24 @@ class WebGLSceneBackend implements ISceneBackend {
     }
   }
 
+  /** Culling can only reduce the number of connection records submitted in a frame. */
+  private hasResidentConnectionWork(): boolean {
+    let remaining = MIN_MIXED_CONNECTION_VERTICES;
+    for (const batch of this.allBatches()) {
+      if (!batch.pathRecords || !batch.ranges.liveCount) continue;
+      const owners = this.drawOwnership(batch);
+      if (owners.connectionCount === undefined) {
+        let count = 0;
+        for (const range of owners.ranges) if (range.connection) count += range.count;
+        owners.connectionCount = count;
+      }
+      const vertices = batch.curveChords ? (CURVE_CHORDS + 1) * 2 : batch.model.vertexCount;
+      remaining -= vertices * owners.connectionCount;
+      if (remaining <= 0) return true;
+    }
+    return false;
+  }
+
   private hasMixedVertexWork(
     opaque: readonly TDraw[],
     translucent: readonly TDraw[],
@@ -3164,7 +3183,7 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   private connectionInstances({ batch, first, count }: TDraw): number {
-    const ranges = this.ownedDrawRanges(batch);
+    const ranges = this.drawOwnership(batch).ranges;
     if (ranges.length === 1 && ranges[0].first === 0) return ranges[0].connection ? count : 0;
     const end = first + count;
     let result = 0;
@@ -3254,7 +3273,12 @@ class WebGLSceneBackend implements ISceneBackend {
       }
       this.mixedRootsSeparated = separatedConnectionDepths(roots);
     }
-    if (!this.mixedRootsSeparated || !this.hasMixedVertexWork(opaque, translucent, true)) return undefined;
+    if (
+      !this.mixedRootsSeparated ||
+      !this.hasResidentConnectionWork() ||
+      !this.hasMixedVertexWork(opaque, translucent, true)
+    )
+      return undefined;
     const plan = this.cachedMixedPlane(opaque, translucent);
     if (
       !plan ||
