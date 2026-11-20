@@ -5,21 +5,23 @@ import type { TPathDrawSpan } from "./pathDrawIds";
 type TEdit = { source: number; first: number; before: number; after: number; nextFirst?: number };
 type TChange = { first: number; end: number; nextFirst: number; nextEnd: number; span: number };
 type TInterval = { first: number; end: number; change: TChange };
-type TPatch = { changes: TChange[]; intervals: TInterval[]; delta: number };
+type TPatch = { changes: TChange[]; additions: TChange[]; intervals: TInterval[]; delta: number };
 
-function validRange(first: number, count: number, limit: number): boolean {
-  return Number.isInteger(first) && first >= 0 && Number.isInteger(count) && count > 0 && first + count <= limit;
+function validRange(first: number, count: number, limit: number, minimum = 1): boolean {
+  return Number.isInteger(first) && first >= 0 && Number.isInteger(count) && count >= minimum && first + count <= limit;
 }
 
-function prepareChanges(edits: readonly TEdit[]): TPatch | undefined {
+function prepareChanges(edits: readonly TEdit[], membership: boolean): TPatch | undefined {
   const changes: TChange[] = [];
+  const additions: TChange[] = [];
   const intervals: TInterval[] = [];
   let delta = 0;
   for (const { source, first, before, after, nextFirst = first } of edits) {
+    const minimum = membership && before !== after && first === nextFirst ? 0 : 1;
     if (
       !validRange(source, 1, MIXED_PATH_MAX_SOURCES) ||
-      !validRange(first, before, MIXED_PATH_SOURCE_STRIDE) ||
-      !validRange(nextFirst, after, MIXED_PATH_SOURCE_STRIDE)
+      !validRange(first, before, MIXED_PATH_SOURCE_STRIDE, minimum) ||
+      !validRange(nextFirst, after, MIXED_PATH_SOURCE_STRIDE, minimum)
     )
       return undefined;
     const base = source * MIXED_PATH_SOURCE_STRIDE;
@@ -30,7 +32,7 @@ function prepareChanges(edits: readonly TEdit[]): TPatch | undefined {
       nextEnd: base + nextFirst + after,
       span: -1,
     };
-    changes.push(change);
+    (before ? changes : additions).push(change);
     if (change.end < change.nextFirst || change.nextEnd < change.first) {
       intervals.push(
         { first: change.first, end: change.end, change },
@@ -47,7 +49,7 @@ function prepareChanges(edits: readonly TEdit[]): TPatch | undefined {
   }
   intervals.sort((a, b) => a.first - b.first);
   for (let i = 1; i < intervals.length; i++) if (intervals[i - 1].end > intervals[i].first) return undefined;
-  return { changes, intervals, delta };
+  return { changes, additions, intervals, delta };
 }
 
 function firstInterval(intervals: readonly TInterval[], first: number): number {
@@ -62,7 +64,7 @@ function firstInterval(intervals: readonly TInterval[], first: number): number {
 }
 
 type TSpanWindow = { first: number; end: number };
-type TAddressIndex = { buckets: Map<number, number[]>; total: number; links: number; limit: number };
+type TAddressIndex = { buckets: Map<number, number[]>; total: number; links: number; limit: number; drift: number };
 const PAGE_SIZE = 256;
 // A physical address page names only the painter pages that could contain its spans.
 const indices = new WeakMap<readonly TPathDrawSpan[], TAddressIndex>();
@@ -82,7 +84,7 @@ function includeSpan(index: TAddressIndex, span: TPathDrawSpan, i: number): void
 function preparedIndex(spans: readonly TPathDrawSpan[]): TAddressIndex | undefined {
   const cached = indices.get(spans);
   if (cached) return cached;
-  const index: TAddressIndex = { buckets: new Map(), total: 0, links: 0, limit: 0 };
+  const index: TAddressIndex = { buckets: new Map(), total: 0, links: 0, limit: 0, drift: 0 };
   for (let i = 0; i < spans.length; i++) {
     const span = spans[i];
     if (!validRange(span.first, span.count, MIXED_PATH_MAX_SOURCES * MIXED_PATH_SOURCE_STRIDE)) return undefined;
@@ -100,7 +102,15 @@ function candidatePages(index: TAddressIndex, intervals: readonly TInterval[]): 
     const last = Math.floor((end - 1) / PAGE_SIZE);
     for (let page = Math.floor(first / PAGE_SIZE); page <= last; page++) {
       const hits = index.buckets.get(page);
-      if (hits) for (const hit of hits) pages.add(hit);
+      if (!hits) continue;
+      for (const hit of hits) {
+        pages.add(hit);
+        // A retained link can move by less than one page in either direction.
+        if (index.drift) {
+          if (hit) pages.add(hit - 1);
+          pages.add(hit + 1);
+        }
+      }
     }
   }
   return pages;
@@ -180,7 +190,8 @@ function replacements(spans: readonly TPathDrawSpan[], changes: TChange[]): TRep
       while (i < limit && changes[i].span === pos) {
         const change = changes[i++];
         if (change.first > cursor) append(pieces, { first: cursor, count: change.first - cursor });
-        append(pieces, { first: change.nextFirst, count: change.nextEnd - change.nextFirst });
+        if (change.nextEnd > change.nextFirst)
+          append(pieces, { first: change.nextFirst, count: change.nextEnd - change.nextFirst });
         cursor = change.end;
       }
       if (cursor < span.first + span.count) append(pieces, { first: cursor, count: span.first + span.count - cursor });
@@ -221,6 +232,49 @@ function replaceSpans(
   return result;
 }
 
+type TCompareRecords = (left: number, right: number) => number;
+
+function insertionPoint(low: number, high: number, orderAt: (index: number) => number): number | undefined {
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    const order = orderAt(mid);
+    if (!Number.isFinite(order)) return undefined;
+    if (order < 0) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
+/** Packed spans retain painter order even when one span crosses an owner or texture boundary. */
+function insertOrderedSpan(
+  spans: TPathDrawSpan[],
+  first: number,
+  count: number,
+  compare: TCompareRecords
+): TReplacement | undefined {
+  const order = compare(first, first + count - 1);
+  if (!Number.isFinite(order) || order > 0) return undefined;
+  const index = insertionPoint(0, spans.length, (i) => compare(spans[i].first + spans[i].count - 1, first));
+  if (index === undefined) return undefined;
+  const span = spans[index];
+  const begin = span?.first ?? 0;
+  const end = begin + (span?.count ?? 0);
+  const cut = insertionPoint(begin, end, (address) => compare(address, first));
+  if (cut === undefined) return undefined;
+  const previous = spans[index - 1];
+  const left = span && cut > span.first ? cut - 1 : previous && previous.first + previous.count - 1;
+  if ((left !== undefined && !(compare(left, first) < 0)) || (cut < end && !(compare(first + count - 1, cut) < 0)))
+    return undefined;
+
+  // Pack both seams exactly as the full schedule does, including insertion into the middle of a merged span.
+  const start = Math.max(0, index - 1);
+  const pieces: TPathDrawSpan[] = previous ? [previous] : [];
+  if (span && cut > span.first) append(pieces, { first: span.first, count: cut - span.first });
+  append(pieces, { first, count });
+  if (cut < end) append(pieces, { first: cut, count: end - cut });
+  return { first: start, end: Math.min(spans.length, index + 1), pieces };
+}
+
 function transferIndex(
   index: TAddressIndex,
   before: readonly TPathDrawSpan[],
@@ -228,36 +282,44 @@ function transferIndex(
   edits: readonly TReplacement[],
   delta: number
 ): void {
-  // Old links remain conservative as records move. Refresh lazily after their number doubles.
+  // Every splice can shift an earlier link by at most its change in span count.
   indices.delete(before);
-  for (const edit of edits)
+  for (const edit of edits) {
+    index.drift += Math.abs(edit.pieces.length - (edit.end - edit.first));
     for (let j = 0; j < edit.pieces.length; j++) includeSpan(index, edit.pieces[j], edit.first + j);
+  }
   index.total += delta;
-  if (index.links <= index.limit) indices.set(after, index);
+  if (index.links <= index.limit && index.drift < PAGE_SIZE) indices.set(after, index);
 }
 
 /**
- * Each changed owner/sub is one run that keeps its painter position. A caller with an immutable prepared
- * schedule can reuse the physical address index on subsequent edits.
+ * A resized run keeps its painter position. For a new run the caller supplies the current painter order
+ * of resident records. Immutable plans can also reuse the physical address index across edits.
  */
 export function resizeMixedPlan<B>(
   spans: readonly TPathDrawSpan[],
   commands: readonly TLowerPathCommand<B>[],
   edits: readonly TEdit[],
-  immutable = false
+  immutable = false,
+  compare?: TCompareRecords
 ): { spans: TPathDrawSpan[]; commands: TLowerPathCommand<B>[] } | undefined {
   const command = commands[0];
   if (!edits.length || commands.length !== 1 || command.native !== undefined || command.first !== 0) return undefined;
-  const patch = prepareChanges(edits);
+  const patch = prepareChanges(edits, compare !== undefined);
   if (!patch) return undefined;
   const index = immutable && spans.length >= PAGE_SIZE ? preparedIndex(spans) : undefined;
   if (!locateChanges(spans, command.count, patch, index)) return undefined;
   const parts = replacements(spans, patch.changes);
   const stablePositions = parts.every((edit) => edit.end - edit.first === edit.pieces.length);
   const result = replaceSpans(spans, parts, stablePositions);
-  if (index && stablePositions) transferIndex(index, spans, result, parts, patch.delta);
-  return {
-    spans: result,
-    commands: [patch.delta ? { first: 0, count: command.count + patch.delta } : command],
-  };
+  for (const change of patch.additions) {
+    const insert = compare && insertOrderedSpan(result, change.nextFirst, change.nextEnd - change.nextFirst, compare);
+    if (!insert) return undefined;
+    result.splice(insert.first, insert.end - insert.first, ...insert.pieces);
+    parts.push(insert);
+  }
+  if (index) transferIndex(index, spans, result, parts, patch.delta);
+  const count = command.count + patch.delta;
+  const next = patch.delta ? { first: 0, count } : command;
+  return { spans: result, commands: count ? [next] : [] };
 }

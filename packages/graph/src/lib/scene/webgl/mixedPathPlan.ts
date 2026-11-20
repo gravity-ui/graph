@@ -133,11 +133,18 @@ export class MixedStockDepthBands<N> {
   }
 }
 
+type TPainterPosition = Pick<TPathOrderPosition, "key" | "sub" | "tie" | "first">;
+
+/** Local insertions and a full mixed pass use the same painter order. */
+export function comparePathOrder(a: TPainterPosition, b: TPainterPosition): number {
+  return a.key - b.key || a.sub - b.sub || a.tie - b.tie || a.first - b.first;
+}
+
 /** Packs stock addresses while keeping per-program barriers in the original painter order. */
 export function mixedPathSchedule<T>(
   input: readonly (TMixedPathRange | TNativePathRange<T>)[]
 ): { spans: TPathIdSpan[]; commands: TLowerPathCommand<T>[] } | undefined {
-  const ordered = [...input].sort((a, b) => a.key - b.key || a.sub - b.sub || a.tie - b.tie || a.first - b.first);
+  const ordered = [...input].sort(comparePathOrder);
   return packOrderedPaths(
     ordered,
     (range) => range.source,

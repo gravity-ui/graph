@@ -474,21 +474,22 @@ test("reconnecting an opaque Bézier preserves neighbors in both curve buffers a
   page,
 }) => {
   const graph = await initialize(page);
-  const { before, after, edited, neighbor, changedImage, restoredImage } = await page.evaluate(async () => {
+  const { before, after, edited, neighbor, changedImage, restoredImage, membership } = await page.evaluate(async () => {
     const { graph, GraphModule } = window;
     const { scene, connections, cameraService, scheduler } = graph;
-    graph.updateSettings({ useBezierConnections: true, showConnectionArrows: false, showConnectionLabels: false });
+    graph.updateSettings({ useBezierConnections: true, showConnectionArrows: true, showConnectionLabels: false });
     cameraService.set({ x: 0, y: 0, scale: 0.04 });
     connections.observePort("source", scene).updatePort({ x: 100, y: 100, lookup: false });
     connections.observePort("target", scene).updatePort({ x: 600, y: 350, lookup: false });
     connections.observePort("alternate", scene).updatePort({ x: 2000, y: 600, lookup: false });
+    connections.observePort("near", scene).updatePort({ x: 200, y: 140, lookup: false });
     const ids = ["first", "second"];
     for (const id of ids) {
       graph.api.addConnection({
         id,
         sourcePortId: "source",
         targetPortId: "target",
-        styles: { background: "#d04020" },
+        styles: { background: id === "first" ? "#d04020" : "#2050c0" },
       });
     }
 
@@ -497,6 +498,8 @@ test("reconnecting an opaque Bézier preserves neighbors in both curve buffers a
     const backend = scene.layer.getBackend()!;
     const probe = backend as typeof backend & {
       hasMixedVertexWork(): boolean;
+      buildMixedPlane(...args: unknown[]): unknown;
+      mixedPlan?: { plan: { spans: readonly { first: number; count: number }[] } };
       beginMixedScene(frame: unknown, prepared: { plan: { sources: Source[] } }, native: unknown): unknown;
     };
     // Only bypass the large-graph cutoff. Observe the sources actually submitted to the mixed pass.
@@ -518,12 +521,13 @@ test("reconnecting an opaque Bézier preserves neighbors in both curve buffers a
       if (!adaptive || !ordinary) throw new Error("Both ordinary and eight-chord curves must reach the mixed pass");
       const read = (ranges: Ranges) =>
         ids.map((id) => {
-          const [{ offset, count }] = ranges.ownerRanges(GraphModule.entityKey("connection", id));
-          return { offset, count };
+          const [range] = ranges.ownerRanges(GraphModule.entityKey("connection", id));
+          return { offset: range?.offset ?? -1, count: range?.count ?? 0 };
         });
       return { ordinary: read(ordinary.group.curves.ranges), adaptive: read(adaptive.group.coarseCurves.ranges) };
     };
     const before = await snapshot();
+    if (!sources.some((source) => source.chords === 1)) throw new Error("Missing the straight arrow source");
     const originalImage = backend.canvas.toDataURL();
     const edited = before.ordinary[0].offset < before.ordinary[1].offset ? 0 : 1;
     graph.api.updateConnection(ids[edited], { targetPortId: "alternate" });
@@ -532,8 +536,35 @@ test("reconnecting an opaque Bézier preserves neighbors in both curve buffers a
     graph.api.updateConnection(ids[edited], { targetPortId: "target" });
     await snapshot();
     const restoredImage = backend.canvas.toDataURL() === originalImage;
-    for (const port of ["source", "target", "alternate"]) connections.unobservePort(port, scene);
-    return { before, after, edited, neighbor: 1 - edited, changedImage, restoredImage };
+    // A replay recreates resident ranges. Exercise removal and insertion in that same renderer.
+    backend.replay(scene.store);
+    await snapshot();
+    const build = probe.buildMixedPlane;
+    let builds = 0;
+    probe.buildMixedPlane = function (...args) {
+      builds++;
+      return build.apply(this, args);
+    };
+    const order = () => JSON.stringify(probe.mixedPlan?.plan.spans);
+    const membership = [];
+    for (const targetPortId of ["near", "target"]) {
+      builds = 0;
+      graph.api.updateConnection(ids[edited], { targetPortId });
+      const ranges = await snapshot();
+      const local = builds === 0;
+      const image = backend.canvas.toDataURL();
+      const localOrder = order();
+      probe.mixedPlan = undefined;
+      await snapshot();
+      membership.push({
+        local,
+        hasCoarse: ranges.adaptive[edited].count > 0,
+        sameOrder: builds > 0 && localOrder !== undefined && localOrder === order(),
+        sameImage: image === backend.canvas.toDataURL(),
+      });
+    }
+    for (const port of ["source", "target", "alternate", "near"]) connections.unobservePort(port, scene);
+    return { before, after, edited, neighbor: 1 - edited, changedImage, restoredImage, membership };
   });
 
   for (const batch of ["ordinary", "adaptive"] as const) {
@@ -543,6 +574,10 @@ test("reconnecting an opaque Bézier preserves neighbors in both curve buffers a
   }
   expect(changedImage).toBe(true);
   expect(restoredImage).toBe(true);
+  expect(membership).toEqual([
+    { local: true, hasCoarse: false, sameOrder: true, sameImage: true },
+    { local: true, hasCoarse: true, sameOrder: true, sameImage: true },
+  ]);
 });
 
 test("real connections refresh after move, add and delete and restore the same overview image", async ({

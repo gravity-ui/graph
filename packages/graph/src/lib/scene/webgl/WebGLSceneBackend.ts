@@ -63,6 +63,7 @@ import {
   MIXED_PATH_SOURCE_STRIDE,
   MixedStockDepthBands,
   canonicalizeMixedSources,
+  comparePathOrder,
   fullySubpixelPaths,
   isSplitPathSource,
   mixedPathSchedule,
@@ -168,7 +169,7 @@ type TInstanceBuffer = { name: string; buffer: DynamicBuffer };
 type TCompanion = { kind: "elements" | "subs"; ranges: InstanceRanges; buffer?: DynamicBuffer };
 
 /** Paths keep one GPU copy of their payload and companion; the instance buffer holds only ordered addresses. */
-type TPathRecords = { texture: Texture; ids: PathDrawIds; overview?: OverviewCurveGroups };
+type TPathRecords = { texture: Texture; companion: TCompanion; ids: PathDrawIds; overview?: OverviewCurveGroups };
 
 /** The float of a companion instance that holds the primitive's sub. */
 const COMPANION_SUB_FLOAT: Record<TCompanion["kind"], number> = { elements: SUB_FLOAT, subs: 0 };
@@ -218,6 +219,47 @@ const PULSE_PROGRAM = toConnectionEffect(pulse).programKey;
 const MIN_MIXED_CONNECTION_VERTICES = 1_500_000;
 
 type TMixedSource = { records: TPathRecords; chords: number; group: TPathGroup; tie: number };
+
+function mixedAddressOrder(sources: readonly TMixedSource[], table: Float32Array) {
+  const elements = sources.map((source) => source.records.companion.ranges.data);
+  const position = (address: number) => {
+    const source = Math.floor(address / MIXED_PATH_SOURCE_STRIDE);
+    const first = address % MIXED_PATH_SOURCE_STRIDE;
+    const slot = first * PATH_ELEMENT_FLOATS;
+    const data = elements[source];
+    return { key: table[data[slot] * 4 + 2], sub: data[slot + SUB_FLOAT], tie: sources[source].tie, first };
+  };
+  return (left: number, right: number) => {
+    const a = position(left);
+    const b = position(right);
+    return a.key >= 0 && b.key >= 0 ? comparePathOrder(a, b) : NaN;
+  };
+}
+
+function enteredRetainedBatch(ranges: InstanceRanges, revision: number, id: string): boolean {
+  const changes = ranges.retainedChangesSince(revision);
+  return changes?.length === 1 && changes[0].id === id && changes[0].previous.length === 0;
+}
+
+function matchesLayout(
+  edit: TMixedResize<TBatch>,
+  previous: readonly number[],
+  current: readonly number[],
+  at: number
+): boolean {
+  if (edit.layoutAfter !== current[at] || edit.companionAfter !== current[at + 1]) return false;
+  if (edit.layoutBefore !== undefined)
+    return edit.layoutBefore === previous[at] && edit.companionBefore === previous[at + 1];
+  // A new run has no input record in the old batch. Its retained history must certify the missing side.
+  const companion = edit.batch.companion;
+  return Boolean(
+    edit.membership &&
+      companion &&
+      enteredRetainedBatch(edit.batch.ranges, previous[at], edit.membership.id) &&
+      enteredRetainedBatch(companion.ranges, previous[at + 1], edit.membership.id)
+  );
+}
+
 type TMixedPathWork = {
   stock?: TPathGroup;
   sources: TMixedSource[];
@@ -248,6 +290,17 @@ type TMixedPlan = {
   nativeOnlyPaint: TDraw[];
   sourceCounts: number[];
 };
+/** A surviving piece of the same stroke must keep its width represented on the side without the edited run. */
+function hasVisibleStroke(plan: TMixedPlan, draws: readonly TDraw[], stroke: TPathPlanInput<TBatch>): boolean {
+  return (
+    plan.sources.some(({ records }) => records === stroke.batch.pathRecords) &&
+    draws.some(
+      ({ batch, first, count }) =>
+        batch === stroke.batch && first < stroke.first + stroke.count && first + count > stroke.first
+    )
+  );
+}
+
 type TMixedDraw = TInstancePointerTarget & {
   programKey: string;
   uniforms: TUniforms;
@@ -1702,7 +1755,14 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     this.setTranslucent(id, primitives, translucent);
     if (before) {
-      const edits = pathPlanResizes(before, this.pathInputsOf(id));
+      const next = this.pathInputsOf(id);
+      let connectionId: string | undefined;
+      if (before.length !== next.length) {
+        this.stockOrder = undefined;
+        if (this.mixedPlan?.plan && this.elements.get(this.rootIdOf(element))?.entityType === "connection")
+          connectionId = id;
+      }
+      const edits = pathPlanResizes(before, next, connectionId);
       if (!edits || edits.some((edit) => this.mixedResizes.some((previous) => previous.batch === edit.batch))) {
         this.invalidatePathPlans();
       } else if (this.mixedPlan) {
@@ -2393,7 +2453,11 @@ class WebGLSceneBackend implements ISceneBackend {
       ranges: new InstanceRanges(PATH_ELEMENT_FLOATS),
     };
     // Empty effect groups need only a placeholder; the first upload allocates their actual record table.
-    const pathRecords = { texture: this.createTableTexture(PATH_RECORD_TEXELS, 1), ids: new PathDrawIds() };
+    const pathRecords = {
+      texture: this.createTableTexture(PATH_RECORD_TEXELS, 1),
+      companion: elements,
+      ids: new PathDrawIds(),
+    };
     const uniforms: TUniforms = {
       scene_opaquePass: pass === "opaque" ? 1 : 0,
       graph_effectEnabled: 1,
@@ -3282,17 +3346,12 @@ class WebGLSceneBackend implements ISceneBackend {
       if (batch !== oldBatches[i / 2]) return undefined;
       const edit = edits.get(batch);
       if (edit) {
-        if (
-          cached.layouts[i] !== edit.layoutBefore ||
-          layouts[i] !== edit.layoutAfter ||
-          cached.layouts[i + 1] !== edit.companionBefore ||
-          layouts[i + 1] !== edit.companionAfter
-        )
-          return undefined;
+        if (!matchesLayout(edit, cached.layouts, layouts, i)) return undefined;
       } else if (cached.layouts[i] !== layouts[i] || cached.layouts[i + 1] !== layouts[i + 1]) return undefined;
       i += 2;
     }
     const patches = [];
+    let structural = false;
     for (const edit of edits.values()) {
       const group = this.pathBatchGroups.get(edit.batch);
       if (group?.pass !== "opaque" || group.effect) return undefined;
@@ -3303,13 +3362,24 @@ class WebGLSceneBackend implements ISceneBackend {
         (entry) => entry.records === edit.batch.pathRecords && entry.chords === patch.chords
       );
       if (source < 0) return undefined;
+      if (edit.membership) {
+        if (!hasVisibleStroke(plan, edit.before ? opaque : cached.opaque, edit.membership.sibling)) return undefined;
+        structural = true;
+      }
       patches.push({ ...patch, source });
     }
     if (!patches.length) return plan;
-    const schedule = resizeMixedPlan(plan.spans, plan.commands, patches, true);
+    const schedule = resizeMixedPlan(
+      plan.spans,
+      plan.commands,
+      patches,
+      true,
+      structural ? mixedAddressOrder(plan.sources, this.table.data) : undefined
+    );
     if (!schedule) return undefined;
     const sourceCounts = plan.sourceCounts.slice();
     for (const patch of patches) sourceCounts[patch.source] += patch.after - patch.before;
+    if (structural && sourceCounts.includes(0)) return undefined;
     return { ...plan, ...schedule, sourceCounts };
   }
 

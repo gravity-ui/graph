@@ -160,6 +160,96 @@ describe("mixed stock tail resize", () => {
     expect(resizeMixedPlan(spans, [span(0, 4)], [edit(8, 2, 1), edit(8, 2, 3)])).toBeUndefined();
   });
 
+  it("inserts a new geometry group inside a packed span and rejoins the seam on removal", () => {
+    // Neighbouring depths happened to occupy adjacent slots in the same source.
+    const runs = [
+      { source: 0, first: 4, count: 2, key: 1, sub: 0, tie: 0 },
+      { source: 0, first: 6, count: 2, key: 3, sub: 0, tie: 0 },
+    ];
+    const inserted = { source: 1, first: 7, count: 3, key: 2, sub: 0, tie: 1 };
+    const all = [...runs, inserted];
+    const compare = (left: number, right: number) => {
+      const keyOf = (address: number) =>
+        all.find(
+          (r) =>
+            r.source === Math.floor(address / STRIDE) &&
+            address % STRIDE >= r.first &&
+            address % STRIDE < r.first + r.count
+        )?.key ?? NaN;
+      return keyOf(left) - keyOf(right) || left - right;
+    };
+    const old = mixedPathSchedule(runs)!;
+    expect(old.spans).toEqual([span(4, 4)]);
+    const added = resizeMixedPlan(old.spans, old.commands, [edit(7, 0, 3, 1)], true, compare)!;
+    expect(added).toEqual(mixedPathSchedule(all));
+    expect(resizeMixedPlan(added.spans, added.commands, [edit(7, 3, 0, 1)], true, compare)).toEqual(old);
+    expect(resizeMixedPlan(old.spans, old.commands, [edit(5, 0, 3)], true, compare)).toBeUndefined();
+    expect(resizeMixedPlan(old.spans, old.commands, [edit(7, 0, 3, 1)], true, () => NaN)).toBeUndefined();
+  });
+
+  it("places the added group beside a relocated sibling in painter tie order", () => {
+    const runs = [
+      { source: 0, first: 0, count: 2, key: 1, sub: 1, tie: 0 },
+      { source: 1, first: 3, count: 2, key: 1, sub: 0, tie: 1 },
+      { source: 2, first: 4, count: 2, key: 2, sub: 0, tie: 2 },
+    ];
+    const next = [runs[0], { ...runs[1], first: 9, count: 3 }, runs[2], { ...runs[2], key: 1, first: 1, count: 2 }];
+    const records = new Map(
+      next.flatMap((run) =>
+        Array.from({ length: run.count }, (_, offset) => [run.source * STRIDE + run.first + offset, run] as const)
+      )
+    );
+    const compare = (left: number, right: number) => {
+      const a = records.get(left),
+        b = records.get(right);
+      if (!a || !b) throw new Error("Compared a vacated slot");
+      return a.key - b.key || a.sub - b.sub || a.tie - b.tie || (left % STRIDE) - (right % STRIDE);
+    };
+    const old = mixedPathSchedule(runs)!;
+    const edits = [edit(1, 0, 2, 2), edit(3, 2, 3, 1, 9)];
+    expect(resizeMixedPlan(old.spans, old.commands, edits, true, compare)).toEqual(mixedPathSchedule(next));
+  });
+
+  it("finds moved and newly inserted spans across painter page boundaries without reindexing distant spans", () => {
+    const base = Array.from({ length: 2048 }, (_, i) => ({
+      source: 0,
+      first: i * 4,
+      count: 1,
+      key: i * 2,
+      sub: 0,
+      tie: 0,
+    }));
+    const a = { source: 1, first: 10, count: 1, key: 509, sub: 0, tie: 1 };
+    const b = { ...a, first: 12, key: 1021 };
+    const compare = (left: number, right: number) => {
+      const key = (slot: number) => (slot < STRIDE ? slot / 2 : slot === STRIDE + a.first ? a.key : b.key);
+      return key(left) - key(right);
+    };
+    let plan = mixedPathSchedule(base)!;
+    let distantReads = 0;
+    plan.spans[2000] = {
+      get first() {
+        distantReads++;
+        return base[2000].first;
+      },
+      count: 1,
+    };
+    const added = [edit(a.first, 0, 1, 1), edit(b.first, 0, 1, 1)];
+    plan = resizeMixedPlan(plan.spans, plan.commands, added, true, compare)!;
+    expect(plan).toEqual(mixedPathSchedule([...base, a, b]));
+    distantReads = 0;
+    // The former slots 255 and 511 now live in the next painter pages.
+    const removed = [edit(base[255].first, 1, 0), edit(base[511].first, 1, 0)];
+    plan = resizeMixedPlan(plan.spans, plan.commands, removed, true, compare)!;
+    expect(distantReads).toBe(0);
+    const kept = base.filter((_, i) => i !== 255 && i !== 511);
+    expect(plan).toEqual(mixedPathSchedule([...kept, a, b]));
+    distantReads = 0;
+    plan = resizeMixedPlan(plan.spans, plan.commands, [edit(a.first, 1, 0, 1), edit(b.first, 1, 0, 1)], true, compare)!;
+    expect(distantReads).toBe(0);
+    expect(plan).toEqual(mixedPathSchedule(kept));
+  });
+
   it("declines native barriers, incomplete commands and invalid source addresses", () => {
     const spans = [span(0, 1)];
     for (const commands of [
