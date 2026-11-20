@@ -90,6 +90,13 @@ export type {
   TSceneState,
 } from "./services/scene/types";
 export type { ISceneKeyed, TSceneKey } from "./services/scene/sceneKey";
+export { defineSceneEffect, type TSceneEffectDefinition } from "./lib/scene/effects/defineSceneEffect";
+export type {
+  TSceneEffect,
+  TSceneEffectKind,
+  TSceneEffectScaleRange,
+  TSceneEffectUse,
+} from "./lib/scene/effects/types";
 export { SceneComponent } from "./components/canvas/scene";
 export type { TSceneParent } from "./components/canvas/scene";
 export {
@@ -139,7 +146,7 @@ export type {
   TSceneStyleChange,
   TSceneTextPolicy,
 } from "./lib/scene/types";
-export type { ISceneBackendModule, TSceneBackendStats, TSceneTextFrame } from "./lib/scene/webgl/backendTypes";
+export type { ISceneBackendModule, TSceneBackendStats, TSceneTextFrame } from "./lib/scene/renderer/backendTypes";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";
 

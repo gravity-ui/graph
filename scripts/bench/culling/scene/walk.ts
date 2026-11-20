@@ -2,7 +2,7 @@
 // MultipointConnection on the Path2D batch; groups are a BlockGroups layer.
 import { batch } from "@preact/signals-core";
 import { BlockGroups, ECanDrag, Graph, Group, LegacyCanvasBlock, MultipointConnection } from "GRAPH";
-import { drawElements } from "GRAPH_SRC/lib/scene/drawPrimitives";
+import { drawElements } from "GRAPH_SRC/lib/scene/canvas/drawPrimitives";
 import type { TSceneElement } from "GRAPH_SRC/lib/scene/types";
 
 import { GROUP_STYLE, anchorPosition, blockBounds, blockPrimitives } from "./look";

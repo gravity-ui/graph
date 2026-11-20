@@ -1,4 +1,4 @@
-import { runLevelMethods } from "../../../../lib/scene/purity";
+import { runLevelMethods } from "../../../../lib/scene/diagnostics/purity";
 import type { TScenePrimitive, TSceneSize } from "../../../../lib/scene/types";
 import type { TSceneLevel } from "../../../../services/scene/types";
 

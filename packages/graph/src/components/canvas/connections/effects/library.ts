@@ -1,5 +1,5 @@
-import { defineConnectionEffect } from "./ConnectionEffect";
-import type { TUniformType } from "./types";
+import { defineSceneEffect } from "../../../../lib/scene/effects/defineSceneEffect";
+import type { TUniformType } from "../../../../lib/scene/effects/types";
 
 /**
  * A running dash: the pattern moves along the line at `speed` world units per second, from the source to the target
@@ -14,7 +14,7 @@ import type { TUniformType } from "./types";
  *   return { color: "#4cb", width: 2, effect: dashFlow.use({ pattern: [90, 160], speed: 120, fade: true }) };
  * }
  */
-export const dashFlow = defineConnectionEffect<
+export const dashFlow = defineSceneEffect<
   Record<never, TUniformType>,
   {
     /** On and off lengths in world units; the off length defaults to the on length. */
@@ -25,9 +25,10 @@ export const dashFlow = defineConnectionEffect<
     fade?: boolean;
   }
 >({
+  kind: "path",
   animated: true,
   fragment: /* glsl */ `
-vec4 effect(ConnectionFragment f, vec4 color) {
+vec4 effect(PathFragment f, vec4 color) {
   float on = f.params0.x;
   float off = f.params0.y;
   float speed = f.params0.z;
@@ -57,10 +58,11 @@ vec4 effect(ConnectionFragment f, vec4 color) {
  *   return { color: "#fb4", width: 2, effect: pulse.use({ period: 3, wavelength: 24000 }) };
  * }
  */
-export const pulse = defineConnectionEffect<Record<never, TUniformType>, { period: number; wavelength?: number }>({
+export const pulse = defineSceneEffect<Record<never, TUniformType>, { period: number; wavelength?: number }>({
+  kind: "path",
   animated: true,
   fragment: /* glsl */ `
-vec4 effect(ConnectionFragment f, vec4 color) {
+vec4 effect(PathFragment f, vec4 color) {
   float wave = graph_wave(f.world, f.time, f.params0.x, f.params0.y);
   if (f.selected > 0.5) return mix(f.selectionColor, color, wave);
   return vec4(color.rgb, color.a * wave);

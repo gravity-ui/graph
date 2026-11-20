@@ -1,33 +1,19 @@
 import { Buffer, Texture, getAttributeInfosFromLayouts, luma } from "@luma.gl/core";
-import type { BufferLayout, Device, Framebuffer, RenderPass, RenderPipelineParameters } from "@luma.gl/core";
+import type { Device, Framebuffer, RenderPass } from "@luma.gl/core";
 import { DynamicBuffer, Model } from "@luma.gl/engine";
-import type { ShaderPlugin } from "@luma.gl/shadertools";
 import { WEBGLBuffer, WEBGLTexture, WEBGLVertexArray, webgl2Adapter, withGLParameters } from "@luma.gl/webgl";
 import { untracked, effect as watch } from "@preact/signals-core";
 
-import {
-  isConnectionEffectActive,
-  toConnectionEffect,
-} from "../../../components/canvas/connections/effects/ConnectionEffect";
-import type { ConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
-import { dashFlow, pulse } from "../../../components/canvas/connections/effects/library";
-import type { TConnectionEffectScaleRange, TUniformTypes } from "../../../components/canvas/connections/effects/types";
+import { toConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import { turnedPolylineStrokes } from "../../../components/canvas/connections/geometry/utils/polylineStroke";
 import { CURVE_CHORDS, INSTANCE_FLOATS, scaleBucket } from "../../../components/canvas/connections/webgl/encode";
 import { createCurveTemplate, createLineTemplate } from "../../../components/canvas/connections/webgl/shaders";
 import type { TSceneLevel } from "../../../services/scene/types";
 import { track } from "../../../utils/functions/track";
 import type { TTileRect } from "../../culling/TileIndex";
-import type { SceneStore } from "../SceneStore";
+import { isSceneEffectActive } from "../effects/scaleRange";
+import type { TSceneEffectScaleRange } from "../effects/types";
 import { LEVEL_BIT, isOnLevel } from "../levels";
-import { bakeElementStyle, connectionEffectId, styleOpacity } from "../style";
-import { DEFAULT_TEXT_POLICY, isLayoutValid, layoutText, resolveTextSize } from "../textLayout";
-import type { TTextLayout } from "../textLayout";
-import { peekSceneTextLayout, sceneTextLayout, sceneTextMetrics } from "../textMetrics";
-import type { TSceneChange, TSceneElement, TScenePrimitive, TSceneStyle, TSceneTextPolicy } from "../types";
-import { readColorRgba } from "../utils/colorAlpha";
-
-import { InstanceRanges } from "./InstanceRanges";
 import type {
   ISceneBackend,
   TCreateSceneBackend,
@@ -35,79 +21,99 @@ import type {
   TSceneBackendStats,
   TSceneFrame,
   TSceneTextFrame,
-} from "./backendTypes";
-import { CameraTextEpochs } from "./cameraTextEpochs";
-import { TranslucentRefinement, coalesceTranslucentRuns, translucentRunOwners } from "./coalesceTranslucent";
-import { canCoarsenCurves, createCurveBins, partitionCurves } from "./curveTessellation";
-import { SCENE_DEPTH, SceneDepth, movesInDepth } from "./depth";
-import { PATH_ELEMENT_FLOATS, createPathScratch, encodePaths } from "./encodePaths";
+} from "../renderer/backendTypes";
+import type { SceneStore } from "../store/SceneStore";
+import { bakeElementStyle, connectionEffectId, styleOpacity } from "../styles/style";
+import { isLayoutValid, layoutText } from "../text/textLayout";
+import type { TTextLayout } from "../text/textLayout";
+import { peekSceneTextLayout, sceneTextLayout, sceneTextMetrics } from "../text/textMetrics";
+import { DEFAULT_TEXT_POLICY, resolveTextSize } from "../text/textPlacement";
+import type { TSceneChange, TSceneElement, TScenePrimitive, TSceneStyle, TSceneTextPolicy } from "../types";
+import { readColorRgba } from "../utils/colorAlpha";
+
+import {
+  classifyPrimitives,
+  removeInstances,
+  setInstances,
+  subsOfWrite,
+  translucentPrimitives,
+} from "./backend/batchInstances";
+import { createBatch, createPathBatch, createRevealedGlyphs } from "./backend/batchModels";
+import type {
+  TBatch,
+  TCompanion,
+  TDraw,
+  TEffect,
+  TInstancePointerTarget,
+  TPass,
+  TPathGroup,
+  TPathRecords,
+  TPointer,
+  TTextureName,
+  TTranslucentWrite,
+  TUniforms,
+  TUploadKind,
+} from "./backend/batchTypes";
+import {
+  MIN_MIXED_CONNECTION_VERTICES,
+  MIXED_EFFECT_PROGRAMS,
+  PULSE_PROGRAM,
+  hasEffectDepthWrites,
+  hasVisibleStroke,
+  matchesLayout,
+  mixedAddressOrder,
+  nativeStockGroup,
+  sameDraws,
+  stockGroup,
+} from "./backend/pathPlans";
+import type {
+  TCustomDepth,
+  TMixedDraw,
+  TMixedPage,
+  TMixedPathWork,
+  TMixedPlan,
+  TMixedSource,
+  TPreparedMixed,
+  TPreparedStock,
+  TStockPlan,
+} from "./backend/pathPlans";
+import {
+  ALPHA_PASS_PARAMETERS,
+  ATLAS_SAMPLER,
+  FLOAT_BYTES,
+  GLYPH_PROGRAM,
+  INITIAL_INSTANCES,
+  PASS_PARAMETERS,
+  PATH_LAYOUT,
+  PATH_TEXTURES,
+  RECT_PROGRAM,
+  TEXTURE_USAGE,
+  TRIANGLE_PROGRAM,
+  WRITE_ALL,
+  WRITE_ALPHA,
+  compilerLog,
+  isLinked,
+  vec4Layout,
+} from "./backend/programs";
+import type { TQuadProgram } from "./backend/programs";
+import {
+  copyPathRecordRows,
+  createInstanceBuffer,
+  createTableTexture,
+  createTemplate,
+  noStyles,
+} from "./backend/resources";
+import { changedTexts } from "./backend/textChanges";
+import { InstanceRanges } from "./instances/InstanceRanges";
 import {
   NO_LIMIT,
-  RECT_FLOATS,
   checkSub,
   encodeRects,
   hasStrokeWidth,
   isTranslucentPaint,
   scaleBound,
-} from "./encodeRects";
-import { GLYPH_FLOATS, GLYPH_SUB_FLOATS, encodeText, isTranslucentText, writeTextGlyphs } from "./encodeText";
-import type { TTextEncodeInput, TTextGlyphPlaces } from "./encodeText";
-import { TRIANGLE_FLOATS, encodeTriangles, isFilledTriangle } from "./encodeTriangles";
-import { GlyphAtlas, glyphRun } from "./glyphs";
-import { InstanceVisibility, OpaqueVisibility } from "./instanceVisibility";
-import { CachedGeometryBounds, MIN_CAMERA_SCALE, geometryBounds } from "./levelBounds";
-import { firstOverlappingOwnerRange, updateMixedOwnerRanges } from "./mixedOwnerRanges";
-import type { TMixedOwnerSnapshot } from "./mixedOwnerRanges";
-import {
-  MIXED_PATH_MAX_SOURCES,
-  MIXED_PATH_SOURCE_STRIDE,
-  MixedStockDepthBands,
-  canonicalizeMixedSources,
-  comparePathOrder,
-  fullySubpixelPaths,
-  isSplitPathSource,
-  mixedPathSchedule,
-  mixedSourceCounts,
-  separatedConnectionDepths,
-} from "./mixedPathPlan";
-import type { TLowerPathCommand, TMixedPathRange, TNativePathRange, TSubpixelPathWidth } from "./mixedPathPlan";
-import { resizeMixedPlan } from "./mixedPlanResize";
-import { createMultisampleTarget } from "./multisampleTarget";
-import { TranslucentLevels } from "./overlapLevels";
-import { OverviewCurveGroups, overviewCamera } from "./overviewCurves";
-import { PathCulling } from "./pathCulling";
-import { PathDrawIds } from "./pathDrawIds";
-import type { TPathDrawGroups, TPathDrawSpan } from "./pathDrawIds";
-import { appendPathPlanInputs, pathPlanResizes, visiblePathResize } from "./pathPlanInputs";
-import type { TMixedResize, TPathPlanInput } from "./pathPlanInputs";
-import { PATH_RECORD_TEXELS, pathRecordWrites } from "./pathRecords";
-import { PreparedTranslucentDraws } from "./preparedTranslucentDraws";
-import {
-  ALPHA_FRAGMENT,
-  ALPHA_VERTEX,
-  GLYPH_ATTRIBUTES,
-  GLYPH_FRAGMENT,
-  GLYPH_SUB_ATTRIBUTE,
-  GLYPH_VERTEX,
-  MIXED_COMPOSITE_FRAGMENT,
-  MIXED_COMPOSITE_VERTEX,
-  MIXED_PATH_FRAGMENT,
-  PATH_FRAGMENT,
-  PATH_VERTEX,
-  QUAD_TEMPLATE,
-  RECT_ATTRIBUTES,
-  RECT_FRAGMENT,
-  RECT_VERTEX,
-  SAMPLE_PATH_FRAGMENT,
-  SAMPLE_PATH_VERTEX,
-  STOCK_PATH_FRAGMENT,
-  TRIANGLE_ATTRIBUTES,
-  TRIANGLE_FRAGMENT,
-  TRIANGLE_VERTEX,
-  createMixedPathVertex,
-  createPathPlugin,
-  createStockPathPlugin,
-} from "./shaders";
+} from "./instances/encodeRects";
+import { TRIANGLE_FLOATS, encodeTriangles } from "./instances/encodeTriangles";
 import {
   SAMPLE_SPRITE,
   SPRITE_ATTRIBUTES,
@@ -116,25 +122,66 @@ import {
   appendSprite,
   spriteFragment,
   visibleSpriteAnimation,
-} from "./sprites";
-import type { TSprite } from "./sprites";
-import { StockCommandGroups } from "./stockCommandGroups";
-import { orderResidentPathDraws } from "./stockPathOrder";
-import { ElementTable, STYLE_ROW_TEXELS, StyleTable, TABLE_WIDTH } from "./tables";
-import { adoptTexts, planTextEncode, resubGlyphs, textsOf } from "./textEncodes";
-import type { TTextEncode, TTextLayouts } from "./textEncodes";
-import { TextRelayout } from "./textRelayout";
-import type { ITextRelayoutHost } from "./textRelayout";
-import { createTinySdfGenerator } from "./tinySdfGlyphs";
-import { SUB_FLOAT, elementSteps, orderTranslucentChunks, splitSteps } from "./translucentOrder";
-import type { TElementSubs, TTranslucentOrderCache, TTranslucentPart, TTranslucentRun } from "./translucentOrder";
-import { TranslucentVisibility } from "./translucentVisibility";
-
-type TPass = "opaque" | "translucent";
-
-type TUploadKind = TSceneBackendStats["lastUploadKind"];
-
-type TUniforms = Record<string, number | readonly number[]>;
+} from "./instances/sprites";
+import type { TSprite } from "./instances/sprites";
+import { ElementTable, STYLE_ROW_TEXELS, StyleTable, TABLE_WIDTH } from "./instances/tables";
+import { createMultisampleTarget } from "./multisampleTarget";
+import { TranslucentLevels } from "./order/TranslucentLevels";
+import { TranslucentRefinement, coalesceTranslucentRuns, translucentRunOwners } from "./order/coalesceTranslucent";
+import { SCENE_DEPTH, SceneDepth, movesInDepth } from "./order/depth";
+import { CachedGeometryBounds, MIN_CAMERA_SCALE, geometryBounds } from "./order/levelBounds";
+import { orderTranslucentChunks } from "./order/translucentOrder";
+import type { TTranslucentOrderCache, TTranslucentPart, TTranslucentRun } from "./order/translucentOrder";
+import { SUB_FLOAT, elementSteps, splitSteps } from "./order/translucentSteps";
+import { canCoarsenCurves, createCurveBins, partitionCurves } from "./paths/curveTessellation";
+import { createPathScratch, encodePaths } from "./paths/encodePaths";
+import { firstOverlappingOwnerRange, updateMixedOwnerRanges } from "./paths/mixedOwnerRanges";
+import type { TMixedOwnerSnapshot } from "./paths/mixedOwnerRanges";
+import {
+  MIXED_PATH_MAX_SOURCES,
+  MIXED_PATH_SOURCE_STRIDE,
+  MixedStockDepthBands,
+  canonicalizeMixedSources,
+  fullySubpixelPaths,
+  isSplitPathSource,
+  mixedPathSchedule,
+  mixedSourceCounts,
+  separatedConnectionDepths,
+} from "./paths/mixedPathPlan";
+import type { TMixedPathRange, TNativePathRange, TSubpixelPathWidth } from "./paths/mixedPathPlan";
+import { resizeMixedPlan } from "./paths/mixedPlanResize";
+import { OverviewCurveGroups, overviewCamera } from "./paths/overviewCurves";
+import { PathCulling } from "./paths/pathCulling";
+import { PathDrawIds } from "./paths/pathDrawIds";
+import { appendPathPlanInputs, pathPlanResizes, visiblePathResize } from "./paths/pathPlanInputs";
+import type { TMixedResize, TPathPlanInput } from "./paths/pathPlanInputs";
+import { PATH_ELEMENT_FLOATS, PATH_RECORD_TEXELS, pathRecordWrites } from "./paths/pathRecords";
+import { StockCommandGroups } from "./paths/stockCommandGroups";
+import { orderResidentPathDraws } from "./paths/stockPathOrder";
+import { MIXED_COMPOSITE_FRAGMENT, MIXED_COMPOSITE_VERTEX } from "./shaders/composite";
+import {
+  MIXED_PATH_FRAGMENT,
+  PATH_FRAGMENT,
+  PATH_VERTEX,
+  STOCK_PATH_FRAGMENT,
+  createMixedPathVertex,
+  createPathPlugin,
+  createStockPathPlugin,
+} from "./shaders/path";
+import { ALPHA_FRAGMENT, ALPHA_VERTEX, QUAD_TEMPLATE } from "./shaders/scene";
+import { GlyphAtlas } from "./text/GlyphAtlas";
+import { CameraTextEpochs } from "./text/cameraTextEpochs";
+import { GLYPH_FLOATS, encodeText, isTranslucentText, writeTextGlyphs } from "./text/encodeText";
+import type { TTextEncodeInput, TTextGlyphPlaces } from "./text/encodeText";
+import { glyphRun } from "./text/glyphs";
+import { adoptTexts, planTextEncode, resubGlyphs, textsOf } from "./text/textEncodes";
+import type { TTextEncode, TTextLayouts } from "./text/textEncodes";
+import { TextRelayout } from "./text/textRelayout";
+import type { ITextRelayoutHost } from "./text/textRelayout";
+import { createTinySdfGenerator } from "./text/tinySdfGlyphs";
+import { InstanceVisibility, OpaqueVisibility } from "./visibility/instanceVisibility";
+import { PreparedTranslucentDraws } from "./visibility/preparedTranslucentDraws";
+import { TranslucentVisibility } from "./visibility/translucentVisibility";
 
 type TPathPrimitive = Extract<TScenePrimitive, { kind: "path" }>;
 
@@ -146,214 +193,6 @@ type TTextPrimitive = Extract<TScenePrimitive, { kind: "text" }>;
  * Which frame checks it is `CameraTextEpochs`'s.
  */
 type TCameraTexts = { primitives: readonly TScenePrimitive[]; encode: TTextEncode };
-
-/** The tables a program samples. */
-type TTextureName = "scene_elements" | "scene_styles" | "scene_atlas";
-
-type TEffect = ConnectionEffect<TUniformTypes, never>;
-
-/** An instance attribute's pointer: shader location, float components, byte offset in the instance and stride. */
-type TPointer = { location: number; components: number; byteOffset: number; stride: number };
-
-/** A per-instance buffer of a model: its name in the buffer layout and the buffer. */
-type TInstanceBuffer = { name: string; buffer: DynamicBuffer };
-
-/**
- * A second per-instance list of a batch, kept in step with its instances (the same elements, steps, counts and order,
- * so each range lies at the same instance offset in both lists):
- * - `"elements"` (paths): each instance's element data, `PATH_ELEMENT_FLOATS` (element index, sub, part slot, scale
- *   bounds, level mask), uploaded together with the path payload to the record texture;
- * - `"subs"` (glyphs): each instance's sub, one float (`TEncodedGlyphs.subs`), so that a re-sub of unchanged texts
- *   writes and uploads this buffer only.
- */
-type TCompanion = { kind: "elements" | "subs"; ranges: InstanceRanges; buffer?: DynamicBuffer };
-
-/** Paths keep one GPU copy of their payload and companion; the instance buffer holds only ordered addresses. */
-type TPathRecords = { texture: Texture; companion: TCompanion; ids: PathDrawIds; overview?: OverviewCurveGroups };
-
-/** The float of a companion instance that holds the primitive's sub. */
-const COMPANION_SUB_FLOAT: Record<TCompanion["kind"], number> = { elements: SUB_FLOAT, subs: 0 };
-
-/** Per-element instances of one program and pass, their GPU buffer and the model that draws them. */
-type TBatch = {
-  opaqueVisibility?: OpaqueVisibility;
-  ranges: InstanceRanges;
-  buffer: DynamicBuffer;
-  /** Path and glyph batches: the companion list of the instances (`TCompanion`), kept in step with `ranges`. */
-  companion?: TCompanion;
-  pathRecords?: TPathRecords;
-  model: Model;
-  /** Depth-writing custom effects need a plain program while inactive, sharing the same resident storage. */
-  plain?: TInstancePointerTarget;
-  /** An opaque glyph view after fade-in, sharing this batch's storage; only its model and VAO are owned separately. */
-  revealed?: TBatch;
-  animated?: boolean;
-  spriteTexture?: Texture;
-  spriteAnimated?: boolean;
-  /** The model's uniforms: luma reads this object at every draw. */
-  uniforms: TUniforms;
-  textures: readonly TTextureName[];
-  /** Every buffer layout of the model, and its per-instance buffers (`buffer`, then the companion's). */
-  layout: readonly BufferLayout[];
-  instanceBuffers: readonly TInstanceBuffer[];
-  /** The pointers of the per-instance attributes, per instance buffer; read from the linked program on first use. */
-  pointers?: readonly { buffer: DynamicBuffer; attributes: readonly TPointer[] }[];
-  /** The instance the per-instance attributes point at: translucent runs start inside the buffer. */
-  pointedAt: number;
-  /** Curve batches keep conservative bounds of contiguous resident instances. */
-  culling?: PathCulling;
-  /** Small culled gaps can cost less to submit than an additional draw. */
-  /** Plain opaque pieces certified for this template at the coarse device scale. */
-  curveChords?: 8;
-  /** Translucent path storage keeps its initial packing after the first upload. */
-  retainRanges?: boolean;
-};
-
-/** Physical instance offsets until gathering; path commands then address their compact ID stream. */
-type TDraw = { batch: TBatch; first: number; count: number; curveDetail?: number };
-/** Only when an active effect sets fragment depth: retain native union draws so a later piece can reclaim its samples. */
-type TCustomDepth = { opaque: readonly TDraw[]; unions: TDraw[]; withUnions: boolean };
-const MIXED_EFFECT_PROGRAMS = new Set([toConnectionEffect(dashFlow).programKey, toConnectionEffect(pulse).programKey]);
-const PULSE_PROGRAM = toConnectionEffect(pulse).programKey;
-// The extra pass pays off on the measured large fit views. At around 600k vertices the shared pass wins.
-const MIN_MIXED_CONNECTION_VERTICES = 1_500_000;
-
-type TMixedSource = { records: TPathRecords; chords: number; group: TPathGroup; tie: number };
-
-function mixedAddressOrder(sources: readonly TMixedSource[], table: Float32Array) {
-  const elements = sources.map((source) => source.records.companion.ranges.data);
-  const position = (address: number) => {
-    const source = Math.floor(address / MIXED_PATH_SOURCE_STRIDE);
-    const first = address % MIXED_PATH_SOURCE_STRIDE;
-    const slot = first * PATH_ELEMENT_FLOATS;
-    const data = elements[source];
-    return { key: table[data[slot] * 4 + 2], sub: data[slot + SUB_FLOAT], tie: sources[source].tie, first };
-  };
-  return (left: number, right: number) => {
-    const a = position(left);
-    const b = position(right);
-    return a.key >= 0 && b.key >= 0 ? comparePathOrder(a, b) : NaN;
-  };
-}
-
-function enteredRetainedBatch(ranges: InstanceRanges, revision: number, id: string): boolean {
-  const changes = ranges.retainedChangesSince(revision);
-  return changes?.length === 1 && changes[0].id === id && changes[0].previous.length === 0;
-}
-
-function matchesLayout(
-  edit: TMixedResize<TBatch>,
-  previous: readonly number[],
-  current: readonly number[],
-  at: number
-): boolean {
-  if (edit.layoutAfter !== current[at] || edit.companionAfter !== current[at + 1]) return false;
-  if (edit.layoutBefore !== undefined)
-    return edit.layoutBefore === previous[at] && edit.companionBefore === previous[at + 1];
-  // A new run has no input record in the old batch. Its retained history must certify the missing side.
-  const companion = edit.batch.companion;
-  return Boolean(
-    edit.membership &&
-      companion &&
-      enteredRetainedBatch(edit.batch.ranges, previous[at], edit.membership.id) &&
-      enteredRetainedBatch(companion.ranges, previous[at + 1], edit.membership.id)
-  );
-}
-
-type TMixedPathWork = {
-  stock?: TPathGroup;
-  sources: TMixedSource[];
-  ranges: (TMixedPathRange | TNativePathRange<TBatch>)[];
-  widths: TSubpixelPathWidth;
-  customEffect?: TEffect;
-  customKey?: number;
-};
-type TMixedPage = {
-  first: number;
-  end: number;
-  source: number;
-  tie: number;
-  depth: number;
-  ranges: TMixedPathWork["ranges"];
-  widths: TSubpixelPathWidth;
-};
-type TInstancePointerTarget = Pick<TBatch, "model" | "layout" | "instanceBuffers" | "pointers" | "pointedAt">;
-type TMixedPlan = {
-  effect?: TEffect;
-  effectUniforms?: TUniforms;
-  sources: TMixedSource[];
-  spans: TPathDrawSpan[];
-  commands: TLowerPathCommand<TBatch>[];
-  widths: TSubpixelPathWidth;
-  upperOpaque: TDraw[];
-  upperTranslucent: TDraw[];
-  nativeOnlyPaint: TDraw[];
-  sourceCounts: number[];
-};
-/** A surviving piece of the same stroke must keep its width represented on the side without the edited run. */
-function hasVisibleStroke(plan: TMixedPlan, draws: readonly TDraw[], stroke: TPathPlanInput<TBatch>): boolean {
-  return (
-    plan.sources.some(({ records }) => records === stroke.batch.pathRecords) &&
-    draws.some(
-      ({ batch, first, count }) =>
-        batch === stroke.batch && first < stroke.first + stroke.count && first + count > stroke.first
-    )
-  );
-}
-
-type TMixedDraw = TInstancePointerTarget & {
-  programKey: string;
-  uniforms: TUniforms;
-  buffer: DynamicBuffer;
-  ids: PathDrawIds;
-  splitSources?: number;
-};
-type TPreparedMixed = { plan: TMixedPlan; draw: TMixedDraw; target: Framebuffer; upload: TUploadKind };
-type TStockPlan = Pick<TMixedPlan, "sources" | "spans" | "commands"> & {
-  spanGroups?: TPathDrawGroups;
-  lineRange?: TPathDrawSpan;
-};
-type TPreparedStock = { plan: TStockPlan; draw: TMixedDraw; upload: TUploadKind; lineRange?: TPathDrawSpan };
-
-function stockGroup(group: TPathGroup | undefined): boolean {
-  return Boolean(
-    group &&
-      !group.strokeUnion &&
-      !group.fallback &&
-      (!group.effect || (group.effect.extraWidth === 0 && MIXED_EFFECT_PROGRAMS.has(group.effect.programKey)))
-  );
-}
-
-/** In the shared pass an inactive custom effect already draws as a plain stroke. */
-function nativeStockGroup(group: TPathGroup | undefined): boolean {
-  return stockGroup(group) || Boolean(group?.effect && !group.fallback && !group.effectActive);
-}
-
-function hasEffectDepthWrites(effect?: TEffect): boolean {
-  return /\bgl_FragDepth\b/.test(effect?.fragment ?? "");
-}
-
-function sameDraws(left: readonly TDraw[], right: readonly TDraw[]): boolean {
-  return (
-    left.length === right.length &&
-    left.every((draw, index) => {
-      const other = right[index];
-      return (
-        draw.batch === other.batch &&
-        draw.first === other.first &&
-        draw.count === other.count &&
-        draw.curveDetail === other.curveDetail
-      );
-    })
-  );
-}
-
-/**
- * An element's translucent instances of one program, before they are cut into steps, and their companion data when the
- * batch keeps a companion list. Arrays of their own, never an encode's view (`TInstanceView`): `translucentWrites`
- * keeps them past later encodes.
- */
-type TTranslucentWrite = { batch: TBatch; instances: Float32Array; companion?: Float32Array };
 
 /** Scale interval where the same primitives participate in the overlap pass, with a conservative stroke extent. */
 type TOverlapScope = { from: number; to: number; minScale: number; dpr: number; level?: TSceneLevel };
@@ -369,281 +208,27 @@ function containsBox(outer: TTileRect, inner: TTileRect): boolean {
 /** An element's translucent glyphs and their subs (`TEncodedGlyphs`). */
 type TTranslucentGlyphs = { instances: Float32Array; subs: Float32Array };
 
-/** The paths of one pass and one effect instance: a batch per vertex template. */
-type TPathGroup = TConnectionEffectScaleRange & {
-  pass: TPass;
-  strokeUnion?: boolean;
-  writesDepth?: boolean;
-  programKey?: string;
-  effect: TEffect | undefined;
-  effectActive: boolean;
-  users: number;
-  stopUniforms?: () => void;
-  /** The effect does not compile or link: the group draws the plain stroke and never takes the effect up. */
-  fallback: boolean;
-  lines: TBatch;
-  curves: TBatch;
-  coarseCurves?: TBatch;
-};
-
 /** Curves are tessellated once, for scales up to 2. */
 const PATH_BUCKET = scaleBucket(2);
-
-const FLOAT_BYTES = 4;
-
-const INITIAL_INSTANCES = 64;
 
 const GL_SAMPLE_ALPHA_TO_COVERAGE = 0x809e;
 
 /** The translucent glyphs of an element whose texts kept their instances: none, its texts are all opaque. */
 const NO_GLYPHS: TTranslucentGlyphs = { instances: new Float32Array(0), subs: new Float32Array(0) };
 
-// eslint-disable-next-line no-bitwise -- luma usage flags are bit masks
-const BUFFER_USAGE = Buffer.VERTEX | Buffer.COPY_DST;
-
-// eslint-disable-next-line no-bitwise -- luma usage flags are bit masks
-const TEXTURE_USAGE = Texture.SAMPLE | Texture.COPY_DST;
-
 const UPLOAD_COST: Record<TUploadKind, number> = { none: 0, range: 1, full: 2 };
 
 /** RGBA32F texels of the element and style tables, r8 of the atlas: bytes per texel. */
 const TABLE_TEXEL_BYTES = 16;
 
-/** The target holds premultiplied colour, as the context's `premultipliedAlpha: true` expects. */
-const PASS_PARAMETERS: Record<TPass, RenderPipelineParameters> = {
-  // Coverage comes from alpha to coverage, enabled on the context around this pass (luma 9.4 does not apply it).
-  opaque: { depthWriteEnabled: true, depthCompare: "greater", blend: false },
-  // Premultiplied "over".
-  translucent: {
-    depthWriteEnabled: false,
-    depthCompare: "greater",
-    blend: true,
-    blendColorOperation: "add",
-    blendColorSrcFactor: "one",
-    blendColorDstFactor: "one-minus-src-alpha",
-    blendAlphaOperation: "add",
-    blendAlphaSrcFactor: "one",
-    blendAlphaDstFactor: "one-minus-src-alpha",
-  },
-};
-
-/**
- * After the opaque pass: alpha 1 in every sample geometry wrote (depth above the cleared 0), colour untouched. Alpha
- * to coverage writes the coverage into the alpha of covered samples, and WebGL has no alpha-to-one.
- */
-const ALPHA_PASS_PARAMETERS: RenderPipelineParameters = {
-  depthWriteEnabled: false,
-  depthCompare: "less",
-  blend: false,
-};
-
-/** GPUColorWrite masks of the render pass. */
-const WRITE_ALPHA = 0x8;
-const WRITE_ALL = 0xf;
-
-const TABLE_SAMPLER = { minFilter: "nearest", magFilter: "nearest", mipmapFilter: "none" } as const;
-
 /** `scene_dimColor` without a dim colour: alpha -1, the shaders leave every paint undimmed. */
 const NO_DIM_COLOR: readonly number[] = [0, 0, 0, -1];
-
-const ATLAS_SAMPLER = { minFilter: "linear", magFilter: "linear", mipmapFilter: "none" } as const;
 
 /** Program keys of effects already reported as broken, so each source is reported once. */
 const reportedEffects = new Set<string>();
 
-function vec4Layout(name: string, attributes: readonly string[], floats: number): BufferLayout {
-  return {
-    name,
-    stepMode: "instance",
-    byteStride: floats * FLOAT_BYTES,
-    attributes: attributes.map((attribute, index) => ({ attribute, format: "float32x4", byteOffset: index * 16 })),
-  };
-}
-
-/**
- * A program using the shared quad template: shaders, buffers (template, instances), floats per instance, tables read,
- * and the kind, buffer layout and floats per instance of its companion list, if it keeps one.
- */
-type TQuadProgram = {
-  vs: string;
-  fs: string;
-  layout: readonly [BufferLayout, BufferLayout];
-  floats: number;
-  vertexCount?: number;
-  textures: readonly TTextureName[];
-  companion?: { kind: TCompanion["kind"]; layout: BufferLayout; floats: number };
-};
-
-const RECT_PROGRAM: TQuadProgram = {
-  vs: RECT_VERTEX,
-  fs: RECT_FRAGMENT,
-  layout: [{ name: "scene_template", format: "float32x2" }, vec4Layout("rect_instances", RECT_ATTRIBUTES, RECT_FLOATS)],
-  floats: RECT_FLOATS,
-  textures: ["scene_elements", "scene_styles"],
-};
-
-const TRIANGLE_PROGRAM: TQuadProgram = {
-  vs: TRIANGLE_VERTEX,
-  fs: TRIANGLE_FRAGMENT,
-  layout: [
-    { name: "scene_template", format: "float32x2" },
-    vec4Layout("triangle_instances", TRIANGLE_ATTRIBUTES, TRIANGLE_FLOATS),
-  ],
-  floats: TRIANGLE_FLOATS,
-  vertexCount: 3,
-  textures: ["scene_elements", "scene_styles"],
-};
-
-const GLYPH_PROGRAM: TQuadProgram = {
-  vs: GLYPH_VERTEX,
-  fs: GLYPH_FRAGMENT,
-  layout: [
-    { name: "scene_template", format: "float32x2" },
-    vec4Layout("glyph_instances", GLYPH_ATTRIBUTES, GLYPH_FLOATS),
-  ],
-  floats: GLYPH_FLOATS,
-  textures: ["scene_elements", "scene_styles", "scene_atlas"],
-  companion: {
-    kind: "subs",
-    layout: {
-      name: GLYPH_SUB_ATTRIBUTE,
-      stepMode: "instance",
-      byteStride: GLYPH_SUB_FLOATS * FLOAT_BYTES,
-      format: "float32",
-    },
-    floats: GLYPH_SUB_FLOATS,
-  },
-};
-
-const PATH_TEXTURES: readonly TTextureName[] = ["scene_elements", "scene_styles"];
-
-const PATH_LAYOUT: BufferLayout[] = [
-  { name: "graph_template", format: "float32x2" },
-  {
-    name: "graph_recordId",
-    stepMode: "instance",
-    byteStride: FLOAT_BYTES,
-    format: "float32",
-  },
-];
-
-function compilerLog(model: Model): string {
-  const { vs, fs } = model.pipeline;
-  return [vs, fs]
-    .flatMap((shader) => shader?.getCompilationInfoSync() ?? [])
-    .map((message) => `${message.type} ${message.lineNum}:${message.linePos} ${message.message}`)
-    .join("\n");
-}
-
-function isLinked(model: Model): boolean {
-  return model.pipeline.linkStatus !== "error";
-}
-
-/**
- * The companion data written with instances of a batch that keeps a companion list: one companion instance per
- * instance, or the lists would part.
- */
-function companionData<TData extends ArrayLike<number>>(
-  batch: TBatch,
-  companion: TCompanion,
-  instances: ArrayLike<number>,
-  data?: TData
-): TData {
-  if (!data || data.length / companion.ranges.floats !== instances.length / batch.ranges.floats) {
-    throw new Error(`The scene batch ${batch.model.id} needs one companion instance per instance`);
-  }
-  return data;
-}
-
-/**
- * Writes the instances of an element and their companion data, or removes the element when it has none. The ranges
- * copy them at once, so they may be an encode's views (`TInstanceView`): each is handed here before the next encode
- * with its encoder.
- */
-function setInstances(batch: TBatch, id: string, instances: ArrayLike<number>, companion?: ArrayLike<number>): void {
-  if (instances.length > 0) {
-    batch.ranges.set(id, instances, Boolean(batch.pathRecords));
-    if (batch.companion) {
-      const data = companionData(batch, batch.companion, instances, companion);
-      batch.companion.ranges.set(id, data, batch.companion.kind === "elements");
-    }
-  } else {
-    removeInstances(batch, id);
-  }
-}
-
-function removeInstances(batch: TBatch, id: string): void {
-  batch.ranges.delete(id);
-  batch.companion?.ranges.delete(id);
-}
-
-/** Where a translucent write holds its subs: in its companion data when its batch keeps them there, else inline. */
-function subsOfWrite(write: TTranslucentWrite): TElementSubs {
-  const { batch, instances, companion } = write;
-  if (!batch.companion) return { subs: instances, floats: batch.ranges.floats };
-  return {
-    subs: companionData(batch, batch.companion, instances, companion),
-    floats: batch.companion.ranges.floats,
-    subFloat: COMPANION_SUB_FLOAT[batch.companion.kind],
-  };
-}
-
-/** Geometry of the translucent pass. A text can emit new glyphs on relayout without changing its primitive. */
-function translucentPrimitives(
-  primitives: readonly TScenePrimitive[],
-  sources: readonly TElementSubs[],
-  subBase: number
-): readonly TScenePrimitive[] {
-  if (primitives.length <= 1) return primitives;
-  const emitted = new Set<number>();
-  for (const { subs, floats, subFloat = SUB_FLOAT } of sources) {
-    for (let at = subFloat; at < subs.length; at += floats) {
-      const index = subs[at] - subBase;
-      if (!Number.isInteger(index) || index < 0 || index >= primitives.length) return primitives;
-      emitted.add(index);
-    }
-  }
-  return emitted.size === primitives.length
-    ? primitives
-    : primitives.filter(
-        (primitive, index) => emitted.has(index) || (primitive.kind === "text" && isTranslucentText(primitive))
-      );
-}
-
 function sameNumbers(a: readonly number[], b: readonly number[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
-}
-
-/** Unsupported primitives, including polygons beyond the filled arrow triangles. */
-function classifyPrimitives(primitives: readonly TScenePrimitive[]) {
-  const counts = { polygon: 0, icon: 0, sprites: false };
-  for (const primitive of primitives) {
-    if (primitive.kind === "polygon" && !isFilledTriangle(primitive)) counts.polygon++;
-    else if (primitive.kind === "icon") counts.icon++;
-    else if (primitive.kind === "sprite") counts.sprites = true;
-  }
-  return counts;
-}
-
-/** Whether two layouts hold the same lines. */
-function sameLines(a: TTextLayout | undefined, b: TTextLayout | undefined): boolean {
-  if (!a || !b) return a === b;
-  return a.lines.length === b.lines.length && a.lines.every((line, index) => line === b.lines[index]);
-}
-
-/**
- * The camera-aware texts a re-layout changed: their lines, or the policy they are laid out under (their glyphs' size
- * mode follows it).
- */
-function changedTexts(before: TTextLayouts, after: TTextLayouts | undefined): number {
-  if (!after) return 0;
-  let changed = 0;
-  before.texts.forEach((text, index) => {
-    if (!text.cameraAware) return;
-    const policy = before.policy.cameraAware !== after.policy.cameraAware;
-    if (policy || !sameLines(before.layouts[index], after.layouts[index])) changed++;
-  });
-  return changed;
 }
 
 class WebGLSceneBackend implements ISceneBackend {
@@ -898,12 +483,12 @@ class WebGLSceneBackend implements ISceneBackend {
     private readonly events: TSceneBackendEvents
   ) {
     this.defaultMultisampled = gl.getParameter(gl.SAMPLES) > 1;
-    this.quadTemplate = this.createTemplate(QUAD_TEMPLATE);
-    this.lineTemplate = this.createTemplate(createLineTemplate());
-    this.curveTemplate = this.createTemplate(createCurveTemplate());
-    this.elementTexture = this.createTableTexture(TABLE_WIDTH, 1);
-    this.styleTexture = this.createTableTexture(STYLE_ROW_TEXELS, 1);
-    this.styleTexture.writeData(this.noStyles(1));
+    this.quadTemplate = createTemplate(this.device, QUAD_TEMPLATE);
+    this.lineTemplate = createTemplate(this.device, createLineTemplate());
+    this.curveTemplate = createTemplate(this.device, createCurveTemplate());
+    this.elementTexture = createTableTexture(this.device, TABLE_WIDTH, 1);
+    this.styleTexture = createTableTexture(this.device, STYLE_ROW_TEXELS, 1);
+    this.styleTexture.writeData(noStyles(1));
     this.atlasTexture = device.createTexture({
       format: "r8unorm",
       width: this.atlas.size,
@@ -912,18 +497,65 @@ class WebGLSceneBackend implements ISceneBackend {
       sampler: ATLAS_SAMPLER,
     });
     this.rects = {
-      opaque: this.createBatch("rect-opaque", RECT_PROGRAM, "opaque"),
-      translucent: this.createBatch("rect-translucent", RECT_PROGRAM, "translucent"),
+      opaque: createBatch(
+        this.device,
+        this.quadTemplate,
+        this.bindings(RECT_PROGRAM.textures),
+        "rect-opaque",
+        RECT_PROGRAM,
+        "opaque"
+      ),
+      translucent: createBatch(
+        this.device,
+        this.quadTemplate,
+        this.bindings(RECT_PROGRAM.textures),
+        "rect-translucent",
+        RECT_PROGRAM,
+        "translucent"
+      ),
     };
     this.triangles = {
-      opaque: this.createBatch("triangle-opaque", TRIANGLE_PROGRAM, "opaque"),
-      translucent: this.createBatch("triangle-translucent", TRIANGLE_PROGRAM, "translucent"),
+      opaque: createBatch(
+        this.device,
+        this.quadTemplate,
+        this.bindings(TRIANGLE_PROGRAM.textures),
+        "triangle-opaque",
+        TRIANGLE_PROGRAM,
+        "opaque"
+      ),
+      translucent: createBatch(
+        this.device,
+        this.quadTemplate,
+        this.bindings(TRIANGLE_PROGRAM.textures),
+        "triangle-translucent",
+        TRIANGLE_PROGRAM,
+        "translucent"
+      ),
     };
     this.glyphs = {
-      opaque: this.createBatch("glyph-opaque", GLYPH_PROGRAM, "opaque"),
-      translucent: this.createBatch("glyph-translucent", GLYPH_PROGRAM, "translucent"),
+      opaque: createBatch(
+        this.device,
+        this.quadTemplate,
+        this.bindings(GLYPH_PROGRAM.textures),
+        "glyph-opaque",
+        GLYPH_PROGRAM,
+        "opaque"
+      ),
+      translucent: createBatch(
+        this.device,
+        this.quadTemplate,
+        this.bindings(GLYPH_PROGRAM.textures),
+        "glyph-translucent",
+        GLYPH_PROGRAM,
+        "translucent"
+      ),
     };
-    this.glyphs.translucent.revealed = this.createRevealedGlyphs(this.glyphs.translucent);
+    this.glyphs.translucent.revealed = createRevealedGlyphs(
+      this.device,
+      this.quadTemplate,
+      this.batchBindings(this.glyphs.translucent),
+      this.glyphs.translucent
+    );
     const glyphSubs = this.glyphs.opaque.companion;
     if (!glyphSubs) throw new Error("The scene glyph batches keep their subs in a companion list");
     this.glyphSubs = glyphSubs;
@@ -1652,14 +1284,25 @@ class WebGLSceneBackend implements ISceneBackend {
           vec4Layout("sprite_instances", SPRITE_ATTRIBUTES, SPRITE_FLOATS),
         ],
       };
-      batch = this.createBatch("sprite", program, "translucent", source.texture);
+      batch = createBatch(
+        this.device,
+        this.quadTemplate,
+        this.bindings(program.textures),
+        "sprite",
+        program,
+        "translucent",
+        source.texture
+      );
       if (!isLinked(batch.model)) {
         console.error(
           "[@gravity-ui/graph] Sprite effect failed to link; using the source image.",
           compilerLog(batch.model)
         );
         this.destroyBatch(batch);
-        batch = this.createBatch(
+        batch = createBatch(
+          this.device,
+          this.quadTemplate,
+          this.bindings(program.textures),
           "sprite",
           { ...program, fs: spriteFragment(SAMPLE_SPRITE) },
           "translucent",
@@ -2185,7 +1828,7 @@ class WebGLSceneBackend implements ISceneBackend {
   private pathGroupFor(
     pass: TPass,
     effect: TEffect | undefined,
-    range?: TConnectionEffectScaleRange,
+    range?: TSceneEffectScaleRange,
     strokeUnion = false
   ): TPathGroup {
     const plainGroup = strokeUnion ? "union" : "plain";
@@ -2227,8 +1870,19 @@ class WebGLSceneBackend implements ISceneBackend {
       effectActive: false,
       users: 0,
       fallback: false,
-      lines: this.createPathBatch(`${id}-lines`, pass, plugin, this.lineTemplate, createLineTemplate(), strokeUnion),
-      curves: this.createPathBatch(
+      lines: createPathBatch(
+        this.device,
+        this.bindings(PATH_TEXTURES),
+        `${id}-lines`,
+        pass,
+        plugin,
+        this.lineTemplate,
+        createLineTemplate(),
+        strokeUnion
+      ),
+      curves: createPathBatch(
+        this.device,
+        this.bindings(PATH_TEXTURES),
         `${id}-curves`,
         pass,
         plugin,
@@ -2255,15 +1909,33 @@ class WebGLSceneBackend implements ISceneBackend {
         effectActive: false,
         users: 0,
         fallback: true,
-        lines: this.createPathBatch(`${id}-lines`, pass, plugin, this.lineTemplate, createLineTemplate()),
-        curves: this.createPathBatch(`${id}-curves`, pass, plugin, this.curveTemplate, createCurveTemplate()),
+        lines: createPathBatch(
+          this.device,
+          this.bindings(PATH_TEXTURES),
+          `${id}-lines`,
+          pass,
+          plugin,
+          this.lineTemplate,
+          createLineTemplate()
+        ),
+        curves: createPathBatch(
+          this.device,
+          this.bindings(PATH_TEXTURES),
+          `${id}-curves`,
+          pass,
+          plugin,
+          this.curveTemplate,
+          createCurveTemplate()
+        ),
       };
     }
     group.curves.culling = new PathCulling();
     group.lines.culling = new PathCulling();
     if (pass === "opaque" && !effect) {
       // Same-depth pieces have the same RGB: alpha-to-coverage unions their samples independent of bin order.
-      group.coarseCurves = this.createPathBatch(
+      group.coarseCurves = createPathBatch(
+        this.device,
+        this.bindings(PATH_TEXTURES),
         `${id}-curves-coarse`,
         pass,
         plugin,
@@ -2329,173 +2001,6 @@ class WebGLSceneBackend implements ISceneBackend {
     batch.buffer.destroy();
     batch.companion?.buffer?.destroy();
     batch.pathRecords?.texture.destroy();
-  }
-
-  private createTemplate(data: Float32Array): Buffer {
-    return this.device.createBuffer({ usage: BUFFER_USAGE, data });
-  }
-
-  private createInstanceBuffer(floats: number): DynamicBuffer {
-    return new DynamicBuffer(this.device, {
-      usage: BUFFER_USAGE,
-      byteLength: INITIAL_INSTANCES * floats * FLOAT_BYTES,
-    });
-  }
-
-  private createTableTexture(width: number, height: number, usage = TEXTURE_USAGE): Texture {
-    return this.device.createTexture({
-      format: "rgba32float",
-      width,
-      height,
-      usage,
-      sampler: TABLE_SAMPLER,
-    });
-  }
-
-  /**
-   * A batch with the shared quad template, one instance buffer (`layout[1]`) and, for a program with a companion
-   * list, the companion's buffer.
-   */
-  private createBatch(id: string, program: TQuadProgram, pass: TPass, spriteTexture?: Texture): TBatch {
-    const { vs, fs, layout, floats, textures } = program;
-    const buffer = this.createInstanceBuffer(floats);
-    const instanceBuffers: TInstanceBuffer[] = [{ name: layout[1].name, buffer }];
-    const bufferLayout: BufferLayout[] = [...layout];
-    let companion: TCompanion | undefined;
-    if (program.companion) {
-      const companionBuffer = this.createInstanceBuffer(program.companion.floats);
-      companion = {
-        kind: program.companion.kind,
-        ranges: new InstanceRanges(program.companion.floats),
-        buffer: companionBuffer,
-      };
-      instanceBuffers.push({ name: program.companion.layout.name, buffer: companionBuffer });
-      bufferLayout.push(program.companion.layout);
-    }
-    const uniforms: TUniforms = { scene_opaquePass: pass === "opaque" ? 1 : 0 };
-    if (program === GLYPH_PROGRAM) uniforms.scene_glyphPass = pass === "opaque" ? 0 : 1;
-    const model = new Model(this.device, {
-      id,
-      vs,
-      fs,
-      topology: "triangle-strip",
-      bufferLayout,
-      attributes: {
-        [layout[0].name]: this.quadTemplate,
-        ...Object.fromEntries(instanceBuffers.map((instance) => [instance.name, instance.buffer])),
-      },
-      bindings: { ...this.bindings(textures), ...(spriteTexture && { sprite_image: spriteTexture }) },
-      uniforms,
-      parameters: PASS_PARAMETERS[pass],
-      vertexCount: program.vertexCount ?? QUAD_TEMPLATE.length / 2,
-      isInstanced: true,
-      instanceCount: 0,
-    });
-    return {
-      ranges: new InstanceRanges(floats),
-      spriteTexture,
-      buffer,
-      companion,
-      model,
-      uniforms,
-      textures,
-      layout: bufferLayout,
-      instanceBuffers,
-      pointedAt: 0,
-    };
-  }
-
-  /** A second draw view, with no second allocation or upload of the glyphs or their subs. */
-  private createRevealedGlyphs(source: TBatch): TBatch {
-    const uniforms: TUniforms = { scene_opaquePass: 1, scene_glyphPass: 2 };
-    const model = new Model(this.device, {
-      id: "glyph-revealed",
-      vs: GLYPH_VERTEX,
-      fs: GLYPH_FRAGMENT,
-      topology: "triangle-strip",
-      bufferLayout: [...source.layout],
-      attributes: {
-        scene_template: this.quadTemplate,
-        ...Object.fromEntries(source.instanceBuffers.map(({ name, buffer }) => [name, buffer])),
-      },
-      bindings: this.batchBindings(source),
-      uniforms,
-      parameters: PASS_PARAMETERS.opaque,
-      vertexCount: QUAD_TEMPLATE.length / 2,
-      isInstanced: true,
-      instanceCount: 0,
-    });
-    return {
-      ranges: source.ranges,
-      buffer: source.buffer,
-      companion: source.companion,
-      model,
-      uniforms,
-      textures: source.textures,
-      layout: source.layout,
-      instanceBuffers: source.instanceBuffers,
-      pointedAt: 0,
-      opaqueVisibility: new OpaqueVisibility("glyph-revealed"),
-    };
-  }
-
-  private createPathBatch(
-    id: string,
-    pass: TPass,
-    plugin: ShaderPlugin,
-    template: Buffer,
-    templateData: Float32Array,
-    strokeUnion = false
-  ): TBatch {
-    const buffer = this.createInstanceBuffer(1);
-    const elements: TCompanion = {
-      kind: "elements",
-      ranges: new InstanceRanges(PATH_ELEMENT_FLOATS),
-    };
-    // Empty effect groups need only a placeholder; the first upload allocates their actual record table.
-    const pathRecords = {
-      // eslint-disable-next-line no-bitwise -- luma usage flags are bit masks
-      texture: this.createTableTexture(PATH_RECORD_TEXELS, 1, TEXTURE_USAGE | Texture.COPY_SRC),
-      companion: elements,
-      ids: new PathDrawIds(),
-    };
-    const uniforms: TUniforms = {
-      scene_opaquePass: pass === "opaque" ? 1 : 0,
-      graph_effectEnabled: 1,
-      graph_curveStep: 1,
-      graph_overviewPairs: 0,
-      graph_recordWidth: PATH_RECORD_TEXELS,
-    };
-    // A plain translucent polyline is one paint operation. At its physical edge MSAA supplies coverage per
-    // sample, and strict depth claims that sample once for this element and primitive, across both stroke batches.
-    const model = new Model(this.device, {
-      id,
-      vs: strokeUnion ? SAMPLE_PATH_VERTEX : PATH_VERTEX,
-      fs: strokeUnion ? SAMPLE_PATH_FRAGMENT : PATH_FRAGMENT,
-      plugins: [plugin],
-      topology: "triangle-strip",
-      bufferLayout: PATH_LAYOUT,
-      attributes: { graph_template: template, graph_recordId: buffer },
-      bindings: { ...this.bindings(PATH_TEXTURES), graph_records: pathRecords.texture },
-      uniforms,
-      parameters: strokeUnion ? { ...PASS_PARAMETERS[pass], depthWriteEnabled: true } : PASS_PARAMETERS[pass],
-      vertexCount: templateData.length / 2,
-      isInstanced: true,
-      instanceCount: 0,
-    });
-    return {
-      ranges: new InstanceRanges(INSTANCE_FLOATS),
-      retainRanges: pass === "translucent",
-      buffer,
-      companion: elements,
-      pathRecords,
-      model,
-      uniforms,
-      textures: PATH_TEXTURES,
-      layout: PATH_LAYOUT,
-      instanceBuffers: [{ name: PATH_LAYOUT[1].name, buffer }],
-      pointedAt: 0,
-    };
   }
 
   private bindings(names: readonly TTextureName[]): Record<string, Texture> {
@@ -2881,7 +2386,7 @@ class WebGLSceneBackend implements ISceneBackend {
   /** The group's extra width (0 without an effect) and its effect's `u_<name>` values. */
   private setEffectUniforms(group: TPathGroup, scale: number): void {
     const { effect } = group;
-    const active = Boolean(effect) && isConnectionEffectActive(group, scale);
+    const active = Boolean(effect) && isSceneEffectActive(group, scale);
     if (group.effectActive !== active && !stockGroup(group)) this.stockActivityRevision++;
     group.effectActive = active;
     for (const batch of [group.lines, group.curves, group.coarseCurves]) {
@@ -3543,7 +3048,7 @@ class WebGLSceneBackend implements ISceneBackend {
     let draw = this.stockDraw;
     if (draw?.programKey !== key) {
       this.destroyStockDraw();
-      const buffer = this.createInstanceBuffer(1);
+      const buffer = createInstanceBuffer(this.device, 1);
       const uniforms: TUniforms = { scene_opaquePass: 0 };
       const model = new Model(this.device, {
         id: "scene-stock-paths",
@@ -3645,7 +3150,7 @@ class WebGLSceneBackend implements ISceneBackend {
     let draw = this.mixedDraw;
     if (draw?.programKey !== key) {
       this.destroyMixedDraw();
-      const buffer = this.createInstanceBuffer(1);
+      const buffer = createInstanceBuffer(this.device, 1);
       const uniforms: TUniforms = { scene_opaquePass: 0 };
       const model = new Model(this.device, {
         id: "scene-mixed-connections",
@@ -4069,8 +3574,8 @@ class WebGLSceneBackend implements ISceneBackend {
           : undefined;
       if (!source) records.texture.destroy();
       // eslint-disable-next-line no-bitwise -- luma usage flags are bit masks
-      const next = this.createTableTexture(width, height, TEXTURE_USAGE | Texture.COPY_SRC);
-      if (!source || !this.copyPathRecordRows(source, next)) payload = { kind: "full" };
+      const next = createTableTexture(this.device, width, height, TEXTURE_USAGE | Texture.COPY_SRC);
+      if (!source || !copyPathRecordRows(this.gl, source, next)) payload = { kind: "full" };
       source?.destroy();
       records.texture = next;
       batch.uniforms.graph_recordWidth = width;
@@ -4105,28 +3610,6 @@ class WebGLSceneBackend implements ISceneBackend {
       }
     }
     return UPLOAD_COST[payload.kind] >= UPLOAD_COST[elements.kind] ? payload.kind : elements.kind;
-  }
-
-  /** Only vertical growth preserves every resident record's texel coordinates. */
-  private copyPathRecordRows(previous: Texture, next: Texture): boolean {
-    const gl = this.gl;
-    if (!(previous instanceof WEBGLTexture && next instanceof WEBGLTexture)) return false;
-    const framebuffer = gl.createFramebuffer();
-    if (!framebuffer) return false;
-    const read = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) as WebGLFramebuffer | null;
-    const bound = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null;
-    try {
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, framebuffer);
-      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, previous.handle, 0);
-      if (gl.checkFramebufferStatus(gl.READ_FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) return false;
-      gl.bindTexture(gl.TEXTURE_2D, next.handle);
-      gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, previous.width, previous.height);
-      return true;
-    } finally {
-      gl.bindTexture(gl.TEXTURE_2D, bound);
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, read);
-      gl.deleteFramebuffer(framebuffer);
-    }
   }
 
   private uploadRanges(
@@ -4172,7 +3655,7 @@ class WebGLSceneBackend implements ISceneBackend {
     if (rows > this.elementTexture.height) {
       const height = Math.max(rows, this.elementTexture.height * 2);
       this.elementTexture.destroy();
-      this.elementTexture = this.createTableTexture(TABLE_WIDTH, height);
+      this.elementTexture = createTableTexture(this.device, TABLE_WIDTH, height);
       this.rebind();
       this.table.takeDirtyRows();
       this.writeElementRows(0, rows);
@@ -4183,7 +3666,7 @@ class WebGLSceneBackend implements ISceneBackend {
     if (this.styles.takeDirty() && this.styles.rows > 0) {
       if (this.styles.rows > this.styleTexture.height) {
         this.styleTexture.destroy();
-        this.styleTexture = this.createTableTexture(STYLE_ROW_TEXELS, this.styles.rows);
+        this.styleTexture = createTableTexture(this.device, STYLE_ROW_TEXELS, this.styles.rows);
         this.rebind();
       }
       this.styleTexture.writeData(this.styles.data, { width: STYLE_ROW_TEXELS, height: this.styles.rows });
@@ -4220,13 +3703,6 @@ class WebGLSceneBackend implements ISceneBackend {
       batch.plain?.model.setBindings(bindings);
       batch.revealed?.model.setBindings(bindings);
     }
-  }
-
-  /** Rows of style texels without overrides and base colours (alpha -1) and without dim (r 0). */
-  private noStyles(rows: number): Float32Array {
-    const data = new Float32Array(rows * STYLE_ROW_TEXELS * 4);
-    for (let i = 3; i < data.length; i += 4) data[i] = -1;
-    return data;
   }
 }
 

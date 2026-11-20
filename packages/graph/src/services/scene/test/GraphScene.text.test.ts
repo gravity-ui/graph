@@ -1,12 +1,12 @@
 import { Graph } from "../../../graph";
-import { sceneTextMetrics } from "../../../lib/scene/textMetrics";
-import type { TSceneChange, TScenePrimitive, TSceneTextPolicy } from "../../../lib/scene/types";
 import type {
   ISceneBackend,
   ISceneBackendModule,
   TSceneFrame,
   TSceneTextFrame,
-} from "../../../lib/scene/webgl/backendTypes";
+} from "../../../lib/scene/renderer/backendTypes";
+import { sceneTextMetrics } from "../../../lib/scene/text/textMetrics";
+import type { TSceneChange, TScenePrimitive, TSceneTextPolicy } from "../../../lib/scene/types";
 import type { TStyleParts } from "../../styles/types";
 import type { TSceneElementView } from "../types";
 

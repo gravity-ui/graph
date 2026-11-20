@@ -1,9 +1,9 @@
 import { Block } from "../../../components/canvas/blocks/Block";
 import { Graph } from "../../../graph";
-import type { TSceneElementInput } from "../../../lib/scene/SceneStore";
-import { drawElements } from "../../../lib/scene/drawPrimitives";
+import { drawElements } from "../../../lib/scene/canvas/drawPrimitives";
+import type { ISceneBackend, ISceneBackendModule, TSceneBackendEvents } from "../../../lib/scene/renderer/backendTypes";
+import type { TSceneElementInput } from "../../../lib/scene/store/SceneStore";
 import type { TSceneChange } from "../../../lib/scene/types";
-import type { ISceneBackend, ISceneBackendModule, TSceneBackendEvents } from "../../../lib/scene/webgl/backendTypes";
 import { Layer } from "../../Layer";
 import { ECameraScaleLevel } from "../../camera/cameraScaleEnums";
 import { ESelectionStrategy } from "../../selection";

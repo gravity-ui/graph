@@ -4,7 +4,10 @@ test("missing ELK arrays produce empty records", () => {
   expect(elkConverter({ id: "root" })).toEqual({ edges: {}, blocks: {} });
 });
 
-test("unpositioned children and unrouted edges are omitted", () => {
+test("omits unpositioned children and unrouted edges and keeps straight and bent routes", () => {
+  const startPoint = { x: 1, y: 2 };
+  const bend = { x: 2, y: 4 };
+  const endPoint = { x: 3, y: 4 };
   expect(
     elkConverter({
       id: "root",
@@ -12,23 +15,15 @@ test("unpositioned children and unrouted edges are omitted", () => {
       edges: [
         { id: "missing", sources: [], targets: [] },
         { id: "empty", sources: [], targets: [], sections: [] },
-        {
-          id: "routed",
-          sources: [],
-          targets: [],
-          sections: [{ id: "section", startPoint: { x: 1, y: 2 }, endPoint: { x: 3, y: 4 } }],
-        },
+        { id: "straight", sources: [], targets: [], sections: [{ id: "s1", startPoint, endPoint }] },
+        { id: "bent", sources: [], targets: [], sections: [{ id: "s2", startPoint, bendPoints: [bend], endPoint }] },
       ],
     })
   ).toEqual({
     blocks: { placed: { x: 0, y: 0 } },
     edges: {
-      routed: {
-        points: [
-          { x: 1, y: 2 },
-          { x: 3, y: 4 },
-        ],
-      },
+      straight: { points: [startPoint, endPoint] },
+      bent: { points: [startPoint, bend, endPoint] },
     },
   });
 });

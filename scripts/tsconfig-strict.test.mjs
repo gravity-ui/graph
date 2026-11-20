@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const tsc = createRequire(import.meta.url).resolve("typescript/bin/tsc");
@@ -35,7 +36,14 @@ test("every project typechecks its permanently strict tsconfig", () => {
     "apps/e2e",
   ]) {
     const { scripts } = JSON.parse(readFileSync(path.join(root, project, "package.json"), "utf8"));
-    assert.match(scripts.typecheck, /^tsc -p tsconfig\.json( --noEmit)?$/, project);
+    const [command, ...args] = scripts.typecheck.trim().split(/\s+/);
+    assert.equal(command, "tsc", project);
+    const { options, fileNames, errors } = ts.parseCommandLine(args);
+    const { noEmit, ...compilerOptions } = options;
+    assert.notEqual(noEmit, false, project);
+    assert.deepEqual(compilerOptions, { project: "tsconfig.json" }, project);
+    assert.deepEqual(fileNames, [], project);
+    assert.deepEqual(errors, [], project);
     assert.equal(effectiveCompilerOptions(`${project}/tsconfig.json`).strict, true, project);
   }
 });

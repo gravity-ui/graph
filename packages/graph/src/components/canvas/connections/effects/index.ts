@@ -1,4 +1,4 @@
-export { defineConnectionEffect, ConnectionEffect, toConnectionEffect } from "./ConnectionEffect";
+export { ConnectionEffect, toConnectionEffect } from "./ConnectionEffect";
 export type {
   TConnectionEffect,
   TConnectionEffectDefinition,

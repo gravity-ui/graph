@@ -350,7 +350,8 @@ For scene connections, target `BlockConnection` or a subclass. The shaft, arrow,
 the parts `line`, `arrow`, `labelBackground` and `label`. A tagged line width also changes the hit area.
 Set `parts.line.effect` to `effect.use(input, { minScale, maxScale })` or to `null` to turn it off.
 The optional scale range includes its lower bound and excludes its upper bound. Canvas draws the base stroke.
-See [Connection styles](../connections/webgl-connections.md#scene-styles) for examples.
+See [Connection styles](../connections/webgl-connections.md#scene-styles) for examples and
+[WebGL scene effect types](scene-effects.md) for the path shader contract.
 
 ### Show a running ETL step
 

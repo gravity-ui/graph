@@ -53,13 +53,14 @@ test("tagged effects on stock connections keep independent uniforms and a plain 
   );
 
   await page.evaluate(() => {
-    const { BlockConnection, defineConnectionEffect, defineTag } = window.GraphModule;
+    const { BlockConnection, defineSceneEffect, defineTag } = window.GraphModule;
     const { scene, cameraService } = window.graph;
     cameraService.set({ x: 0, y: 0, scale: 1 });
     const first = defineTag("first-tint");
     const second = defineTag("second-tint");
-    const red = defineConnectionEffect({
-      fragment: `vec4 effect(ConnectionFragment f, vec4 color) {
+    const red = defineSceneEffect({
+      kind: "path",
+      fragment: `vec4 effect(PathFragment f, vec4 color) {
         return f.selected > 0.5 ? f.selectionColor : vec4(u_tint, color.a);
       }`,
       uniforms: { tint: { type: "vec3", value: [1, 0, 0] } },
@@ -113,12 +114,18 @@ test("effect scale ranges keep resident paths, stop animation and preserve custo
   );
   await expect.poll(() => page.evaluate(() => window.graph.scene.$renderer.peek())).toBe("webgl");
   await page.evaluate(() => {
-    const { defineConnectionEffect, lineSegment } = window.GraphModule;
+    const { defineSceneEffect, lineSegment } = window.GraphModule;
     const { scene, cameraService } = window.graph;
     cameraService.set({ x: 0, y: 0, scale: 1 });
-    const red = defineConnectionEffect({
+    const red = defineSceneEffect({
+      kind: "path",
       animated: true,
-      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return vec4(u_tint, 1.); }",
+      fragment: `
+        #if GRAPH_PATH_FRAGMENT != 1
+        #error Expected the path fragment contract
+        #endif
+        vec4 effect(PathFragment f, vec4 color) { return vec4(u_tint, 1.); }
+      `,
       uniforms: { tint: { type: "vec3", value: [1, 0, 0] } },
     });
     (window as unknown as TEffectTestWindow).sceneEffectTest = {
@@ -127,17 +134,25 @@ test("effect scale ranges keep resident paths, stop animation and preserve custo
       },
       toggleFirst: () => undefined,
     };
-    const depth = defineConnectionEffect({
+    const depth = defineSceneEffect({
+      kind: "path",
       animated: true,
-      fragment: `vec4 effect(ConnectionFragment f, vec4 color) {
-        gl_FragDepth = gl_FragCoord.z;
-        return vec4(1., 0., 0., 1.);
-      }`,
+      // Previously authored shaders use the original type and version names.
+      fragment: `
+        #if GRAPH_CONNECTION_FRAGMENT != 1
+        #error Expected the legacy connection fragment contract
+        #endif
+        vec4 effect(ConnectionFragment f, vec4 color) {
+          gl_FragDepth = gl_FragCoord.z;
+          return vec4(1., 0., 0., 1.);
+        }
+      `,
     });
-    const comment = defineConnectionEffect({
+    const comment = defineSceneEffect({
+      kind: "path",
       animated: true,
       fragment: `// gl_FragDepth is deliberately not written by this effect.
-        vec4 effect(ConnectionFragment f, vec4 color) { return vec4(1., 0., 0., 1.); }`,
+        vec4 effect(PathFragment f, vec4 color) { return vec4(1., 0., 0., 1.); }`,
     });
     [red, red, depth, comment].forEach((effect, i) => {
       scene.store.add({
@@ -310,37 +325,45 @@ test("mixed connection sources activate the same effect independently without re
     if (!gl) throw new Error("Missing context");
     let ids: Float32Array | undefined;
     return [1, 0.5, 0.75, 1.25, 0.5].map((scale) => {
-      const animated = backend.draw({
+      const frame = {
         ...cameraService.getCameraState(),
         scale,
         dpr: 1,
         time: 1, // trough of the 2-second pulse
         dimColor: scene.store.getDimColor(),
-      });
+      };
+      const animated = backend.draw(frame);
       const previous = ids;
       ids = probe.mixedDraw?.ids.data;
-      const pixels = [0, 1].map((i) => {
-        const pixel = new Uint8Array(4);
-        gl.readPixels(
-          Math.floor(250 * scale),
-          gl.drawingBufferHeight - Math.floor((100 + i * 80) * scale) - 1,
-          1,
-          1,
-          gl.RGBA,
-          gl.UNSIGNED_BYTE,
-          pixel
-        );
-        return Array.from(pixel);
-      });
-      return {
+      const pixels = () =>
+        [0, 1].map((i) => {
+          const pixel = new Uint8Array(4);
+          gl.readPixels(
+            Math.floor(250 * scale),
+            gl.drawingBufferHeight - Math.floor((100 + i * 80) * scale) - 1,
+            1,
+            1,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            pixel
+          );
+          return Array.from(pixel);
+        });
+      const trough = {
         scale,
-        pixels,
+        pixels: pixels(),
         animated,
         mixed: Boolean(probe.mixedTarget),
         sameIds: previous?.buffer === ids?.buffer && previous?.length === ids?.length,
         uploads: backend.stats.lastUploadBytes,
         error: gl.getError(),
       };
+      let crest: number[][] | undefined;
+      if (scale === 1) {
+        backend.draw({ ...frame, time: 0 });
+        crest = pixels();
+      }
+      return { ...trough, crest };
     });
   });
   for (const [i, row] of result.entries()) {
@@ -351,6 +374,12 @@ test("mixed connection sources activate the same effect independently without re
       expect(row.uploads).toBe(0);
     }
     expect(row.animated).toBe(row.scale < 1.25);
+    if (row.scale === 1) {
+      expect(row.crest, "both active pulses reach their original blue at the crest").toEqual([
+        [0, 0, 255, 255],
+        [0, 0, 255, 255],
+      ]);
+    }
     // At the trough the plain blue line is 15% opaque. The selected line mixes blue with magenta,
     // then becomes solid magenta when its own effect is out of range.
     expect(Math.abs(row.pixels[0][3] - (row.scale < 1.25 ? 38 : 255))).toBeLessThanOrEqual(1);
@@ -440,12 +469,14 @@ test("alternating stock effects share a native draw without changing translucent
       return data;
     };
     const original = { ...scene.store.get("alternating-24")! };
-    const custom = window.GraphModule.defineConnectionEffect({
-      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+    const custom = window.GraphModule.defineSceneEffect({
+      kind: "path",
+      fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
     });
-    const scopedCustom = window.GraphModule.defineConnectionEffect({
+    const scopedCustom = window.GraphModule.defineSceneEffect({
+      kind: "path",
       extraWidth: 6,
-      fragment: `vec4 effect(ConnectionFragment f, vec4 color) {
+      fragment: `vec4 effect(PathFragment f, vec4 color) {
         gl_FragDepth = 1.0;
         return vec4(0.9, 0.2, 0.7, 0.5);
       }`,

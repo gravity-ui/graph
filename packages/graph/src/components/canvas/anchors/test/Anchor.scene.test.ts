@@ -2,6 +2,7 @@ import { Graph } from "../../../../graph";
 import type { Component } from "../../../../lib/Component";
 import { globalScheduler } from "../../../../lib/Scheduler";
 import { LEVEL_BIT } from "../../../../lib/scene/levels";
+import { ECameraScaleLevel } from "../../../../services/camera/cameraScaleEnums";
 import { entityKey } from "../../../../services/tags/TagStore";
 import { hoveredTag, selectedTag } from "../../../../services/tags/builtinTags";
 import { defineTag } from "../../../../services/tags/defineTag";
@@ -63,6 +64,14 @@ describe("anchors as child elements of their block", () => {
     expect(style?.base?.anchor?.color).toBe(graph.graphColors.anchor.background);
     // The ring is hidden until the anchor is selected.
     expect(style?.base?.border).toEqual({ color: graph.graphColors.anchor.selectedBorder, visible: false });
+  });
+
+  it("uses the detailed hover factor when a custom strategy selects Detailed at a low scale", () => {
+    const view = anchor("lower", "out");
+    graph.cameraService.set({ scale: 0.05 });
+    expect(view.getHoverFactor()).toBe(Anchor.CANVAS_HOVER_FACTOR);
+    graph.updateSettings({ getCameraBlockScaleLevel: () => ECameraScaleLevel.Detailed });
+    expect(view.getHoverFactor()).toBe(Anchor.DETAILED_HOVER_FACTOR);
   });
 
   it("steps the anchor revision and not the block's on an anchor's hover", () => {

@@ -40,12 +40,13 @@ describe("extension contract for custom components", () => {
       protected override isRenderAllowed(): boolean {
         return this.allowed && super.isRenderAllowed();
       }
-      protected override renderBody(ctx: CanvasRenderingContext2D): void {
+      protected override render(): void {
         this.paints++;
-        super.renderBody(ctx);
+        super.render();
       }
     }
     const { graph, block } = mount({ custom: Vetoed }, 100);
+    expect(LegacyCanvasBlock.mode).toBe("immediate");
     const view = block() as Vetoed;
     expect(view.paints).toBe(0);
     view.allowed = true;

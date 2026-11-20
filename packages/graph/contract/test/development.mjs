@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { runInNewContext } from "node:vm";
 
+import { chromium } from "@playwright/test";
 import { build } from "esbuild";
 
 // A consumer can subclass a retained component and mistakenly implement a frame hook.
@@ -26,8 +26,7 @@ const devMessages = [
   frameWarning,
   "a level method read",
   "BlockConnection no longer calls",
-  "so it never creates their anchors",
-  "defineConnectionEffect() or clone() is called",
+  "defineSceneEffect() or clone() is called",
   "distinct parts; the limit",
   "a style's cameraAware: true",
   "A style rule sets a { px } width",
@@ -35,7 +34,8 @@ const devMessages = [
   "writeMs",
 ];
 
-async function checkBrowser(mode) {
+async function checkBrowser(browser, mode) {
+  const development = mode === "development";
   const { outputFiles } = await build({
     stdin: { contents: 'export * from "@gravity-ui/graph";', resolveDir: process.cwd() },
     bundle: true,
@@ -48,32 +48,55 @@ async function checkBrowser(mode) {
   });
   const code = outputFiles[0].text;
   for (const message of devMessages) {
-    assert.equal(code.includes(message), mode === "development", `${mode} bundle: ${message}`);
+    assert.equal(code.includes(message), development, `${mode} bundle: ${message}`);
   }
+  assert.equal(/\brenderAnchor\b/.test(code), development, `${mode} bundle: deprecated anchor hook`);
   assert.ok(code.includes("is not in the scene"), "An invalid scene parent must still be reported.");
   assert.ok(
     code.includes("the scene element keeps its last primitives"),
     "A failing level hook must still be reported."
   );
 
-  const warnings = [];
-  const scope = {
-    performance,
-    Event,
-    EventTarget,
-    CustomEvent,
-    setTimeout,
-    clearTimeout,
-    queueMicrotask,
-    console: { ...console, warn: (message) => warnings.push(message) },
-  };
-  scope.global = scope;
-  runInNewContext(code, scope);
-  mountRetained(scope.GraphPackage);
-  assert.equal(
-    warnings.some((message) => message.includes(frameWarning)),
-    mode === "development"
-  );
+  const page = await browser.newPage();
+  try {
+    const warnings = [];
+    page.on("console", (message) => {
+      if (message.type() === "warning") warnings.push(message.text());
+    });
+    await page.setContent('<div id="graph" style="width: 400px; height: 300px"></div>');
+    await page.addScriptTag({ content: code });
+    await page.evaluate(`(${mountRetained.toString()})(GraphPackage)`);
+    const mounted = await page.evaluate(() => {
+      const { CanvasBlock, Graph } = globalThis.GraphPackage;
+      class OldAnchorBlock extends CanvasBlock {
+        renderAnchor() {}
+      }
+      const graph = new Graph(
+        {
+          blocks: [{ id: "legacy", is: "Legacy", name: "Legacy", x: 10, y: 10, width: 80, height: 40 }],
+          settings: { blockComponents: { Legacy: OldAnchorBlock } },
+        },
+        document.getElementById("graph")
+      );
+      try {
+        graph.start();
+        graph.scheduler.performUpdate();
+        return graph.rootStore.blocksList.getBlockState("legacy")?.getViewComponent() instanceof OldAnchorBlock;
+      } finally {
+        graph.unmount();
+      }
+    });
+    assert.ok(mounted, "The installed package mounted the block with a deprecated hook");
+    assert.equal(
+      warnings.some((message) => message.includes(frameWarning)),
+      development
+    );
+    const anchorWarnings = warnings.filter((message) => /\brenderAnchor\b/.test(message));
+    assert.equal(anchorWarnings.length, development ? 1 : 0, `${mode}: renderAnchor warning`);
+    if (development) assert.match(anchorWarnings[0], /\bgetAnchorClass\b/);
+  } finally {
+    await page.close();
+  }
 }
 
 // A fresh module graph for each case also exercises module initialization without a process global.
@@ -93,6 +116,11 @@ if (mode === "unset" || mode === "production" || mode === "bare") {
   for (const nativeMode of ["unset", "production", "bare"]) {
     execFileSync(process.execPath, [fileURLToPath(import.meta.url), nativeMode], { stdio: "inherit" });
   }
-  await checkBrowser("development");
-  await checkBrowser("production");
+  const browser = await chromium.launch();
+  try {
+    await checkBrowser(browser, "development");
+    await checkBrowser(browser, "production");
+  } finally {
+    await browser.close();
+  }
 }

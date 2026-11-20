@@ -455,9 +455,10 @@ test("unsafe widths, dashes, halo effects, cusps and translated origins retain e
       const { scene, cameraService } = window.graph;
       scene.store.delete("unsafe");
       cameraService.set({ x: 0, y: 0, scale: 0.02 });
-      const halo = window.GraphModule.defineConnectionEffect({
+      const halo = window.GraphModule.defineSceneEffect({
+        kind: "path",
         extraWidth: 6,
-        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+        fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
       });
       scene.store.add({
         id: "unsafe",
@@ -511,7 +512,7 @@ test("reconnecting an opaque Bézier preserves neighbors in both curve buffers a
   page,
 }) => {
   const graph = await initialize(page);
-  const { before, after, edited, neighbor, changedImage, restoredImage, membership } = await page.evaluate(async () => {
+  const result = await page.evaluate(async () => {
     const { graph, GraphModule } = window;
     const { scene, connections, cameraService, scheduler } = graph;
     graph.updateSettings({ useBezierConnections: true, showConnectionArrows: true, showConnectionLabels: false });
@@ -534,13 +535,28 @@ test("reconnecting an opaque Bézier preserves neighbors in both curve buffers a
     type Source = { chords: number; group: { curves: { ranges: Ranges }; coarseCurves: { ranges: Ranges } } };
     const backend = scene.layer.getBackend()!;
     const probe = backend as typeof backend & {
-      hasMixedVertexWork(): boolean;
+      hasMixedVertexWork(opaque: readonly unknown[], translucent: readonly unknown[], connectionOnly: boolean): boolean;
       buildMixedPlane(...args: unknown[]): unknown;
       mixedPlan?: { plan: { spans: readonly { first: number; count: number }[] } };
       beginMixedScene(frame: unknown, prepared: { plan: { sources: Source[] } }, native: unknown): unknown;
     };
-    // Only bypass the large-graph cutoff. Observe the sources actually submitted to the mixed pass.
-    probe.hasMixedVertexWork = () => true;
+    const work = { commands: 0, inspected: 0, accepted: 0 };
+    const cutoff = probe.hasMixedVertexWork.bind(probe);
+    const track = (draws: readonly unknown[]) =>
+      new Proxy(draws, {
+        get(commands, key, receiver) {
+          if (typeof key === "string" && /^\d+$/.test(key)) work.inspected++;
+          return Reflect.get(commands, key, receiver);
+        },
+      });
+    probe.hasMixedVertexWork = (opaque, translucent, connectionOnly) => {
+      if (connectionOnly) {
+        work.commands += opaque.length + translucent.length;
+        if (cutoff(track(opaque), track(translucent), true)) work.accepted++;
+      }
+      // Force the mixed pass for the pixel comparison after exercising its real connection cutoff.
+      return true;
+    };
     let sources: Source[] = [];
     const begin = probe.beginMixedScene;
     probe.beginMixedScene = function (...args) {
@@ -601,9 +617,13 @@ test("reconnecting an opaque Bézier preserves neighbors in both curve buffers a
       });
     }
     for (const port of ["source", "target", "alternate", "near"]) connections.unobservePort(port, scene);
-    return { before, after, edited, neighbor: 1 - edited, changedImage, restoredImage, membership };
+    return { before, after, edited, neighbor: 1 - edited, changedImage, restoredImage, membership, work };
   });
 
+  const { before, after, edited, neighbor, changedImage, restoredImage, membership, work } = result;
+  expect(work.commands).toBeGreaterThan(0);
+  expect(work.accepted, "two resident connections stay below the mixed-pass cutoff").toBe(0);
+  expect(work.inspected, "two connections need no scan of visible commands").toBe(0);
   for (const batch of ["ordinary", "adaptive"] as const) {
     expect(before[batch][edited].offset).toBeLessThan(before[batch][neighbor].offset);
     expect(after[batch][edited].count).toBeGreaterThan(before[batch][edited].count);
@@ -669,9 +689,10 @@ test("real connections refresh after move, add and delete and restore the same o
       const { graph, GraphModule } = window;
       const win = window as unknown as { removeOverviewStyle?: () => void };
       win.removeOverviewStyle?.();
-      const halo = GraphModule.defineConnectionEffect({
+      const halo = GraphModule.defineSceneEffect({
+        kind: "path",
         extraWidth: 6,
-        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+        fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
       });
       const tagged = GraphModule.defineTag(`overview-${kind}`);
       graph.scene.tags.add(tagged, { connection: ["edge"] });

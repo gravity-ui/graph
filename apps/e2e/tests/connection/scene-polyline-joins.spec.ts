@@ -291,8 +291,9 @@ test("custom depth respects opaque paint and later strokes of the same element b
       bounds: { minX: 270, minY: 120, maxX: 290, maxY: 145 },
       primitives: [{ kind: "rect", x: 270, y: 120, width: 20, height: 25, fill: "#00ff00" }],
     });
-    const behind = GraphModule.defineConnectionEffect({
-      fragment: `vec4 effect(ConnectionFragment f, vec4 color) {
+    const behind = GraphModule.defineSceneEffect({
+      kind: "path",
+      fragment: `vec4 effect(PathFragment f, vec4 color) {
         gl_FragDepth = 1.0 / 16777215.0;
         return color;
       }`,

@@ -1,6 +1,6 @@
 import { Graph } from "../../../graph";
-import type { TSceneElementInput } from "../../../lib/scene/SceneStore";
-import { styleEncodeKey } from "../../../lib/scene/style";
+import type { TSceneElementInput } from "../../../lib/scene/store/SceneStore";
+import { styleEncodeKey } from "../../../lib/scene/styles/style";
 import type { TScenePrimitive } from "../../../lib/scene/types";
 import { defineTag } from "../../tags/defineTag";
 import type { TSceneQueryOptions } from "../types";

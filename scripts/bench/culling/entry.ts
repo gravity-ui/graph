@@ -230,19 +230,25 @@ function prototypeConnection(effect: TEffect | undefined): unknown {
 
 type TLineBase = new (connection: unknown) => { connection: { props: { id: string } }; getStroke(state: unknown): TStroke };
 type TEffectObject = { use(params: unknown): unknown };
+type TPathEffectSource = { fragment: string; animated?: boolean };
 type TEffectsApi = {
   dashFlow: TEffectObject;
-  defineConnectionEffect(definition: { fragment: string; animated?: boolean }): TEffectObject;
+  defineSceneEffect?(definition: TPathEffectSource & { kind: "path" }): TEffectObject;
+  defineConnectionEffect(definition: TPathEffectSource): TEffectObject;
 };
 
 /** Effect objects of `effects-N`, defined once per page: N distinct sources give N programs. */
 function tintEffects(count: number): TEffectObject[] {
-  const { defineConnectionEffect } = exportsOf as unknown as TEffectsApi;
+  const { defineSceneEffect, defineConnectionEffect: defineHistoricalEffect } = exportsOf as unknown as TEffectsApi;
+  // Each variant bundles its own library API, including revisions from before the scene factory.
+  const definePathEffect = defineSceneEffect
+    ? (source: TPathEffectSource) => defineSceneEffect({ kind: "path", ...source })
+    : defineHistoricalEffect;
   const effects: TEffectObject[] = [];
   for (let i = 0; i < count; i++) {
     const tint = (0.4 + (0.6 * i) / Math.max(1, count - 1)).toFixed(3);
     effects.push(
-      defineConnectionEffect({
+      definePathEffect({
         animated: false,
         fragment: `vec4 effect(ConnectionFragment f, vec4 color) { return vec4(color.rgb * ${tint}, color.a); }`,
       })

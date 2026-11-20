@@ -39,7 +39,7 @@ export function countEffectObject(effect: object, fragment: string): void {
     warnedFragments.add(fragment);
     console.warn(
       `[@gravity-ui/graph] More than ${MAX_OBJECTS_PER_FRAGMENT} connection effect objects with one fragment are ` +
-        "alive. defineConnectionEffect() or clone() is called per connection (inside getStroke()?): " +
+        "alive. defineSceneEffect() or clone() is called per connection (inside getStroke()?): " +
         "define the effect once and pass per-connection values through use(params)."
     );
   }

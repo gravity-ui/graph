@@ -1,5 +1,6 @@
 import { Graph } from "../../../../graph";
 import { globalScheduler } from "../../../../lib/Scheduler";
+import { defineSceneEffect } from "../../../../lib/scene/effects/defineSceneEffect";
 import type { TScenePrimitive } from "../../../../lib/scene/types";
 import type { HitBoxData } from "../../../../services/HitTest";
 import type { TConnection } from "../../../../store/connection/ConnectionState";
@@ -7,7 +8,6 @@ import type { TBaseConnectionState } from "../BaseConnection";
 import { BlockConnection } from "../BlockConnection";
 import type { BlockConnections } from "../BlockConnections";
 import type { IConnectionBatch } from "../batch";
-import { defineConnectionEffect } from "../effects";
 import { bezierGeometry, multipointGeometry } from "../geometry";
 import type { TConnectionGeometryFn } from "../geometry";
 import { stockBezierSegments } from "../geometry/segments";
@@ -123,8 +123,9 @@ describe("BlockConnection line protocol", () => {
   });
 
   it("carries a direct, scoped WebGL effect use onto the native shaft only", () => {
-    const effect = defineConnectionEffect({
-      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+    const effect = defineSceneEffect({
+      kind: "path",
+      fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
     });
     class ScopedLine extends SceneLine {
       public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
@@ -142,8 +143,11 @@ describe("BlockConnection line protocol", () => {
   });
 
   it("keeps a new effect resource, exact shader params and the stock geometry certificate observable", () => {
-    const definition = { fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }" };
-    let effect = defineConnectionEffect(definition);
+    const definition = {
+      kind: "path" as const,
+      fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
+    };
+    let effect = defineSceneEffect(definition);
     let param = 0;
     let certified = true;
     class ExternalLine extends SceneLine {
@@ -166,7 +170,7 @@ describe("BlockConnection line protocol", () => {
     };
     const original = refresh();
     expect(refresh()).toBe(original);
-    effect = defineConnectionEffect(definition);
+    effect = defineSceneEffect(definition);
     expect(refresh().effect?.effect).toBe(effect);
     param = -0;
     expect(refresh().effect?.params?.[0]).toBe(-0);
@@ -181,7 +185,10 @@ describe("BlockConnection line protocol", () => {
     const pattern = [8, 4];
     const params = [1];
     const interaction = { hovered: false, selected: false, selectionColor: "#bbb" };
-    const effect = defineConnectionEffect({ fragment: "vec4 effect(ConnectionFragment f, vec4 c) { return c; }" });
+    const effect = defineSceneEffect({
+      kind: "path",
+      fragment: "vec4 effect(PathFragment f, vec4 c) { return c; }",
+    });
     class ReusingLine extends SceneLine {
       public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
         return { ...super.getStroke(state), dash: { pattern }, effect: { effect, params } };

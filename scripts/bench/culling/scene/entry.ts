@@ -3,7 +3,7 @@
 import { batch } from "@preact/signals-core";
 import type { Graph } from "GRAPH";
 import { anchorViewStats, exportAnchorStats } from "GRAPH_SRC/components/canvas/blocks/Blocks";
-import * as instanceRanges from "GRAPH_SRC/lib/scene/webgl/InstanceRanges";
+import * as instanceRanges from "GRAPH_SRC/lib/scene/webgl/instances/InstanceRanges";
 import { sceneExportStats } from "GRAPH_SRC/services/scene/GraphScene";
 import type { TSceneLevel } from "GRAPH_SRC/services/scene/types";
 

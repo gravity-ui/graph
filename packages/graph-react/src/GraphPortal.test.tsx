@@ -1,10 +1,10 @@
 import React, { createRef } from "react";
 
 import { Graph } from "@gravity-ui/graph";
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 
 import { GraphCanvas } from "./GraphCanvas";
-import { GraphPortal } from "./GraphPortal";
+import { GraphPortal, GraphPortalLayer } from "./GraphPortal";
 
 describe("GraphPortal", () => {
   let graph: Graph;
@@ -20,70 +20,36 @@ describe("GraphPortal", () => {
     });
   });
 
-  it("should render portal content when graph is ready", async () => {
-    const { container } = render(
-      <GraphCanvas graph={graph} renderBlock={() => <div>Block</div>}>
-        <GraphPortal>
-          <div data-testid="portal-content">Portal Content</div>
-        </GraphPortal>
-      </GraphCanvas>
-    );
-
-    // Start the graph to make it ready
-    await act(async () => {
-      graph.start();
-    });
-
-    // Wait for portal content to appear
-    await waitFor(() => {
-      expect(container.querySelector('[data-testid="portal-content"]')).not.toBeNull();
-    });
-  });
-
-  it("should provide layer instance through ref", async () => {
-    const ref = createRef<any>();
-
-    render(
-      <GraphCanvas graph={graph} renderBlock={() => <div>Block</div>}>
+  it("renders its children inside the layer's portal target", async () => {
+    const ref = createRef<GraphPortalLayer>();
+    const { findByText } = render(
+      <GraphCanvas graph={graph}>
         <GraphPortal ref={ref}>
-          <div>Portal Content</div>
+          <div>Portal content</div>
         </GraphPortal>
       </GraphCanvas>
     );
 
-    // Start the graph to make it ready
     await act(async () => {
       graph.start();
     });
-
-    // Wait for layer to be created
-    await waitFor(() => {
-      expect(ref.current).toBeDefined();
-      expect(ref.current.getPortalTarget).toBeDefined();
-      expect(typeof ref.current.getPortalTarget).toBe("function");
-    });
+    expect((await findByText("Portal content")).parentElement).toBe(ref.current?.getPortalTarget());
   });
 
-  it("should render children as function with layer parameter", async () => {
-    const childrenFn = jest.fn().mockReturnValue(<div>Function Content</div>);
-
-    render(
-      <GraphCanvas graph={graph} renderBlock={() => <div>Block</div>}>
-        <GraphPortal>{childrenFn}</GraphPortal>
+  it("passes the mounted layer and graph to a render function", async () => {
+    const ref = createRef<GraphPortalLayer>();
+    const children = jest.fn(() => <div>Function content</div>);
+    const { findByText } = render(
+      <GraphCanvas graph={graph}>
+        <GraphPortal ref={ref}>{children}</GraphPortal>
       </GraphCanvas>
     );
 
-    // Start the graph to make it ready
     await act(async () => {
       graph.start();
     });
-
-    // Wait for function to be called
-    await waitFor(() => {
-      expect(childrenFn).toHaveBeenCalled();
-      expect(childrenFn.mock.calls[0][0]).toBeDefined(); // layer
-      expect(childrenFn.mock.calls[0][1]).toBeDefined(); // graph
-      expect(childrenFn.mock.calls[0][0].getPortalTarget).toBeDefined();
-    });
+    await findByText("Function content");
+    expect(ref.current).toBeInstanceOf(GraphPortalLayer);
+    expect(children).toHaveBeenCalledWith(ref.current, graph);
   });
 });

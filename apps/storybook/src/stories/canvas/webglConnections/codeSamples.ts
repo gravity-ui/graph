@@ -116,11 +116,12 @@ class StillDashConnection extends BlockConnection {
   public static override line = StillDashLine;
 }`;
 
-export const particlesCode = `${imports("BlockConnection, SceneLine, defineConnectionEffect")}
-const particles = defineConnectionEffect({
+export const particlesCode = `${imports("BlockConnection, SceneLine, defineSceneEffect")}
+const particles = defineSceneEffect({
+  kind: "path",
   animated: true,
   uniforms: { speed: { type: "float", value: 1 } },
-  fragment: \`vec4 effect(ConnectionFragment f, vec4 color) {
+  fragment: \`vec4 effect(PathFragment f, vec4 color) {
     float offset = mod(f.along - f.time * f.params0.y * u_speed, f.params0.x) - f.params0.x * 0.5;
     float dist = length(vec2(offset * f.scale, f.across));
     float particle = 1.0 - smoothstep(f.halfWidth - 1.0, f.halfWidth, dist);
@@ -145,10 +146,11 @@ class ParticlesConnection extends BlockConnection {
 // particles.uniforms.speed.value = 2; // all connections at once
 // The phase is time * speed, so the dots jump while the speed changes.`;
 
-export const gradientCode = `${imports("BlockConnection, SceneLine, defineConnectionEffect")}
-const gradient = defineConnectionEffect({
+export const gradientCode = `${imports("BlockConnection, SceneLine, defineSceneEffect")}
+const gradient = defineSceneEffect({
+  kind: "path",
   animated: true,
-  fragment: \`vec4 effect(ConnectionFragment f, vec4 color) {
+  fragment: \`vec4 effect(PathFragment f, vec4 color) {
     vec3 rgb = mix(f.params0.rgb, f.params1.rgb, f.t);
     float band = smoothstep(0.8, 1.0, fract(f.t - f.time * f.params0.w));
     vec4 inside = vec4(rgb, color.a * mix(0.35, 1.0, band));
@@ -174,11 +176,12 @@ class GradientConnection extends BlockConnection {
   public static override line = GradientLine;
 }`;
 
-export const glowCode = `${imports("BlockConnection, SceneLine, defineConnectionEffect")}
-const glow = defineConnectionEffect({
+export const glowCode = `${imports("BlockConnection, SceneLine, defineSceneEffect")}
+const glow = defineSceneEffect({
+  kind: "path",
   extraWidth: 6, // CSS pixels drawn outside each side of the stroke
   uniforms: { intensity: { type: "float", value: 0.6 } },
-  fragment: \`vec4 effect(ConnectionFragment f, vec4 color) {
+  fragment: \`vec4 effect(PathFragment f, vec4 color) {
     float outside = max(abs(f.across) - f.halfWidth, 0.0) / f.extraWidth;
     float falloff = pow(1.0 - clamp(outside, 0.0, 1.0), 2.0);
     // selected: the halo takes the selection color, stronger; the line keeps its color

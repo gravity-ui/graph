@@ -3,7 +3,7 @@ import intersects from "intersects";
 import type { TComponentMode } from "../../../lib/CoreComponent";
 import type { TScenePrimitive, TSceneStroke, TSceneStyle } from "../../../lib/scene/types";
 import { resolveSceneSize } from "../../../lib/scene/utils/size";
-import { largestSize } from "../../../lib/scene/webgl/levelBounds";
+import { largestSize } from "../../../lib/scene/webgl/order/levelBounds";
 import { HitBoxData } from "../../../services/HitTest";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import type { TStyleParts } from "../../../services/styles/types";

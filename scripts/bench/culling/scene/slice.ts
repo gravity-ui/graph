@@ -28,16 +28,16 @@ import type {
 import { dashFlow } from "GRAPH_SRC/components/canvas/connections/effects";
 import { lineSegment } from "GRAPH_SRC/components/canvas/connections/geometry/segments";
 import { initGraphColors } from "GRAPH_SRC/graphConfig";
-import { drawElements } from "GRAPH_SRC/lib/scene/drawPrimitives";
-import { elementBounds } from "GRAPH_SRC/lib/scene/elementBounds";
-import { resolveTextSize } from "GRAPH_SRC/lib/scene/textLayout";
-import { sceneTextLayout, sceneTextMetrics } from "GRAPH_SRC/lib/scene/textMetrics";
-import type { TSceneElementInput } from "GRAPH_SRC/lib/scene/SceneStore";
+import { drawElements } from "GRAPH_SRC/lib/scene/canvas/drawPrimitives";
+import { elementBounds } from "GRAPH_SRC/lib/scene/utils/elementBounds";
+import { resolveTextSize } from "GRAPH_SRC/lib/scene/text/textPlacement";
+import { sceneTextLayout, sceneTextMetrics } from "GRAPH_SRC/lib/scene/text/textMetrics";
+import type { TSceneElementInput } from "GRAPH_SRC/lib/scene/store/SceneStore";
 import type { TSceneRendererState } from "GRAPH_SRC/services/scene/types";
 import type { TScenePrimitive, TSceneStyle } from "GRAPH_SRC/lib/scene/types";
-import type { InstanceRanges } from "GRAPH_SRC/lib/scene/webgl/InstanceRanges";
-import { spaceKerning } from "GRAPH_SRC/lib/scene/webgl/glyphs";
-import type { TTranslucentPart } from "GRAPH_SRC/lib/scene/webgl/translucentOrder";
+import type { InstanceRanges } from "GRAPH_SRC/lib/scene/webgl/instances/InstanceRanges";
+import { spaceKerning } from "GRAPH_SRC/lib/scene/webgl/text/glyphs";
+import type { TTranslucentPart } from "GRAPH_SRC/lib/scene/webgl/order/translucentOrder";
 
 type TPixel = [number, number, number, number];
 

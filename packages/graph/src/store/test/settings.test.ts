@@ -10,21 +10,13 @@ describe("Settings store", () => {
     graph = new Graph({});
     store = graph.rootStore.settings;
   });
-  it("should be defined", () => {
-    expect(store).toBeDefined();
-  });
-
   it("Should init with default settings", () => {
     expect(store.asConfig).toEqual(DefaultSettings);
     expect(Object.prototype.hasOwnProperty.call(store.asConfig, "background")).toBe(true);
     expect(Object.prototype.hasOwnProperty.call(store.asConfig, "connection")).toBe(true);
   });
 
-  it("Should get config via key", () => {
-    expect(store.getConfigFlag("canZoomCamera")).toBe(true);
-  });
-
-  it("Should set config via key", () => {
+  it("reads the default and the updated setting by key", () => {
     expect(store.getConfigFlag("canZoomCamera")).toBe(true);
     store.setConfigFlag("canZoomCamera", false);
     expect(store.getConfigFlag("canZoomCamera")).toBe(false);

@@ -279,6 +279,11 @@ for (const renderer of ["canvas", "webgl"] as const) {
       if (scale === 0.125) expect(outer).toBe(0);
       else expect(outer).toBeGreaterThan(8);
       expect(outside).toBe(0);
+      if (scale === 1) {
+        // The 20 px stroke and the 8-unit hit tolerance reach 18 units from y=140.
+        expect(await connectionHit(page, { x: 250, y: 155 })).toBe(true);
+        expect(await connectionHit(page, { x: 250, y: 162 })).toBe(false);
+      }
     }
   });
 }
@@ -360,9 +365,21 @@ test("one custom SceneLine draws in Canvas and WebGL through switching, loss and
   expect(await attachedWebGLContexts(page)).toBe(1);
   await assertDrawing();
 
-  await graph.evaluate((graph) => graph.updateSettings({ renderer: "canvas" }));
-  await expectRenderer(page, "canvas");
-  expect(await attachedWebGLContexts(page)).toBe(0);
+  const previousContext = await page.evaluateHandle(() =>
+    window.graph.scene.layer.getBackend()?.canvas.getContext("webgl2")
+  );
+  try {
+    await graph.evaluate((graph) => graph.updateSettings({ renderer: "canvas" }));
+    await expectRenderer(page, "canvas");
+    expect(await attachedWebGLContexts(page)).toBe(0);
+    await expect
+      .poll(() => previousContext.evaluate((gl) => gl?.isContextLost()), {
+        message: "switching to Canvas releases the previous WebGL context",
+      })
+      .toBe(true);
+  } finally {
+    await previousContext.dispose();
+  }
   await assertDrawing();
 });
 

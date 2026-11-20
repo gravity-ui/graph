@@ -1,5 +1,5 @@
 import type { TTileRect } from "../../../lib/culling/TileIndex";
-import type { TElementPatch, TSceneElementInput, TSceneWriter } from "../../../lib/scene/SceneStore";
+import type { TElementPatch, TSceneElementInput, TSceneWriter } from "../../../lib/scene/store/SceneStore";
 import type { TSceneElement, TSceneStyle } from "../../../lib/scene/types";
 import type { GraphScene } from "../../../services/scene/GraphScene";
 import type { TSceneKey } from "../../../services/scene/sceneKey";

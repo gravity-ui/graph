@@ -70,7 +70,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "scene-size-split-"));
 const split = await esbuild.build({
   ...common,
   splitting: true,
-  entryPoints: [path.join(source, "lib/scene/SceneRendererLayer.ts")],
+  entryPoints: [path.join(source, "lib/scene/renderer/SceneRendererLayer.ts")],
   outdir: dir,
 });
 console.log("\nSceneRendererLayer.ts with splitting (minified ESM)");

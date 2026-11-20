@@ -1,6 +1,7 @@
-import type { TConnectionEffectUse } from "../../components/canvas/connections/effects";
 import type { TLineInteraction } from "../../components/canvas/connections/lines/types";
 import type { TTileRect } from "../culling/TileIndex";
+
+import type { TSceneEffectUse } from "./effects/types";
 
 /** Which renderer draws the scene: the Canvas2D interpreter or the lazily loaded WebGL backend. */
 export type TSceneRenderer = "canvas" | "webgl";
@@ -77,7 +78,7 @@ export type TScenePartStyle = {
    */
   cameraAware?: boolean;
   /** WebGL path effect. A base rule fills an unset effect. A state rule replaces it or disables it with null. */
-  effect?: Readonly<TConnectionEffectUse> | null;
+  effect?: Readonly<TSceneEffectUse<"path">> | null;
 };
 
 /** Visual motion for a scene block. `"none"` clears motion from an earlier rule. */
@@ -219,7 +220,7 @@ export type TScenePrimitive = Readonly<
           /** Joins the ends of one continuous solid contour whose final point repeats its first. */
           closed?: boolean;
           stroke: TSceneStroke;
-          effect?: TConnectionEffectUse;
+          effect?: TSceneEffectUse<"path">;
           canvasStroke?: TSceneStroke;
           interaction?: TLineInteraction;
           effectShowsSelection?: boolean;

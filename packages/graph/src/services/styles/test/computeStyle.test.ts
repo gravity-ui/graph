@@ -94,7 +94,7 @@ describe("computeStyle", () => {
         tags: [presence],
         style: (values) => ({ parts: { border: { color: values.get(presence)?.color } } }),
       },
-      { target: Base, notTags: [running], root: [focus], style: { parts: { body: { color: "#999999" } } } },
+      { target: Base, notTags: [running], root: [focus, running], style: { parts: { body: { color: "#999999" } } } },
       {
         target: Base,
         tags: [running],
@@ -104,7 +104,8 @@ describe("computeStyle", () => {
     ]);
     const tags = new Map<unknown, unknown>([[presence, { color: "#ff00ff" }]]);
     expect(compute(sheet, Base, tags).parts).toEqual({ border: { color: "#ff00ff" } });
-    expect(compute(sheet, Base, tags, { root: new Set([focus]) }).parts).toEqual({
+    expect(compute(sheet, Base, tags, { root: new Set([focus]) }).parts).toEqual({ border: { color: "#ff00ff" } });
+    expect(compute(sheet, Base, tags, { root: new Set([focus, running]) }).parts).toEqual({
       border: { color: "#ff00ff" },
       body: { color: "#999999" },
     });

@@ -1,13 +1,10 @@
+import { isSceneEffectActive, validateSceneEffectScaleRange } from "../../../../lib/scene/effects/scaleRange";
+import type { TSceneEffectScaleRange, TSceneEffectUse } from "../../../../lib/scene/effects/types";
 import type { TConnection } from "../../../../store/connection/ConnectionState";
 import type { TBaseConnectionState } from "../BaseConnection";
 import type { Path2DRenderStyleResult } from "../BatchPath2D";
 import type { BlockConnection, TConnectionProps } from "../BlockConnection";
-import {
-  isConnectionEffectActive,
-  toConnectionEffect,
-  validateConnectionEffectScaleRange,
-} from "../effects/ConnectionEffect";
-import type { TConnectionEffectScaleRange, TConnectionEffectUse } from "../effects/types";
+import { toConnectionEffect } from "../effects/ConnectionEffect";
 import { createArrowPath, createSegmentsPath, lineSegment } from "../geometry";
 import type { TConnectionArrow, TConnectionGeometry } from "../geometry";
 import { distanceToArrow, distanceToSegments } from "../geometry/distance";
@@ -17,7 +14,7 @@ import type { TLineInteraction, TLineStroke, TWebGLShape } from "./types";
 import { GeometryCache, applyArrowStyle, applyLineStyle, getArrowGroup, strokeKey } from "./utils/fallbackPath";
 
 /** Stroke used by both scene renderers, with an optional WebGL fragment effect. */
-export type TSceneLineStroke = TLineStroke & { effect?: TConnectionEffectUse };
+export type TSceneLineStroke = TLineStroke & { effect?: TSceneEffectUse<"path"> };
 
 /** Hit tolerance of the flattening: half a CSS pixel. */
 const FLATNESS_CSS_PX = 0.5;
@@ -36,11 +33,11 @@ type TCanvasStrokes = {
   stroke: TLineStroke;
   plain: TLineStroke;
   fallbackStroke: TLineStroke;
-  range?: TConnectionEffectScaleRange;
+  range?: TSceneEffectScaleRange;
 };
 
-function declaredEffectRange(effect: TConnectionEffectUse): TConnectionEffectScaleRange | undefined {
-  validateConnectionEffectScaleRange(effect);
+function declaredEffectRange(effect: TSceneEffectUse<"path">): TSceneEffectScaleRange | undefined {
+  validateSceneEffectScaleRange(effect);
   const { minScale, maxScale } = effect;
   return minScale !== undefined || maxScale !== undefined ? { minScale, maxScale } : undefined;
 }
@@ -243,7 +240,7 @@ export class SceneLine<
 
   public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
     const { range, plain, fallbackStroke } = this.getFallbackStrokes();
-    const active = !range || isConnectionEffectActive(range, this.connection.context.camera.getCameraScale());
+    const active = !range || isSceneEffectActive(range, this.connection.context.camera.getCameraScale());
     return applyLineStyle(ctx, active ? fallbackStroke : plain);
   }
 

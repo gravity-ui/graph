@@ -1,6 +1,6 @@
 import { Graph } from "../../../../graph";
 import { globalScheduler } from "../../../../lib/Scheduler";
-import { applyStyle } from "../../../../lib/scene/style";
+import { applyStyle } from "../../../../lib/scene/styles/style";
 import { entityKey } from "../../../../services/tags/TagStore";
 import { selectedTag } from "../../../../services/tags/builtinTags";
 import { defineTag } from "../../../../services/tags/defineTag";

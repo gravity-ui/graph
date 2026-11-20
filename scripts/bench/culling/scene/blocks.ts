@@ -23,7 +23,7 @@ import type {
   TSceneLevel,
   TScenePrimitive,
 } from "GRAPH";
-import { drawElements } from "GRAPH_SRC/lib/scene/drawPrimitives";
+import { drawElements } from "GRAPH_SRC/lib/scene/canvas/drawPrimitives";
 import { sceneComponentStats } from "GRAPH_SRC/components/canvas/scene/SceneComponent";
 import { MiniMapLayer } from "GRAPH_MINIMAP";
 

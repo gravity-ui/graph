@@ -226,6 +226,7 @@ graph.runAfterGraphReady(() => graph.zoomTo("center", { padding: 100 }));
    - [Scene](docs/system/scene.md)
    - [Add and update a custom scene element](docs/system/scene.md#add-an-element-to-the-scene)
    - [Tags and styles](docs/system/tags-and-styles.md)
+   - [WebGL scene effect types](docs/system/scene-effects.md)
 
 2. Components
    - [Canvas Graph Component](docs/components/canvas-graph-component.md)

@@ -31,7 +31,7 @@ pnpm run lint
 pnpm run test
 
 # Update snapshots
-pnpm run test -- --updateSnapshot
+pnpm --filter @gravity-ui/graph run test:unit --updateSnapshot
 
 # Build Storybook
 pnpm run build-storybook

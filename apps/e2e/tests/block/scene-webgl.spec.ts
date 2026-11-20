@@ -98,6 +98,63 @@ async function anchorPoint(page: Page, blockId: string, anchorId: string): Promi
 }
 
 test.describe("Scene blocks with the WebGL renderer", () => {
+  test("preserves glyph weight and a one-pixel edge during a subpixel pan", async ({ page }) => {
+    const graph = new GraphPageObject(page);
+    await graph.initialize({ ...CONFIG, blocks: [] });
+    test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+    await expect.poll(() => rendererState(page)).toBe("webgl");
+    const edges = await page.evaluate(() => {
+      const { scene, cameraService, scheduler } = window.graph;
+      const gl = scene.layer.getBackend()?.canvas.getContext("webgl2");
+      if (!gl) throw new Error("Missing WebGL context");
+      const glyph = { text: "I", family: "sans-serif", weight: "bold", size: 64, x: 20 };
+      scene.store.add({
+        id: "stem",
+        x: 0,
+        y: 0,
+        zIndex: 0,
+        bounds: { minX: 0, minY: 0, maxX: 80, maxY: 80 },
+        // Read shader coverage through blending, independent of the opaque pass's MSAA sample count.
+        primitives: [
+          { kind: "text", ...glyph, lineHeight: glyph.size, color: "rgba(0,0,0,0.5)", y: 0, width: 60, wrap: false },
+        ],
+      });
+      const dpr = window.devicePixelRatio;
+      const width = Math.ceil(80 * dpr);
+      const y = gl.drawingBufferHeight - Math.round(32 * dpr);
+      const row = new Uint8Array(width * 4);
+      // Measure the same stem in the browser's own font, at the same physical size.
+      const reference = new OffscreenCanvas(width, 1).getContext("2d")!;
+      reference.font = `${glyph.weight} ${glyph.size * dpr}px ${glyph.family}`;
+      reference.textBaseline = "middle";
+      reference.fillText(glyph.text, glyph.x * dpr, 0.5);
+      const sum = (values: ArrayLike<number>) => Array.from(values).reduce((total, value) => total + value, 0);
+      const nativeAlpha = reference.getImageData(0, 0, width, 1).data.filter((_, i) => i % 4 === 3);
+      const nativeWidth = sum(nativeAlpha) / 255;
+      return [0, 0.25, 0.5, 0.75].map((offset) => {
+        cameraService.set({ scale: 1, x: offset / dpr, y: 0 });
+        scene.layer.performRender();
+        scheduler.performUpdate();
+        gl.readPixels(0, y, width, 1, gl.RGBA, gl.UNSIGNED_BYTE, row);
+        // Through the middle of "I", area under the left fringe gives its subpixel position.
+        const alpha = row.filter((_, i) => i % 4 === 3);
+        const solid = alpha.findIndex((a) => a >= 127);
+        if (solid < 0) throw new Error("Missing glyph stem at half opacity");
+        const fringe = alpha.slice(0, solid).filter((a) => a > 0);
+        return {
+          width: fringe.length,
+          position: solid - sum(fringe) / 128,
+          weightError: (sum(alpha) / 128 - nativeWidth) / dpr,
+        };
+      });
+    });
+    for (const [i, edge] of edges.entries()) {
+      expect(edge.width).toBeLessThanOrEqual(1);
+      expect(Math.abs(edge.position - edges[0].position - i * 0.25)).toBeLessThan(0.2);
+      expect(Math.abs(edge.weightError)).toBeLessThan(1.5);
+    }
+  });
+
   test("shares fading glyph storage with its opaque pass and preserves it through growth and replay", async ({
     page,
   }) => {
@@ -396,11 +453,12 @@ test.describe("Scene blocks with the WebGL renderer", () => {
     await graph.initialize({ ...CONFIG, blocks: [] });
     test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
     const styleId = await page.evaluate(() => {
-      const { defineConnectionEffect, lineSegment } = window.GraphModule;
+      const { defineSceneEffect, lineSegment } = window.GraphModule;
       const { scene, cameraService } = window.graph;
       cameraService.set({ scale: 0.8, x: 0, y: 0 });
-      const effect = defineConnectionEffect({
-        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return vec4(color.rgb, 0.5); }",
+      const effect = defineSceneEffect({
+        kind: "path",
+        fragment: "vec4 effect(PathFragment f, vec4 color) { return vec4(color.rgb, 0.5); }",
       });
       const bounds = { minX: 70, minY: 120, maxX: 330, maxY: 180 };
       const segments = new Float32Array(lineSegment({ x: 100, y: 150 }, { x: 300, y: 150 }));
@@ -604,15 +662,16 @@ test.describe("Scene blocks with the WebGL renderer", () => {
     await graph.initialize({ ...CONFIG, blocks: [] });
     test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
     const row = await page.evaluate(() => {
-      const { defineConnectionEffect, lineSegment } = window.GraphModule;
+      const { defineSceneEffect, lineSegment } = window.GraphModule;
       const { scene, cameraService } = window.graph;
       // The translucent pass first draws plain strokes below the custom effect's activity range.
       cameraService.set({ scale: 0.08, x: 0, y: 0 });
       const styleId = scene.store.defineStyle({});
       const mutedId = scene.store.defineStyle({ parts: { glow: { visible: false } } });
-      const glow = defineConnectionEffect({
+      const glow = defineSceneEffect({
+        kind: "path",
         extraWidth: 8,
-        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return vec4(color.rgb, 0.5); }",
+        fragment: "vec4 effect(PathFragment f, vec4 color) { return vec4(color.rgb, 0.5); }",
       });
       for (let i = 0; i < 8; i++) {
         scene.store.add({

@@ -192,10 +192,6 @@ describe("Blocks selection", () => {
     expect(store.getBlockState(block2.id)?.selected).toBe(false);
   });
 
-  it.todo("Should select anchor");
-  it.todo("Should unselect anchor");
-  it.todo("Should emit event on select anchor");
-
   it("Should emit blocks-selection-change event with correct params", () => {
     const handler = jest.fn();
     graph.on("blocks-selection-change", handler);

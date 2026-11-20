@@ -1,8 +1,8 @@
 import { computed, effect, signal, untracked } from "@preact/signals-core";
 import type { ReadonlySignal } from "@preact/signals-core";
 
-import type { SceneStore } from "../../lib/scene/SceneStore";
-import { styleLookKey } from "../../lib/scene/style";
+import type { SceneStore } from "../../lib/scene/store/SceneStore";
+import { styleLookKey } from "../../lib/scene/styles/style";
 import type { TSceneStyle } from "../../lib/scene/types";
 import type { TSceneLevel } from "../scene/types";
 import type { TagStore } from "../tags/TagStore";

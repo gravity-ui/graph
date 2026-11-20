@@ -12,6 +12,8 @@ arrow and label. `GraphLayer` keeps the component tree, events, hit-testing, dra
 [Block component](../components/block-component.md), [Anchors](../components/anchors.md) and
 [Connections](../connections/webgl-connections.md).
 
+See [WebGL scene effect types](scene-effects.md) for the TypeScript and GLSL inputs of stroked paths and sprites.
+
 Immediate components and connections with custom Canvas painters draw on `GraphLayer`. The scene canvas sits above
 `GraphLayer` and below `ReactLayer`.
 
@@ -188,17 +190,14 @@ const sprite: TScenePrimitive = {
 ```
 
 Without an effect the rectangle shows the whole image. The effect's **fragment shader** runs for each covered pixel.
-`uv` runs from the top-left `(0, 0)` to the bottom-right `(1, 1)`. `time` is the graph clock in seconds and `params`
-contains four per-sprite numbers (all zero if omitted). Return straight RGBA.
-Keep the sampled alpha to preserve transparent edges. For an asset on another origin, set `image.crossOrigin`
-before `src` and serve it with appropriate CORS headers.
+See [Sprite fragment inputs](scene-effects.md#sprite-fragment-inputs) for UV coordinates, the clock, parameters and color.
+For an asset on another origin, set `image.crossOrigin` before `src` and serve it with appropriate CORS headers.
 
 [Textured Orbit in Storybook](../../../../apps/storybook/src/stories/canvas/sceneRuntime/mascot.stories.tsx) samples one
 cell from an 8 × 8 PNG atlas. Changing the sampled coordinates selects a new pose or moves the character within the
 rectangle. Changing the sampled colour adds a travelling highlight. Neither requires changing scene geometry or
 resending the PNG for each frame. Set `animated: true` when the shader uses the clock. Canvas 2D, the minimap
-and `scene.toImage()` skip sprites. For effects on a connection's stroke, see the
-[connection shader contract](../connections/webgl-connections.md#shader-contract).
+and `scene.toImage()` skip sprites. For effects on a stroked path, see [`PathFragment`](scene-effects.md#pathfragment).
 
 ### Move a character in world coordinates
 
@@ -490,7 +489,7 @@ tags, matched rules and computed style.
 ## Text primitives
 
 A text primitive draws its `text` in a box: `x`, `y`, `width` and, optionally, `height`. Both renderers and exports lay
-it out with one shared layout (`lib/scene/textLayout.ts`), the rules of v1's `layoutText`:
+it out with one shared layout (`lib/scene/text/textLayout.ts`), the rules of v1's `layoutText`:
 
 - **Size.** `size` is the font size in world units. With `cameraAware` (`true`, or `{ minWorld?, maxWorld? }`) it is
   in screen pixels at every camera scale: the world font size is `size / scale`, clamped by the bounds. Off

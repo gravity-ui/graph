@@ -1,9 +1,9 @@
 // E2: the same picture from scene data. The graph has no entities: it only provides the camera, the below layer and
 // the scheduler. A SceneCanvasLayer draws groups (z 0), connections (z 1) and blocks with their anchors (z 2).
 import { Graph, getSegmentsBounds, multipointGeometry } from "GRAPH";
-import { SceneCanvasLayer } from "GRAPH_SRC/lib/scene/SceneCanvasLayer";
-import { ScenePathBatch } from "GRAPH_SRC/lib/scene/ScenePathBatch";
-import { SceneStore } from "GRAPH_SRC/lib/scene/SceneStore";
+import { SceneCanvasLayer } from "GRAPH_SRC/lib/scene/canvas/SceneCanvasLayer";
+import { ScenePathBatch } from "GRAPH_SRC/lib/scene/canvas/ScenePathBatch";
+import { SceneStore } from "GRAPH_SRC/lib/scene/store/SceneStore";
 import type { TileIndex, TTileRect } from "GRAPH_SRC/lib/culling/TileIndex";
 import type { TSceneElement, TScenePrimitive } from "GRAPH_SRC/lib/scene/types";
 

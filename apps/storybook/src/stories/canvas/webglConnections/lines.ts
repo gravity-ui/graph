@@ -1,4 +1,4 @@
-import { BlockConnection, SceneLine, dashFlow, defineConnectionEffect, pulse } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, dashFlow, defineSceneEffect, pulse } from "@gravity-ui/graph";
 import type { TBaseConnectionState, TConnection, TConnectionEffectUse, TSceneLineStroke } from "@gravity-ui/graph";
 
 export type TConnectionClass = typeof BlockConnection<TConnection>;
@@ -54,11 +54,12 @@ export function createConnection(describe: TDescribe): TConnectionClass {
  * Round particles over a faint trace. params: spacing and speed (world units, units per second); `u_speed` scales the
  * speed. Selected, the trace takes the selection color and the particles keep theirs, a little brighter.
  */
-export const particles = defineConnectionEffect({
+export const particles = defineSceneEffect({
+  kind: "path",
   animated: true,
   uniforms: { speed: { type: "float", value: 1 } },
   fragment: /* glsl */ `
-    vec4 effect(ConnectionFragment f, vec4 color) {
+    vec4 effect(PathFragment f, vec4 color) {
       float spacing = f.params0.x;
       float offset = mod(f.along - f.time * f.params0.y * u_speed, spacing) - spacing * 0.5;
       float dist = length(vec2(offset * f.scale, f.across));
@@ -77,10 +78,11 @@ export const particles = defineConnectionEffect({
  * Source color to target color, and a band running along. params: source rgb, laps per second, target rgb. Selected,
  * a border in the selection color runs along both edges and the gradient keeps running inside.
  */
-export const gradient = defineConnectionEffect({
+export const gradient = defineSceneEffect({
+  kind: "path",
   animated: true,
   fragment: /* glsl */ `
-    vec4 effect(ConnectionFragment f, vec4 color) {
+    vec4 effect(PathFragment f, vec4 color) {
       vec3 rgb = mix(f.params0.rgb, f.params1.rgb, f.t);
       float band = smoothstep(0.8, 1.0, fract(f.t - f.time * f.params0.w));
       vec4 inside = vec4(rgb, color.a * mix(0.35, 1.0, band));
@@ -100,11 +102,12 @@ export const gradient = defineConnectionEffect({
  * A soft halo outside the line; `u_intensity` scales it. The inner edge is composed here. Selected, the halo takes the
  * selection color at a stronger intensity and the line keeps its color.
  */
-export const glow = defineConnectionEffect({
+export const glow = defineSceneEffect({
+  kind: "path",
   extraWidth: 6,
   uniforms: { intensity: { type: "float", value: 0.6 } },
   fragment: /* glsl */ `
-    vec4 effect(ConnectionFragment f, vec4 color) {
+    vec4 effect(PathFragment f, vec4 color) {
       float outside = max(abs(f.across) - f.halfWidth, 0.0) / f.extraWidth;
       float falloff = pow(1.0 - clamp(outside, 0.0, 1.0), 2.0);
       vec4 halo = f.selected > 0.5

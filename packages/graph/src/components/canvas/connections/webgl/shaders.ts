@@ -7,7 +7,9 @@ import { CURVE_CHORDS } from "./encode";
 
 /** Everything an effect can read, before the effect's source. */
 export const FRAGMENT_PRELUDE = /* glsl */ `precision highp float;
-#define GRAPH_CONNECTION_FRAGMENT 1
+#define GRAPH_PATH_FRAGMENT 1
+#define GRAPH_CONNECTION_FRAGMENT GRAPH_PATH_FRAGMENT
+#define ConnectionFragment PathFragment
 
 in vec4 graph_vColor;
 in float graph_vAcross;
@@ -29,10 +31,10 @@ uniform float graph_extraWidth;
 
 out vec4 graph_fragColor;
 
-struct ConnectionFragment {
-  float along;          // world units from the source, continuous across segments
-  float length;         // the whole connection's length, world units
-  float t;              // along / length: 0 at the source, 1 at the target
+struct PathFragment {
+  float along;          // world units from the start of the path, continuous across segments
+  float length;         // the whole path's length, world units
+  float t;              // along / length: 0 at the start, 1 at the end
   float across;         // CSS pixels from the center line, signed
   float halfWidth;      // half the drawn stroke width, CSS pixels
   float extraWidth;     // the effect's extraWidth, CSS pixels (0 without)
@@ -47,7 +49,7 @@ struct ConnectionFragment {
   vec4 selectionColor;  // the connection's selection color, straight RGBA, whatever the state
 };
 
-// Helpers for effects; part of the shader contract, versioned with ConnectionFragment.
+// Helpers for effects; part of the shader contract, versioned with PathFragment.
 // Position in a repeating on/off pattern, 0..on+off, shifted by offset.
 float graph_dashPhase(float along, float on, float off, float offset) { return mod(along - offset, on + off); }
 // Comet brightness for a position inside the dash (phase < on): the head leads in the direction of speed.
@@ -67,7 +69,7 @@ float graph_wave(vec2 world, float time, float period, float wavelength) {
  * The effect of the plain stroke. The plain program also draws the groups of effects that do not compile: a selected
  * line whose effect was to show the selection takes the selection color there.
  */
-export const IDENTITY_EFFECT = /* glsl */ `vec4 effect(ConnectionFragment f, vec4 color) {
+export const IDENTITY_EFFECT = /* glsl */ `vec4 effect(PathFragment f, vec4 color) {
   return graph_vInteraction.z * f.selected > 0.5 ? f.selectionColor : color;
 }`;
 
@@ -89,7 +91,7 @@ void main() {
   float edge = clamp((graph_vHalfWidth + graph_extraWidth - across) * graph_dpr + 0.5, 0.0, 1.0);
 #endif
   float t = graph_vLength > 0.0 ? clamp(graph_vAlong / graph_vLength, 0.0, 1.0) : 0.0;
-  ConnectionFragment f = ConnectionFragment(
+  PathFragment f = PathFragment(
     graph_vAlong,
     graph_vLength,
     t,

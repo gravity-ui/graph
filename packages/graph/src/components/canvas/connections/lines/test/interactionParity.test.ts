@@ -24,8 +24,7 @@ function drawn(getStroke: StrokeStyle, state: Partial<TBaseConnectionState>): { 
 describe("Canvas compatibility painting follows the scene line's interaction styles", () => {
   const selected = { selected: true };
 
-  it("draws the default stroke in the selection color, 2 units wider", () => {
-    expect(drawn((base) => base, selected)).toEqual({ line: "#ffcc00/4", arrow: "#ffcc00/4" });
+  it("widens the default shaft and arrow on hover", () => {
     expect(drawn((base) => base, { hovered: true })).toEqual({ line: "#aaaaaa/4", arrow: "#aaaaaa/4" });
   });
 
@@ -36,18 +35,13 @@ describe("Canvas compatibility painting follows the scene line's interaction sty
     });
   });
 
-  it("keeps the selection color of fields picked from super.getStroke()", () => {
-    const pick = (base: TLineStroke): TLineStroke => ({
-      color: base.color,
-      width: base.width,
-      dash: { pattern: [4, 4] },
-    });
-    expect(drawn(pick, selected)).toEqual({ line: "#ffcc00/4", arrow: "#ffcc00/4" });
-  });
-
-  it("keeps the selection color of a copy of super.getStroke()", () => {
-    const copy = (base: TLineStroke): TLineStroke => JSON.parse(JSON.stringify(base)) as TLineStroke;
-    expect(drawn(copy, selected)).toEqual({ line: "#ffcc00/4", arrow: "#ffcc00/4" });
+  const inheritedStrokes: Record<string, StrokeStyle> = {
+    unchanged: (base) => base,
+    "picked fields": ({ color, width }) => ({ color, width, dash: { pattern: [4, 4] } }),
+    "serialized copy": (base) => JSON.parse(JSON.stringify(base)) as TLineStroke,
+  };
+  it.each(Object.entries(inheritedStrokes))("preserves selection color and width for %s", (_name, stroke) => {
+    expect(drawn(stroke, selected)).toEqual({ line: "#ffcc00/4", arrow: "#ffcc00/4" });
   });
 
   it("draws a stroke built without withInteraction() as it is", () => {

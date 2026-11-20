@@ -1,6 +1,7 @@
+import { defineSceneEffect } from "../../../../../lib/scene/effects/defineSceneEffect";
 import type { TConnection } from "../../../../../store/connection/ConnectionState";
 import type { BlockConnection } from "../../BlockConnection";
-import { dashFlow, defineConnectionEffect, toConnectionEffect } from "../../effects";
+import { dashFlow, toConnectionEffect } from "../../effects";
 import { bezierSegment, lineSegment } from "../../geometry";
 import type { TConnectionGeometry } from "../../geometry";
 import { SceneLine } from "../SceneLine";
@@ -116,8 +117,9 @@ describe("SceneLine", () => {
   });
 
   describe("effects", () => {
-    const pulse = defineConnectionEffect<Record<never, never>, number>({
-      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+    const pulse = defineSceneEffect<Record<never, never>, number>({
+      kind: "path",
+      fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
       encode: (level) => [level],
       fallback: (stroke, params) => {
         stroke.width += params[0];
@@ -220,8 +222,9 @@ describe("SceneLine", () => {
     });
 
     it("falls back to the stroke without the effect by default", () => {
-      const bare = defineConnectionEffect({
-        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+      const bare = defineSceneEffect({
+        kind: "path",
+        fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
       });
       class BareLine extends SceneLine {
         public override getStroke(state: Parameters<SceneLine["getStroke"]>[0]): TSceneLineStroke {
@@ -236,11 +239,13 @@ describe("SceneLine", () => {
   });
 
   describe("hover and selection", () => {
-    const flow = defineConnectionEffect({
-      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+    const flow = defineSceneEffect({
+      kind: "path",
+      fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
     });
-    const widen = defineConnectionEffect<Record<never, never>, number>({
-      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+    const widen = defineSceneEffect<Record<never, never>, number>({
+      kind: "path",
+      fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
       encode: (extra) => [extra],
       fallback: (stroke, params) => ({ ...stroke, width: stroke.width + params[0] }),
     });

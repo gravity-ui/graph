@@ -1,7 +1,7 @@
 import { computed, signal } from "@preact/signals-core";
 import type { ReadonlySignal } from "@preact/signals-core";
 
-import type { SceneStore } from "../../lib/scene/SceneStore";
+import type { SceneStore } from "../../lib/scene/store/SceneStore";
 import type { TSceneChange, TSceneElement } from "../../lib/scene/types";
 
 /**

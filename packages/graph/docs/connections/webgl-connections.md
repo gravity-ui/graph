@@ -151,7 +151,7 @@ A `SceneLine` supplies the geometry and stroke to the scene. Its WebGL path and 
 segment array directly. Its stroke type extends `TLineStroke` with an optional effect:
 
 ```typescript
-type TSceneLineStroke = TLineStroke & { effect?: TConnectionEffectUse };
+type TSceneLineStroke = TLineStroke & { effect?: TSceneEffectUse<"path"> };
 ```
 
 - The arrow is drawn with `getArrowStroke()`, never with the effect.
@@ -396,29 +396,15 @@ to select the connection, including in a gap between dashes. To vary color along
 
 ## Effects
 
-An effect recolors the fragments of a WebGL stroke with a GLSL function. Define the effect once at module scope with
-`defineConnectionEffect()`. Assign `effect.use(input)` to a scene rule's `parts.line.effect` or to the stroke returned
-by a custom line's `getStroke()`.
+Define a path effect once at module scope with `defineSceneEffect({ kind: "path", ... })`. Assign
+`effect.use(input)` to a scene rule's `parts.line.effect` or to the stroke returned by a custom line's `getStroke()`.
+The [WebGL scene effect types](../system/scene-effects.md#path-effect-types) describe definitions, uniforms and scale
+bounds. See [Per-path parameters](../system/scene-effects.md#per-path-parameters) for how `.use()` maps values to
+`f.params0` and `f.params1`.
 
-| Definition field | Meaning |
-|---|---|
-| `fragment` | GLSL ES 3.00 defining `vec4 effect(ConnectionFragment f, vec4 color)` (see [Shader contract](#shader-contract)) |
-| `animated` | Redraw every animation frame while a connection with the effect is drawn: for effects that read `f.time` |
-| `uniforms` | `{ name: { type, value } }`, read in GLSL as `u_<name>`; types `"float"`, `"vec2"`, `"vec3"`, `"vec4"`. Values are signals on the effect |
-| `extraWidth` | CSS pixels the effect may draw outside each side of the stroke, for glows (default 0) |
-| `fallback` | Compatibility callback for the Canvas batch. The unified scene's Canvas renderer uses the base stroke |
-| `encode` | Typed parameters: packs `use(input)` into the numbers the shader reads. Without it, `use()` takes the numbers |
-
-The effect object has `uniforms` (signals), `use(input)`, which returns `{ effect, params }` for `stroke.effect`, and
-`clone()`. A program is compiled on the first draw of its effect and cached by source text (the uniform declarations
-and the fragment); clones share it.
-
-Pass `effect.use(input, { minScale: 0.3, maxScale: 1.5 })` to activate the effect within a range of camera scales.
-The lower bound is inclusive and the upper bound is exclusive. Omitted bounds mean 0 and no upper limit.
-Supplied bounds must be finite and nonnegative, and the upper bound must exceed the lower one. The same optional
-fields can appear on a literal `{ effect, params, minScale, maxScale }`. Outside the range the connection uses its
-plain stroke, including its normal selection color. WebGL batches uses of the same effect instance with matching
-bounds, so distinct per-connection bounds can increase draw calls.
+The shader source and its uniform declarations identify the program. Clones share the program and have independent
+uniform signals. Custom path effects batch uses of the same effect instance with matching scale bounds, so distinct
+per-connection bounds can increase draw calls.
 
 An idle WebGL renderer stays idle when a uniform changes and every use of that effect in the graph is outside
 its scale range. The effect draws with the latest values when the camera re-enters an active range.
@@ -429,15 +415,16 @@ To show the direction of a transfer, draw a bright band that travels from source
 stock connection. `graph` is your graph instance and `connectionId` identifies the transfer's existing connection.
 
 ```ts
-import { BlockConnection, defineConnectionEffect, defineTag } from "@gravity-ui/graph";
+import { BlockConnection, defineSceneEffect, defineTag } from "@gravity-ui/graph";
 
 const transferring = defineTag("transferring");
-const movingBand = defineConnectionEffect({
+const movingBand = defineSceneEffect({
+  kind: "path",
   animated: true,
   encode: ({ spacing, speed }: { spacing: number; speed: number }) => [spacing, speed],
   uniforms: { strength: { type: "float", value: 0.75 } },
   fragment: /* glsl */ `
-    vec4 effect(ConnectionFragment f, vec4 color) {
+    vec4 effect(PathFragment f, vec4 color) {
       float spacing = max(f.params0.x, 1.0);
       float phase = fract((f.along - f.time * f.params0.y) / spacing);
       float band = 1.0 - smoothstep(0.0, 0.2, abs(phase - 0.5));
@@ -485,17 +472,18 @@ The levels combine. Here running jobs have the effect, critical ones breathe (a 
 `f.time`), and a slider sets the brightness of all of them (a uniform):
 
 ```typescript
-import { BlockConnection, SceneLine, defineConnectionEffect } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, defineSceneEffect } from "@gravity-ui/graph";
 import type { TBaseConnectionState, TConnection, TSceneLineStroke } from "@gravity-ui/graph";
 
 type TJobConnection = TConnection & { running?: boolean; critical?: boolean };
 
 // Ignores f.selected: a selected job shows the selection by its width only.
-const activity = defineConnectionEffect({
+const activity = defineSceneEffect({
+  kind: "path",
   animated: true, // reads f.time
   uniforms: { brightness: { type: "float", value: 1 } },
   fragment: /* glsl */ `
-    vec4 effect(ConnectionFragment f, vec4 color) {
+    vec4 effect(PathFragment f, vec4 color) {
       float breath = 0.6 + 0.4 * sin(f.time * 3.0);
       // params0.x is 1 for critical connections: only they breathe.
       float alpha = color.a * mix(1.0, breath, f.params0.x);
@@ -533,20 +521,21 @@ or clone it once for each independent set of uniforms. A development build warns
 share a source.
 
 ```typescript
-import { BlockConnection, SceneLine, defineConnectionEffect } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TConnection, TConnectionEffect, TSceneLineStroke } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, defineSceneEffect } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TConnection, TSceneEffect, TSceneLineStroke } from "@gravity-ui/graph";
 
 // Ignores f.selected: a selected line shows the selection by its width only.
-const tint = defineConnectionEffect({
+const tint = defineSceneEffect({
+  kind: "path",
   uniforms: { tint: { type: "vec3", value: [1, 1, 1] } },
   fragment: /* glsl */ `
-    vec4 effect(ConnectionFragment f, vec4 color) {
+    vec4 effect(PathFragment f, vec4 color) {
       return vec4(color.rgb * u_tint, color.a);
     }`,
 });
 
 /** A connection class drawn with the given effect object. */
-function createTintedConnection(effect: TConnectionEffect<{ tint: "vec3" }>): typeof BlockConnection<TConnection> {
+function createTintedConnection(effect: TSceneEffect<"path", { tint: "vec3" }>): typeof BlockConnection<TConnection> {
   class TintedLine extends SceneLine {
     public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
       return { ...super.getStroke(state), effect: effect.use([]) };
@@ -572,14 +561,15 @@ pixels on each side, only its outer edge is anti-aliased, and the effect compose
 `f.coverage`:
 
 ```typescript
-import { BlockConnection, SceneLine, defineConnectionEffect } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, defineSceneEffect } from "@gravity-ui/graph";
 import type { TBaseConnectionState, TSceneLineStroke } from "@gravity-ui/graph";
 
-const glow = defineConnectionEffect({
+const glow = defineSceneEffect({
+  kind: "path",
   extraWidth: 6, // CSS pixels drawn outside each side of the stroke
   uniforms: { intensity: { type: "float", value: 0.6 } },
   fragment: /* glsl */ `
-    vec4 effect(ConnectionFragment f, vec4 color) {
+    vec4 effect(PathFragment f, vec4 color) {
       float outside = max(abs(f.across) - f.halfWidth, 0.0) / f.extraWidth;
       float falloff = pow(1.0 - clamp(outside, 0.0, 1.0), 2.0);
       // Selected, the halo takes the selection color at a stronger intensity; the line keeps its color.
@@ -608,7 +598,7 @@ class GlowConnection extends BlockConnection {
 
 ### Hover and selection in effects
 
-`ConnectionFragment` carries the connection's interaction: `f.hovered` and `f.selected` are 1.0 or 0.0 (usable as
+`PathFragment` carries the connection's interaction: `f.hovered` and `f.selected` are 1.0 or 0.0 (usable as
 `mix()` weights), and `f.selectionColor` is the straight RGBA of its selection color (`styles.selectedBackground` or
 the theme's `colors.connection.selectedBackground`), whatever the state. A selected line built with
 `withInteraction()` comes in with its own stroke color, so the effect decides how the selection looks: the library's
@@ -617,14 +607,15 @@ into the selection color and the particles keep theirs. The scene paints the bas
 callback supplies a dotted stroke for the [Canvas compatibility batch](#fallback-strokes).
 
 ```typescript
-import { BlockConnection, SceneLine, defineConnectionEffect } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, defineSceneEffect } from "@gravity-ui/graph";
 import type { TBaseConnectionState, TSceneLineStroke } from "@gravity-ui/graph";
 
-export const particles = defineConnectionEffect({
+export const particles = defineSceneEffect({
+  kind: "path",
   animated: true,
   uniforms: { speed: { type: "float", value: 1 } },
   fragment: /* glsl */ `
-    vec4 effect(ConnectionFragment f, vec4 color) {
+    vec4 effect(PathFragment f, vec4 color) {
       float spacing = f.params0.x;
       float offset = mod(f.along - f.time * f.params0.y * u_speed, spacing) - spacing * 0.5;
       float dist = length(vec2(offset * f.scale, f.across));
@@ -668,62 +659,10 @@ the base stroke outside it.
 
 ## Shader contract
 
-An effect defines `vec4 effect(ConnectionFragment f, vec4 color)`. The library writes `#version 300 es` and
-`precision highp float` (effects must not) and declares, before the effect's source, the contract below and the
-helpers of [Library effects and helpers](#library-effects-and-helpers):
-
-```glsl
-#define GRAPH_CONNECTION_FRAGMENT 1
-struct ConnectionFragment {
-  float along;          // world units from the source, continuous across segments
-  float length;         // the whole connection's length, world units
-  float t;              // along / length: 0 at the source, 1 at the target
-  float across;         // CSS pixels from the center line, signed
-  float halfWidth;      // half the drawn stroke width, CSS pixels
-  float extraWidth;     // the effect's extraWidth, CSS pixels (0 without)
-  float coverage;       // 0..1: how much of the pixel the stroke itself covers, anti-aliased
-  float scale;          // CSS pixels per world unit
-  vec2 world;           // the fragment's world position
-  float time;           // seconds on graph.scene.clock, shared across renderer switches
-  vec4 params0;         // params[0..3]
-  vec4 params1;         // params[4..7]
-  float hovered;        // 1.0 while the connection is hovered, else 0.0
-  float selected;       // 1.0 while the connection is selected, else 0.0
-  vec4 selectionColor;  // the connection's selection color, straight RGBA, whatever the state
-};
-```
-
-`hovered`, `selected` and `selectionColor` are the same for every fragment of a connection (see
-[Hover and selection in effects](#hover-and-selection-in-effects)); the selection color's alpha is kept in 1/255
-steps.
-
-`along` is monotonic and continuous, not the exact arc length: within a curve piece it is linear in the curve
-parameter, so dash steps can vary slightly on long bends.
-
-**Color pipeline.**
-
-1. The base stroke's still `dash` discards the pixels in its gaps: an effect never draws there.
-2. `color = effect(f, color)`; `color` comes in as the stroke color. Both are straight (not premultiplied) RGBA; return
-   alpha 0 to draw nothing.
-3. The library applies the edge anti-aliasing (`f.coverage`, or the outer edge with `extraWidth`), fades hairlines
-   thinner than one device pixel and premultiplies.
-
-**Names.** An effect uses only `ConnectionFragment`, its own `u_<name>` uniforms and the library's `graph_*`
-functions. Attributes, varyings and internal uniforms carry the `graph_` prefix and are private; every other name is
-free for effects.
-
-**Versions.** Within a major version, `ConnectionFragment` fields and the `graph_*` helpers are only added: never
-renamed, removed or changed in meaning. Every addition increments `GRAPH_CONNECTION_FRAGMENT`, so an effect can
-test for it:
-
-```glsl
-vec4 effect(ConnectionFragment f, vec4 color) {
-#if GRAPH_CONNECTION_FRAGMENT >= 2
-  // use a field added in version 2
-#endif
-  return color;
-}
-```
+Path effects receive a [`PathFragment`](../system/scene-effects.md#pathfragment). That reference lists the GLSL
+fields, units, color pipeline and version aliases. See
+[the shared example](../system/scene-effects.md#one-effect-on-a-connection-and-a-block-outline) for using the same
+effect on a connection and a block contour.
 
 ## Library effects and helpers
 
@@ -764,7 +703,7 @@ class PipelineConnection extends BlockConnection<TFlowConnection> {
   `wavelength` (world units) the crest travels along the x axis, without it the whole line pulses in place. Selected,
   the dim part takes the selection color and the crest keeps the line's. Canvas draws the plain stroke.
 
-GLSL helpers available in every effect program, versioned like `ConnectionFragment`:
+GLSL helpers available in every effect program, versioned like `PathFragment`:
 
 | Helper | Returns |
 |---|---|
@@ -775,13 +714,14 @@ GLSL helpers available in every effect program, versioned like `ConnectionFragme
 They combine into new effects, for example comets that pulse:
 
 ```typescript
-import { defineConnectionEffect } from "@gravity-ui/graph";
+import { defineSceneEffect } from "@gravity-ui/graph";
 
 /** params: dash length and speed; the gap is twice the dash. */
-export const pulsingComets = defineConnectionEffect({
+export const pulsingComets = defineSceneEffect({
+  kind: "path",
   animated: true,
   fragment: /* glsl */ `
-    vec4 effect(ConnectionFragment f, vec4 color) {
+    vec4 effect(PathFragment f, vec4 color) {
       float on = f.params0.x;
       float speed = f.params0.y;
       float phase = graph_dashPhase(f.along, on, on * 2.0, f.time * speed);

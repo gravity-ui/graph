@@ -24,11 +24,12 @@ type TLineKind = "plain" | "dashFlow" | "pulse" | "stillDashFlow" | "customHelpe
 /** Switches the graph to a connection class using a scene line with an optional WebGL effect. */
 async function useWebGLConnection(page: Page, kind: TLineKind): Promise<void> {
   await page.evaluate((lineKind) => {
-    const { BlockConnection, SceneLine, dashFlow, pulse, defineConnectionEffect } = window.GraphModule;
+    const { BlockConnection, SceneLine, dashFlow, pulse, defineSceneEffect } = window.GraphModule;
     const custom =
       lineKind === "customHelpers" &&
-      defineConnectionEffect({
-        fragment: `vec4 effect(ConnectionFragment f, vec4 color) {
+      defineSceneEffect({
+        kind: "path",
+        fragment: `vec4 effect(PathFragment f, vec4 color) {
         float phase = graph_dashPhase(f.along, 40.0, 40.0, 0.0);
         float red = graph_comet(min(phase, 40.0), 40.0, 1.0);
         float green = graph_wave(f.world, 0.0, 1.0, 0.0);
@@ -352,6 +353,25 @@ test.describe("WebGL connections", () => {
       await graphPO.waitForFrames(10);
       await expect.poll(() => graphPO.getSceneRenderer()).toBe("webgl");
       expect(errors).toEqual([]);
+      if (kind === "dashFlow") {
+        const motion = await page.evaluate(() => {
+          const { scene, cameraService } = window.graph;
+          const backend = scene.layer.getBackend()!;
+          const camera = cameraService.getCameraState();
+          const capture = (time: number) => {
+            backend.draw({
+              ...camera,
+              time,
+              dpr: backend.canvas.width / camera.width,
+              dimColor: scene.store.getDimColor(),
+            });
+            return backend.canvas.toDataURL();
+          };
+          const start = capture(0);
+          return { moved: capture(0.25) !== start, restored: capture(0) === start };
+        });
+        expect(motion).toEqual({ moved: true, restored: true });
+      }
       if (kind === "customHelpers") {
         const line = graphPO.connection("c1");
         const tail = await line.getPointOnCurve(0.25);

@@ -1,6 +1,7 @@
 import { signal } from "@preact/signals-core";
 import type { Signal } from "@preact/signals-core";
 
+import { validateSceneEffectScaleRange } from "../../../../lib/scene/effects/scaleRange";
 import { HAS_NODE_ENV } from "../../../../utils/development";
 import type { TLineStroke } from "../lines/types";
 
@@ -20,25 +21,12 @@ export const MAX_EFFECT_PARAMS = 8;
 
 const UNIFORM_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 
-/** Validates both `use()` options and effect uses supplied as literals. */
-export function validateConnectionEffectScaleRange({ minScale, maxScale }: TConnectionEffectScaleRange): void {
-  if (minScale !== undefined && (!Number.isFinite(minScale) || minScale < 0)) {
-    throw new Error("[@gravity-ui/graph] Effect minScale must be finite and nonnegative.");
-  }
-  if (maxScale !== undefined && (!Number.isFinite(maxScale) || maxScale <= (minScale ?? 0))) {
-    throw new Error("[@gravity-ui/graph] Effect maxScale must be finite and greater than minScale.");
-  }
-}
-
-/** The activity predicate shared by the renderers, in camera scale units. */
-export function isConnectionEffectActive(range: TConnectionEffectScaleRange, scale: number): boolean {
-  return scale >= (range.minScale ?? 0) && scale < (range.maxScale ?? Infinity);
-}
-
-/** Internal: the class behind every effect object. */
+/** Internal implementation of a path effect. */
 export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = readonly number[]>
   implements TConnectionEffect<U, P>
 {
+  public readonly kind = "path";
+
   public readonly fragment: string;
 
   public readonly animated: boolean;
@@ -88,7 +76,7 @@ export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = reado
   }
 
   public use(input: P, scaleRange?: TConnectionEffectScaleRange): TConnectionEffectUse {
-    if (scaleRange) validateConnectionEffectScaleRange(scaleRange);
+    if (scaleRange) validateSceneEffectScaleRange(scaleRange);
     let params = this.definition.encode ? this.definition.encode(input) : (input as unknown as readonly number[]);
     if (params.length > MAX_EFFECT_PARAMS) {
       if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
@@ -111,18 +99,12 @@ export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = reado
   }
 }
 
-export function defineConnectionEffect<U extends TUniformTypes = Record<never, TUniformType>, P = readonly number[]>(
-  definition: TConnectionEffectDefinition<U, P>
-): TConnectionEffect<U, P> {
-  return new ConnectionEffect(definition);
-}
-
 /** Internal: the class instance behind a public effect object, with the object's own types. */
 export function toConnectionEffect<U extends TUniformTypes, P>(
   effect: TConnectionEffect<U, P>
 ): ConnectionEffect<U, P> {
   if (!(effect instanceof ConnectionEffect)) {
-    throw new Error("[@gravity-ui/graph] Not a connection effect: create it with defineConnectionEffect().");
+    throw new Error('[@gravity-ui/graph] Not a path effect: create it with defineSceneEffect({ kind: "path", ... }).');
   }
   return effect as ConnectionEffect<U, P>;
 }

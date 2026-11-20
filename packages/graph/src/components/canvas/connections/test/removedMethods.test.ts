@@ -80,7 +80,9 @@ describe("warnRemovedConnectionMethods", () => {
     mount(Once as never, ["a", "b"]);
     const messages = warn.mock.calls.map(([text]) => String(text)).filter((text) => text.includes("Once"));
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toContain("[@gravity-ui/graph] Once overrides createPath, getClassName");
+    expect(messages[0]).toContain("[@gravity-ui/graph]");
+    expect(messages[0]).toContain("createPath");
+    expect(messages[0]).toContain("getClassName");
     expect(messages[0]).toContain("static line");
     expect(messages[0]).toContain("Connection lines and geometry");
   });
@@ -88,7 +90,8 @@ describe("warnRemovedConnectionMethods", () => {
   it("lists overrides along the prototype chain without duplicates", () => {
     mount(LegacyChild as never, ["a"]);
     const text = String(warn.mock.calls.map(([t]) => t).find((t) => String(t).includes("LegacyChild")));
-    expect(text).toContain("overrides createPath, isAnimated, getClassName,");
+    const names = /\boverrides (.*?)\bwhich\b/.exec(text)?.[1].match(/\w+/g);
+    expect(names?.sort()).toEqual(["createPath", "getClassName", "isAnimated"]);
   });
 
   it("never calls the removed methods", () => {

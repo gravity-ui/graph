@@ -470,7 +470,7 @@ as selection changes, including when the line itself is outside the viewport.
 ### Custom Connection with Special Rendering
 
 A scene tag rule or a `SceneLine` stroke can supply a library effect (`dashFlow` for running dashes and
-comets, `pulse` for a brightness wave) or your own shader from `defineConnectionEffect()`.
+comets, `pulse` for a brightness wave) or your own shader from `defineSceneEffect({ kind: "path", ... })`.
 
 ```typescript
 import { BlockConnection, SceneLine, dashFlow } from "@gravity-ui/graph";

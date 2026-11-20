@@ -2,13 +2,13 @@
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 
-import { defineConnectionEffect } from "../ConnectionEffect";
+import { defineSceneEffect } from "../../../../../lib/scene/effects/defineSceneEffect";
 
 setFlagsFromString("--expose-gc");
 // The flag exposes `gc` only to contexts created afterwards; the vm result is that native function.
 const collectGarbage = runInNewContext("gc") as () => void;
 
-const FRAGMENT = "vec4 effect(ConnectionFragment f, vec4 color) { return color; }";
+const FRAGMENT = "vec4 effect(PathFragment f, vec4 color) { return color; }";
 
 /** Collects the dropped objects and lets the finalization callbacks run. */
 async function collect(): Promise<void> {
@@ -32,7 +32,7 @@ describe("connection effect objects per fragment", () => {
   });
 
   it("counts the objects alive at once: graphs that clone an effect per mount do not warn", async () => {
-    const effect = defineConnectionEffect({ fragment: `${FRAGMENT} // a clone per mount` });
+    const effect = defineSceneEffect({ kind: "path", fragment: `${FRAGMENT} // a clone per mount` });
     // Each mount creates 63 clones plus the shared effect, right at the warning threshold.
     Array.from({ length: 63 }, () => effect.clone());
     await collect();

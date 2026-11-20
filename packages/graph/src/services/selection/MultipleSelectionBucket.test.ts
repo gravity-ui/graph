@@ -100,12 +100,6 @@ describe("MultipleSelectionBucket", () => {
     expect(bucket.$selected.value.size).toBe(0);
   });
 
-  it("does not update selection if onSelectionChange returns false", () => {
-    const bucket2 = new MultipleSelectionBucket<string>("block", () => false);
-    bucket2.updateSelection(["a"], true, ESelectionStrategy.APPEND);
-    expect(bucket2.$selected.value.size).toBe(0);
-  });
-
   it("treats '1' and 1 as different ids", () => {
     // @ts-expect-error: for test purposes
     bucket.updateSelection(["1", 1], true, ESelectionStrategy.APPEND);
@@ -170,9 +164,9 @@ describe("MultipleSelectionBucket", () => {
   });
 
   describe("Callback behavior", () => {
-    it("prevents selection when callback returns false", () => {
+    it.each([ESelectionStrategy.APPEND, ESelectionStrategy.REPLACE])("vetoes selection with %s", (strategy) => {
       const preventBucket = new MultipleSelectionBucket<string>("test", () => false);
-      preventBucket.updateSelection(["a"], true, ESelectionStrategy.REPLACE);
+      preventBucket.updateSelection(["a"], true, strategy);
       expect(preventBucket.$selected.value.size).toBe(0);
     });
 

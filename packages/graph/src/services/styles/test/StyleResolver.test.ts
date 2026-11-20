@@ -1,7 +1,7 @@
 import { effect, signal } from "@preact/signals-core";
 
-import { defineConnectionEffect } from "../../../components/canvas/connections/effects";
-import { SceneStore } from "../../../lib/scene/SceneStore";
+import { defineSceneEffect } from "../../../lib/scene/effects/defineSceneEffect";
+import { SceneStore } from "../../../lib/scene/store/SceneStore";
 import { TagStore } from "../../tags/TagStore";
 import { hoveredTag } from "../../tags/builtinTags";
 import { defineTag } from "../../tags/defineTag";
@@ -102,8 +102,9 @@ describe("StyleResolver", () => {
 
   it("rewrites a live effect row when a rule changes which object's uniforms it uses", () => {
     const { store, sheet, resolver } = setup();
-    const first = defineConnectionEffect({
-      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color * u_intensity; }",
+    const first = defineSceneEffect({
+      kind: "path",
+      fragment: "vec4 effect(PathFragment f, vec4 color) { return color * u_intensity; }",
       uniforms: { intensity: { type: "float", value: 1 } },
     });
     const second = first.clone();

@@ -1,7 +1,7 @@
 // E3: the same scene drawn by a SceneRendererLayer with the lazily loaded WebGL backend. Same store as the
 // interpreter column, but with the default z buckets: groups 50, connections 100, blocks and anchors 200.
 import { Graph } from "GRAPH";
-import type { TSceneBackendStats } from "GRAPH_SRC/lib/scene/webgl/backendTypes";
+import type { TSceneBackendStats } from "GRAPH_SRC/lib/scene/renderer/backendTypes";
 
 import { connectionElement, connectionGeometry } from "./interpreter";
 import { anchorPrimitives, blockBounds, blockPrimitives, groupPrimitives } from "./look";

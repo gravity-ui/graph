@@ -1,4 +1,4 @@
-import { SceneStore } from "../../../lib/scene/SceneStore";
+import { SceneStore } from "../../../lib/scene/store/SceneStore";
 import { DelegatedRanks } from "../DelegatedRanks";
 
 const input = (id: string): Parameters<SceneStore["add"]>[0] => ({

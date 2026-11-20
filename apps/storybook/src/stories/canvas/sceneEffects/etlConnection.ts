@@ -1,4 +1,4 @@
-import { defineConnectionEffect, hoveredTag } from "@gravity-ui/graph";
+import { defineSceneEffect, hoveredTag } from "@gravity-ui/graph";
 import type { TStyleRule } from "@gravity-ui/graph";
 
 import { createEtlConnection } from "../webglConnections/etl";
@@ -13,10 +13,11 @@ export function createEtlScaleConnection(minScale: number): typeof EtlScaleConne
   };
 }
 
-const hoverHighlight = defineConnectionEffect({
+const hoverHighlight = defineSceneEffect({
+  kind: "path",
   animated: true,
   fragment: /* glsl */ `
-    vec4 effect(ConnectionFragment f, vec4 color) {
+    vec4 effect(PathFragment f, vec4 color) {
       float phase = fract(f.along * f.scale / 72.0 - f.time * 1.6);
       float crest = 1.0 - smoothstep(0.0, 0.24, abs(phase - 0.75));
       vec3 base = f.selected > 0.5 ? f.selectionColor.rgb : color.rgb;

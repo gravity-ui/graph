@@ -1,33 +1,21 @@
 import { ESchedulerPriority } from "@gravity-ui/graph";
 import { act, renderHook } from "@testing-library/react";
 
-import { useSchedulerDebounce, useSchedulerThrottle } from "./schedulerHooks";
+import { useScheduledTask, useSchedulerDebounce, useSchedulerThrottle } from "./schedulerHooks";
+
+beforeEach(() => {
+  jest.useFakeTimers();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+});
+
+function advanceFrames(count: number) {
+  jest.advanceTimersByTime(count * 16);
+}
 
 describe("useSchedulerDebounce hook", () => {
-  beforeEach(() => {
-    // Use modern fake timers - automatically mocks performance.now() and synchronizes it
-    jest.useFakeTimers();
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  /**
-   * Advance animation frames. By default, each frame is 16ms (~60fps).
-   * Jest fake timers automatically sync performance.now() with timer advancement.
-   * Scheduler resolves requestAnimationFrame at call time, so Jest advances
-   * the real scheduling loop once per simulated frame.
-   * @param count - Number of frames to advance
-   * @param timePerFrame - Time per frame in milliseconds (default: 16ms)
-   */
-  const advanceFrames = (count: number, timePerFrame = 16) => {
-    for (let i = 0; i < count; i++) {
-      // Advance Jest timers - this also advances performance.now() automatically
-      jest.advanceTimersByTime(timePerFrame);
-    }
-  };
-
   describe("Basic debounce behavior", () => {
     it("should delay function execution", () => {
       const mockFn = jest.fn();
@@ -507,30 +495,6 @@ describe("useSchedulerDebounce hook", () => {
 });
 
 describe("useSchedulerThrottle hook", () => {
-  beforeEach(() => {
-    // Use modern fake timers - automatically mocks performance.now() and synchronizes it
-    jest.useFakeTimers();
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  /**
-   * Advance animation frames. By default, each frame is 16ms (~60fps).
-   * Jest fake timers automatically sync performance.now() with timer advancement.
-   * Scheduler resolves requestAnimationFrame at call time, so Jest advances
-   * the real scheduling loop once per simulated frame.
-   * @param count - Number of frames to advance
-   * @param timePerFrame - Time per frame in milliseconds (default: 16ms)
-   */
-  const advanceFrames = (count: number, timePerFrame = 16) => {
-    for (let i = 0; i < count; i++) {
-      // Advance Jest timers - this also advances performance.now() automatically
-      jest.advanceTimersByTime(timePerFrame);
-    }
-  };
-
   describe("Basic throttle behavior", () => {
     it("should execute function immediately on first call", () => {
       const mockFn = jest.fn();
@@ -756,22 +720,6 @@ describe("useSchedulerThrottle hook", () => {
   });
 
   describe("Unmount behavior", () => {
-    it("should handle unmount correctly", () => {
-      const mockFn = jest.fn();
-      const { result, unmount } = renderHook(() => useSchedulerThrottle(mockFn, { frameInterval: 2, frameTimeout: 0 }));
-
-      act(() => {
-        result.current("first");
-      });
-
-      expect(mockFn).toHaveBeenCalledTimes(1);
-
-      unmount();
-
-      // No error should occur
-      expect(true).toBe(true);
-    });
-
     it("should handle multiple mount/unmount cycles", () => {
       const mockFn = jest.fn();
 
@@ -901,4 +849,22 @@ describe("useSchedulerThrottle hook", () => {
       expect(mockFn).toHaveBeenCalledTimes(2);
     });
   });
+});
+
+it("runs the latest scheduled callback and stops it on unmount", () => {
+  const first = jest.fn();
+  const latest = jest.fn();
+  const { rerender, unmount } = renderHook(
+    ({ callback }) => useScheduledTask(callback, { frameInterval: 1, priority: ESchedulerPriority.MEDIUM }),
+    { initialProps: { callback: first } }
+  );
+  act(() => advanceFrames(1));
+  expect(first).toHaveBeenCalledTimes(1);
+  rerender({ callback: latest });
+  act(() => advanceFrames(1));
+  expect(first).toHaveBeenCalledTimes(1);
+  expect(latest).toHaveBeenCalledTimes(1);
+  unmount();
+  act(() => advanceFrames(2));
+  expect(latest).toHaveBeenCalledTimes(1);
 });

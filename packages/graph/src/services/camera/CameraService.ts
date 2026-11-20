@@ -1,7 +1,7 @@
 import intersects from "intersects";
 
 import { Graph } from "../../graph";
-import { warnIfInLevelMethod } from "../../lib/scene/purity";
+import { warnIfInLevelMethod } from "../../lib/scene/diagnostics/purity";
 import { Emitter } from "../../utils/Emitter";
 import { clamp } from "../../utils/functions/clamp";
 import type { Interface } from "../../utils/types/classes";
