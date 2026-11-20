@@ -1,41 +1,38 @@
 # @gravity-ui/graph
 
-> @gravity-ui/graph is a graph visualization library that combines the best of both worlds: Canvas for high performance when viewing the full graph and HTML/React for rich interactions when zoomed in.
+> Gravity UI Graph is an editor for node-based diagrams. Its shared scene draws blocks, anchors and built-in connections using Canvas 2D (default) or WebGL2 (`settings.renderer: "webgl"`). At detailed zoom, React applications can mount HTML views for visible blocks.
 
-Key features:
-- High-performance Canvas rendering for displaying the full graph
-- Automatic switching to HTML/React mode when zooming in for interactive elements
-- Smart system that tracks visible blocks and renders only them in React
-- Extensible architecture through layers (custom rendering layers that act as plugins)
-- Full TypeScript support
-- Organized rendering system with layer-based architecture
+For the installed core version, start at `node_modules/@gravity-ui/graph/build/docs/INDEX.md`. The links below are relative to this repository checkout.
 
 ## Quick Start & Common Scenarios
 
-- [Getting Started with React](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/react/usage.md): Creating your first graph component with React
-- [Layer Development](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/component-lifecycle.md): Creating custom layers (the library's extension mechanism)
-- [Built-in Layers](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/graph-settings.md#layers): Overview of available layers like Minimap
-- [ELK Auto-layout](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph-elk/README.md): Laying out a graph with ELK through `@gravity-ui/graph-elk`
-- [Custom Layer Examples](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/component-rendering-lifecycle.md): Examples of custom layer implementation
-- [Event System & Interactions](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/events.md): Working with events and user interactions
-- [Graph Configuration](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/graph-settings.md): Configuring graph behavior and appearance
+- [Getting Started with React](packages/graph/docs/react/usage.md): Creating your first graph component with React
+- [Layer Development](packages/graph/docs/system/component-lifecycle.md): Creating custom layers (the library's extension mechanism)
+- [Layers](packages/graph/docs/rendering/layers.md): Layer order and lifecycle
+- [Optional minimap](packages/graph-minimap/README.md): Add the Canvas 2D minimap with `@gravity-ui/graph-minimap`
+- [ELK Auto-layout](packages/graph-elk/README.md): Laying out a graph with ELK through `@gravity-ui/graph-elk`
+- [Custom Layer Examples](packages/graph/docs/system/component-rendering-lifecycle.md): Examples of custom layer implementation
+- [Event System & Interactions](packages/graph/docs/system/events.md): Working with events and user interactions
+- [Graph Configuration](packages/graph/docs/system/graph-settings.md): Configuring graph behavior and appearance
 
 ## Core Documentation
 
-- [Public API](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/public_api.md): Main API for interacting with the graph
-- [Graph Settings](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/graph-settings.md): Graph settings and configuration
-- [Component Lifecycle](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/component-lifecycle.md): Component and layer lifecycle management
-- [Component Rendering](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/component-rendering-lifecycle.md): Component rendering process
-- [Event System](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/events.md): Event system and interactions
-- [Scheduler System](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/scheduler-system.md): Scheduling and optimization system
+- [Scene](packages/graph/docs/system/scene.md): Add, move and remove custom elements, handle clicks, switch renderers and export
+- [Connections](packages/graph/docs/connections/webgl-connections.md): Straight lines, Béziers, polylines, ports, hit testing and shader effects
+- [Tags and styles](packages/graph/docs/system/tags-and-styles.md): Style named parts and interaction states
+- [Public API](packages/graph/docs/system/public_api.md): Main API for interacting with the graph
+- [Graph Settings](packages/graph/docs/system/graph-settings.md): Graph settings and configuration
+- [Component Lifecycle](packages/graph/docs/system/component-lifecycle.md): Component and layer lifecycle management
+- [Component Rendering](packages/graph/docs/system/component-rendering-lifecycle.md): Component rendering process
+- [Event System](packages/graph/docs/system/events.md): Event system and interactions
+- [Scheduler System](packages/graph/docs/system/scheduler-system.md): Scheduling and optimization system
 
 ## React Integration
 
-- [React Usage Guide](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/react/usage.md): Guide for using with React
+- [React Usage Guide](packages/graph/docs/react/usage.md): Guide for using with React
 
-## Optional
+## Further Reading
 
-- [Blocks Documentation](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/blocks/): Documentation about graph blocks
-- [Connections Documentation](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/connections/): Documentation about connections
-- [Components Documentation](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/components/): Documentation about components
-- [Rendering Documentation](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/rendering/): Detailed documentation about the rendering system
+- [Block components](packages/graph/docs/components/block-component.md): Scene primitives, child components and HTML handover
+- [Anchors](packages/graph/docs/components/anchors.md): Ports and anchor views
+- [Migration from v1](packages/graph/docs/migration-guides/v1-to-v2.md): Move an application to the v2 packages and scene API

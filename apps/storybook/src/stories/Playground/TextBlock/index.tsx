@@ -1,6 +1,6 @@
 import React from "react";
 
-import { CanvasBlock, TBlockId, layoutText } from "@gravity-ui/graph";
+import { CanvasBlock, TScenePrimitive } from "@gravity-ui/graph";
 
 import { TGravityTextBlock } from "../generateLayout";
 
@@ -8,90 +8,72 @@ import { TextBlockHtml } from "./TextBlockHtml";
 
 import "./TextBlock.css";
 
+const TEXT_COLOR = "rgba(189, 142, 75, 1)";
+
 export class TextBlock extends CanvasBlock<TGravityTextBlock> {
   public cursor = "pointer";
 
-  protected hovered = false;
-
-  protected subscribe(id: TBlockId) {
-    const subs = super.subscribe(id);
-    this.addEventListener("mouseenter", () => {
-      this.hovered = true;
-      this.performRender();
-    });
-    this.addEventListener("mouseleave", () => {
-      this.hovered = false;
-      this.performRender();
-    });
-    return subs;
-  }
-
-  protected renderName(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = "rgba(189, 142, 75, 1)";
-    ctx.textAlign = "center";
-    this.renderText(this.state.meta?.text ?? "", ctx);
-  }
+  private frameCache?: { width: number; height: number; primitives: readonly TScenePrimitive[] };
 
   public renderHTML() {
     return <TextBlockHtml graph={this.context.graph} block={this.connectedState.$state.value} />;
   }
 
-  protected renderTextAtCenter(name: string, ctx: CanvasRenderingContext2D) {
-    const rect = this.getContentRect();
-    const scale = this.context.camera.getCameraScale();
-    ctx.fillStyle = "rgba(189, 142, 75, 1)";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    const { lines, measures } = layoutText(name, ctx, rect, {
-      font: `500 ${13 / scale}px YS Text`,
-      lineHeight: 9 / scale,
-    });
-    const shiftY = rect.height / 2 - measures.height / 2;
-    for (let index = 0; index < lines.length; index++) {
-      const [line, x, y] = lines[index];
-      const rY = (y + shiftY) | 0;
-      ctx.fillText(line, x, rY);
-    }
+  /** The body and dashed border are shared by all levels. */
+  private frame(): readonly TScenePrimitive[] {
+    const { width, height } = this.state;
+    if (this.frameCache?.width === width && this.frameCache.height === height) return this.frameCache.primitives;
+    this.frameCache = {
+      width,
+      height,
+      primitives: [
+        { kind: "rect", part: "body", x: 0, y: 0, width, height, radius: 8, fill: "rgba(189, 142, 75, 0.1)" },
+        {
+          kind: "rect",
+          part: "border",
+          x: 0,
+          y: 0,
+          width,
+          height,
+          radius: 8,
+          border: { color: TEXT_COLOR, width: 2, dash: [4, 4] },
+        },
+      ],
+    };
+    return this.frameCache.primitives;
   }
 
-  public renderBody(ctx: CanvasRenderingContext2D) {
-    const scale = this.context.camera.getCameraScale();
-
-    ctx.save();
-
-    ctx.lineWidth = Math.min(Math.round(2 / scale), 12);
-    ctx.fillStyle = "rgba(189, 142, 75, 0.1)";
-
-    ctx.beginPath();
-    ctx.roundRect(this.state.x, this.state.y, this.state.width, this.state.height, 8);
-    ctx.fill();
-
-    if (this.state.selected) {
-      ctx.lineWidth = Math.min(Math.round(2 / scale), 12);
-    } else {
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 4]);
-    }
-
-    ctx.strokeStyle = "rgba(189, 142, 75, 1)";
-    ctx.stroke();
-    ctx.closePath();
-
-    ctx.restore();
+  protected override minimalistic(): readonly TScenePrimitive[] {
+    return this.frame();
   }
 
-  public renderMinimalisticBlock(ctx: CanvasRenderingContext2D): void {
-    this.renderBody(ctx);
+  protected override schematic(): readonly TScenePrimitive[] {
+    const { width, height, meta } = this.state;
+    const look = this.blockLook;
+    return [
+      ...this.frame(),
+      // v1 drew the text with the block font (`bold ${BASE_FONT_SIZE x scaleFontSize}px sans-serif`, world units),
+      // centred and from the top of the content rect, a line pitch of the font size.
+      {
+        kind: "text",
+        part: "title",
+        text: meta?.text ?? "",
+        family: "sans-serif",
+        weight: "bold",
+        size: look.fontSize,
+        lineHeight: look.fontSize,
+        color: TEXT_COLOR,
+        x: look.padding,
+        y: look.padding,
+        width: width - 2 * look.padding,
+        height: height - 2 * look.padding,
+        align: "center",
+        minScale: look.textMinScale,
+      },
+    ];
   }
 
-  public renderSchematicView(ctx: CanvasRenderingContext2D) {
-    this.renderBody(ctx);
-
-    const scale = this.context.camera.getCameraScale();
-    const shouldRenderText = scale > this.context.constants.block.SCALES[0];
-
-    if (shouldRenderText) {
-      this.renderName(ctx);
-    }
+  protected override detailed(): readonly TScenePrimitive[] {
+    return this.frame();
   }
 }

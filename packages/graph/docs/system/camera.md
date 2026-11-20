@@ -46,13 +46,16 @@ export type TCameraState = {
 
 - `set(newState)` – update camera state (emits `camera-change`, then commits to `$camera` if not prevented).
 - `resize({ width, height })` – update canvas size preserving center.
-- `move(dx, dy)` – pan.
+- `move(dx, dy)` – pan by a delta in CSS pixels. Fractional deltas accumulate on both axes.
 - `zoom(x, y, scale)` – zoom anchored to a screen-space point `(x, y)`.
 - `getCameraRect()` – screen-space camera rect.
 - `getCameraScale()` – scale value.
 - `getCameraBlockScaleLevel(scale?)` – qualitative zoom tiers for switching rendering modes. The mapping is configurable via settings `getCameraBlockScaleLevel(graph, scale)` (default: `defaultGetCameraBlockScaleLevel` using `graphConstants.block.SCALES`).
 
 ### Custom block scale level resolver
+
+> Consumers that need the current zoom tier should read `graph.scene.$level` (see [Scene](./scene.md)): it is the
+> single level source, derived from `getCameraBlockScaleLevel`, the camera scale and the graph constants.
 
 `getCameraBlockScaleLevel(graph, scale)` is useful when zoom tiers should depend on product logic, not only on zoom thresholds.
 
@@ -258,7 +261,7 @@ Event listeners run in registration order **before** commit. If an early handler
 
 ```typescript
 protected onCameraChange(camera: TCameraState): void {
-  // Runs after built-in HTML/canvas transforms on each committed camera update
+  // Runs synchronously on each commit. The graph presents the latest pose on its next draw.
   this.updateRuler(camera);
 }
 ```

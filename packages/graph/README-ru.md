@@ -1,65 +1,32 @@
-# @gravity-ui/graph &middot; [![npm package](https://img.shields.io/npm/v/@gravity-ui/graph)](https://www.npmjs.com/package/@gravity-ui/graph) [![Release](https://img.shields.io/github/actions/workflow/status/gravity-ui/graph/release.yml?branch=main&label=Release)](https://github.com/gravity-ui/graph/actions/workflows/release.yml?query=branch:main) [![storybook](https://img.shields.io/badge/Storybook-deployed-ff4685)](https://preview.gravity-ui.com/graph/)
+# @gravity-ui/graph &middot; [![npm package](https://img.shields.io/npm/v/@gravity-ui/graph)](https://www.npmjs.com/package/@gravity-ui/graph) [![Release](https://img.shields.io/github/actions/workflow/status/gravity-ui/graph/release.yml?branch=main&label=Release)](https://github.com/gravity-ui/graph/actions/workflows/release.yml?query=branch:main) [![storybook](https://img.shields.io/badge/Storybook-deployed-ff4685)](https://preview.gravity-ui.com/graph/v2/)
 
-> [Migration Guide from 0.x to 1.x →](docs/migration-guides/v0-to-v1.md)
+> [Переход с 1.x на 2.x](docs/migration-guides/v1-to-v2.md) · [Переход с 0.x на 1.x](docs/migration-guides/v0-to-v1.md)
 
-Библиотека для визуализации графов, объединяющая преимущества двух подходов:
-- Canvas для быстрой отрисовки всего графа
-- HTML/React для удобного взаимодействия при приближении
+Редактор блок-схем, пайплайнов и других графов. Блоки, якоря и штатные связи рисуются в общей сцене.
+По умолчанию сцена использует Canvas 2D. Чтобы рисовать её в одном контексте WebGL2, задай `settings: { renderer: "webgl" }`.
 
-Больше не нужно выбирать между производительностью и интерактивностью. Идеально подходит для больших графов, блок-схем и редакторов на основе узлов.
-
-![preview graph.](docs/_static/graph_preview.png)
-
-## Мотивация
-
-Современные веб-приложения часто требуют сложной визуализации и интерактивности, но существующие решения обычно используют только одну технологию отрисовки:
-
-- **Canvas** обеспечивает высокую производительность для сложной графики, но ограничен в работе с текстом и взаимодействием с пользователем.
-- **HTML DOM** удобен для интерфейсов, но теряет производительность при сложной графике или большом количестве элементов.
-
-@gravity-ui/graph решает эту проблему, автоматически переключаясь между Canvas и HTML в зависимости от масштаба:
-- **При отдалении**: Использует Canvas для быстрой отрисовки всего графа
-- **Среднее приближение**: Показывает упрощенное представление с базовым взаимодействием
-- **При приближении**: Переключается на HTML/React компоненты для полноценного взаимодействия
+![Пример графа](docs/_static/graph_preview.png)
 
 ## Как это работает
 
-Библиотека использует умную систему отрисовки, которая автоматически управляет переключением между Canvas и React компонентами:
+При изменении масштаба сцена переключается между минималистичным, схематичным и детальным представлениями.
+На детальном уровне `GraphCanvas` с функцией `renderBlock` создаёт React-компоненты для видимых блоков.
+`GraphBlock` передаёт отрисовку в HTML после монтирования компонента. Связи, их стрелки и подписи остаются
+в сцене. Подробнее в [руководстве по сцене](docs/system/scene.md) и [описании перехода в HTML](docs/react/usage.md#the-handover-to-html).
 
-1. На низких уровнях масштаба всё отрисовывается на Canvas для производительности
-2. При приближении к детальному виду, компонент `BlocksList`:
-   - Следит за изменениями области просмотра и масштаба
-   - Определяет видимые блоки в текущей области (с запасом для плавного скролла)
-   - Создает React компоненты только для видимых блоков
-   - Обновляет список при скролле или изменении масштаба
-   - Удаляет React компоненты при отдалении
-
-```typescript
-// Пример использования React компонентов
-const MyGraph = () => {
-  return (
-    <GraphCanvas
-      graph={graph}
-      renderBlock={(graph, block) => (
-        <MyCustomBlockComponent
-          graph={graph}
-          block={block}
-        />
-      )}
-    />
-  );
-};
-```
-
-[Storybook](https://preview.gravity-ui.com/graph/)
+[Storybook](https://preview.gravity-ui.com/graph/v2/)
 
 ## Установка
 
+Чтобы установить версию с API сцены из этой ветки, собери и упакуй ядро из корня репозитория.
+
 ```bash
-npm install @gravity-ui/graph
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm --dir packages/graph pack
 ```
 
-Для React-интеграции в v2 также нужен соответствующий пакет `@gravity-ui/graph-react`, React 18 и React DOM 18.
+Установи полученный `.tgz` в приложении командой `npm install <путь-к-архиву>`. Для React также упакуй `packages/graph-react` из той же рабочей копии и установи оба архива вместе. Потребуются React 18 и React DOM 18. [Каналы выпуска v2](docs/v1-v2-transition.md#before-cutover).
 
 
 ## Примеры
@@ -68,11 +35,11 @@ npm install @gravity-ui/graph
 
 [Подробная документация по React компонентам](docs/react/usage.md)
 
-```typescript
+```tsx
 import React, { useEffect } from "react";
 import type { Graph, TBlock } from "@gravity-ui/graph";
-import { EAnchorType, GraphState } from "@gravity-ui/graph";
-import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph-react";
+import { EAnchorType } from "@gravity-ui/graph";
+import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
 
@@ -91,7 +58,6 @@ export function GraphEditor() {
           y: -450,
           width: 126,
           height: 126,
-          selected: true,
           name: "Block #1",
           anchors: [
             {
@@ -109,7 +75,6 @@ export function GraphEditor() {
           y: 176,
           width: 126,
           height: 126,
-          selected: false,
           name: "Block #2",
           anchors: [
             {
@@ -130,28 +95,22 @@ export function GraphEditor() {
         },
       ],
     });
-  }, [setEntities]);
+    start();
+    graph.runAfterGraphReady(() => graph.zoomTo("center", { padding: 300 }));
+  }, [graph, setEntities, start]);
 
   const renderBlockFn = (graph: Graph, block: TBlock) => {
     return (
       <GraphBlock graph={graph} block={block}>
-        {block.id}
+        {block.name}
+        {block.anchors?.map((anchor) => (
+          <GraphBlockAnchor key={anchor.id} graph={graph} anchor={anchor} position="absolute" />
+        ))}
       </GraphBlock>
     );
   };
 
-  return (
-    <GraphCanvas
-      graph={graph}
-      renderBlock={renderBlockFn}
-      onStateChanged={({ state }) => {
-        if (state === GraphState.ATTACHED) {
-          start();
-          graph.zoomTo("center", { padding: 300 });
-        }
-      }}
-    />
-  );
+  return <GraphCanvas graph={graph} renderBlock={renderBlockFn} />;
 }
 ```
 
@@ -215,7 +174,7 @@ graph.setEntities({
 graph.start();
 
 // Центрируем вид
-graph.zoomTo("center", { padding: 100 });
+graph.runAfterGraphReady(() => graph.zoomTo("center", { padding: 100 }));
 ```
 
 ## Демо
@@ -232,6 +191,8 @@ graph.zoomTo("center", { padding: 100 });
 
 | Раздел | Описание | Документация |
 |--------|-----------|--------------|
+| Сцена | Выбор рендерера, уровни детализации и порядок отрисовки | [Подробнее](docs/system/scene.md) |
+| Теги и стили | Оформление состояний и отдельных частей блоков и связей | [Подробнее](docs/system/tags-and-styles.md) |
 | Жизненный цикл компонентов | Инициализация, обновление, отрисовка и удаление компонентов | [Подробнее](docs/system/component-lifecycle.md) |
 | Механизм отрисовки | Процесс отрисовки и оптимизации | [Подробнее](docs/rendering/rendering-mechanism.md) |
 | Система событий | Обработка и распространение событий | [Подробнее](docs/system/events.md) |
@@ -243,6 +204,7 @@ graph.zoomTo("center", { padding: 100 });
 | Canvas Graph | Основа для визуальных элементов с системой обнаружения | [Подробнее](docs/components/canvas-graph-component.md) |
 | Block Component | Базовые блоки для узлов графа | [Подробнее](docs/components/block-component.md) |
 | Connections | Создание и стилизация связей | [Подробнее](docs/connections/canvas-connection-system.md) |
+| Линии связей и WebGL | Линии, геометрия, рендерер WebGL и эффекты | [Подробнее](docs/connections/webgl-connections.md) |
 
 ### Дополнительные возможности
 

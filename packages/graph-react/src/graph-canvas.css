@@ -13,3 +13,8 @@
   width: 100%;
   height: 100%;
 }
+
+/* Once the scene takes over, skip layout and paint of the HTML cards awaiting React cleanup. */
+.graph-react-layer.layer-hidden {
+  content-visibility: hidden;
+}

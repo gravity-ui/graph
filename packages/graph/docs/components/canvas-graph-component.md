@@ -22,11 +22,12 @@ classDiagram
         +context: TComponentContext
         +addEventListener()
         +removeEventListener()
-        #eventedArea()
     }
     
     class GraphComponent {
         +hitBox: HitBox
+        +static transparentToEvents
+        +isTransparentToEvents()
         +setHitBox()
         +getHitBox()
         +isVisible()
@@ -101,13 +102,13 @@ protected isRenderAllowed(): boolean {
 - Clean offscreen components are skipped entirely. A visible child is still reached through its offscreen parent.
 - A camera move rechecks only components near the viewport edges; visibility is kept between frames.
 - Unknown bounds stay eligible. Set bounds during initialization or data updates, before rendering.
-- Connection batches skip whole chunks outside the viewport, and world-coordinate hit queries remain independent of the viewport.
+- The scene culls built-in connections. The Canvas compatibility batch skips chunks outside the viewport. World-coordinate hit queries work outside the viewport.
 
 Override `isRenderAllowed()` for additional semantic conditions, such as hidden elements or missing
 connection endpoints; `isVisible()` combines it with `isInViewport()` for queries. For connections it also
-decides whether the batch draws the line and arrow. Use `firstIterate`
+controls the visibility of the shaft and arrow in the scene or the Canvas compatibility batch. Use `firstIterate`
 for initialization; `firstRender` stays true until the component is actually painted.
-With `viewportCulling` off, every component is walked (detached components are never walked) and a graph component checks its hit box against the camera itself.
+With `viewportCulling` off, every component is walked (retained components are never walked) and a graph component checks its hit box against the camera itself.
 
 `isVisible()` reads the current viewport and bounds between frames and in update hooks that run before
 painting. A custom `willIterate()` can therefore refresh deferred external state on the first frame that
@@ -152,18 +153,21 @@ GraphComponent adds the ability to listen to mouse events on the element, includ
 ```typescript
 // Listen for basic mouse events
 this.addEventListener('click', (event) => {
-  console.log('Component clicked at:', event.point);
+  // A click is the browser's MouseEvent: take its world point from the graph.
+  const { world } = this.context.graph.getPointInCameraSpace(event);
+  console.log('Component clicked at:', world.x, world.y);
   this.setState({ selected: true });
 });
 
-this.addEventListener('mouseenter', () => {
+// Hover events of the children walk up here too: react only to this component's own.
+this.addEventListener('mouseenter', (event) => {
+  if (getEventTarget(event) !== this) return;
   this.setState({ hovered: true });
-  this.performRender();
 });
 
-this.addEventListener('mouseleave', () => {
+this.addEventListener('mouseleave', (event) => {
+  if (getEventTarget(event) !== this) return;
   this.setState({ hovered: false });
-  this.performRender();
 });
 
 // Use the specialized drag handling system
@@ -188,8 +192,14 @@ this.onDrag({
 });
 ```
 
+`onDrag()` listens to the component's own `mousedown`, so it starts only for a press that neither a drag nor the
+camera's pan takes. Under a draggable block, the block's drag takes a child's press. A child of a draggable block uses
+`isDraggable()` and the `handleDrag*` methods below, or a graph `mousedown` listener with
+`graph.dragService.startDrag` (see
+[Presses and drags](../system/event-model.md#presses-and-drags)).
+
 **What makes this powerful:**
-- Events operate in world coordinates rather than screen coordinates
+- Hit testing works in world coordinates; `graph.getPointInCameraSpace(event)` gives an event's world point
 - Event bubbling works through the component hierarchy
 - Proper mouse hit testing via the HitBox system
 - Camera transforms are handled automatically
@@ -201,6 +211,28 @@ this.onDrag({
 - `mousedown`, `mouseup` - Mouse button press and release
 - `mouseenter`, `mouseleave` - Mouse pointer entering or leaving the component
 - Specialized `onDrag` system with precise coordinate handling
+
+**Whose event it is.** GraphLayer dispatches an event at the component under the pointer, and the event walks up the
+parent chain until a listener calls `stopPropagation()`. So a component's listeners also hear its children's events,
+`mouseenter` and `mouseleave` included. `getEventTarget(event)` returns the component that was hit, and hover events
+carry `detail.target` and `detail.relatedTarget` (see [Event model](../system/event-model.md)).
+
+#### Transparent components
+
+`static transparentToEvents = true` lets pointer events pass through a component that has a hit box. The pointer's
+target, its hover events, the cursor and `graph.getElementOverPoint()` skip it for the component under it, and
+`GraphLayer.captureEvents()` does not capture it. Its hit box stays: it counts in the usable rect, and
+`getElementsOverPoint()` and `getElementsOverRect()` return it. Override `isTransparentToEvents()` to decide per
+instance. A component that must stay out of every hit query keeps `onHitBox() { return false; }`.
+
+```typescript
+import { GraphComponent } from "@gravity-ui/graph";
+
+/** Reserves usable-rect space under a layer's HTML panel; never the pointer's target. */
+class Reserver extends GraphComponent {
+  public static override transparentToEvents = true;
+}
+```
 
 **The `onDrag` callback structure:**
 
@@ -239,9 +271,15 @@ For components that need to participate in the centralized drag system (multi-se
 **DragService lifecycle methods:**
 
 ```typescript
-import { GraphComponent, DragContext, DragDiff } from "@gravity-ui/graph";
+import { GraphComponent } from "@gravity-ui/graph";
 
-class MyDraggableComponent extends GraphComponent {
+// DragContext and DragDiff are not exported by the package: take them from the method signatures.
+type TDragContext = Parameters<GraphComponent["handleDragStart"]>[0];
+type TDragDiff = Parameters<GraphComponent["handleDrag"]>[0];
+
+type TDraggableState = { x: number; y: number; width: number; height: number };
+
+class MyDraggableComponent extends GraphComponent<{ locked?: boolean }, TDraggableState> {
   private initialPosition: { x: number; y: number } | null = null;
 
   /**
@@ -256,7 +294,7 @@ class MyDraggableComponent extends GraphComponent {
    * Called when drag operation starts.
    * Use this to store initial state needed for drag calculations.
    */
-  public override handleDragStart(context: DragContext): void {
+  public override handleDragStart(context: TDragContext): void {
     this.initialPosition = {
       x: this.state.x,
       y: this.state.y,
@@ -267,7 +305,7 @@ class MyDraggableComponent extends GraphComponent {
    * Called on each frame during drag.
    * Update component position based on diff values.
    */
-  public override handleDrag(diff: DragDiff, context: DragContext): void {
+  public override handleDrag(diff: TDragDiff, context: TDragContext): void {
     if (!this.initialPosition) return;
 
     // Option 1: Use absolute diff (stable positioning)
@@ -279,16 +317,20 @@ class MyDraggableComponent extends GraphComponent {
     // const newY = this.state.y + diff.deltaY;
 
     this.setState({ x: newX, y: newY });
-    this.updateHitBox();
+    // setState() is applied in the next update: pass the new geometry to the hit box.
+    this.updateHitBox(newX, newY);
   }
 
   /**
    * Called when drag operation ends.
    * Use this to finalize state and clean up.
    */
-  public override handleDragEnd(context: DragContext): void {
+  public override handleDragEnd(context: TDragContext): void {
     this.initialPosition = null;
-    this.updateHitBox();
+  }
+
+  private updateHitBox(x: number, y: number): void {
+    this.setHitBox(x, y, x + this.state.width, y + this.state.height);
   }
 }
 ```
@@ -327,25 +369,9 @@ For more details on the drag system, see [Drag System](../system/drag-system.md)
 
 ### 5. Evented Areas
 
-Declare **interactive sub-regions** on a component from `render()`:
-
-```typescript
-protected eventedArea(fn: (state: TEventedAreaState) => TRect, params: TEventedAreaParams): TRect
-```
-
-`fn` draws the region and returns its world-space `TRect`; `state` includes `hovered`. `params` must set a unique `key` per area, optional `onHitBox` for custom hit-testing, and handlers such as `click` / `mouseenter`. Areas are re-registered each frame; hover is tracked per `key`.
-
-```typescript
-this.eventedArea(
-  ({ hovered }) => {
-    const ctx = this.context.ctx;
-    ctx.fillStyle = hovered ? "rgba(0, 120, 255, 0.4)" : "rgba(0, 120, 255, 0.2)";
-    ctx.fillRect(this.state.x, this.state.y, 40, 40);
-    return { x: this.state.x, y: this.state.y, width: 40, height: 40 };
-  },
-  { key: "btn", click: () => this.onBtn() },
-);
-```
+Evented areas were removed in v2. A clickable region of a block is a child component (see
+[Block component](block-component.md#child-components)); a hit region without a look declares `getHitRect()` and
+`static hitLevels`.
 
 ### 4. Reactive Data with Signal Subscriptions
 
@@ -432,12 +458,12 @@ When creating your own components based on GraphComponent, following these patte
 import { Component } from "@/lib/Component";
 import { HitBox } from "@/services/HitTest";
 
-interface MyRectangleComponentState {
+type MyRectangleComponentState = {
   x: number;
   y: number;
   width: number;
   height: number;
-}
+};
 
 class MyRectangleComponent extends GraphComponent<any, MyRectangleComponentState> {
   constructor(props: any, parent: Component) {
@@ -451,34 +477,32 @@ class MyRectangleComponent extends GraphComponent<any, MyRectangleComponentState
     };
 
     // Always initialize the hitbox in constructor
-    this.updateHitBoxFromState();
+    this.updateHitBoxFromState(this.state);
   }
   
-  // Centralize hitbox updates in one method
-  private updateHitBoxFromState() {
+  // Centralize hitbox updates in one method. It takes the geometry as an argument: stateChanged() runs BEFORE
+  // the new state is assigned to this.state, so reading this.state there gives the previous geometry.
+  private updateHitBoxFromState(geometry: MyRectangleComponentState) {
     // For rectangular components, use the bounds
     this.setHitBox(
-      this.state.x,
-      this.state.y,
-      this.state.x + this.state.width,
-      this.state.y + this.state.height
+      geometry.x,
+      geometry.y,
+      geometry.x + geometry.width,
+      geometry.y + geometry.height
     );
   }
   
   // Update hitbox whenever geometry changes
   protected stateChanged(nextState: MyRectangleComponentState) {
+    super.stateChanged(nextState);
     if (
       nextState.x !== this.state.x ||
       nextState.y !== this.state.y ||
       nextState.width !== this.state.width ||
       nextState.height !== this.state.height
     ) {
-      // We must update this immediately, not wait for render
-      // Otherwise mouse interaction would be incorrect
-      super.stateChanged(nextState);
-      this.updateHitBoxFromState();
-    } else {
-      super.stateChanged(nextState);
+      // Pass the pending geometry (nextState): this.state still holds the old one.
+      this.updateHitBoxFromState(nextState);
     }
   }
 }
@@ -565,12 +589,11 @@ class DataAwareComponent extends GraphComponent {
   constructor(props, parent) {
     super(props, parent);
     
-    // Subscribe to graph updates
-    this.subscribeSignal(this.context.graph.updateSignal, (updateData) => {
-      this.setState({
-        graphData: updateData
-      });
-      this.performRender(); // Request a render with the new graph data
+    // Subscribe to the data this component renders: here the graph colors. The entity data lives in
+    // the stores (for example graph.rootStore.blocksList.$blocks).
+    this.subscribeSignal(this.context.graph.$graphColors, (colors) => {
+      this.setState({ background: colors.block.background });
+      // setState() queues the render
     });
   }
   
@@ -606,22 +629,22 @@ This example shows a circular badge that reacts to selection and displays a coun
 import { Component } from "@/lib/Component";
 import { HitBox, HitBoxData } from "@/services/HitTest";
 
-interface BadgeComponentProps {
+type BadgeComponentProps = {
   x: number;
   y: number;
   radius?: number;
   count?: number;
   id: string;
   locked: boolean;
-}
+};
 
-interface BadgeComponentState {
+type BadgeComponentState = {
   x: number;
   y: number;
   radius: number;
   count: number;
   selected: boolean;
-}
+};
 
 class BadgeComponent extends GraphComponent<BadgeComponentProps, BadgeComponentState> {
   constructor(props: BadgeComponentProps, parent: Component) {
@@ -638,9 +661,10 @@ class BadgeComponent extends GraphComponent<BadgeComponentProps, BadgeComponentS
     // Set up the circular hitbox
     this.updateHitBox();
     
-    // Subscribe to selection changes
-    this.subscribeSignal(this.context.selectionService.signal, (selection) => {
-      const isSelected = selection.has(this.props.id);
+    // Subscribe to selection changes: $selection maps an entity type to the selected ids. The badge is a custom
+    // entity, so it needs its own selection bucket registered under its type ("badge") for it to appear there.
+    this.subscribeSignal(this.context.graph.selectionService.$selection, (selection) => {
+      const isSelected = selection.get("badge")?.has(this.props.id) ?? false;
       if (isSelected !== this.state.selected) {
         this.setState({ selected: isSelected });
       }
@@ -676,8 +700,8 @@ class BadgeComponent extends GraphComponent<BadgeComponentProps, BadgeComponentS
     if (!super.onHitBox(data)) return false;
     
     // Check if the point is actually within the circle
-    const dx = data.point.x - this.state.x;
-    const dy = data.point.y - this.state.y;
+    const dx = data.x - this.state.x;
+    const dy = data.y - this.state.y;
     const distSquared = dx*dx + dy*dy;
     
     return distSquared <= this.state.radius * this.state.radius;
@@ -694,21 +718,18 @@ class BadgeComponent extends GraphComponent<BadgeComponentProps, BadgeComponentS
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     
     // Fill with appropriate color
-    ctx.fillStyle = selected ? 
-      this.context.colors.selectedBackground : 
-      this.context.colors.badgeBackground;
+    const { block } = this.context.colors;
+    ctx.fillStyle = block.background;
     ctx.fill();
     
     // Draw border
     ctx.lineWidth = 2;
-    ctx.strokeStyle = selected ?
-      this.context.colors.selectedBorder :
-      this.context.colors.badgeBorder;
+    ctx.strokeStyle = selected ? block.selectedBorder : block.border;
     ctx.stroke();
     
     // Draw count
     if (this.context.camera.getCameraBlockScaleLevel() !== ECameraScaleLevel.Minimalistic) {
-      ctx.fillStyle = this.context.colors.badgeText;
+      ctx.fillStyle = this.context.colors.block.text;
       ctx.font = '16px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -810,39 +831,35 @@ class AnnotatedConnection extends BaseConnection<AnnotatedConnectionProps> {
     ];
   }
   
-  // Override the path creation to customize the line style
-  protected createPath() {
-    if (!this.connectionPoints || this.connectionPoints.length < 2) return null;
-    
+  // BaseConnection draws nothing itself: render() draws the line
+  protected render() {
+    if (!this.connectionPoints) return;
+
     const [sourcePoint, targetPoint] = this.connectionPoints;
+    const ctx = this.context.ctx;
     const path = new Path2D();
-    
-    // Simple straight line
     path.moveTo(sourcePoint.x, sourcePoint.y);
     path.lineTo(targetPoint.x, targetPoint.y);
-    
-    return path;
-  }
-  
-  // Override the render method to customize the visual appearance
-  protected render() {
-    super.render(); // This draws the base connection line
-    
-    // Add custom highlights when hovered
-    if (this.state.hovered && this.path) {
-      const ctx = this.context.ctx;
-      
-      // Draw glow effect
-      ctx.save();
-      ctx.strokeStyle = this.context.colors.highlightColor;
-      ctx.lineWidth = this.context.lineWidth + 4;
+
+    ctx.save();
+    // Add a glow when hovered
+    if (this.state.hovered) {
+      ctx.strokeStyle = this.context.colors.connection.selectedBackground;
+      ctx.lineWidth = 6;
       ctx.globalAlpha = 0.4;
-      ctx.stroke(this.path);
-      ctx.restore();
+      ctx.stroke(path);
+      ctx.globalAlpha = 1;
     }
+    ctx.strokeStyle = this.context.colors.connection.background;
+    ctx.lineWidth = 2;
+    ctx.stroke(path);
+    ctx.restore();
   }
 }
 ```
+
+The scene draws built-in `BlockConnection` instances from their route (`static geometry`) and stroke
+(`static line`). A custom Canvas painter draws through the compatibility batch. See [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md).
 
 ## Performance Tips for GraphComponent
 
@@ -955,12 +972,19 @@ GraphComponents can be used in various contexts within the graph system. Underst
 
 ### 1. As Children in Blocks
 
-When used as children within blocks, GraphComponents can create rich, interactive block content:
+A scene block (`CanvasBlock`) is retained, so its children must be retained too: mounting a walked child that draws in
+`render()` throws. Draw a badge, an icon or a progress bar as primitives of the block's level methods, as parts that
+rules style (see [Block component](./block-component.md#level-methods)). A region with events of its own (a button)
+is a child scene component, drawn and hit in the scene (see
+[Child components](./block-component.md#child-components)). The pattern below, with children that draw in
+`render()`, needs a `LegacyCanvasBlock` (deprecated). Keep the block's anchors: `super.updateChildren()` returns
+them.
 
 ```typescript
-class ComplexBlock extends Block {
+class ComplexBlock extends LegacyCanvasBlock {
   protected updateChildren() {
     return [
+      ...super.updateChildren(),
       // Add a badge to top-right corner with absolute positioning
       BadgeComponent.create({
         x: this.state.x + this.state.width - 10,
@@ -1049,18 +1073,23 @@ class ToolbarLayer extends Layer {
     return [
       ButtonComponent.create({
         icon: 'zoom-in',
-        action: () => this.context.camera.zoomIn(),
+        action: () => this.zoomBy(1.25),
       }, { key: 'zoom-in' }),
       
       ButtonComponent.create({
         icon: 'zoom-out',
-        action: () => this.context.camera.zoomOut(),
+        action: () => this.zoomBy(0.8),
       }, { key: 'zoom-out' }),
       
       SelectionInfoComponent.create({
-        selection: this.context.selection,
+        selectionService: this.context.graph.selectionService,
       }, { key: 'selection-info' })
     ];
+  }
+
+  private zoomBy(factor: number): void {
+    const { width, height } = this.context.camera.getCameraState();
+    this.context.camera.zoom(width / 2, height / 2, this.context.camera.getCameraScale() * factor);
   }
 }
 ```

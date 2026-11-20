@@ -10,6 +10,15 @@ export class Component<
   State extends TComponentState = TComponentState,
   Context extends CoreComponentContext = CoreComponentContext,
 > extends CoreComponent<Props, Context> {
+  /** @internal Whether an extension uses its own parent-props lifecycle hooks. */
+  public static hasParentPropsOverrides(extension: Component, base: Component): boolean {
+    return (
+      extension.shouldReceiveParentProps !== base.shouldReceiveParentProps ||
+      extension.setProps !== base.setProps ||
+      extension.propsChanged !== base.propsChanged
+    );
+  }
+
   protected firstIterate = true;
 
   /** willMount() runs once, even when the first frame prepares this component more than once. */
@@ -26,7 +35,12 @@ export class Component<
 
   public state: State;
 
-  protected __data: { nextProps: Props | undefined; nextState: State | undefined } = {
+  protected __data: {
+    nextProps: Props | undefined;
+    nextState: State | undefined;
+    removedStateKeys?: Set<string>;
+    stateComparedWithProps?: boolean;
+  } = {
     nextProps: undefined,
     nextState: undefined,
   };
@@ -43,7 +57,9 @@ export class Component<
   public setContext<K extends keyof Context>(context: Partial<Pick<Context, K>>) {
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
-    super.setContext({ ...this.context, ...context });
+    const nextContext = { ...this.context, ...context };
+    this.willApplyData?.(this.props, this.state, nextContext);
+    super.setContext(nextContext);
     this.contextChanged(this.context);
   }
 
@@ -61,20 +77,41 @@ export class Component<
   }
 
   public getState() {
-    if (this.__data.nextState) {
-      return Object.assign({}, this.state, this.__data.nextState);
+    const next = this.__data.nextState;
+    return next ? this.applyPendingState({ ...this.state }, next) : this.state;
+  }
+
+  private applyPendingState(target: State, next: State): State {
+    if (this.__data.removedStateKeys) {
+      for (const key of this.__data.removedStateKeys) delete target[key];
     }
-    return this.state;
+    return assign(target, next);
   }
 
   protected setState<K extends keyof State>(state: Pick<State, K>) {
     const data = this.__data;
+    if (data.stateComparedWithProps) data.stateComparedWithProps = false;
 
     if (data.nextState === undefined) {
       data.nextState = assign(assign({}, this.state), state);
       this.performRender();
     } else {
       assign(data.nextState, state);
+    }
+  }
+
+  /** Queue removals from a complete data snapshot alongside pending component updates. */
+  protected clearRemovedData(previous: object, next: object, retainedKeys: readonly string[]): void {
+    const data = this.__data;
+    for (const key of Object.keys(previous)) {
+      if (Object.prototype.hasOwnProperty.call(next, key) || retainedKeys.includes(key)) continue;
+      if (!data.nextState) {
+        data.nextState = { ...this.state };
+        this.performRender();
+      }
+      if (data.stateComparedWithProps) data.stateComparedWithProps = false;
+      delete data.nextState[key];
+      (data.removedStateKeys ??= new Set()).add(key);
     }
   }
 
@@ -90,20 +127,33 @@ export class Component<
     // noop
   }
 
+  /**
+   * Before committing queued props/state, or a synchronous context update. A stateChanged hook can amend a joint
+   * update after props already committed. In that case the first comparison against the old props no longer holds.
+   */
+  protected willApplyData?(nextProps: Props, nextState: State, nextContext: Context, derivedAfterProps?: boolean): void;
+
   protected checkData() {
     const data = this.__data;
     let updated = false;
 
     if (data.nextProps !== undefined) {
       this.propsChanged(data.nextProps);
+      this.willApplyData?.(data.nextProps, data.nextState ?? this.state, this.context);
       assign(this.props, data.nextProps);
       data.nextProps = undefined;
       updated = true;
     }
 
     if (data.nextState !== undefined) {
+      if (updated && this.willApplyData) data.stateComparedWithProps = true;
       this.stateChanged(data.nextState);
-      assign(this.state, data.nextState);
+      if (!updated || data.stateComparedWithProps === false) {
+        this.willApplyData?.(this.props, data.nextState, this.context, updated);
+      }
+      data.stateComparedWithProps = undefined;
+      this.applyPendingState(this.state, data.nextState);
+      data.removedStateKeys = undefined;
       data.nextState = undefined;
       updated = true;
     }
@@ -163,12 +213,20 @@ export class Component<
   public override prepareUpdate(): boolean {
     if (this.updatePrepared) return this.shouldRenderChildren;
     super.prepareUpdate();
-    this.checkData();
-    this.willIterate();
+    // The hooks below run with this update on the stack: `CoreComponent.applyUpdatesNow` does not enter it again.
+    const comp = this.__comp;
+    const updating = comp.updating;
+    comp.updating = true;
+    try {
+      this.checkData();
+      this.willIterate();
 
-    if (this.shouldUpdateChildren) {
-      this.shouldUpdateChildren = false;
-      this.childrenLifeCycle();
+      if (this.shouldUpdateChildren) {
+        this.shouldUpdateChildren = false;
+        this.childrenLifeCycle();
+      }
+    } finally {
+      comp.updating = updating;
     }
     return this.shouldRenderChildren;
   }

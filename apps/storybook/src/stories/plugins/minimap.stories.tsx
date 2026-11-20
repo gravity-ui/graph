@@ -1,6 +1,6 @@
-import React, { useRef } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 
-import { ECanDrag, Graph, layerConfig } from "@gravity-ui/graph";
+import { ECanDrag, Graph } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -12,38 +12,42 @@ import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-minimap/styles.css";
 import "@gravity-ui/uikit/styles/styles.css";
 
-const layers = [
-  layerConfig(MiniMapLayer, {
-    location: "topLeft",
-    cameraBorderColor: "var(--g-color-private-yellow-550-solid)",
-    cameraBorderSize: 2,
-    width: 200,
-    height: 200,
-  }),
-];
+type MiniMapArgs = { minimap: boolean };
 
-const GraphApp = () => {
+const GraphApp = ({ minimap }: MiniMapArgs) => {
   const graphRef = useRef<Graph | undefined>(undefined);
+  const [config] = useState(() => ({
+    ...generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 10 }),
+    settings: { canDrag: ECanDrag.ALL },
+  }));
+
+  useLayoutEffect(() => {
+    const graph = graphRef.current;
+    if (!minimap || !graph) return undefined;
+    const layer = graph.addLayer(MiniMapLayer, {
+      location: "topLeft",
+      cameraBorderColor: "var(--g-color-private-yellow-550-solid)",
+      cameraBorderSize: 2,
+      width: 200,
+      height: 200,
+    });
+    return () => graph.removeLayer(layer);
+  }, [minimap]);
 
   return (
     <ThemeProvider theme={"light"}>
-      <GraphComponentStory
-        graphRef={graphRef}
-        config={{
-          ...generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 10 }),
-          layers,
-          settings: { canDrag: ECanDrag.ALL },
-        }}
-      />
+      <GraphComponentStory graphRef={graphRef} config={config} />
     </ThemeProvider>
   );
 };
 
-const meta: Meta = {
+const meta: Meta<MiniMapArgs> = {
   title: "Plugins/MiniMap",
   component: GraphApp,
+  args: { minimap: false },
+  argTypes: { minimap: { name: "Minimap", control: "boolean" } },
 };
 
 export default meta;
 
-export const Default: StoryFn = () => <GraphApp />;
+export const Default: StoryFn<MiniMapArgs> = (args) => <GraphApp {...args} />;

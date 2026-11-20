@@ -10,7 +10,6 @@ const BLOCK_1 = {
   height: 100,
   name: "Block 1",
   anchors: [],
-  selected: false,
 };
 
 /**

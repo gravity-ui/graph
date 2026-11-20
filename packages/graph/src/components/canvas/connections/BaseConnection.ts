@@ -1,13 +1,16 @@
 import { Component, ESchedulerPriority } from "../../../lib";
 import { TComponentState } from "../../../lib/Component";
+import type { TComponentMode } from "../../../lib/CoreComponent";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
 import { debounce } from "../../../utils/functions";
 import { TPoint, TRect } from "../../../utils/types/shapes";
-import { GraphComponent, GraphComponentContext } from "../GraphComponent";
+import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
+import type { GraphComponentContext } from "../GraphComponent";
 import { TAnchor } from "../anchors";
 import { Block } from "../blocks/Block";
+import { SceneComponent } from "../scene/SceneComponent";
 
-import { hasChangedValue } from "./hasChangedValue";
+import { hasChangedValue } from "./utils/hasChangedValue";
 
 /**
  * Properties for BaseConnection component
@@ -23,6 +26,8 @@ export type TBaseConnectionProps = {
  */
 export type TBaseConnectionState = TComponentState &
   TConnection & {
+    /** Selection, read from `ConnectionState.$selected`; it is not part of the connection data */
+    selected?: boolean;
     /** Whether the connection is currently being hovered */
     hovered?: boolean;
   };
@@ -81,7 +86,26 @@ export class BaseConnection<
   State extends TBaseConnectionState = TBaseConnectionState,
   Context extends GraphComponentContext = GraphComponentContext,
   Connection extends TConnection = TConnection,
-> extends GraphComponent<Props, State, Context> {
+> extends SceneComponent<Props, State, Context> {
+  /** Direct subclasses draw on the graph canvas unless they explicitly opt into retained updates. */
+  public static override readonly mode: TComponentMode = "immediate";
+
+  protected override usesSceneLevels(): boolean {
+    return false;
+  }
+
+  protected override getSceneEntityType(): string {
+    return "connection";
+  }
+
+  protected override invalidate(): void {
+    this.geometryDirty = true;
+    this.performRender();
+  }
+
+  /** The entity type of the selection bucket and of tag addresses. */
+  public static override entityType = "connection";
+
   /**
    * @deprecated use port system instead
    */
@@ -145,14 +169,26 @@ export class BaseConnection<
     this.connectedState.setViewComponent(this);
 
     // Initialize component state with connection data
-    this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
+    this.setState({
+      ...(this.connectedState.$state.value as TBaseConnectionState),
+      selected: this.connectedState.$selected.value,
+      hovered: false,
+    });
   }
 
   public getEntityId() {
     return this.props.id;
   }
 
+  /** @internal Selection and hover belong to the mounted view. Custom geometry may depend on a removed field. */
+  public override clearRemovedData(previous: object, next: object): void {
+    super.clearRemovedData(previous, next, ["selected", "hovered"]);
+    if (this.__data.removedStateKeys) this.geometryDirty = true;
+  }
+
   protected willMount(): void {
+    // Sets GraphComponent's mounted flag (`isMounted()`).
+    super.willMount();
     // Subscriptions fire once while mounting, with the values this component already applied: they request an update
     // only for changes. Otherwise every connection would run an empty update in its second frame.
     let mounting = true;
@@ -160,7 +196,10 @@ export class BaseConnection<
       if (selected !== this.getState().selected) this.setState({ selected });
     });
     this.subscribeSignal(this.connectedState.$state, (state) => {
-      if (hasChangedValue<TConnection>(state, this.getState())) this.setState({ ...state });
+      // After the spread: a legacy `selected` in untyped or persisted data must not override the selection.
+      if (hasChangedValue<TConnection>(state, this.getState())) {
+        this.setState({ ...state, selected: this.connectedState.$selected.peek() });
+      }
     });
 
     // Endpoints: the first value is applied now; later moves recompute once in the next update, so moving both
@@ -203,6 +242,17 @@ export class BaseConnection<
     if (!this.isEntityAvailable() || !this.hasGeometry()) return false;
     if (this.connectedState.$hidden.value) return false;
     return super.isRenderAllowed();
+  }
+
+  /**
+   * The connection's `hoveredTag`: on while it is the pointer's target (D5). From the hook, so it follows the pointer
+   * whatever the connection's interactivity, as the tag always did.
+   */
+  protected override onDispatchedEvent(event: Event): void {
+    super.onDispatchedEvent(event);
+    if (event.type === "mouseenter" || event.type === "mouseleave") {
+      this.setHoveredTag(pointerTargetAfter(event) === this);
+    }
   }
 
   protected override handleEvent(event: MouseEvent) {
@@ -249,10 +299,9 @@ export class BaseConnection<
 
   /**
    * Rebuilds this connection's geometry from its current state, props and endpoints and redraws it:
-   * line and arrow paths, bounds, hit box and culling bounds. State, props and endpoint changes do this
-   * automatically, once per frame; call it when an override such as `createPath()`, `createArrowPath()` or
-   * `collectBBoxPoints()` reads data that changed elsewhere. `batch.markDirty()` alone only rebuilds the
-   * renderer's chunk from the connection's cached geometry.
+   * the shape, bounds, hit box and culling bounds. State, props and endpoint changes do this
+   * automatically, once per frame; call it when the geometry or the bounds read data that changed elsewhere.
+   * `batch.markDirty()` alone only rebuilds the renderer's chunk from the connection's cached geometry.
    */
   public updateGeometry(): void {
     if (this.unmounted) return;
@@ -265,10 +314,15 @@ export class BaseConnection<
    * Runs in the next update after an endpoint moves; `updateGeometry()` runs it synchronously.
    */
   protected updatePoints(additionalPoints?: TPoint[], props: Props = this.props): void {
+    this.readConnectionPoints();
+    this.updateBounds(additionalPoints, props);
+  }
+
+  /** Copies the current port positions into `connectionPoints` and clears the pending geometry update. */
+  protected readConnectionPoints(): void {
     this.geometryDirty = false;
     const geometry = this.connectedState.$geometry.value;
     this.connectionPoints = geometry ? [{ ...geometry[0] }, { ...geometry[1] }] : undefined;
-    this.updateBounds(additionalPoints, props);
   }
 
   protected updateBounds(additionalPoints?: TPoint[], props: Props = this.props): void {
@@ -281,7 +335,7 @@ export class BaseConnection<
     }
 
     // Calculate bounding box from connection points, additional points, and subclass points
-    const points = this.collectBBoxPoints(props);
+    const points = this.collectBoundsPoints(props);
 
     if (additionalPoints) {
       points.push(...additionalPoints);
@@ -294,6 +348,11 @@ export class BaseConnection<
 
     // Update interaction area
     this.updateHitBox();
+  }
+
+  /** The points `updateBounds` boxes; `collectBBoxPoints` by default. */
+  protected collectBoundsPoints(props: Props = this.props): TPoint[] {
+    return this.collectBBoxPoints(props);
   }
 
   /**
@@ -324,21 +383,23 @@ export class BaseConnection<
   }
 
   /**
+   * World units the hit box extends past `getHitBoxRect()` on each side: `THRESHOLD_LINE_HIT`. A subclass whose hit test
+   * reaches further (half a stroke width) adds that, so the broad phase never cuts its hit test off.
+   */
+  protected getHitBoxPadding(): number {
+    return this.context.constants.connection.THRESHOLD_LINE_HIT;
+  }
+
+  /**
    * Updates the hit box for user interaction
    * Adds threshold padding around the connection line to make it easier to click
    *
    * @returns {void}
    */
-  private updateHitBox = (): void => {
+  protected updateHitBox(): void {
     const { x, y, width, height } = this.getHitBoxRect();
-    const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
-    this.setHitBox(
-      x - threshold,
-      y - threshold,
-      x + width + threshold,
-      y + height + threshold,
-      this.hitBoxNeedsRestore
-    );
+    const padding = this.getHitBoxPadding();
+    this.setHitBox(x - padding, y - padding, x + width + padding, y + height + padding, this.hitBoxNeedsRestore);
     this.hitBoxNeedsRestore = false;
-  };
+  }
 }

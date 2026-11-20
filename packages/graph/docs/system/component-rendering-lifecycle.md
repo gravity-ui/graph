@@ -108,9 +108,9 @@ visible child. Unknown bounds remain eligible. New and requested offscreen nodes
 enter the painting lifecycle. Setting
 `shouldRenderChildren` to false explicitly suppresses a branch, independently of spatial culling.
 
-Visibility is published before the layer paints. Connection batches do not track it per item: they
-skip whole chunks outside the viewport. Hit testing retains its separate spatial index and supports
-queries outside the viewport.
+The layer publishes visibility before it paints. The scene uses its own viewport culling for built-in
+connections. The Canvas compatibility batch skips whole chunks outside the viewport. Hit testing retains
+its separate spatial index and supports queries outside the viewport.
 
 During an update the Scheduler traverses the component tree depth-first (see
 [Scheduler System](./scheduler-system.md)): a tree without culling processes or skips children by what

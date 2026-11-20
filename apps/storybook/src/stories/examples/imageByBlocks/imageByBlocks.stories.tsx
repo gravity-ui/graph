@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { CanvasBlock, Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";
+import { CanvasBlock, Graph, TBlock, TGraphConfig, TScenePrimitive } from "@gravity-ui/graph";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
@@ -16,13 +16,10 @@ type TBlockMeta = {
 };
 
 class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
-  public override renderSchematicView() {
-    const meta = this.state.meta;
-    if (!meta) {
-      return;
-    }
-    this.context.ctx.fillStyle = meta.color;
-    this.context.ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
+  protected override schematic(): TScenePrimitive[] {
+    const { width, height, meta } = this.state;
+    if (!meta) return [];
+    return [{ kind: "rect", part: "body", x: 0, y: 0, width, height, fill: meta.color }];
   }
 }
 
@@ -78,7 +75,6 @@ async function generateByImage() {
             y: y * 10,
             width: 50,
             height: 50,
-            selected: false,
             name: `block_${x}-${y}`,
             anchors: [],
             meta: {

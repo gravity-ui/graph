@@ -5,7 +5,7 @@ import "@gravity-ui/graph/styles.css";
 import "../../../../scripts/package-contract/shared/base.css";
 
 const blocks = ["source", "middle", "target"].map(
-  (id): TBlock => ({ id, is: "Block", x: 0, y: 0, width: 180, height: 100, name: id, selected: false, anchors: [] })
+  (id): TBlock => ({ id, is: "Block", x: 0, y: 0, width: 180, height: 100, name: id, anchors: [] })
 );
 const connections: TConnection[] = [
   { id: "source-middle", sourceBlockId: "source", targetBlockId: "middle" },

@@ -1,6 +1,6 @@
 import { Page } from "@playwright/test";
 
-import type { TBlock, TConnection } from "@gravity-ui/graph";
+import type { TBlock, TConnection, TSceneRendererState } from "@gravity-ui/graph";
 import { GraphPO } from "@gravity-ui/graph-playwright";
 
 import { GraphCameraComponentObject } from "./GraphCameraComponentObject";
@@ -104,6 +104,10 @@ export class GraphPageObject extends GraphPO {
         });
       });
     }, count);
+  }
+
+  public async getSceneRenderer(): Promise<TSceneRendererState> {
+    return this.evaluate((graph) => graph.scene.$renderer.value);
   }
 
   public async setEntities(config: GraphConfig): Promise<void> {

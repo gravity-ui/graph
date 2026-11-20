@@ -11,7 +11,6 @@ const BLOCK = {
   height: 100,
   name: "Block 1",
   anchors: [],
-  selected: false,
 };
 
 test.describe("getCameraBlockScaleLevel setting", () => {
@@ -75,7 +74,6 @@ test.describe("getCameraBlockScaleLevel setting", () => {
             height: 100,
             name: "Block 1",
             anchors: [],
-            selected: false,
           },
         ];
         const graph = new Graph(

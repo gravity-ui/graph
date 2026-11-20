@@ -9,7 +9,7 @@ const SIZE = { width: 160, height: 80 };
 const LAYERED_RIGHT = { "elk.algorithm": "layered", "elk.direction": "RIGHT" };
 
 function block(id: string, anchors: TBlock["anchors"] = []): TBlock {
-  return { id, is: "Block", x: 0, y: 0, ...SIZE, name: id, anchors, selected: false };
+  return { id, is: "Block", x: 0, y: 0, ...SIZE, name: id, anchors };
 }
 
 function pointsOf(connection: TConnection | null): TPoint[] {

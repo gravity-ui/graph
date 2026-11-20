@@ -1,11 +1,15 @@
-import { batch } from "@preact/signals-core";
+import { batch, computed, signal } from "@preact/signals-core";
+import type { ReadonlySignal, Signal } from "@preact/signals-core";
 
 import { DragContext, DragDiff } from "../../../services/drag";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState } from "../../../store/block/Block";
+import type { TBlockId } from "../../../store/block/Block";
 import { PortState } from "../../../store/connection/port/Port";
 import { TGroup, TGroupId } from "../../../store/group/Group";
+import { track } from "../../../utils/functions/track";
 import { TRect } from "../../../utils/types/shapes";
+import type { Block } from "../blocks/Block";
 
 import { BlockGroups } from "./BlockGroups";
 import { Group, TGroupGeometry, TGroupProps, TGroupStyle } from "./Group";
@@ -180,6 +184,18 @@ const defaultGeometry: TGroupGeometry = {
  */
 type TPortDelegationCounts = { left: number; right: number };
 
+/** What a collapse applied to one block: the state it hid, and the ports it delegated to the group's edge ports. */
+type TCollapseMember = {
+  readonly state: BlockState;
+  /** The group the block's data names, read reactively: another value means the block left. */
+  readonly group: ReadonlySignal<string | undefined>;
+  readonly ports: PortState[];
+  /** The component whose ports were last delegated (`delegateMemberPorts`): a bind of the same one is skipped. */
+  delegatedFor?: Block;
+  /** Ends the record's watch of its state's component binding (`watchMemberView`). */
+  stopViewWatch?: () => void;
+};
+
 export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> extends Group<T> {
   /** Snapshot of `collapsedRect` at drag start; see {@link handleDrag}. */
   private dragStartCollapsedRect: TRect | null = null;
@@ -189,6 +205,15 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
    * delegation changes (delegate/undelegate ports).
    */
   private portDelegationCountsCache: TPortDelegationCounts | undefined;
+
+  /**
+   * What the collapse applied, per block id (`hideMembers`). Declared, not initialized: the Group constructor binds,
+   * and may collapse, before this class's fields are set; `getCollapseMembers` creates it.
+   */
+  private declare collapseMembers: Map<TBlockId, TCollapseMember> | undefined;
+
+  /** Bumped when a record is added, so that the membership watch reads it (`watchMembers`). */
+  private declare collapseRevision: Signal<number> | undefined;
 
   public static define(config: {
     style?: Partial<TGroupStyle>;
@@ -223,12 +248,12 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
    * Also handles external collapse state changes: if setGroups() is called
    * with collapsed: false while the group is currently collapsed, it expands.
    */
-  protected override subscribeToGroup(): ReturnType<Group["subscribeToGroup"]> {
-    const unsub = super.subscribeToGroup();
+  protected override subscribeToGroup(): void {
+    super.subscribeToGroup();
 
-    this.subscribeSignal(this.groupState.$state, (group: T) => {
+    this.subscribeGroupSignal(this.groupState.$state, (group: T) => {
       if (group.collapsed) {
-        this.applyBlockVisibility(true);
+        this.hideMembers();
         const rect = group.collapsedRect ?? this.computeCollapsedRect(group.rect);
         if (!group.collapsedRect) {
           this.groupState.updateGroup({
@@ -243,15 +268,26 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
         // of whether state.collapsedRect is set yet (getRect falls through to
         // super.getRect(rect) when state.collapsedRect is undefined).
         this.updateHitBox(rect);
-      } else if ((this.state as T).collapsed) {
-        // Transition: collapsed → expanded triggered externally (e.g. via setGroups).
-        this.undelegatePorts();
-        this.applyBlockVisibility(false);
+      } else if (this.collapseMembers?.size || (this.state as T).collapsed) {
+        // Transition: collapsed → expanded triggered externally (e.g. via setGroups), also before a frame applied the
+        // collapse to the component's state.
+        this.releaseMembers();
         this.updateHitBox(group.rect);
       }
     });
 
-    return unsub;
+    this.watchMembers();
+  }
+
+  /**
+   * The group stops being bound to its state: on a rebind to a new state (a re-add with its id before a frame) and on
+   * unmount. Whatever its collapse applied ends here, through the one release path: its blocks are shown and their
+   * ports undelegated. A new state that is collapsed applies its own collapse when it binds (`subscribeToGroup`).
+   */
+  protected override leaveGroupState(): void {
+    super.leaveGroupState();
+    this.releaseMembers();
+    this.invalidatePortDelegationCountsCache();
   }
 
   // ---------------------------------------------------------------------------
@@ -433,7 +469,7 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
       },
       () => {
         batch(() => {
-          this.applyBlockVisibility(true);
+          this.hideMembers();
           this.delegatePorts(nextRect);
           this.groupState.updateGroup({
             collapsed: true,
@@ -473,8 +509,7 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
       },
       () => {
         batch(() => {
-          this.undelegatePorts();
-          this.applyBlockVisibility(false);
+          this.releaseMembers();
           this.groupState.updateGroup({
             collapsed: false,
             collapsedRect: undefined,
@@ -490,29 +525,110 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   }
 
   // ---------------------------------------------------------------------------
-  // Lifecycle
+  // What a collapse applies to its members
   // ---------------------------------------------------------------------------
+  //
+  // A collapse hides the group's blocks and delegates their ports to the group's edge ports. It records what it did,
+  // per block id (`collapseMembers`), and one release path (`releaseMembers`) gives it back: when a block leaves the
+  // group (its data names another group or none, or it is removed), when the group expands, and when the group binds
+  // to a new state or unmounts (`leaveGroupState`). So a block outside a collapsed group is always shown and owns its
+  // ports, whichever way it left, and the group's unmount reaches the blocks its collapse hid even before a frame
+  // applied the collapse to the component's own state.
 
-  protected override unmount(): void {
-    // When a collapsed group is removed, restore block visibility and undelegate
-    // ports before releasing them so blocks are shown and ports have no stale
-    // $delegate references pointing to the now-destroyed edge ports.
-    if ((this.state as T).collapsed) {
-      this.applyBlockVisibility(false);
-      this.undelegatePorts();
+  /** Hides the group's blocks (`requestHidden`) and records them. */
+  private hideMembers(): void {
+    const members = this.getCollapseMembers();
+    let added = false;
+    for (const state of this.getGroupBlocks()) {
+      state.requestHidden(true);
+      const member = members.get(state.id);
+      if (member?.state === state) continue;
+      // A state that replaced the recorded one before the membership watch saw it: the block's component and its
+      // ports are the same, so the recorded delegations carry over.
+      member?.stopViewWatch?.();
+      const next: TCollapseMember = {
+        state,
+        group: computed(() => state.$state.value.group),
+        ports: member?.ports ?? [],
+      };
+      next.stopViewWatch = this.watchMemberView(next);
+      members.set(state.id, next);
+      added = true;
     }
-    this.invalidatePortDelegationCountsCache();
-    super.unmount();
+    // The membership watch reads the new records.
+    if (added) this.getCollapseRevision().value += 1;
   }
 
-  // ---------------------------------------------------------------------------
-  // Block visibility
-  // ---------------------------------------------------------------------------
-
-  private applyBlockVisibility(hidden: boolean): void {
-    this.getGroupBlocks().forEach((blockState) => {
-      blockState.requestHidden(hidden);
+  /**
+   * The one release path: undelegates the ports this collapse delegated, and shows the blocks it hid, of the blocks
+   * `ids` names or of all of them. A state no longer registered (its block was removed, or added back as a new state)
+   * is not shown: a block component kept for its id binds to the new state and takes that state's hidden value.
+   */
+  private releaseMembers(ids?: readonly TBlockId[]): void {
+    const members = this.collapseMembers;
+    if (!members || members.size === 0) return;
+    this.invalidatePortDelegationCountsCache();
+    batch(() => {
+      for (const id of ids ?? Array.from(members.keys())) {
+        const member = members.get(id);
+        if (!member) continue;
+        members.delete(id);
+        member.stopViewWatch?.();
+        member.ports.forEach((port) => {
+          if (port.isDelegated) port.undelegate();
+        });
+        if (member.state.isAttached()) member.state.requestHidden(false);
+      }
     });
+  }
+
+  /**
+   * Follows the recorded blocks while the group is bound to its state: a block whose id is removed, or whose data
+   * names another group, left, and its record is released at once. A record's component binding is followed by the
+   * record itself (`watchMemberView`), so a bind costs one record's work, not a pass over the group.
+   */
+  private watchMembers(): void {
+    const watch = computed((): TBlockId[] => {
+      track(this.getCollapseRevision());
+      const blocks = this.context.graph.rootStore.blocksList.$blocksMap.value;
+      const left: TBlockId[] = [];
+      this.collapseMembers?.forEach((member, id) => {
+        if (blocks.get(id) !== member.state || member.group.value !== this.props.id) left.push(id);
+      });
+      return left;
+    });
+    this.subscribeGroupSignal(watch, (left) => {
+      if (left.length > 0) this.releaseMembers(left);
+    });
+  }
+
+  /**
+   * Delegates a record's ports when a component binds to its state after the collapse: the block was added back (its
+   * component binds in the frame) or its class changed. Each bind is one record's work: a component its ports were
+   * already delegated for is skipped (`delegatedFor`). The record's creation is not a bind: `delegatePorts` delegates
+   * the members that have a component then. Returns the unsubscribe function that the record's release calls.
+   */
+  private watchMemberView(member: TCollapseMember): () => void {
+    let created = true;
+    return member.state.$viewComponent.subscribe((view) => {
+      if (created) {
+        created = false;
+        return;
+      }
+      if (!view || view === member.delegatedFor || this.collapseMembers?.get(member.state.id) !== member) return;
+      this.delegateMemberPorts(member);
+    });
+  }
+
+  /** The records of the collapse, created on first use: the Group constructor binds before this class's fields. */
+  private getCollapseMembers(): Map<TBlockId, TCollapseMember> {
+    if (!this.collapseMembers) this.collapseMembers = new Map();
+    return this.collapseMembers;
+  }
+
+  private getCollapseRevision(): Signal<number> {
+    if (!this.collapseRevision) this.collapseRevision = signal(0);
+    return this.collapseRevision;
   }
 
   // ---------------------------------------------------------------------------
@@ -561,58 +677,34 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
     const rect = this.getRect(targetRect);
     this.updateGroupPortPositions(rect);
 
-    const leftPort = this.getLeftEdgePort();
-    const rightPort = this.getRightEdgePort();
-
+    const members = this.collapseMembers;
     this.getGroupBlocks().forEach((blockState) => {
-      const canvasBlock = blockState.getViewComponent();
-      if (!canvasBlock) return;
-
-      const inputPort = canvasBlock.getInputPort();
-      if (inputPort && !inputPort.isDelegated) {
-        inputPort.delegate(leftPort);
-      }
-
-      const outputPort = canvasBlock.getOutputPort();
-      if (outputPort && !outputPort.isDelegated) {
-        outputPort.delegate(rightPort);
-      }
-
-      blockState.$anchors.value.forEach((anchor) => {
-        const port = canvasBlock.getAnchorPort(anchor.id);
-        if (port && !port.isDelegated) {
-          port.delegate(anchor.type === EAnchorType.OUT ? rightPort : leftPort);
-        }
-      });
+      const member = members?.get(blockState.id);
+      if (member?.state === blockState) this.delegateMemberPorts(member);
     });
   }
 
   /**
-   * Remove delegation from all ports of group blocks, restoring their
-   * original positions (saved automatically by the delegation mechanism).
+   * Delegates the ports of one recorded block that are not delegated yet, and records them: its component's input and
+   * output ports and its anchors' ports. A block without a component yet is delegated once its component binds
+   * (`watchMembers`).
    */
-  private undelegatePorts(): void {
-    this.invalidatePortDelegationCountsCache();
-    this.getGroupBlocks().forEach((blockState) => {
-      const canvasBlock = blockState.getViewComponent();
-      if (!canvasBlock) return;
-
-      const inputPort = canvasBlock.getInputPort();
-      if (inputPort?.isDelegated) {
-        inputPort.undelegate();
-      }
-
-      const outputPort = canvasBlock.getOutputPort();
-      if (outputPort?.isDelegated) {
-        outputPort.undelegate();
-      }
-
-      blockState.$anchors.value.forEach((anchor) => {
-        const port = canvasBlock.getAnchorPort(anchor.id);
-        if (port?.isDelegated) {
-          port.undelegate();
-        }
-      });
+  private delegateMemberPorts(member: TCollapseMember): void {
+    const canvasBlock = member.state.getViewComponent();
+    if (!canvasBlock) return;
+    member.delegatedFor = canvasBlock;
+    const leftPort = this.getLeftEdgePort();
+    const rightPort = this.getRightEdgePort();
+    const delegate = (port: PortState | undefined, target: PortState): void => {
+      if (!port || port.isDelegated) return;
+      port.delegate(target);
+      member.ports.push(port);
+      this.invalidatePortDelegationCountsCache();
+    };
+    delegate(canvasBlock.getInputPort(), leftPort);
+    delegate(canvasBlock.getOutputPort(), rightPort);
+    member.state.$anchors.peek().forEach((anchor) => {
+      delegate(canvasBlock.getAnchorPort(anchor.id), anchor.type === EAnchorType.OUT ? rightPort : leftPort);
     });
   }
 

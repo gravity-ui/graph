@@ -40,7 +40,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
-    "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --updateSnapshot",
+    "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --ci",
     "test:release-contract": "node --test scripts/release-contract.test.mjs scripts/resolve-release-candidate.test.mjs scripts/release-please.test.mjs",
     "test": "pnpm run test:unit && pnpm run test:release-contract",
     "build:docs": "node scripts/build-docs.mjs",
@@ -50,6 +50,11 @@
     "test:package-contract": "node ../../scripts/package-contract/run.mjs"
   },
   "dependencies": {
+    "@luma.gl/core": "~9.4.2",
+    "@luma.gl/engine": "~9.4.2",
+    "@luma.gl/shadertools": "~9.4.2",
+    "@luma.gl/webgl": "~9.4.2",
+    "@mapbox/tiny-sdf": "2.3.0",
     "@preact/signals-core": "^1.12.2",
     "intersects": "^2.7.2",
     "lodash": "^4.17.21",

@@ -1,3 +1,4 @@
+import { HAS_NODE_ENV } from "../utils/development";
 import { GraphClassConstructor } from "../utils/types/classes";
 
 import { DetachedUpdates } from "./DetachedUpdates";
@@ -6,7 +7,7 @@ import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
 import type { TTileRect } from "./culling/TileIndex";
 import type { TTreeCullingOptions } from "./culling/TreeCulling";
-import { isDevelopmentBuild, warnDetachedFrameHooks } from "./detachedWarning";
+import { warnDetachedFrameHooks } from "./detachedWarning";
 
 export type ComponentOptions<Instance> = {
   readonly key?: string | number;
@@ -66,7 +67,42 @@ type TPrivateComponentData = {
   /** The component's queue entry when its class is detached. */
   detached: TDetachedEntry | undefined;
   unmounted: boolean;
+  /**
+   * Whether the component's update (`Component.prepareUpdate`: `checkData()`, `willIterate()`, its children) is on the
+   * stack: a hook of it is running. `applyUpdatesNow` never enters such an update again.
+   */
+  updating: boolean;
 };
+
+/**
+ * The child `mountChild` constructs: the child's own CoreComponent constructor records itself, so a subclass
+ * constructor that throws after `super()` leaves no half-built child behind (`discardChild`).
+ */
+let constructing: { readonly parent: CoreComponent; child: CoreComponent | undefined } | undefined;
+
+/** Component classes whose duplicate child keys were reported (once per class). */
+const reportedDuplicateKeys = new WeakSet<object>();
+
+/**
+ * Development error for two child descriptors with one key: the reconcile maps both to one component, so the second
+ * never gets its own (a scene child would never draw, an anchor would vanish).
+ */
+function reportDuplicateKeys(owner: object, keys: readonly string[]): void {
+  if (reportedDuplicateKeys.has(owner.constructor)) return;
+  const seen = new Set<string>();
+  for (const key of keys) {
+    if (!seen.has(key)) {
+      seen.add(key);
+      continue;
+    }
+    reportedDuplicateKeys.add(owner.constructor);
+    console.error(
+      `${owner.constructor.name}: two children share the key ${JSON.stringify(key)}; the second gets no component. ` +
+        "Give each child descriptor its own key (an anchor's key is its id)."
+    );
+    return;
+  }
+}
 
 export type CoreComponentProps = Record<string, unknown>;
 export type CoreComponentContext = Record<string, unknown>;
@@ -79,9 +115,12 @@ function createDefaultPrivateContext(): TPrivateComponentData["context"] {
   };
 }
 
-/** Whether a component class declares itself detached (see CoreComponent.detached). */
-function isDetachedClass(klass: unknown): boolean {
-  return (klass as { detached?: unknown }).detached === true;
+/** How the frame treats a component class: walked every frame ("immediate") or updated only on change ("retained"). */
+export type TComponentMode = "retained" | "immediate";
+
+/** Whether a component class declares itself retained (see CoreComponent.mode). */
+function isRetainedClass(klass: unknown): boolean {
+  return (klass as { mode?: unknown }).mode === "retained";
 }
 
 export class CoreComponent<
@@ -90,14 +129,14 @@ export class CoreComponent<
 > implements ITree
 {
   /**
-   * Detached components stay children of their parent: it creates, updates and unmounts them, and they receive its
+   * Retained components stay children of their parent: it creates, updates and unmounts them, and they receive its
    * context. The frame does not walk them: they never receive `iterate()`, `render()`, `willRender()`, `didRender()`,
    * `willNotRender()`, `didIterate()` or `viewportChanged()`. A change queues the component, and its tree applies the
-   * update (`checkData()`, `willIterate()`, children) once per frame before painting, so unchanged detached
-   * components cost a frame nothing. Their children must be detached too, and a root cannot be detached.
-   * Subclasses inherit the flag; `static detached = false` puts a subclass back into the walk.
+   * update (`checkData()`, `willIterate()`, children) once per frame before painting, so unchanged retained
+   * components cost a frame nothing. Their children must be retained too, and a root cannot be retained.
+   * Subclasses inherit the mode; `static override readonly mode = "immediate";` puts a subclass back into the walk.
    */
-  public static readonly detached: boolean = false;
+  public static readonly mode: TComponentMode = "immediate";
 
   public $: Record<string, CoreComponent | undefined> = Object.create(null);
 
@@ -129,13 +168,11 @@ export class CoreComponent<
 
   constructor(props: Props, parent?: CoreComponent) {
     this.context = (parent?.context as Context) || ({} as Context);
-    const detached = isDetachedClass(this.constructor);
+    const detached = isRetainedClass(this.constructor);
     if (detached && !parent) {
-      throw new Error(`${this.constructor.name} is detached: mount it as a child of a component in a tree`);
+      throw new Error(`${this.constructor.name} is retained: mount it as a child of a component in a tree`);
     }
-    // Development builds only: bundlers replace the NODE_ENV expression inside isDevelopmentBuild and drop the check
-    // from production builds; where `process` does not exist the check counts as production and is skipped.
-    if (detached && isDevelopmentBuild()) warnDetachedFrameHooks(this.constructor);
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production" && detached) warnDetachedFrameHooks(this.constructor);
 
     this.__comp = {
       parent,
@@ -159,7 +196,10 @@ export class CoreComponent<
           }
         : undefined,
       unmounted: false,
+      updating: false,
     };
+    // The first component constructed for a parent that mounts a child is that child: base constructors run first.
+    if (parent && constructing?.parent === parent && !constructing.child) constructing.child = this;
     if (!parent) this.__comp.treeNode.detachedUpdates = this.__comp.context.detachedUpdates;
     else if (detached) {
       const parentNode = parent.__comp.treeNode;
@@ -243,7 +283,7 @@ export class CoreComponent<
    */
   protected setChildrenCulling(options: TTreeCullingOptions | undefined): void {
     if (options && this.__comp.detached) {
-      throw new Error(`${this.constructor.name} is detached and cannot cull: the frame does not walk it`);
+      throw new Error(`${this.constructor.name} is retained and cannot cull: the frame does not walk it`);
     }
     this.__comp.treeNode.setCulling(options);
   }
@@ -255,6 +295,16 @@ export class CoreComponent<
 
   public getParent(): CoreComponent | undefined {
     return this.__comp.parent;
+  }
+
+  /** The mounted children, in reconcile order. */
+  protected getChildComponents(): readonly CoreComponent[] {
+    const children: CoreComponent[] = [];
+    for (const key of this.__comp.childrenKeys) {
+      const child = this.__comp.children.get(key);
+      if (child) children.push(child);
+    }
+    return children;
   }
 
   public setContext<K extends keyof Context>(context: Pick<Context, K>) {
@@ -286,6 +336,11 @@ export class CoreComponent<
 
   protected setProps(_: never) {
     // noop
+  }
+
+  /** @internal Whether the parent needs to deliver this descriptor to an already mounted child. */
+  protected shouldReceiveParentProps(_props: Readonly<Props> | undefined): boolean {
+    return true;
   }
 
   private __unmount() {
@@ -333,15 +388,29 @@ export class CoreComponent<
   }
 
   private mountChild(descriptor: ChildDescriptor, key: string): CoreComponent {
-    if (this.__comp.detached && !isDetachedClass(descriptor.klass)) {
+    if (this.__comp.detached && !isRetainedClass(descriptor.klass)) {
       throw new Error(
-        `${descriptor.klass.name} cannot be a child of detached ${this.constructor.name}: ` +
-          "children of a detached component must be detached"
+        `${descriptor.klass.name} cannot be a child of retained ${this.constructor.name}: ` +
+          "children of a retained component must be retained"
       );
     }
     // The descriptor factory checked the props against the concrete class. Construction and
     // ref invocation erase that relationship only at this heterogeneous runtime boundary.
-    const child = Reflect.construct(descriptor.klass, [descriptor.props, this]) as CoreComponent;
+    const outer = constructing;
+    const pending: { readonly parent: CoreComponent; child: CoreComponent | undefined } = {
+      parent: this,
+      child: undefined,
+    };
+    constructing = pending;
+    let child: CoreComponent;
+    try {
+      child = Reflect.construct(descriptor.klass, [descriptor.props, this]) as CoreComponent;
+    } catch (error) {
+      if (pending.child) this.discardChild(pending.child);
+      throw error;
+    } finally {
+      constructing = outer;
+    }
     this.__comp.children.set(key, child);
     const ref = descriptor.options.ref;
     if (typeof ref === "function") Reflect.apply(ref, undefined, [child]);
@@ -352,6 +421,20 @@ export class CoreComponent<
     // A new detached child applies its first update, mount included, from the queue.
     if (child.__comp.detached) child.performRender();
     return child;
+  }
+
+  /**
+   * Undoes a child whose constructor threw after CoreComponent's own: it never applies (an update its constructor
+   * queued included), and its `unmount()` releases what its constructor registered (an anchor's binding to its anchor
+   * state), as for a child removed before its first update. A failing `unmount()` is reported, not thrown: the
+   * constructor's exception is the one the reconcile throws.
+   */
+  private discardChild(child: CoreComponent): void {
+    try {
+      child.__unmount();
+    } catch (error) {
+      console.error(`${child.constructor.name}: unmount() after its constructor threw failed`, error);
+    }
   }
 
   private removeChild(key: string, child: CoreComponent): void {
@@ -368,7 +451,6 @@ export class CoreComponent<
     const previousKeys = this.__comp.childrenKeys;
     const nextKeys: string[] = [];
     const descriptorsToMount: Array<{ key: string; descriptor: ChildDescriptor }> = [];
-    this.__comp.prevChildrenArr = next;
 
     next.forEach((descriptor, index) => {
       const key = String(descriptor.options.key ?? `${descriptor.klass.name}|${index}|defaultKey`);
@@ -376,7 +458,7 @@ export class CoreComponent<
       nextKeys.push(key);
       if (child && child.constructor === descriptor.klass) {
         // Each descriptor came from its concrete factory; this is the shared runtime update boundary.
-        Reflect.apply(child.setProps, child, [descriptor.props]);
+        if (child.shouldReceiveParentProps(descriptor.props)) Reflect.apply(child.setProps, child, [descriptor.props]);
         child.__comp.updated = true;
         // A reconciliation is new data for this frame: a detached child that already applied in it applies again.
         // Each reconciliation allows one more application, and a parent reconciles at most once per own preparation.
@@ -385,6 +467,7 @@ export class CoreComponent<
         descriptorsToMount.push({ key, descriptor });
       }
     });
+    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") reportDuplicateKeys(this, nextKeys);
 
     previousKeys.forEach((key) => {
       const child = this.__comp.children.get(key);
@@ -392,11 +475,28 @@ export class CoreComponent<
       if (child.__comp.updated) child.__comp.updated = false;
       else this.removeChild(key, child);
     });
-    descriptorsToMount.forEach(({ key, descriptor }) => this.mountChild(descriptor, key));
-    this.__comp.childrenKeys = nextKeys;
+    try {
+      descriptorsToMount.forEach(({ key, descriptor }) => this.mountChild(descriptor, key));
+    } catch (error) {
+      // A constructor or ref that throws: the children mounted before it are recorded, so the next reconcile updates
+      // or removes them, and that reconcile runs even for the same descriptor list, which was not applied.
+      this.__comp.prevChildrenArr = [];
+      this.recordChildren(nextKeys.filter((key) => this.__comp.children.has(key)));
+      throw error;
+    }
+    this.__comp.prevChildrenArr = next;
+    const detachedCount = this.recordChildren(nextKeys);
+    // Without culling the walk paints this component right after this reconciliation: its detached children apply
+    // first. A culled tree applies them after its preparation, and a running flush reaches them itself.
+    if (detachedCount > 0 && !this.__comp.treeNode.scope) this.__comp.context.detachedUpdates.flush();
+  }
+
+  /** Records the children of these keys in order and walks the attached ones; returns how many are detached. */
+  private recordChildren(keys: string[]): number {
+    this.__comp.childrenKeys = keys;
     const children: Tree[] = [];
     let detachedOrder = 0;
-    nextKeys.forEach((key) => {
+    keys.forEach((key) => {
       const child = this.__comp.children.get(key);
       if (!child) return;
       // Detached children are not walked; they keep their reconcile order for hit testing.
@@ -404,9 +504,7 @@ export class CoreComponent<
       else children.push(child.__comp.treeNode);
     });
     this.__comp.treeNode.setChildren(children);
-    // Without culling the walk paints this component right after this reconciliation: its detached children apply
-    // first. A culled tree applies them after its preparation, and a running flush reaches them itself.
-    if (detachedOrder > 0 && !this.__comp.treeNode.scope) this.__comp.context.detachedUpdates.flush();
+    return detachedOrder;
   }
 
   private __unmountChildren() {
@@ -440,6 +538,54 @@ export class CoreComponent<
 
   public static unmount(instance: CoreComponent) {
     instance.__unmount();
+  }
+
+  /**
+   * @internal Applies a component's pending update now, outside the frame and without running any scheduler, and
+   * then the queued updates of its retained descendants: a parent applies before its children, so a child's first
+   * update finds its parent's, and the children an update mounts apply in the same call. A retained component applies
+   * its queued update (call `performRender()` first to queue one); an immediate one prepares now, and its frame
+   * prepares it again. Updates that this queues again (a mounted child's first state: `checkData()` runs before
+   * `willMount()`) apply in later passes, at most `passes` in all. The rest of the tree's queue is left alone and
+   * applies in its frame, as usual; so does anything in the subtree still queued after the last pass.
+   *
+   * An update already on the stack (this is called from one of that component's hooks, directly or through what they
+   * call) is never entered again, so no hook runs twice for one update: that component stays queued and applies in its
+   * tree's frame, and its children are applied as usual.
+   */
+  public static applyUpdatesNow(component: CoreComponent, passes = 3): void {
+    const comp = component.__comp;
+    if (comp.unmounted) return;
+    const updates = comp.context.detachedUpdates;
+    // Applies the queued entries of a subtree, parents first; returns whether any applied. A local function: a private
+    // static member breaks the declarations of exported anonymous subclasses (TS4094).
+    const applySubtree = (node: CoreComponent): boolean => {
+      const own = node.__comp;
+      if (own.unmounted) return false;
+      let applied = false;
+      const entry = own.detached;
+      if (entry && entry.slot >= 0 && !own.updating) {
+        updates.delete(entry);
+        entry.apply();
+        applied = true;
+      }
+      // Read after the update: it may have mounted or removed children.
+      for (const key of [...own.childrenKeys]) {
+        const child = own.children.get(key);
+        if (child && applySubtree(child)) applied = true;
+      }
+      return applied;
+    };
+    updates.isolate(() => {
+      // A component this frame already prepared keeps its flag: its second request is answered by the first.
+      if (!comp.detached && !comp.updating && !component.updatePrepared) {
+        component.prepareUpdate();
+        component.updatePrepared = false;
+      }
+      for (let pass = 0; pass < passes; pass++) {
+        if (!applySubtree(component)) return;
+      }
+    });
   }
 
   /**

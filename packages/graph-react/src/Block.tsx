@@ -9,10 +9,12 @@ import React, {
   useState,
 } from "react";
 
-import { ESchedulerPriority, Graph, TBlock } from "@gravity-ui/graph";
+import { CanvasBlock, ESchedulerPriority, Graph, TBlock, TStyleTarget } from "@gravity-ui/graph";
 
 import { useSchedulerDebounce, useSignalEffect } from "./hooks";
-import { useBlockState, useBlockViewState } from "./hooks/useBlockState";
+import { useBlockState } from "./hooks/useBlockState";
+import { useEntityStyle } from "./hooks/useEntityStyle";
+import { useSignal } from "./hooks/useSignal";
 import { applyBlockContainerLayout } from "./utils/applyBlockContainerLayout";
 import { cn } from "./utils/cn";
 
@@ -60,13 +62,14 @@ export type TGraphBlockProps<T extends TBlock> = {
    */
   containerClassName?: string;
   /**
-   * Flag to hide canvas block automatically when react will render the block.
-   * If you want to manage canvas block visibility manually, you can set `autoHideCanvas` to `false`, and pass `canvasVisible` prop to control it.
+   * Hides the canvas block once React has rendered it, while the scene is at the detailed level (default `true`).
+   * To manage the canvas block's visibility yourself, set `autoHideCanvas` to `false` and pass `canvasVisible`.
    */
   autoHideCanvas?: boolean;
   /**
-   * Flag to manage visibility of canvas block.
-   * If you want to manage visibility of canvas block manually, you can set `autoHideCanvas` to `false`, and pass `canvasVisible` prop to control it.
+   * With `autoHideCanvas={false}`: `true` and `undefined` both keep the canvas block drawn and register the view's
+   * presence, so the block's children are hit through it at the detailed level (D4); `false` hands the block over to
+   * the HTML view.
    */
   canvasVisible?: boolean;
 
@@ -114,28 +117,19 @@ function GraphBlockInner<T extends TBlock>(
     { priority: ESchedulerPriority.LOW, frameTimeout: 150 }
   );
 
-  const viewState = useBlockViewState(graph, block);
+  const viewState = useSignal(state?.$viewComponent);
   const [interactive, setInteractive] = useState(viewState?.isInteractive() ?? false);
 
   /**
-   * By reason of scheduler, canvas layer get the camera state before react will initialize the block
-   * so if canvas block will hide before react will render the block,
-   * user will see empty space for a moment, and after react blocks will be initialized,user will see the html-block.
-   * In order to prevent that flickering, we need to hide the canvas  block **only** after react render the block.
+   * The handover (spec §10): the view holds its block once React has mounted it, so the canvas look stays until the
+   * HTML exists; the core hides the block only at the detailed level, so zooming out draws it in the frame that hides
+   * the HTML. `autoHideCanvas={false}` with `canvasVisible` holds it the same way and lets the scene keep drawing
+   * while `canvasVisible` is true (for example `canvasVisible={!ready}` until the view's data is ready).
    */
   useEffect(() => {
-    if (!autoHideCanvas) {
-      if (canvasVisible !== undefined) {
-        // Manual canvas visibility: use setRenderDelegated so the canvas block stays
-        // in the hit-test tree (unlike setHiddenBlock which removes the hitbox). Needed
-        // when HTML/React owns the pixels but interactions should still target the block.
-        viewState?.setRenderDelegated(!canvasVisible);
-      }
-    } else {
-      // Auto: suppress canvas rendering once React has mounted the block
-      viewState?.setRenderDelegated(true);
-    }
-    return () => viewState?.setRenderDelegated(false);
+    if (!viewState) return undefined;
+    // The view is shown either way (D4): without auto-hide and without canvasVisible it keeps the canvas drawn.
+    return viewState.delegateRender({ canvasVisible: autoHideCanvas ? false : canvasVisible ?? true });
   }, [viewState, autoHideCanvas, canvasVisible]);
 
   /**
@@ -189,9 +183,14 @@ function GraphBlockInner<T extends TBlock>(
     return cn("graph-block-container", containerClassName, !interactive ? "graph-block-container-non-interactive" : "");
   }, [containerClassName, interactive]);
 
+  const blockComponents = useSignal(graph.rootStore.settings.$blockComponents);
+  const blockClass: TStyleTarget = blockComponents[block.is] || CanvasBlock;
+  const entityStyle = useEntityStyle(graph, { type: "block", id: block.id }, blockClass, "graph-block");
+  const selected = state?.$selected.value;
+
   const wrapperClassNames = useMemo(() => {
-    return cn("graph-block-wrapper", className, state?.$selected.value ? "selected" : "");
-  }, [className, state?.$selected.value]);
+    return cn("graph-block-wrapper", className, selected ? "selected" : "", entityStyle.className);
+  }, [className, selected, entityStyle.className]);
 
   if (!viewState || !state) {
     return null;
@@ -199,7 +198,9 @@ function GraphBlockInner<T extends TBlock>(
 
   return (
     <div className={containerClassNames} ref={setContainerRef}>
-      <div className={wrapperClassNames}>{children}</div>
+      <div className={wrapperClassNames} style={entityStyle.style}>
+        {children}
+      </div>
     </div>
   );
 }

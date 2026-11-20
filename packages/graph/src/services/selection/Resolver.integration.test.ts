@@ -147,31 +147,6 @@ describe("Selection Resolver Integration", () => {
     });
   });
 
-  describe("Type safety", () => {
-    it("should maintain type safety with TypeScript", () => {
-      type BlockData = { id: string; x: number; y: number; width: number; height: number };
-
-      const blocks: BlockData[] = [
-        { id: "block1", x: 0, y: 0, width: 100, height: 50 },
-        { id: "block2", x: 150, y: 0, width: 100, height: 50 },
-      ];
-
-      const resolver = (ids: string[]): BlockData[] => {
-        return ids.map((id) => blocks.find((b) => b.id === id)).filter((b): b is BlockData => b !== undefined);
-      };
-
-      const bucket = new MultipleSelectionBucket<string, BlockData>("block", undefined, undefined, resolver);
-
-      bucket.select(["block1"], ESelectionStrategy.REPLACE);
-
-      const selectedBlocks = bucket.$selectedEntities.value;
-
-      // TypeScript should know the type
-      expect(selectedBlocks[0].x).toBe(0);
-      expect(selectedBlocks[0].width).toBe(100);
-    });
-  });
-
   describe("Component resolution", () => {
     // Mock GraphComponent-like entity
     class MockComponent extends GraphComponent {

@@ -13,7 +13,7 @@ Other TypeScript versions are not tested.
 
 ## Usage
 
-Import graph data types, canvas layers and plugins from `@gravity-ui/graph`; import React components and hooks from
+Import graph data types and core layers from `@gravity-ui/graph`, and React components and hooks from
 `@gravity-ui/graph-react`. Load both stylesheets once in the application entrypoint.
 
 ```tsx
@@ -45,7 +45,9 @@ export function Editor() {
 }
 ```
 
-Give the editor container a nonzero width and height.
+Give the editor container a nonzero width and height. The default scene renderer is Canvas 2D.
+To draw blocks and built-in connections in the same WebGL2 context, pass `settings: { renderer: "webgl" }`
+to `useGraph`. When a visible block mounts its detailed HTML view, its connections continue to draw in the scene.
 
 The public entrypoint includes `GraphCanvas`, `GraphBlock`, `GraphBlockAnchor`, `GraphLayer`, `GraphPortal`, context
 helpers, and graph/signal/scheduler hooks. ELK layout lives in `@gravity-ui/graph-elk`, and `useLayeredLayout` moved to

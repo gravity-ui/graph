@@ -56,6 +56,15 @@ export class MiniMapPageObject {
   }
 
   /**
+   * Waits until a change of the graph is on the minimap. D6: the minimap draws continuous changes at most about once per
+   * 100 ms, and the last one at most about 100 ms after it; 150 ms and two frames cover it at any frame rate.
+   */
+  async waitForPicture(): Promise<void> {
+    await this.page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 150)));
+    await this.graphPO.waitForFrames(2);
+  }
+
+  /**
    * Returns true if the minimap canvas element is present in the DOM.
    */
   async exists(): Promise<boolean> {

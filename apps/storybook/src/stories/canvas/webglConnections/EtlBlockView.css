@@ -1,0 +1,80 @@
+/* The card is 280 × 136 world units: CSS pixels at scale 1. */
+.etl-block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 10px 20px;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.etl-block.selected {
+  border-color: var(--graph-block-border-selected);
+  box-shadow: 0 0 0 2px var(--graph-block-border-selected);
+}
+
+.etl-block__stripe {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 8px;
+}
+
+.etl-block__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+
+.etl-block__kind {
+  flex: none;
+  color: var(--g-color-text-secondary);
+}
+
+.etl-block__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.etl-block__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.etl-block__metric {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.etl-block__metric-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.etl-block__logs {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--g-color-base-generic);
+  font-family: var(--g-font-family-monospace);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.etl-block__log-line {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.etl-block__footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: auto;
+  cursor: default;
+}

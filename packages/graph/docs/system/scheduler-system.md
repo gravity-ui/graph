@@ -73,7 +73,10 @@ classDiagram
   loop. Nothing else starts or stops it.
 - **A graph drives its layers.** `graph.start()` registers one frame task, and
   `graph.stop()`, `graph.detach()` and `graph.unmount()` remove it. On each frame
-  the task updates the graph's layers in the order they were added or returned.
+  the task updates the graph's layers in the order they were added or returned
+  (`layers.update()`), then the scene renderer (`scene.update()`), so an element
+  a layer writes to `graph.scene` during the frame is drawn in the same frame.
+  See [Scene](./scene.md).
   Components rendered by a layer (`Component.create(...)` in `updateChildren`)
   belong to the layer's tree and are updated with it. Components and layers never
   touch the scheduler: they call `performRender()`, and the graph updates them on
@@ -111,7 +114,8 @@ sequenceDiagram
     GlobalScheduler->>GlobalScheduler: tick()
     GlobalScheduler->>GlobalScheduler: performUpdate()
     GlobalScheduler->>Graph: frame task
-    Graph->>Scheduler: performUpdate() for each layer
+    Graph->>Scheduler: performUpdate() for each layer (layers.update())
+    Graph->>Scheduler: performUpdate() for the scene layer (scene.update())
     Scheduler->>Scheduler: update()
     Scheduler->>Tree: traverseDown(iterator)
     Tree->>Component: prepareUpdate() for new and requested components
@@ -449,7 +453,7 @@ The traversal process follows these rules:
 - Children are ordered by z-index for proper rendering layering
 - In a tree without culling, the component's `iterate()` return value controls whether children are processed; a culled tree decides from `prepareUpdate()` and ignores it
 - This allows for efficient partial updates of the tree
-- Detached components (`static detached = true`) are not visited: their queued updates are applied after preparation
+- Retained components (`static override readonly mode = "retained"`) are not visited: their queued updates are applied after preparation
   in a culled tree, and otherwise before the walk and again right after a parent's reconciliation
 
 For detailed flow diagrams showing these processes, see [Component Rendering and Lifecycle Integration](./component-rendering-lifecycle.md).

@@ -44,7 +44,9 @@ Layers follow a specific initialization and attachment lifecycle that's importan
 
 ## Built-in Layers
 
-The library includes several built-in layers that demonstrate how to extend functionality:
+`GraphLayer` owns the component tree, camera and input handling. Its canvas draws immediate components and
+custom Canvas connection painters. Built-in connections, blocks and anchors draw through
+[the scene](../system/scene.md) on a canvas above it. The optional React layer sits above the scene.
 
 ### ReactLayer
 
@@ -139,17 +141,12 @@ constructor(props: LayerProps) {
 
 ### Camera Transformation
 
-- HTML elements with `transformByCameraPosition: true` are transformed using a matrix transform based on camera state:
-```typescript
-this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
-```
-- This transformation is applied directly in the `afterInit()` method when the `transformByCameraPosition` option is set to `true`.
-- **IMPORTANT**: The camera state subscription is set up in the `afterInit()` method to ensure it's properly reestablished when a layer is reattached.
+Camera-transformed HTML uses the position and scale drawn by the scene in that graph frame. If several input events arrive between frames, the layer applies one CSS matrix. HTML over WebGL uses the fractional camera position. HTML over Canvas2D uses the same translation snapped to the nearest physical pixel as the canvas, including during WebGL fallback.
 
 ### React Integration
 
-- React components are rendered into the HTML element of the GraphLayer using `createPortal` in `GraphCanvas.tsx`.
-- The BlocksList component renders React blocks only when the camera is at the detailed zoom level.
+- When `GraphCanvas` receives `renderBlock`, `ReactLayer` renders visible block views into its HTML element through a React portal.
+- The block list follows the detailed level of `graph.scene.$level`. Each scene block hands over once its HTML view has mounted.
 
 ## Creating Custom Layers
 
@@ -202,7 +199,7 @@ export class MyLayer extends Layer<MyLayerProps, MyLayerContext> {
 
   // `afterInit` is called after the layer's elements (canvas/html) are created and attached.
   protected afterInit() {
-    // Base Layer applies transforms and calls onCameraChange() on $camera updates
+    // The hook receives each committed camera update. The layer presents it during the graph frame.
     super.afterInit();
   }
 
@@ -255,8 +252,8 @@ The `Layer` class provides tools to handle rendering correctly with camera trans
     - Set to `false` only if you need explicit manual control over pixel scaling.
 
 - **`transformByCameraPosition`** (`LayerProps.canvas.transformByCameraPosition` / `LayerProps.html.transformByCameraPosition`, default: `false`):
-    - **For Canvas:** When `true`, the `resetTransform()` method automatically applies the current camera translation (`x`, `y`) and `scale` to the canvas context (`ctx`). This means your subsequent drawing operations in the `render` method should use world coordinates.
-    - **For HTML:** When `true`, the HTML element gets the `layer-with-camera` class, and its CSS `transform: matrix(...)` is automatically updated on camera changes to match the camera's position and scale.
+    - **For Canvas:** When `true`, the `resetTransform()` method automatically applies the camera translation snapped to physical pixels and the current `scale` to the canvas context (`ctx`). This means your subsequent drawing operations in the `render` method should use world coordinates.
+    - **For HTML:** When `true`, the HTML element gets the `layer-with-camera` class and follows the position and scale presented by the scene.
 
 - **`resetTransform()`**:
     - Call this at the beginning of your canvas `render` method.
@@ -300,10 +297,10 @@ Components report bounds in the same coordinates (`setCullingBounds()`, or the h
 `getCullingOptions()` and returns `{ tileSize, getViewport }`; the Layer constructor calls it, so read the
 layer's own fields inside `getViewport`, and call `updateCulling()` after changing what it returns.
 
-Without culling (`"none"`, or the `viewportCulling` setting turned off) there is no viewport culling: a
-layer walks every component (except detached ones, which no walk reaches), a `GraphComponent` paints when the camera sees its hit box, and connection
-batches draw every chunk. The lifecycle rules shared with culled layers still apply: an offscreen component
-is not painted on mount, and visibility is decided after preparation.
+With `culling: "none"` or `viewportCulling: false`, a layer walks every immediate component, a
+`GraphComponent` paints when the camera sees its hit box, and the Canvas compatibility batch draws every chunk.
+The scene separately culls its retained blocks and connections. The lifecycle rules shared with culled layers
+still apply, including the visibility check after preparation and the offscreen mount without paint.
 
 Only a tree root culls, so a layer mounted as a child component passes `culling: "none"`. Such a child layer
 joins its parent's culling: appended under a culled tree, its components are culled by the parent's

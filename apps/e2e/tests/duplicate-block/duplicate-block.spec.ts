@@ -6,7 +6,7 @@ import { GraphPageObject } from "../../page-objects/GraphPageObject";
 import { DuplicateBlockPageObject } from "./DuplicateBlockPageObject";
 
 function block(id: string, x: number, y: number): TBlock {
-  return { id, is: "Block", x, y, width: 200, height: 100, name: id, anchors: [], selected: false };
+  return { id, is: "Block", x, y, width: 200, height: 100, name: id, anchors: [] };
 }
 
 const BLOCKS = [block("block-1", 0, 0), block("block-2", 400, 0), block("block-3", 0, 400)];
@@ -270,7 +270,6 @@ test.describe("DuplicateBlockLayer", () => {
           sourceAnchorId: "out",
           targetBlockId,
           targetAnchorId: "in",
-          selected: false,
         });
       }
     });
@@ -323,7 +322,7 @@ test.describe("DuplicateBlockLayer", () => {
       const connections = await duplicatePO.getConnections();
       expect(connections).toHaveLength(2);
       const copy = connections.find((connection) => connection.id !== "ported");
-      expect(copy).toEqual({ id: expect.any(String), ...expected, selected: false });
+      expect(copy).toEqual({ id: expect.any(String), ...expected });
     });
   });
 

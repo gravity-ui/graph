@@ -31,7 +31,7 @@ pnpm run lint
 pnpm run test
 
 # Update snapshots
-pnpm run test -- --updateSnapshot
+pnpm --filter @gravity-ui/graph run test:unit --updateSnapshot
 
 # Build Storybook
 pnpm run build-storybook
@@ -144,7 +144,7 @@ RootStore
 ```typescript
 BlockState {
   $rawState: Signal<TBlock>           // Raw block data
-  $state: computed(() => ...)         // Full state + selection
+  $state: computed(() => ...)         // Full block data; selection is not part of it, read $selected
   $geometry: computed(() => ...)      // x, y, width, height
   $selected: computed(() => ...)      // Selection state
   $anchorStates: Signal<AnchorState[]>
@@ -271,8 +271,8 @@ function MyComponent() {
 
 - Types and interfaces start with `T` or `I`: `TBlock`, `ICamera`, `TConnection`
 - Component files: `ComponentName.tsx` or `ComponentName.ts`
-- Utilities: `utilityName.ts`
-- Tests: `ComponentName.test.ts`
+- Utilities: `utils/utilityName.ts`
+- Tests: `test/ComponentName.test.ts`
 - Styles: `ComponentName.css`
 
 ## Important Rules from .cursor/rules
@@ -357,7 +357,7 @@ Layers receive:
 
 - Tests use Jest with `@swc/jest` for TypeScript
 - Canvas mocking via `jest-canvas-mock`
-- Test files in `__tests__` directories or `*.test.ts` alongside source
+- Place unit tests in the owning module’s `test/` directory and reusable test helpers in `test/utils/`. Name tests after the behavior or regression they protect.
 - Run specific test: `pnpm test -- <pattern>`
 
 ## Documentation
@@ -1215,14 +1215,13 @@ export const MyStory = () => {
 
 ### Data Types
 
-**Blocks must have required TBlock fields:**
+**Blocks must have required TBlock fields** (selection is not block data; it lives in the selection buckets, read it through `$selected`, `selectedTag` or the selection API):
 ```typescript
 const blocksData: TBlock[] = [
   {
     is: "Block" as const,      // Required
     id: "block-1",              // Required
     name: "Block 1",            // Required
-    selected: false,            // Required
     x: 100,
     y: 100,
     width: 200,
@@ -1379,8 +1378,8 @@ batch(() => {
 
 **Files:**
 - Components: `ComponentName.tsx` or `ComponentName.ts`
-- Utilities: `utilityName.ts`
-- Tests: `ComponentName.test.ts`
+- Utilities: `utils/utilityName.ts`
+- Tests: `test/ComponentName.test.ts`
 - Styles: `ComponentName.css`
 
 **Types and Interfaces:**

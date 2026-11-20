@@ -151,7 +151,6 @@ const generatePortBlocks = (): TBlock[] => {
       width: 200,
       height: 400,
       is: "port-based-block",
-      selected: false,
       anchors: [
         { id: "port-block-1/input-1", blockId: "port-block-1", type: EAnchorType.IN },
         { id: "port-block-1/input-2", blockId: "port-block-1", type: EAnchorType.IN },
@@ -166,7 +165,6 @@ const generatePortBlocks = (): TBlock[] => {
       width: 200,
       height: 400,
       is: "port-based-block",
-      selected: false,
       anchors: [
         { id: "port-block-2/input-1", blockId: "port-block-2", type: EAnchorType.IN },
         { id: "port-block-2/output-1", blockId: "port-block-2", type: EAnchorType.OUT },
@@ -181,7 +179,6 @@ const generatePortBlocks = (): TBlock[] => {
       width: 200,
       height: 400,
       is: "port-based-block",
-      selected: false,
       anchors: [
         { id: "port-block-3/input-1", blockId: "port-block-3", type: EAnchorType.IN },
         { id: "port-block-3/input-2", blockId: "port-block-3", type: EAnchorType.IN },
@@ -196,7 +193,6 @@ const generatePortBlocks = (): TBlock[] => {
       width: 200,
       height: 400,
       is: "conditional-port-block",
-      selected: false,
       anchors: [
         { id: "conditional-block-1/input-1", blockId: "conditional-block-1", type: EAnchorType.IN },
         { id: "conditional-block-1/output-1", blockId: "conditional-block-1", type: EAnchorType.OUT },
@@ -210,7 +206,6 @@ const generatePortBlocks = (): TBlock[] => {
       width: 200,
       height: 400,
       is: "conditional-port-block",
-      selected: false,
       anchors: [
         { id: "conditional-block-2/input-1", blockId: "conditional-block-2", type: EAnchorType.IN },
         { id: "conditional-block-2/output-1", blockId: "conditional-block-2", type: EAnchorType.OUT },

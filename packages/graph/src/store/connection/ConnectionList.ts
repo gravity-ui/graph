@@ -24,6 +24,9 @@ export class ConnectionsStore {
 
   public $connectionsMap = signal<Map<TConnectionId, ConnectionState>>(new Map());
 
+  /** @internal A publication that needs to reconcile connection views. */
+  public readonly $viewRevision = signal(0);
+
   /**
    * Bucket for managing connection selection state
    * Resolves IDs to ConnectionState instances
@@ -168,34 +171,44 @@ export class ConnectionsStore {
     if (!connections.length) return;
     // Mutate sequentially so getOrCreateConnection sees earlier entries of this batch (duplicate ids),
     // then publish a new Map reference: reassigning the same Map would not notify subscribers.
+    let reconcileViews = false;
     connections.forEach((connection) => {
       const c = this.getOrCreateConnection(connection);
-      this.$connectionsMap.value.set(c.id, c);
+      const map = this.$connectionsMap.value;
+      const id = c.id;
+      if (map.get(id) !== c) {
+        map.set(id, c);
+        reconcileViews = true;
+      }
+      // A failed constructor can leave its unmounted view on the state.
+      reconcileViews ||= !c.getViewComponent()?.isMounted();
     });
-    this.notifyConnectionMapChanged();
+    this.notifyConnectionMapChanged(reconcileViews);
   }
 
   public setConnections(connections: TConnection[]) {
     const previous = this.$connectionsMap.value;
     this.$connectionsMap.value = new Map(
       connections.map((connection) => {
-        const c = this.getOrCreateConnection(connection);
+        const c = this.getOrCreateConnection(connection, "replace");
         return [c.id, c];
       })
     );
     for (const [id, state] of previous) {
       if (!this.$connectionsMap.value.has(id)) state.destroy();
     }
+    this.$viewRevision.value = this.$viewRevision.peek() + 1;
   }
 
-  protected getOrCreateConnection(connections: TConnection) {
-    const id = ConnectionState.getConnectionId(connections);
+  protected getOrCreateConnection(connection: TConnection, mode: "update" | "replace" = "update") {
+    const id = ConnectionState.getConnectionId(connection);
     const c = this.$connectionsMap.value.get(id);
     if (c) {
-      c.updateConnection(connections);
+      if (mode === "replace") c.replaceConnection(connection);
+      else c.updateConnection(connection);
       return c;
     }
-    return new ConnectionState(this, connections, this.connectionSelectionBucket);
+    return new ConnectionState(this, connection, this.connectionSelectionBucket);
   }
 
   public addConnection(connection: TConnection): TConnectionId {
@@ -205,8 +218,9 @@ export class ConnectionsStore {
     return newConnection.id;
   }
 
-  protected notifyConnectionMapChanged() {
+  protected notifyConnectionMapChanged(reconcileViews = true) {
     this.$connectionsMap.value = new Map(this.$connectionsMap.value);
+    if (reconcileViews) this.$viewRevision.value = this.$viewRevision.peek() + 1;
   }
 
   public deleteConnections(connections: ConnectionState[]) {
@@ -220,13 +234,8 @@ export class ConnectionsStore {
   }
 
   public deleteSelectedConnections() {
-    this.$connections.value.forEach((c) => {
-      if (c.$selected.value) {
-        c.destroy(); // Clean up port observers
-        this.$connectionsMap.value.delete(c.id);
-      }
-    });
-    this.notifyConnectionMapChanged();
+    const selected = this.connectionSelectionBucket.$selectedEntities.value;
+    if (selected.length) this.deleteConnections(selected);
   }
 
   /**

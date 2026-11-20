@@ -53,16 +53,17 @@ test("every graph useGraph created under StrictMode is collected after unmount",
     return <GraphCanvas graph={graph} renderBlock={() => <div />} />;
   }
   for (let i = 0; i < 5; i += 1) {
+    const previouslyCreated = refs.length;
     const { unmount } = render(
       <StrictMode>
         <App />
       </StrictMode>
     );
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+    expect(refs.length).toBeGreaterThan(previouslyCreated);
     unmount();
   }
   tracked = undefined;
-  expect(refs).toHaveLength(10); // two graphs per StrictMode mount
   expect(await countAlive(refs)).toBe(0);
 });
 

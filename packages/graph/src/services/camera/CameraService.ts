@@ -1,6 +1,7 @@
 import intersects from "intersects";
 
 import { Graph } from "../../graph";
+import { warnIfInLevelMethod } from "../../lib/scene/diagnostics/purity";
 import { Emitter } from "../../utils/Emitter";
 import { clamp } from "../../utils/functions/clamp";
 import type { Interface } from "../../utils/types/classes";
@@ -166,6 +167,7 @@ export class CameraService extends Emitter {
   }
 
   public getCameraScale() {
+    warnIfInLevelMethod("the camera");
     return this.state.scale;
   }
 
@@ -179,16 +181,14 @@ export class CameraService extends Emitter {
   }
 
   public getCameraState(): TCameraState {
+    warnIfInLevelMethod("the camera");
     return this.state;
   }
 
   public move(dx = 0, dy = 0) {
-    const x = (this.state.x + dx) | 0;
-    const y = (this.state.y + dy) | 0;
-
     this.set({
-      x,
-      y,
+      x: this.state.x + dx,
+      y: this.state.y + dy,
     });
   }
 
@@ -215,6 +215,7 @@ export class CameraService extends Emitter {
    * @returns {number} Relative value
    */
   public getRelative(n: number, scale: number = this.state.scale): number {
+    warnIfInLevelMethod("the camera");
     return n / scale;
   }
 

@@ -1,67 +1,36 @@
-# @gravity-ui/graph &middot; [![npm package](https://img.shields.io/npm/v/@gravity-ui/graph)](https://www.npmjs.com/package/@gravity-ui/graph) [![Release](https://img.shields.io/github/actions/workflow/status/gravity-ui/graph/release.yml?branch=main&label=Release)](https://github.com/gravity-ui/graph/actions/workflows/release.yml?query=branch:main) [![storybook](https://img.shields.io/badge/Storybook-deployed-ff4685)](https://preview.gravity-ui.com/graph/)
+# @gravity-ui/graph &middot; [![npm package](https://img.shields.io/npm/v/@gravity-ui/graph)](https://www.npmjs.com/package/@gravity-ui/graph) [![Release](https://img.shields.io/github/actions/workflow/status/gravity-ui/graph/release.yml?branch=main&label=Release)](https://github.com/gravity-ui/graph/actions/workflows/release.yml?query=branch:main) [![storybook](https://img.shields.io/badge/Storybook-deployed-ff4685)](https://preview.gravity-ui.com/graph/v2/)
 
 > [Migration Guide from 1.x to 2.x →](docs/migration-guides/v1-to-v2.md)
 >
 > [Migration Guide from 0.x to 1.x →](docs/migration-guides/v0-to-v1.md)
 
-A graph visualization library that combines the best of both worlds:
-- Canvas for high performance when viewing the full graph
-- HTML/React for rich interactions when zoomed in
-
-No more choosing between performance and interactivity. Perfect for large diagrams, flowcharts, and node-based editors.
+A framework-independent editor for flowcharts, pipelines and other node-based diagrams.
+Blocks, anchors and built-in connections share one scene. It draws with Canvas 2D by default.
+Set `settings.renderer` to `"webgl"` to draw the same scene in one WebGL2 context.
 
 ![preview graph.](docs/_static/graph_preview.png)
 
-## Motivation
-
-Modern web applications often require complex visualization and interactivity, but existing solutions typically focus on a single rendering technology:
-
-- **Canvas** offers high performance for complex graphics but is limited in text handling and interactivity.
-- **HTML DOM** is convenient for interfaces but less efficient for complex graphics or large numbers of elements.
-
-@gravity-ui/graph solves this by automatically switching between Canvas and HTML based on zoom level:
-- **Zoomed Out**: Uses Canvas for efficient rendering of the full graph
-- **Medium Zoom**: Shows schematic view with basic interactivity
-- **Zoomed In**: Switches to HTML/React components for rich interactions
-
 ## How It Works
 
-The library uses a smart rendering system that automatically manages the transition between Canvas and React components:
+The scene draws the minimalistic, schematic and detailed views as the camera zooms.
+At the detailed level you can supply `renderBlock` to `GraphCanvas` to mount React views for visible blocks.
+`GraphBlock` hands drawing over to its HTML view when it mounts. Connections continue to draw in the scene,
+including their arrows and labels. See the [scene guide](docs/system/scene.md) and the
+[React handover guide](docs/react/usage.md#the-handover-to-html).
 
-1. At low zoom levels, everything is rendered on Canvas for performance
-2. When zooming in to detailed view, the `GraphCanvas` component:
-   - Tracks camera viewport and scale changes
-   - Calculates which blocks are visible in the current viewport (with padding for smooth scrolling)
-   - Renders React components only for visible blocks
-   - Automatically updates the list when scrolling or zooming
-   - Removes React components when zooming out
-
-```typescript
-// Example of React components rendering
-const MyGraph = () => {
-  return (
-    <GraphCanvas
-      graph={graph}
-      renderBlock={(graph, block) => (
-        <MyCustomBlockComponent
-          graph={graph}
-          block={block}
-        />
-      )}
-    />
-  );
-};
-```
-
-[Storybook](https://preview.gravity-ui.com/graph/)
+[Storybook](https://preview.gravity-ui.com/graph/v2/)
 
 ## Install
 
+To install the scene API from this branch, build and pack the core package from the repository root.
+
 ```bash
-npm install @gravity-ui/graph
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm --dir packages/graph pack
 ```
 
-For React integration in v2, also install the matching `@gravity-ui/graph-react` package, React 18, and React DOM 18.
+Install the resulting `.tgz` in your application with `npm install <path-to-tarball>`. For React, also pack `packages/graph-react` from the same checkout, install both tarballs together, and use React 18 and React DOM 18. See the [v2 release channels](docs/v1-v2-transition.md#before-cutover).
 
 ### TypeScript
 
@@ -75,11 +44,11 @@ Bundler, Node16 ESM and Node16 CommonJS consumers). Other TypeScript versions ar
 
 [Detailed React Components Documentation](docs/react/usage.md)
 
-```typescript
+```tsx
 import React, { useEffect } from "react";
 import type { Graph, TBlock } from "@gravity-ui/graph";
-import { EAnchorType, GraphState } from "@gravity-ui/graph";
-import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph-react";
+import { EAnchorType } from "@gravity-ui/graph";
+import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
 
@@ -98,7 +67,6 @@ export function GraphEditor() {
           y: -450,
           width: 126,
           height: 126,
-          selected: true,
           name: "Block #1",
           anchors: [
             {
@@ -116,7 +84,6 @@ export function GraphEditor() {
           y: 176,
           width: 126,
           height: 126,
-          selected: false,
           name: "Block #2",
           anchors: [
             {
@@ -137,28 +104,22 @@ export function GraphEditor() {
         },
       ],
     });
-  }, [setEntities]);
+    start();
+    graph.runAfterGraphReady(() => graph.zoomTo("center", { padding: 300 }));
+  }, [graph, setEntities, start]);
 
   const renderBlockFn = (graph: Graph, block: TBlock) => {
     return (
       <GraphBlock graph={graph} block={block}>
-        {block.id}
+        {block.name}
+        {block.anchors?.map((anchor) => (
+          <GraphBlockAnchor key={anchor.id} graph={graph} anchor={anchor} position="absolute" />
+        ))}
       </GraphBlock>
     );
   };
 
-  return (
-    <GraphCanvas
-      graph={graph}
-      renderBlock={renderBlockFn}
-      onStateChanged={({ state }) => {
-        if (state === GraphState.ATTACHED) {
-          start();
-          graph.zoomTo("center", { padding: 300 });
-        }
-      }}
-    />
-  );
+  return <GraphCanvas graph={graph} renderBlock={renderBlockFn} />;
 }
 
 ```
@@ -166,7 +127,7 @@ export function GraphEditor() {
 ### Vanilla JavaScript Example
 
 ```javascript
-import { Graph } from "@gravity-ui/graph";
+import { EAnchorType, Graph } from "@gravity-ui/graph";
 import "@gravity-ui/graph/styles.css";
 
 // Create container element
@@ -241,7 +202,7 @@ graph.setEntities({
 graph.start();
 
 // Center the view
-graph.zoomTo("center", { padding: 100 });
+graph.runAfterGraphReady(() => graph.zoomTo("center", { padding: 100 }));
 ```
 
 ## Live Examples
@@ -262,6 +223,10 @@ graph.zoomTo("center", { padding: 100 });
    - [Graph Settings](docs/system/graph-settings.md)
    - [Public API](docs/system/public_api.md)
    - [Scheduler System](docs/system/scheduler-system.md)
+   - [Scene](docs/system/scene.md)
+   - [Add and update a custom scene element](docs/system/scene.md#add-an-element-to-the-scene)
+   - [Tags and styles](docs/system/tags-and-styles.md)
+   - [WebGL scene effect types](docs/system/scene-effects.md)
 
 2. Components
    - [Canvas Graph Component](docs/components/canvas-graph-component.md)
@@ -275,6 +240,8 @@ graph.zoomTo("center", { padding: 100 });
 4. Blocks and Connections
    - [Block Groups](docs/blocks/groups.md)
    - [Canvas Connection System](docs/connections/canvas-connection-system.md)
+   - [Connection lines, geometry and effects](docs/connections/webgl-connections.md)
+   - [Batch Rendering](docs/connections/batch-rendering.md)
 
 5. Testing
    - [Playwright page objects](https://github.com/gravity-ui/graph/blob/v2/packages/graph-playwright/README.md)
@@ -285,12 +252,12 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## For AI agents
 
-A hybrid Canvas/React graph editor for node-based diagrams — reach for it to build flowcharts, node editors, or large interactive diagrams where Canvas gives performance at low zoom and React components give rich interactivity when zoomed in.
+Use the core package to display and edit node-based diagrams. The optional React package adds HTML block views.
 
 ### When to use
 
 - Node-based editors (flowcharts, pipelines, visual builders) with hundreds/thousands of nodes and connections.
-- Mixed rendering: Canvas for the full-graph overview, React components for the blocks visible in the viewport at high zoom.
+- Canvas 2D or WebGL for the graph with optional React block views at the detailed level.
 - Vanilla JS or React consumers — the core `Graph` class is framework-agnostic; `@gravity-ui/graph-react` provides the React bindings.
 
 ### When not to use
@@ -301,9 +268,9 @@ A hybrid Canvas/React graph editor for node-based diagrams — reach for it to b
 ### Common pitfalls
 
 - **Hallucinated import `GraphEditor`** — the React components are `GraphCanvas`, `GraphBlock`, and the `useGraph` hook, imported from `@gravity-ui/graph-react`; the core class is `Graph` from `@gravity-ui/graph`.
-- **Calling graph methods before `ATTACHED` state** — call `start()`/`zoomTo(...)` inside the `onStateChanged` callback when `state === GraphState.ATTACHED`, not on mount.
-- **Forgetting `setEntities`** — `useGraph` returns `graph`, `setEntities`, `start`; data only appears after `setEntities({blocks, connections})`.
-- **Mixing anchor types** — connections must reference existing anchor ids with matching `EAnchorType` (`IN`/`OUT`) on the source and target blocks.
+- **Fitting a newly loaded graph** — call `graph.runAfterGraphReady(() => graph.zoomTo("center"))` after `start()` to fit the first registered block bounds.
+- **Replacing graph data** — pass both collections to `setEntities({ blocks, connections })` for a full snapshot. Use `updateEntities` to patch individual blocks or connections.
+- **Choosing endpoints** — supply block IDs for a block-to-block connection, add anchor IDs to connect specific anchors, or supply explicit port IDs. See [connection geometry](docs/connections/webgl-connections.md).
 
 ## Documentation for AI agents
 
