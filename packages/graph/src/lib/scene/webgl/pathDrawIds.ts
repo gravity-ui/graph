@@ -1,12 +1,26 @@
 import type { TInstanceSpan } from "./InstanceRanges";
 import { MIXED_PATH_SOURCE_STRIDE, isSplitPathSource } from "./mixedPathPlan";
 import type { OverviewCurveGroups } from "./overviewCurves";
+import { MAX_LOCAL_OVERVIEW_RANGES } from "./overviewCurves";
 
-type TOverviewSource = Pick<OverviewCurveGroups, "starts" | "revision" | "pieces">;
+type TOverviewSource = Pick<OverviewCurveGroups, "starts" | "revision" | "pieces" | "lastChange">;
+type TInterval = { first: number; end: number };
 
 export type TPathDrawSpan = { first: number; count: number };
 export type TPathDrawGroups = readonly (readonly TPathDrawSpan[])[];
 type TAddressGroup = { values: Float32Array; offset: number; version: number };
+
+/** Include precisely the addresses this replacement changes. A removed tail requires no upload. */
+function includeChanged(dirty: TInterval, previous: Float32Array, at: number, next: Float32Array): void {
+  let first = 0;
+  let end = next.length;
+  while (first < end && previous[at + first] === next[first]) first++;
+  while (end > first && previous[at + end - 1] === next[end - 1]) end--;
+  if (first < end) {
+    dirty.first = Math.min(dirty.first, at + first);
+    dirty.end = Math.max(dirty.end, at + end);
+  }
+}
 
 function physicalAddresses(spans: readonly TPathDrawSpan[]): Float32Array {
   let count = 0;
@@ -17,6 +31,37 @@ function physicalAddresses(spans: readonly TPathDrawSpan[]): Float32Array {
     for (let id = span.first, end = id + span.count; id < end; id++) values[at++] = id;
   }
   return values;
+}
+
+function localSpanWindow(
+  before: readonly TPathDrawSpan[],
+  spans: readonly TPathDrawSpan[],
+  flags: readonly TInterval[]
+) {
+  const retained = (a: TPathDrawSpan, b: TPathDrawSpan): boolean => {
+    if (a.first !== b.first || a.count !== b.count) return false;
+    for (const range of flags) if (a.first < range.end && a.first + a.count > range.first) return false;
+    return true;
+  };
+  const limit = Math.min(before.length, spans.length);
+  let left = 0,
+    right = 0,
+    prefix = 0,
+    suffix = 0;
+  while (left < limit && retained(before[left], spans[left])) prefix += spans[left++].count;
+  while (left + right < limit && retained(before[before.length - 1 - right], spans[spans.length - 1 - right])) {
+    right++;
+    suffix += spans[spans.length - right].count;
+  }
+  if (!left && !right) return undefined;
+  let oldTail = prefix;
+  for (let i = left; i < before.length - right; i++) oldTail += before[i].count;
+  let newTail = prefix;
+  for (let i = left; i < spans.length - right; i++) newTail += spans[i].count;
+  // Use the regular encoder when the changed window is larger than what would be reused.
+  if (Math.max(oldTail, newTail) - prefix > prefix + suffix) return undefined;
+
+  return { left, right, prefix, suffix, oldTail, newTail };
 }
 
 /** Paths join across physical gaps; non-path draws remain barriers in the logical schedule. */
@@ -45,6 +90,7 @@ export class PathDrawIds {
   private offsets = new Uint32Array(0);
   private remapped = false;
   private packed = false;
+  private changedPart?: PathDrawIds;
   private splitSources = 0;
   private grouped?: TPathDrawGroups;
   private groupVersion = 0;
@@ -62,6 +108,7 @@ export class PathDrawIds {
   /** The stock planner supplies immutable, validated Float32 spans in painter order. */
   public updateGroups(groups: TPathDrawGroups): TInstanceSpan | undefined {
     if (groups === this.grouped) return undefined;
+    this.changedPart = undefined;
     const version = ++this.groupVersion;
     let offset = 0;
     let from = Infinity;
@@ -126,9 +173,90 @@ export class PathDrawIds {
       (!sources || sources.every((source, i) => source === this.sources[i] && source?.revision === this.revisions[i]))
     )
       return undefined;
-    const changed = this.update(spans, sources, true, splitSources);
+    const patch = this.reuseSpanEnds(spans, sources, splitSources);
+    const changed = patch === false ? this.update(spans, sources, true, splitSources) : patch;
     this.input = spans;
     return changed;
+  }
+
+  private changedOverviewRanges(sources?: readonly (TOverviewSource | undefined)[]): TInterval[] | undefined {
+    if (this.sources.length !== (sources?.length ?? 0)) return undefined;
+    const flags: TInterval[] = [];
+    for (let i = 0; i < this.sources.length; i++) {
+      const source = sources?.[i];
+      if (source !== this.sources[i]) return undefined;
+      if (!source || source.revision === this.revisions[i]) continue;
+      const change = source.lastChange;
+      if (
+        !change ||
+        change.previousRevision !== this.revisions[i] ||
+        flags.length + change.ranges.length > MAX_LOCAL_OVERVIEW_RANGES
+      )
+        return undefined;
+      const base = i * MIXED_PATH_SOURCE_STRIDE;
+      for (const range of change.ranges) flags.push({ first: base + range.first, end: base + range.end });
+    }
+    return flags;
+  }
+
+  /** A local edit can shift the entire packed suffix while leaving every address in that suffix intact. */
+  private reuseSpanEnds(
+    spans: readonly TPathDrawSpan[],
+    sources: readonly (TOverviewSource | undefined)[] | undefined,
+    splitSources: number
+  ): TInstanceSpan | undefined | false {
+    const before = this.input;
+    if (!before || !this.packed || this.splitSources !== splitSources) return false;
+
+    const flags = this.changedOverviewRanges(sources);
+    const window = flags && localSpanWindow(before, spans, flags);
+    if (!window) return false;
+    const { left, right, prefix, suffix, oldTail, newTail } = window;
+    const middle = spans.slice(left, spans.length - right);
+    const part = (this.changedPart ??= new PathDrawIds());
+    part.update(middle, sources, true, splitSources);
+    const data = part.data;
+    const start = this.offset(prefix);
+    const oldEnd = this.offset(oldTail);
+    const newEnd = start + data.length;
+    const delta = newEnd - oldEnd;
+    const dirty = { first: Infinity, end: 0 };
+    const previous = this.data;
+    includeChanged(dirty, previous, start, data);
+    if (delta) includeChanged(dirty, previous, newEnd, previous.subarray(oldEnd));
+    this.reserve(this.count + delta);
+    if (delta) this.values.copyWithin(newEnd, oldEnd, this.count);
+    this.values.set(data, start);
+    this.count += delta;
+    if (this.remapped) {
+      const size = newTail + suffix + 1;
+      if (size > this.offsets.length) {
+        const grown = new Uint32Array(Math.max(size, this.offsets.length * 2));
+        grown.set(this.offsets);
+        this.offsets = grown;
+      }
+      if (oldTail !== newTail) this.offsets.copyWithin(newTail, oldTail, oldTail + suffix + 1);
+      if (delta) {
+        let pos = newTail;
+        for (let i = spans.length - right; i < spans.length; i++) {
+          if (!spans[i].count) continue;
+          this.offsets[pos] += delta;
+          pos += spans[i].count;
+        }
+        this.offsets[pos] += delta;
+      }
+      let pos = prefix;
+      for (const span of middle) {
+        this.offsets[pos] = start + part.offset(pos - prefix);
+        pos += span.count;
+      }
+      this.offsets[pos] = newEnd;
+    }
+    this.spanCount = -1; // A later full update must take a new snapshot.
+    this.revisions = sources?.map((source) => source?.revision) ?? [];
+    return dirty.first < dirty.end
+      ? { byteOffset: dirty.first * 4, data: this.values.subarray(dirty.first, dirty.end) }
+      : undefined;
   }
 
   /** Returns the changed address interval; removing an unchanged tail needs no buffer write. */
@@ -138,6 +266,7 @@ export class PathDrawIds {
     packed = false,
     splitSources = 0
   ): TInstanceSpan | undefined {
+    this.changedPart = undefined;
     if (this.grouped) {
       this.grouped = undefined;
       this.groupVersion++;

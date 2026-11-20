@@ -174,6 +174,47 @@ describe("resident overview curve groups", () => {
     expect(groups.count).toBe(1);
   });
 
+  it("preserves packed draw boundaries across local regrouping and consumers that skip an edit", () => {
+    const elements = new Float32Array(16 * PATH_ELEMENT_FLOATS);
+    for (const first of [4, 12]) {
+      for (let i = 0; i < 4; i++) elements.set([first, 0, 0, 0, 0, 0, 0, -1 - i], (first + i) * PATH_ELEMENT_FLOATS);
+    }
+    const groups = starts(elements);
+    const spans = [
+      { first: 0, count: 4 },
+      { first: 4, count: 4 },
+      { first: 8, count: 2 },
+      { first: 10, count: 0 },
+      { first: 12, count: 4 },
+    ];
+    const active = new PathDrawIds();
+    const lagging = new PathDrawIds();
+    for (const ids of [active, lagging]) ids.updatePlan(spans, [groups]);
+    const replaceOwner = (slot: number) => {
+      const data = elements.subarray(slot * PATH_ELEMENT_FLOATS, (slot + 1) * PATH_ELEMENT_FLOATS);
+      data[0] = 99;
+      groups.update(elements, {
+        kind: "range",
+        bytes: data.byteLength,
+        spans: [{ byteOffset: data.byteOffset, data }],
+      });
+    };
+
+    replaceOwner(5);
+    replaceOwner(5);
+    expect(active.updatePlan(spans, [groups])).toEqual({
+      byteOffset: 16,
+      data: new Float32Array([4, 5, 6, 7, 8, 9, -13]),
+    });
+    expect(active.offset(10)).toBe(10);
+    replaceOwner(13);
+    for (const ids of [active, lagging]) {
+      ids.updatePlan(spans, [groups]);
+      expect(Array.from(ids.data)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15]);
+      expect([ids.offset(4), ids.offset(8), ids.offset(10), ids.offset(14)]).toEqual([4, 8, 10, 14]);
+    }
+  });
+
   it("updates starts beside a local write across a 128-record chunk, removal and owner reuse", () => {
     const elements = new Float32Array(200 * PATH_ELEMENT_FLOATS);
     const add = (start: number, owner: number) => {

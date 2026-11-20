@@ -9,6 +9,8 @@ const MIN_SCALE = 1 / 128;
 const MAX_SCALE = 1 / 16;
 const FLOAT_EPSILON = 2 ** -23;
 const SEAM_ALLOWANCE = 1 / 256;
+/** Bound the retained history and the physical range checks per painter span on local edits. */
+export const MAX_LOCAL_OVERVIEW_RANGES = 8;
 
 /** Re-enter inside the certified band so small zoom reversals do not repeatedly rewrite the address stream. */
 export function overviewCamera(frame: TSceneFrame, active = false): boolean {
@@ -111,6 +113,8 @@ export class OverviewCurveGroups {
   public starts = new Uint8Array(0);
   public revision = 0;
   public count = 0;
+  /** Retained for every consumer that last saw the preceding revision. */
+  public lastChange?: { previousRevision: number; ranges: { first: number; end: number }[] };
   private size = 0;
 
   constructor(public readonly pieces: 2 | 4 = 4) {}
@@ -126,7 +130,14 @@ export class OverviewCurveGroups {
       next.set(this.starts);
       this.starts = next;
     }
+    const previousRevision = this.revision;
+    let changes: OverviewCurveGroups["lastChange"];
+    const trackRanges =
+      upload.kind !== "full" &&
+      (upload.kind === "none" || upload.spans.length + Number(size < previousSize) <= MAX_LOCAL_OVERVIEW_RANGES);
     const refresh = (from: number, to: number): void => {
+      let first = Infinity;
+      let end = 0;
       for (let i = Math.max(0, from - 3); i < to; i++) {
         const e = i * PATH_ELEMENT_FLOATS;
         const tag = elements[e + 7];
@@ -140,6 +151,12 @@ export class OverviewCurveGroups {
         this.count += flag - this.starts[i];
         this.starts[i] = flag;
         this.revision++;
+        first = Math.min(first, i);
+        end = i + 1;
+      }
+      if (end > first && trackRanges) {
+        changes ??= { previousRevision, ranges: [] };
+        changes.ranges.push({ first, end });
       }
     };
     if (size < previousSize) refresh(size, previousSize);
@@ -149,5 +166,6 @@ export class OverviewCurveGroups {
         const from = span.byteOffset / 4 / PATH_ELEMENT_FLOATS;
         refresh(from, from + span.data.length / PATH_ELEMENT_FLOATS);
       }
+    if (this.revision !== previousRevision) this.lastChange = changes;
   }
 }
