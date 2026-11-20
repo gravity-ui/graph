@@ -3156,6 +3156,7 @@ class WebGLSceneBackend implements ISceneBackend {
     translucent: readonly TDraw[],
     connectionOnly: boolean
   ): boolean {
+    if (connectionOnly && !this.hasResidentConnectionWork()) return false;
     let remaining = MIN_MIXED_CONNECTION_VERTICES;
     const grouped = !connectionOnly && translucent !== this.translucentFrameDraws;
     const lists = grouped ? [opaque, ...this.preparedGroups.ordered] : [opaque, translucent];
@@ -3273,12 +3274,7 @@ class WebGLSceneBackend implements ISceneBackend {
       }
       this.mixedRootsSeparated = separatedConnectionDepths(roots);
     }
-    if (
-      !this.mixedRootsSeparated ||
-      !this.hasResidentConnectionWork() ||
-      !this.hasMixedVertexWork(opaque, translucent, true)
-    )
-      return undefined;
+    if (!this.mixedRootsSeparated || !this.hasMixedVertexWork(opaque, translucent, true)) return undefined;
     const plan = this.cachedMixedPlane(opaque, translucent);
     if (
       !plan ||
