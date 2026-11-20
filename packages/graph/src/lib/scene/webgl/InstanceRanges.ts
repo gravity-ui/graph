@@ -385,8 +385,8 @@ export class InstanceRanges {
   }
 
   /**
-   * What to upload since the last call: everything after an initial write, resize or complete move, else dirty spans (merged by
-   * `instanceUploadPolicy`), or nothing.
+   * What to upload since the last call: everything after an initial write, dense layout resize or complete move,
+   * else dirty spans (merged by `instanceUploadPolicy`), or nothing.
    */
   public takeUpload(): TInstanceUpload {
     if (!this.retained) this.settle();
@@ -717,6 +717,7 @@ export class InstanceRanges {
     const grown = new Float32Array(capacity);
     grown.set(this.buffer);
     this.buffer = grown;
-    this.full = true;
+    // Retained offsets still address the same GPU records after the CPU array grows.
+    if (!this.retained) this.full = true;
   }
 }

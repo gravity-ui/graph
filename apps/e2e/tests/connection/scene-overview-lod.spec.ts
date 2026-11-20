@@ -120,44 +120,81 @@ test("sparse edits upload the two changed lines and restore the WebGL unpack sta
   });
 });
 
-test("adding one path record after two full texture rows only uploads the local edit", async ({ page }) => {
+test("growing a resident path texture preserves every line and uploads only the local edit", async ({ page }) => {
   await initialize(page);
-  const { initialBytes, editBytes, error } = await page.evaluate(() => {
+  const result = await page.evaluate(() => {
     const { scene, cameraService, scheduler } = window.graph;
     const backend = scene.layer.getBackend();
     const gl = backend?.canvas.getContext("webgl2");
     if (!backend || !gl) throw new Error("Missing WebGL backend");
-    // Fill two physical rows of ten-texel records exactly, then cross the row boundary.
+    const canCopy = gl.getSupportedExtensions()?.includes("EXT_color_buffer_float");
     const perRow = Math.floor(Math.min(4096, gl.getParameter(gl.MAX_TEXTURE_SIZE)) / 10);
-    const add = (id: string, pieces: number) => {
-      const segments = Float32Array.from(
-        Array.from({ length: pieces }, (_, x) =>
-          window.GraphModule.lineSegment({ x, y: 10 }, { x: x + 1, y: 10 })
-        ).flat()
-      );
+    cameraService.set({ x: 0, y: 0, scale: 1 });
+    const render = () => {
+      scene.layer.performRender();
+      scheduler.performUpdate();
+      backend.draw({ ...cameraService.getCameraState(), dpr: 2, time: 0, dimColor: scene.store.getDimColor() });
+    };
+    const add = (id: string, pieces: number, top: number) => {
+      const segments = Array.from({ length: pieces }, (_, i) => {
+        const x = 20 + (i % perRow);
+        const y = top + Math.floor(i / perRow) * 8;
+        return window.GraphModule.lineSegment({ x, y }, { x: x + 1, y });
+      });
       scene.store.add({
         id,
         entityType: "connection",
         x: 0,
         y: 0,
         zIndex: 0,
-        bounds: { minX: 0, minY: 9, maxX: pieces, maxY: 11 },
-        primitives: [{ kind: "path", segments, stroke: { color: "#3456ab", width: 1 } }],
+        bounds: { minX: 19, minY: top - 2, maxX: 21 + perRow, maxY: top + Math.ceil(pieces / perRow) * 8 + 2 },
+        primitives: [
+          { kind: "path", segments: Float32Array.from(segments.flat()), stroke: { color: "#3456ab", width: 3 } },
+        ],
       });
-      scene.layer.performRender();
-      scheduler.performUpdate();
-      backend.draw({ ...cameraService.getCameraState(), dpr: 2, time: 0, dimColor: scene.store.getDimColor() });
+      render();
     };
+    const initial = perRow * 4;
     const before = backend.stats.uploadBytes;
-    add("resident", perRow * 2);
+    add("resident", initial, 10);
     const initialBytes = backend.stats.uploadBytes - before;
+    type Batch = {
+      pathRecords?: { texture: { height: number } };
+      ranges: { data: Float32Array; floats: number; ownerRanges(id: string): unknown[] };
+    };
+    const internal = backend as unknown as { allBatches(): Iterable<Batch> };
+    const batch = [...internal.allBatches()].find((b) => b.pathRecords && b.ranges.ownerRanges("resident").length);
+    if (!batch?.pathRecords) throw new Error("Missing resident path texture");
+    const height = batch.pathRecords.texture.height;
+    const slots = height * perRow;
+    const beforeFill = backend.stats.uploadBytes;
+    add("fill-reserve", slots - initial, 100);
+    const fillBytes = backend.stats.uploadBytes - beforeFill;
+    const beforeImage = backend.canvas.toDataURL();
+    // Cross the CPU allocation and the GPU texture boundary in the same edit.
+    const cpuSlots = batch.ranges.data.buffer.byteLength / (batch.ranges.floats * Float32Array.BYTES_PER_ELEMENT);
     const beforeEdit = backend.stats.uploadBytes;
-    add("one-piece", 1);
-    return { initialBytes, editBytes: backend.stats.uploadBytes - beforeEdit, error: gl.getError() };
+    add("new-line", cpuSlots - slots + 1, 200);
+    const editBytes = backend.stats.uploadBytes - beforeEdit;
+    const grew = batch.pathRecords.texture.height > height;
+    const image = backend.canvas.toDataURL();
+    backend.replay(scene.store);
+    render();
+    return {
+      initialBytes,
+      fillBytes,
+      editBytes,
+      canCopy,
+      grew,
+      changed: image !== beforeImage,
+      sameAsReplay: image === backend.canvas.toDataURL(),
+      error: gl.getError(),
+    };
   });
-  expect(error).toBe(0);
-  expect(editBytes).toBeGreaterThan(0);
-  expect(editBytes).toBeLessThan(initialBytes / 2);
+  expect(result).toMatchObject({ grew: true, changed: true, sameAsReplay: true, error: 0 });
+  expect(result.fillBytes).toBeLessThan(result.initialBytes / 2);
+  expect(result.editBytes).toBeGreaterThan(0);
+  if (result.canCopy) expect(result.editBytes).toBeLessThan(result.initialBytes / 2);
 });
 
 /** Compare the same backend, camera, clock and AA policy; only the private overview selector is bypassed. */

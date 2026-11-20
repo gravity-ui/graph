@@ -2342,12 +2342,12 @@ class WebGLSceneBackend implements ISceneBackend {
     });
   }
 
-  private createTableTexture(width: number, height: number): Texture {
+  private createTableTexture(width: number, height: number, usage = TEXTURE_USAGE): Texture {
     return this.device.createTexture({
       format: "rgba32float",
       width,
       height,
-      usage: TEXTURE_USAGE,
+      usage,
       sampler: TABLE_SAMPLER,
     });
   }
@@ -2454,7 +2454,8 @@ class WebGLSceneBackend implements ISceneBackend {
     };
     // Empty effect groups need only a placeholder; the first upload allocates their actual record table.
     const pathRecords = {
-      texture: this.createTableTexture(PATH_RECORD_TEXELS, 1),
+      // eslint-disable-next-line no-bitwise -- luma usage flags are bit masks
+      texture: this.createTableTexture(PATH_RECORD_TEXELS, 1, TEXTURE_USAGE | Texture.COPY_SRC),
       companion: elements,
       ids: new PathDrawIds(),
     };
@@ -4033,18 +4034,28 @@ class WebGLSceneBackend implements ISceneBackend {
       );
       const rows = Math.ceil(texels / width);
       if (rows > limit) throw new Error("Path record table exceeds the device texture capacity");
-      // Leave one row for local growth so the first new pieces do not reupload an entire multi-row texture.
+      // Leave one row for local edits before the next allocation.
       const reservedRows = rows > 1 ? rows + 1 : rows;
       const height = Math.min(
         limit,
         Math.max(reservedRows, records.texture.width === width ? records.texture.height * 2 : 1)
       );
-      records.texture.destroy();
-      records.texture = this.createTableTexture(width, height);
+      const source =
+        payload.kind !== "full" &&
+        elements.kind !== "full" &&
+        records.texture.width === width &&
+        this.gl.getExtension("EXT_color_buffer_float")
+          ? records.texture
+          : undefined;
+      if (!source) records.texture.destroy();
+      // eslint-disable-next-line no-bitwise -- luma usage flags are bit masks
+      const next = this.createTableTexture(width, height, TEXTURE_USAGE | Texture.COPY_SRC);
+      if (!source || !this.copyPathRecordRows(source, next)) payload = { kind: "full" };
+      source?.destroy();
+      records.texture = next;
       batch.uniforms.graph_recordWidth = width;
       batch.model.setBindings(this.batchBindings(batch));
       batch.plain?.model.setBindings(this.batchBindings(batch));
-      payload = { kind: "full" };
     }
     const writes = pathRecordWrites(batch.ranges.data, companion.ranges.data, payload, elements, records.texture.width);
     const texture = records.texture;
@@ -4074,6 +4085,28 @@ class WebGLSceneBackend implements ISceneBackend {
       }
     }
     return UPLOAD_COST[payload.kind] >= UPLOAD_COST[elements.kind] ? payload.kind : elements.kind;
+  }
+
+  /** Only vertical growth preserves every resident record's texel coordinates. */
+  private copyPathRecordRows(previous: Texture, next: Texture): boolean {
+    const gl = this.gl;
+    if (!(previous instanceof WEBGLTexture && next instanceof WEBGLTexture)) return false;
+    const framebuffer = gl.createFramebuffer();
+    if (!framebuffer) return false;
+    const read = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) as WebGLFramebuffer | null;
+    const bound = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null;
+    try {
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, framebuffer);
+      gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, previous.handle, 0);
+      if (gl.checkFramebufferStatus(gl.READ_FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) return false;
+      gl.bindTexture(gl.TEXTURE_2D, next.handle);
+      gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, previous.width, previous.height);
+      return true;
+    } finally {
+      gl.bindTexture(gl.TEXTURE_2D, bound);
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, read);
+      gl.deleteFramebuffer(framebuffer);
+    }
   }
 
   private uploadRanges(
