@@ -90,12 +90,17 @@ export type {
   TSceneState,
 } from "./services/scene/types";
 export type { ISceneKeyed, TSceneKey } from "./services/scene/sceneKey";
-export { defineSceneEffect, type TSceneEffectDefinition } from "./lib/scene/effects/defineSceneEffect";
+export { defineSceneEffect } from "./lib/scene/effects/defineSceneEffect";
+export { dashFlow, pulse } from "./lib/scene/effects/library";
 export type {
   TSceneEffect,
+  TSceneEffectDefinition,
   TSceneEffectKind,
   TSceneEffectScaleRange,
   TSceneEffectUse,
+  TUniformType,
+  TUniformTypes,
+  TUniformValue,
 } from "./lib/scene/effects/types";
 export { SceneComponent } from "./components/canvas/scene";
 export type { TSceneParent } from "./components/canvas/scene";

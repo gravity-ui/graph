@@ -137,12 +137,8 @@ test("effect scale ranges keep resident paths, stop animation and preserve custo
     const depth = defineSceneEffect({
       kind: "path",
       animated: true,
-      // Previously authored shaders use the original type and version names.
       fragment: `
-        #if GRAPH_CONNECTION_FRAGMENT != 1
-        #error Expected the legacy connection fragment contract
-        #endif
-        vec4 effect(ConnectionFragment f, vec4 color) {
+        vec4 effect(PathFragment f, vec4 color) {
           gl_FragDepth = gl_FragCoord.z;
           return vec4(1., 0., 0., 1.);
         }

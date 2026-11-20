@@ -1,9 +1,9 @@
-import { dashFlow } from "../../../../../components/canvas/connections/effects";
 import { lineSegment } from "../../../../../components/canvas/connections/geometry/segments";
-import { INSTANCE_FLOATS } from "../../../../../components/canvas/connections/webgl/encode";
+import { dashFlow } from "../../../effects/library";
 import type { TScenePrimitive } from "../../../types";
 import { USE_BASE_ALPHA } from "../../instances/tables";
 import { CachedGeometryBounds } from "../../order/levelBounds";
+import { INSTANCE_FLOATS } from "../encodePathInstances";
 import { createPathScratch, encodePaths } from "../encodePaths";
 import { PATH_ELEMENT_FLOATS } from "../pathRecords";
 
@@ -186,7 +186,7 @@ describe("encodePaths", () => {
     expect(Array.from(out.lineElements)).toEqual([3, 0, 5, 0, 0.25, 2, 7, 0]);
   });
 
-  it("lists the effects of paths that have one", () => {
+  it("writes distance, dash and effect parameters for a scene path", () => {
     const use = dashFlow.use({ pattern: [4, 2], speed: 1 });
     const out = encodePaths(
       [
@@ -197,10 +197,10 @@ describe("encodePaths", () => {
       0,
       slotOf
     );
-    expect(out.effects).toEqual([use]);
     expect(out.lines.length / INSTANCE_FLOATS).toBe(2);
     expect(Array.from(out.lines.slice(13, 16))).toEqual([30, 0, 30]);
     expect(Array.from(out.lines.slice(16, 20))).toEqual([4, 2, 0, 0]);
+    expect(Array.from(out.lines.slice(20, 28))).toEqual([4, 2, 1, 0, 0, 0, 0, 0]);
   });
 
   it("offsets the depth sub-order by the sub base and checks the budget", () => {
@@ -226,6 +226,5 @@ describe("encodePaths", () => {
     expect(out.lines).toHaveLength(INSTANCE_FLOATS);
     expect(Array.from(out.lineElements.slice(0, 2))).toEqual([7, 2]);
     expect(out.lines[12]).toBe(3);
-    expect(out.effects).toEqual([use]);
   });
 });

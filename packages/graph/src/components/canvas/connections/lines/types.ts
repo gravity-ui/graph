@@ -1,5 +1,5 @@
-import type { ConnectionEffect } from "../effects/ConnectionEffect";
-import type { TConnectionEffectScaleRange, TUniformTypes } from "../effects/types";
+import type { TSceneEffectUse } from "../../../../lib/scene/effects/types";
+import type { TPathInteraction } from "../../../../lib/scene/types";
 
 import type { ConnectionLine } from "./ConnectionLine";
 
@@ -13,25 +13,10 @@ export type TLineStroke = { color: string; width: number; dash?: { pattern: read
  */
 export type TConnectionLineClass = new (connection: never) => ConnectionLine;
 
-/**
- * Hover and selection of the connection a line draws (internal): what an effect reads as `f.hovered`, `f.selected` and
- * `f.selectionColor`. The selection color is there whatever the state.
- */
-export type TLineInteraction = { hovered: boolean; selected: boolean; selectionColor: string };
-
-/** Geometry and stroke of a WebGL scene path (internal). */
-export type TWebGLShape = {
-  segments: Float32Array;
+/** Appearance consumed when the connection builds its path primitive. */
+export type TSceneStrokeEffect = {
   stroke: TLineStroke;
-  /** The effect recoloring the stroke (the line only), with the connection's parameters. */
-  effect?: ConnectionEffect<TUniformTypes, never>;
-  params?: readonly number[];
-  effectScaleRange?: TConnectionEffectScaleRange;
-  /** The line's hover and selection; an arrow has none (encoded as zeros). */
-  interaction?: TLineInteraction;
-  /**
-   * The stroke color is the line's own in place of the selection color `withInteraction()` applied: the effect shows
-   * the selection, and the plain program (an effect that does not compile) draws the selection color.
-   */
+  effect: TSceneEffectUse<"path">;
+  interaction: TPathInteraction;
   effectShowsSelection?: boolean;
 };

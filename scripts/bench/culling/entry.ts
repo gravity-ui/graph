@@ -250,7 +250,14 @@ function tintEffects(count: number): TEffectObject[] {
     effects.push(
       definePathEffect({
         animated: false,
-        fragment: `vec4 effect(ConnectionFragment f, vec4 color) { return vec4(color.rgb * ${tint}, color.a); }`,
+        fragment: `
+#ifdef GRAPH_PATH_FRAGMENT
+vec4 effect(PathFragment f, vec4 color) {
+#else
+vec4 effect(ConnectionFragment f, vec4 color) {
+#endif
+  return vec4(color.rgb * ${tint}, color.a);
+}`,
       })
     );
   }

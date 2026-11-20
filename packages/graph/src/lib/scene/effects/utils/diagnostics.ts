@@ -38,9 +38,9 @@ export function countEffectObject(effect: object, fragment: string): void {
   if (count > MAX_OBJECTS_PER_FRAGMENT && !warnedFragments.has(fragment)) {
     warnedFragments.add(fragment);
     console.warn(
-      `[@gravity-ui/graph] More than ${MAX_OBJECTS_PER_FRAGMENT} connection effect objects with one fragment are ` +
-        "alive. defineSceneEffect() or clone() is called per connection (inside getStroke()?): " +
-        "define the effect once and pass per-connection values through use(params)."
+      `[@gravity-ui/graph] More than ${MAX_OBJECTS_PER_FRAGMENT} path effect objects with one fragment are ` +
+        "alive. defineSceneEffect() or clone() is called per path (inside getStroke() or a level method?): " +
+        "define the effect once and pass per-path values through use(params)."
     );
   }
 }
@@ -51,6 +51,6 @@ export function warnTruncatedParams(effect: object, supplied: number, limit: num
   if (warnedParams.has(effect)) return;
   warnedParams.add(effect);
   console.warn(
-    `[@gravity-ui/graph] A connection effect got ${supplied} parameters; only the first ${limit} reach the shader.`
+    `[@gravity-ui/graph] A path effect got ${supplied} parameters; only the first ${limit} reach the shader.`
   );
 }

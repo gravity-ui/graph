@@ -1,8 +1,8 @@
 import type { Framebuffer } from "@luma.gl/core";
 import { DynamicBuffer } from "@luma.gl/engine";
 
-import { toConnectionEffect } from "../../../../components/canvas/connections/effects/ConnectionEffect";
-import { dashFlow, pulse } from "../../../../components/canvas/connections/effects/library";
+import { toPathEffect } from "../../effects/PathEffect";
+import { dashFlow, pulse } from "../../effects/library";
 import { InstanceRanges } from "../instances/InstanceRanges";
 import { SUB_FLOAT } from "../order/translucentSteps";
 import { MIXED_PATH_SOURCE_STRIDE, comparePathOrder } from "../paths/mixedPathPlan";
@@ -26,12 +26,9 @@ import type {
 /** Only when an active effect sets fragment depth: retain native union draws so a later piece can reclaim its samples. */
 export type TCustomDepth = { opaque: readonly TDraw[]; unions: TDraw[]; withUnions: boolean };
 
-export const MIXED_EFFECT_PROGRAMS = new Set([
-  toConnectionEffect(dashFlow).programKey,
-  toConnectionEffect(pulse).programKey,
-]);
+export const MIXED_EFFECT_PROGRAMS = new Set([toPathEffect(dashFlow).programKey, toPathEffect(pulse).programKey]);
 
-export const PULSE_PROGRAM = toConnectionEffect(pulse).programKey;
+export const PULSE_PROGRAM = toPathEffect(pulse).programKey;
 
 // The extra pass pays off on the measured large fit views. At around 600k vertices the shared pass wins.
 export const MIN_MIXED_CONNECTION_VERTICES = 1_500_000;

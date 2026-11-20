@@ -4,7 +4,7 @@ import type {
   TBlock,
   TBlockId,
   TBlockProps,
-  TConnectionEffectScaleRange,
+  TSceneEffectScaleRange,
   TScenePrimitive,
   TStyleParts,
   TStyleRule,
@@ -168,7 +168,7 @@ function effects(
   stage: TStageBlock,
   look: TEffectsLook,
   left: number,
-  range: TConnectionEffectScaleRange
+  range: TSceneEffectScaleRange
 ): TScenePrimitive[] {
   const { width, height, rowsPerSecond } = stage;
   const card: TBox = { x: 0, y: 0, width, height, radius };
@@ -244,7 +244,7 @@ export class StageBlock extends CanvasBlock<TStageState> {
   >;
 
   private schematicPrimitives?: readonly TScenePrimitive[];
-  protected readonly effectRange: TConnectionEffectScaleRange = {};
+  protected readonly effectRange: TSceneEffectScaleRange = {};
 
   protected override getAnchorClass(): TAnchorClass {
     return StageAnchor;

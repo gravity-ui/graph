@@ -660,7 +660,7 @@ the base stroke outside it.
 ## Shader contract
 
 Path effects receive a [`PathFragment`](../system/scene-effects.md#pathfragment). That reference lists the GLSL
-fields, units, color pipeline and version aliases. See
+fields, units, color pipeline and version macro. See
 [the shared example](../system/scene-effects.md#one-effect-on-a-connection-and-a-block-outline) for using the same
 effect on a connection and a block contour.
 

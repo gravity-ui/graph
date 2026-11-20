@@ -836,6 +836,42 @@ test.describe("Scene blocks with the WebGL renderer", () => {
     }
   });
 
+  test("matches Canvas for modern CSS colors in fills and style rules", async ({ page }) => {
+    const graph = new GraphPageObject(page);
+    await graph.initialize({ ...CONFIG, blocks: [], settings: { renderer: "canvas" } });
+    test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+
+    await page.evaluate(() => {
+      const { scene, cameraService } = window.graph;
+      cameraService.set({ scale: 0.5, x: 0, y: 0 });
+      const id = "modern-color";
+      const box = { x: 0, y: 0, width: 80, height: 80 };
+      scene.store.add({
+        id,
+        zIndex: 100,
+        x: 80,
+        y: 80,
+        bounds: { minX: 0, minY: 0, maxX: 80, maxY: 80 },
+        primitives: [
+          { kind: "rect", ...box, fill: "#0000ff" },
+          { kind: "rect", ...box, width: 40, part: "solid", fill: "#ff0000" },
+          { kind: "rect", ...box, x: 40, width: 40, fill: "oklch(65% 0.21 140 / 0.5)" },
+        ],
+      });
+      scene.store.setStyle(id, scene.store.defineStyle({ parts: { solid: { color: "oklch(65% 0.21 140)" } } }));
+    });
+
+    for (const renderer of ["canvas", "webgl"] as const) {
+      await page.evaluate((value) => window.graph.updateSettings({ renderer: value }), renderer);
+      await expect.poll(() => rendererState(page)).toBe(renderer);
+      await graph.waitForFrames(3);
+      const solid = await countColor(page, { x: 90, y: 100, width: 16, height: 16 }, [51, 171, 0], 3);
+      expect(solid.matched, `${renderer} solid fill`).toBe(solid.total);
+      const overlap = await countColor(page, { x: 130, y: 100, width: 16, height: 16 }, [26, 86, 127], 3);
+      expect(overlap.matched, `${renderer} translucent fill over blue`).toBe(overlap.total);
+    }
+  });
+
   test("draws a filled arrow triangle in scene order", async ({ page }) => {
     const graphPO = new GraphPageObject(page);
     await graphPO.initialize({ ...CONFIG, blocks: [] });

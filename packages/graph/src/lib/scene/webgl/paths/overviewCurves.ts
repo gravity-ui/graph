@@ -1,8 +1,8 @@
-import { INSTANCE_FLOATS } from "../../../../components/canvas/connections/webgl/encode";
 import type { TSceneFrame } from "../../renderer/backendTypes";
 import type { TInstanceUpload } from "../instances/InstanceRanges";
 
 import { CURVE_PROJECTION_ALLOWANCE, canCoarsenCurves } from "./curveTessellation";
+import { INSTANCE_FLOATS } from "./encodePathInstances";
 import { PATH_ELEMENT_FLOATS } from "./pathRecords";
 
 const MIN_SCALE = 1 / 128;

@@ -1,5 +1,5 @@
-import { toConnectionEffect } from "../../../../components/canvas/connections/effects/ConnectionEffect";
 import type { TTileRect } from "../../../culling/TileIndex";
+import { toPathEffect } from "../../effects/PathEffect";
 import type { TScenePrimitive, TSceneSize, TSceneStroke } from "../../types";
 import { resolveSceneSize } from "../../utils/size";
 import { MITER_LIMIT } from "../paths/closedStroke";
@@ -128,7 +128,7 @@ export class CachedGeometryBounds {
       if (primitive.kind === "path") {
         width = primitive.stroke.width;
         reach = primitive.closed ? MITER_LIMIT / 2 : 1;
-        halo = primitive.effect ? toConnectionEffect(primitive.effect.effect).extraWidth : 0;
+        halo = primitive.effect ? toPathEffect(primitive.effect.effect).extraWidth : 0;
         // Shader scale is f32, even when the effect's CPU activity range is narrower than one float step.
         haloMinScale = Math.fround(primitive.effect?.minScale ?? 0);
         if (width !== undefined) bare = { ...primitive, stroke: { ...primitive.stroke, width: 0 }, effect: undefined };
@@ -211,8 +211,7 @@ function boundsOf(
       case "path":
         if (primitive.stroke.width !== undefined) {
           const width = resolveSceneSize(primitive.stroke.width, scale);
-          const halo =
-            !painted && primitive.effect ? toConnectionEffect(primitive.effect.effect).extraWidth / scale : 0;
+          const halo = !painted && primitive.effect ? toPathEffect(primitive.effect.effect).extraWidth / scale : 0;
           joinPoints(box, primitive.segments, (painted || primitive.closed ? paintedJoinReach(width) : width) + halo);
         }
         break;

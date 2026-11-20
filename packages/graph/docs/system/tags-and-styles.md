@@ -173,9 +173,7 @@ colour, the theme's `colors.canvas.layerBackground`, by that amount (`rgb = mix(
 change, so an opaque block stays opaque. `dim` on the style sets it for the whole element; `dim` on a part overrides it
 for that part's primitives, so `{ dim: 0.6, parts: { title: { dim: 0 } } }` fades a block but keeps its title. Because
 `dim` touches no colour, it combines with any rule that does: a selected block under a focus `dim` keeps the theme's
-selection border, faded. Use hex or `rgb()` / `rgba()` colours for paints and the layer background shared with
-WebGL. A browser can preserve `oklch()` when normalizing it on Canvas, leaving the WebGL colour parser unable
-to resolve it.
+selection border, faded. WebGL converts browser-supported CSS colours such as `oklch()` to sRGB for blending.
 
 **`opacity`** (0 to 1, clamped) is real transparency: it multiplies the alpha of every paint of a primitive (`a = a ×
 opacity`), whether the paint comes from the primitive's data, a base rule or a state rule, so whatever lies under the

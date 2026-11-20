@@ -1,5 +1,5 @@
 import { BlockConnection, SceneLine, dashFlow, defineSceneEffect, pulse } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TConnection, TConnectionEffectUse, TSceneLineStroke } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TConnection, TSceneEffectUse, TSceneLineStroke } from "@gravity-ui/graph";
 
 export type TConnectionClass = typeof BlockConnection<TConnection>;
 
@@ -10,7 +10,7 @@ export type TLook = {
   /** A still dash in world units for both renderers. */
   pattern?: readonly number[];
   /** WebGL only. */
-  effect?: TConnectionEffectUse;
+  effect?: TSceneEffectUse<"path">;
 };
 
 /**

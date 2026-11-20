@@ -1,5 +1,5 @@
 import { dashFlow, pulse } from "@gravity-ui/graph";
-import type { TConnectionEffectScaleRange, TScenePartStyle, TScenePrimitive } from "@gravity-ui/graph";
+import type { TSceneEffectScaleRange, TScenePartStyle, TScenePrimitive } from "@gravity-ui/graph";
 
 import { glow, gradient, particles } from "../webglConnections/lines";
 
@@ -131,7 +131,7 @@ export function fitPattern(length: number, on: number, off: number): [number, nu
 export function marchingBorder(
   box: TBox,
   look: { width: number; color: string; on: number; off: number; speed: number },
-  range?: TConnectionEffectScaleRange
+  range?: TSceneEffectScaleRange
 ): TScenePrimitive {
   const path = roundedRectPath(box);
   const pattern = fitPattern(path.length, look.on, look.off);
@@ -151,7 +151,7 @@ export function marchingBorder(
 export function orbitingComet(
   box: TBox,
   look: { width: number; color: string; share: number; laps: number },
-  range?: TConnectionEffectScaleRange
+  range?: TSceneEffectScaleRange
 ): TScenePrimitive {
   const path = roundedRectPath(box);
   return {
@@ -174,7 +174,7 @@ export function orbitingComet(
 export function pulsingOutline(
   box: TBox,
   look: { width: number; color: string; period: number },
-  range?: TConnectionEffectScaleRange
+  range?: TSceneEffectScaleRange
 ): TScenePrimitive {
   return {
     kind: "path",
@@ -191,7 +191,7 @@ export function throughputParticles(
   x1: number,
   y: number,
   look: { width: number; color: string; spacing: number; speed: number },
-  range?: TConnectionEffectScaleRange
+  range?: TSceneEffectScaleRange
 ): TScenePrimitive {
   return {
     kind: "path",
@@ -211,7 +211,7 @@ export function spinner(
   cy: number,
   r: number,
   look: { width: number; color: string; track: string; period: number },
-  range?: TConnectionEffectScaleRange
+  range?: TSceneEffectScaleRange
 ): TScenePrimitive[] {
   const path = circlePath(cx, cy, r);
   return [
@@ -233,7 +233,7 @@ export function spinner(
 export function glowOutline(
   box: TBox,
   look: { width: number; color: string },
-  range?: TConnectionEffectScaleRange
+  range?: TSceneEffectScaleRange
 ): TScenePrimitive {
   return {
     kind: "path",

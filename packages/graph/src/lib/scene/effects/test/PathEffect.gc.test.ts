@@ -2,7 +2,7 @@
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 
-import { defineSceneEffect } from "../../../../../lib/scene/effects/defineSceneEffect";
+import { defineSceneEffect } from "../defineSceneEffect";
 
 setFlagsFromString("--expose-gc");
 // The flag exposes `gc` only to contexts created afterwards; the vm result is that native function.

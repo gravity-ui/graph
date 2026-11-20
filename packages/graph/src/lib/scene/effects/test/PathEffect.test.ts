@@ -1,7 +1,7 @@
-import { defineSceneEffect } from "../../../../../lib/scene/effects/defineSceneEffect";
-import type { TSceneLineStroke } from "../../lines/SceneLine";
-import type { TLineStroke } from "../../lines/types";
-import { ConnectionEffect, toConnectionEffect } from "../ConnectionEffect";
+import type { TSceneLineStroke } from "../../../../components/canvas/connections/lines/SceneLine";
+import type { TLineStroke } from "../../../../components/canvas/connections/lines/types";
+import { PathEffect, toPathEffect } from "../PathEffect";
+import { defineSceneEffect } from "../defineSceneEffect";
 
 const FRAGMENT = "vec4 effect(PathFragment f, vec4 color) { return color; }";
 
@@ -77,9 +77,8 @@ describe("defineSceneEffect", () => {
     scope.FinalizationRegistry = Registry;
     try {
       jest.isolateModules(() => {
-        const { defineSceneEffect: define } = jest.requireActual<
-          typeof import("../../../../../lib/scene/effects/defineSceneEffect")
-        >("../../../../../lib/scene/effects/defineSceneEffect");
+        const { defineSceneEffect: define } =
+          jest.requireActual<typeof import("../defineSceneEffect")>("../defineSceneEffect");
         const effect = define({ kind: "path", fragment: FRAGMENT });
         expect(effect.clone().use(new Array(9).fill(1)).params).toHaveLength(8);
       });
@@ -102,13 +101,13 @@ describe("defineSceneEffect", () => {
     copy.uniforms.intensity.value = 2;
     expect(effect.uniforms.intensity.value).toBe(5);
     expect(copy).not.toBe(effect);
-    expect(toConnectionEffect(copy).programKey).toBe(toConnectionEffect(effect).programKey);
+    expect(toPathEffect(copy).programKey).toBe(toPathEffect(effect).programKey);
   });
 
   it("gives different fragments and uniform sets different program keys", () => {
-    const a = toConnectionEffect(defineSceneEffect({ kind: "path", fragment: FRAGMENT }));
-    const b = toConnectionEffect(defineSceneEffect({ kind: "path", fragment: `${FRAGMENT} ` }));
-    const c = toConnectionEffect(
+    const a = toPathEffect(defineSceneEffect({ kind: "path", fragment: FRAGMENT }));
+    const b = toPathEffect(defineSceneEffect({ kind: "path", fragment: `${FRAGMENT} ` }));
+    const c = toPathEffect(
       defineSceneEffect({ kind: "path", fragment: FRAGMENT, uniforms: { k: { type: "float", value: 1 } } })
     );
     expect(new Set([a.programKey, b.programKey, c.programKey]).size).toBe(3);
@@ -121,14 +120,14 @@ describe("defineSceneEffect", () => {
     ).toThrow(/uniform name/);
     expect(() => defineSceneEffect({ kind: "path", fragment: FRAGMENT, extraWidth: -1 })).toThrow(/extraWidth/);
     expect(() => defineSceneEffect({ kind: "path", fragment: FRAGMENT, extraWidth: Infinity })).toThrow(/extraWidth/);
-    expect(toConnectionEffect(defineSceneEffect({ kind: "path", fragment: FRAGMENT })).extraWidth).toBe(0);
+    expect(toPathEffect(defineSceneEffect({ kind: "path", fragment: FRAGMENT })).extraWidth).toBe(0);
   });
 
   it("warns once past 64 objects with one fragment", () => {
     const effect = defineSceneEffect({ kind: "path", fragment: `${FRAGMENT} // many` });
     for (let i = 0; i < 70; i++) effect.clone();
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0][0]).toContain("defineSceneEffect() or clone() is called per connection");
+    expect(warn.mock.calls[0][0]).toContain("defineSceneEffect() or clone() is called per path");
   });
 
   it("still counts and warns where FinalizationRegistry is missing", () => {
@@ -138,9 +137,7 @@ describe("defineSceneEffect", () => {
     try {
       expect(scope.FinalizationRegistry).toBeUndefined();
       jest.isolateModules(() => {
-        const isolated = jest.requireActual<{ defineSceneEffect: typeof defineSceneEffect }>(
-          "../../../../../lib/scene/effects/defineSceneEffect"
-        );
+        const isolated = jest.requireActual<{ defineSceneEffect: typeof defineSceneEffect }>("../defineSceneEffect");
         const effect = isolated.defineSceneEffect({ kind: "path", fragment: `${FRAGMENT} // no registry` });
         for (let i = 0; i < 70; i++) effect.clone();
       });
@@ -150,17 +147,17 @@ describe("defineSceneEffect", () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it("returns the class instance from toConnectionEffect and rejects other objects", () => {
+  it("returns the class instance from toPathEffect and rejects other objects", () => {
     const effect = defineSceneEffect({ kind: "path", fragment: FRAGMENT });
-    expect(toConnectionEffect(effect)).toBeInstanceOf(ConnectionEffect);
-    expect(() => toConnectionEffect({} as never)).toThrow();
+    expect(toPathEffect(effect)).toBeInstanceOf(PathEffect);
+    expect(() => toPathEffect({} as never)).toThrow();
   });
 
   it("uses the fallback and defaults to the stroke itself", () => {
     const stroke: TLineStroke = { color: "#fff", width: 2 };
-    const plain = toConnectionEffect(defineSceneEffect({ kind: "path", fragment: FRAGMENT }));
+    const plain = toPathEffect(defineSceneEffect({ kind: "path", fragment: FRAGMENT }));
     expect(plain.getFallbackStroke(stroke, [])).toBe(stroke);
-    const custom = toConnectionEffect(
+    const custom = toPathEffect(
       defineSceneEffect({ kind: "path", fragment: FRAGMENT, fallback: (s, p) => ({ ...s, width: p[0] }) })
     );
     expect(custom.getFallbackStroke(stroke, [7])).toEqual({ color: "#fff", width: 7 });

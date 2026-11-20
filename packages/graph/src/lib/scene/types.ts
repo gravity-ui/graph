@@ -1,4 +1,3 @@
-import type { TLineInteraction } from "../../components/canvas/connections/lines/types";
 import type { TTileRect } from "../culling/TileIndex";
 
 import type { TSceneEffectUse } from "./effects/types";
@@ -118,6 +117,9 @@ export type TSceneVisibility = {
   levelMask?: number;
 };
 
+/** Interaction values supplied to a path shader. */
+export type TPathInteraction = { hovered: boolean; selected: boolean; selectionColor: string };
+
 /** Fragment program for a WebGL sprite. Return straight RGBA; UV (0, 0) is the top-left corner. */
 export type TSceneSpriteEffect = {
   readonly fragment: string;
@@ -222,7 +224,7 @@ export type TScenePrimitive = Readonly<
           stroke: TSceneStroke;
           effect?: TSceneEffectUse<"path">;
           canvasStroke?: TSceneStroke;
-          interaction?: TLineInteraction;
+          interaction?: TPathInteraction;
           effectShowsSelection?: boolean;
         }
       /** A closed polygon given as x, y pairs. */

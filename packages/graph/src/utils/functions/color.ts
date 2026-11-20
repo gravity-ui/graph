@@ -4,7 +4,7 @@ const parseColorCache = new Map<string, { r: number; g: number; b: number; a: nu
 // Cache for colors with applied alpha
 const applyAlphaCache = new Map<string, string>();
 
-// Shared canvas context used only for fillStyle normalization — no drawing, no getImageData.
+// Shared context for normalizing CSS colors to sRGB.
 let colorNormCtx: CanvasRenderingContext2D | null = null;
 
 function getColorNormContext(): CanvasRenderingContext2D | null {
@@ -16,7 +16,8 @@ function getColorNormContext(): CanvasRenderingContext2D | null {
     const canvas = document.createElement("canvas");
     canvas.width = 1;
     canvas.height = 1;
-    colorNormCtx = canvas.getContext("2d");
+    colorNormCtx = canvas.getContext("2d", { willReadFrequently: true });
+    if (colorNormCtx) colorNormCtx.globalCompositeOperation = "copy";
   }
 
   return colorNormCtx;
@@ -25,12 +26,8 @@ function getColorNormContext(): CanvasRenderingContext2D | null {
 /**
  * Parses a color string and returns RGBA components.
  *
- * Normalization works by assigning the color to a canvas `fillStyle` and
- * reading the value back — the browser converts any CSS color format
- * (named colors, hsl/hsla, hex, rgb/rgba) into either `#rrggbb` or
- * `rgba(r, g, b, a)`. No pixels are drawn or read via getImageData,
- * so there are no clearRect / compositing issues that affect Safari
- * with OffscreenCanvas.
+ * Read hex and rgba values from the browser's serialized fillStyle. For
+ * color functions the browser preserves, sample one sRGB pixel on a cache miss.
  *
  * @param color - Color in any valid CSS format
  * @returns RGBA components or null if parsing fails
@@ -46,9 +43,6 @@ export function parseColor(color: string): { r: number; g: number; b: number; a:
     return null;
   }
 
-  // Assign the color — the browser normalises it immediately.
-  // Reading fillStyle back gives '#rrggbb' or 'rgba(r, g, b, a)'.
-  // No pixel is drawn; no getImageData is needed.
   ctx.fillStyle = "#000000"; // fallback if user passes invalid color
   ctx.fillStyle = color;
   const normalized = ctx.fillStyle as string;
@@ -68,7 +62,7 @@ export function parseColor(color: string): { r: number; g: number; b: number; a:
 
   if (!result) {
     // 'rgba(r, g, b, a)' or 'rgb(r, g, b)'
-    const rgba = normalized.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/);
+    const rgba = normalized.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/);
     if (rgba) {
       result = {
         r: parseInt(rgba[1], 10),
@@ -80,7 +74,9 @@ export function parseColor(color: string): { r: number; g: number; b: number; a:
   }
 
   if (!result) {
-    return null;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+    result = { r, g, b, a: a / 255 };
   }
 
   parseColorCache.set(color, result);

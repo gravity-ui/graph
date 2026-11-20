@@ -5,7 +5,7 @@ import type {
   TBlock,
   TBlockId,
   TConnection,
-  TConnectionEffectScaleRange,
+  TSceneEffectScaleRange,
 } from "@gravity-ui/graph";
 
 import { createConnection, glow, gradient, particles } from "./lines";
@@ -94,7 +94,7 @@ export function getFlowStatus(source: TEtlStageStatus, target: TEtlStageStatus):
 }
 
 /** The look of a running flow; `volume` (1..10, relative rows per second) sets speed, spacing and width. */
-function runningLook(effect: TEtlEffect, volume: number, range?: TConnectionEffectScaleRange): TLook {
+function runningLook(effect: TEtlEffect, volume: number, range?: TSceneEffectScaleRange): TLook {
   switch (effect) {
     case "comets": {
       // Short flows (200–450 units): a dense train of comets keeps every flow readable.
@@ -143,7 +143,7 @@ function runningLook(effect: TEtlEffect, volume: number, range?: TConnectionEffe
 /** Failed and idle flows look the same for every effect; a running flow takes the selected one. */
 export function createEtlConnection(
   readEffect: () => TEtlEffect,
-  range?: TConnectionEffectScaleRange
+  range?: TSceneEffectScaleRange
 ): ReturnType<typeof createConnection> {
   return createConnection((_id, state: TBaseConnectionState) => {
     const { status, volume = 1 } = state as TBaseConnectionState & Partial<TEtlConnection>;

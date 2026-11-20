@@ -1,6 +1,6 @@
-import { INSTANCE_FLOATS } from "../../../../components/canvas/connections/webgl/encode";
 import type { TSceneFrame } from "../../renderer/backendTypes";
 
+import { INSTANCE_FLOATS } from "./encodePathInstances";
 import { PATH_ELEMENT_FLOATS } from "./pathRecords";
 
 /** Device pixels per world unit; all resident coarse bins revert to sixteen chords above this. */

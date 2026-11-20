@@ -1,4 +1,4 @@
-import { dashFlow, pulse } from "../../../../components/canvas/connections/effects";
+import { dashFlow, pulse } from "../../effects/library";
 import type { TScenePrimitive, TSceneStyle } from "../../types";
 import {
   applyStyle,

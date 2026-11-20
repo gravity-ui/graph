@@ -25,7 +25,7 @@ import type {
   TGraphComponentProps,
   TSceneLevel,
 } from "GRAPH";
-import { dashFlow } from "GRAPH_SRC/components/canvas/connections/effects";
+import { dashFlow } from "GRAPH_SRC/lib/scene/effects/library";
 import { lineSegment } from "GRAPH_SRC/components/canvas/connections/geometry/segments";
 import { initGraphColors } from "GRAPH_SRC/graphConfig";
 import { drawElements } from "GRAPH_SRC/lib/scene/canvas/drawPrimitives";

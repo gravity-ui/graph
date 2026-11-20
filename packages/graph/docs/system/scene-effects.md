@@ -140,10 +140,9 @@ effect runs. Return straight RGBA, using alpha zero for a transparent fragment. 
 hairline fade and premultiplication for blending. With `extraWidth`, the effect can use `f.coverage` to distinguish
 the base stroke from the extra area. See [Glows](../connections/webgl-connections.md#glows-extrawidth).
 
-`GRAPH_PATH_FRAGMENT` is the contract version, currently `1`. Use a guard such as `#if GRAPH_PATH_FRAGMENT >= 2` for fields or helpers
-added in a later version. Fields and public helpers are additive within a major version. Shaders written with
-`ConnectionFragment` and `GRAPH_CONNECTION_FRAGMENT` can still use those names as aliases. Use the documented
-fields, `u_<name>` uniforms and public helpers. Renderer attributes, varyings and uniforms are private.
+`GRAPH_PATH_FRAGMENT` is the contract version, currently `1`. Use a guard such as `#if GRAPH_PATH_FRAGMENT >= 2`
+for fields or helpers added in a later version. Fields and public helpers are additive within a major version.
+Use the documented fields, `u_<name>` uniforms and public helpers. Renderer attributes, varyings and uniforms are private.
 
 ## Sprite fragment inputs
 

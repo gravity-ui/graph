@@ -1,7 +1,7 @@
 import { bezierGeometry } from "../../../../../components/canvas/connections/geometry";
-import { INSTANCE_FLOATS } from "../../../../../components/canvas/connections/webgl/encode";
 import { bakeElementStyle } from "../../../styles/style";
 import type { TScenePrimitive, TSceneStroke } from "../../../types";
+import { INSTANCE_FLOATS } from "../encodePathInstances";
 import { encodePaths } from "../encodePaths";
 import { OverviewCurveGroups, overviewCamera } from "../overviewCurves";
 import { PathDrawIds } from "../pathDrawIds";

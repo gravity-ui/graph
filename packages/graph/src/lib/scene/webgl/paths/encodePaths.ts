@@ -1,13 +1,4 @@
-import type { TConnectionEffectUse } from "../../../../components/canvas/connections/effects";
-import type { ConnectionEffect } from "../../../../components/canvas/connections/effects/ConnectionEffect";
-import type { TUniformTypes } from "../../../../components/canvas/connections/effects/types";
 import { stockBezierSegments } from "../../../../components/canvas/connections/geometry/segments";
-import type { TWebGLShape } from "../../../../components/canvas/connections/lines/types";
-import {
-  INSTANCE_FLOATS,
-  createEncodedChunk,
-  encodeShapes,
-} from "../../../../components/canvas/connections/webgl/encode";
 import { ALL_LEVELS_MASK } from "../../levels";
 import type { TScenePrimitive } from "../../types";
 import {
@@ -23,6 +14,7 @@ import {
 import type { TSlotOf } from "../instances/encodeRects";
 
 import { closeStroke } from "./closedStroke";
+import { INSTANCE_FLOATS, appendPathInstances, createEncodedChunk } from "./encodePathInstances";
 import { markOverviewCurves } from "./overviewCurves";
 import { PATH_ELEMENT_FLOATS } from "./pathRecords";
 
@@ -38,8 +30,6 @@ export type TEncodedPaths = {
   lineElements: Float32Array;
   /** Element data per curve instance, `PATH_ELEMENT_FLOATS` each. */
   curveElements: Float32Array;
-  /** The effect use of every path that has one, in primitive order. */
-  effects: TConnectionEffectUse[];
   hasOverview: boolean;
 };
 
@@ -103,7 +93,6 @@ export function encodePaths(
   chunk.curves.count = 0;
   lineElements.reset();
   curveElements.reset();
-  const effects: TConnectionEffectUse[] = [];
   let hasOverview = false;
   let widthSize: number[] | undefined;
   primitives.forEach((primitive, sub) => {
@@ -124,19 +113,6 @@ export function encodePaths(
       writeSize(widthSize, 0, width);
       [widthMode, widthValue, minWidth, maxWidth] = widthSize;
     }
-    const shape: TWebGLShape = {
-      segments: primitive.segments,
-      stroke: {
-        // An unset colour: any parsable colour here, `USE_BASE` replaces it below.
-        color: stroke.color ?? "#000",
-        width: widthValue,
-        dash: stroke.dash ? { pattern: stroke.dash } : undefined,
-      },
-      effect: effect?.effect as unknown as ConnectionEffect<TUniformTypes, never> | undefined,
-      params: effect?.params,
-      interaction: effect || primitive.effectShowsSelection ? primitive.interaction : undefined,
-      effectShowsSelection: primitive.effectShowsSelection,
-    };
     const data = [
       elementIndex,
       at,
@@ -151,7 +127,7 @@ export function encodePaths(
     const curves = chunk.curves.count;
     // Only dashes and effects read the longitudinal distances in the shader.
     const usesDistance = effect !== undefined || Boolean(stroke.dash?.length);
-    encodeShapes([shape], bucket, chunk, usesDistance);
+    appendPathInstances(primitive, widthValue, bucket, chunk, usesDistance);
     if (primitive.closed && !usesDistance) closeStroke(primitive.segments, bucket, chunk, lines, curves);
     if (stroke.color === undefined) {
       useBase(chunk.lines.data, lines, chunk.lines.count);
@@ -176,7 +152,6 @@ export function encodePaths(
           overviewChords
         ) || hasOverview;
     }
-    if (effect) effects.push(effect);
   });
   return {
     // Opaque ranges consume the views immediately; translucent writes can outlive this encode.
@@ -184,7 +159,6 @@ export function encodePaths(
     curves: pathRecords(chunk.curves.data, chunk.curves.count * INSTANCE_FLOATS, retain),
     lineElements: pathRecords(lineElements.buffer, chunk.lines.count * PATH_ELEMENT_FLOATS, retain),
     curveElements: pathRecords(curveElements.buffer, chunk.curves.count * PATH_ELEMENT_FLOATS, retain),
-    effects,
     hasOverview,
   };
 }

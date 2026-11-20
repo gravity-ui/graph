@@ -1,16 +1,16 @@
-import { bezierSegment, lineSegment } from "../../geometry/segments";
-import type { TWebGLShape } from "../../lines/types";
-import { generateBezierParams } from "../../utils/bezierHelpers";
+import { bezierSegment, lineSegment } from "../../../../../components/canvas/connections/geometry/segments";
+import { generateBezierParams } from "../../../../../components/canvas/connections/utils/bezierHelpers";
+import type { TScenePrimitive } from "../../../types";
 import {
   CURVE_CHORDS,
   INSTANCE_FLOATS,
   TESSELLATION_TOLERANCE,
+  appendPathInstances,
   createEncodedChunk,
-  encodeShapes,
   piecesAt,
   scaleBucket,
-} from "../encode";
-import type { TInstances } from "../encode";
+} from "../encodePathInstances";
+import type { TEncodedChunk, TInstances } from "../encodePathInstances";
 
 const [P0, C1, C2, P3] = generateBezierParams({ x: 0, y: 0 }, { x: 3000, y: 800 });
 
@@ -25,7 +25,14 @@ const RADIUS = 100;
 /** A quarter circle of `RADIUS` around the origin, from (r, 0) to (0, r), as one cubic. */
 const QUARTER_CIRCLE = new Float32Array([RADIUS, 0, RADIUS, KAPPA * RADIUS, KAPPA * RADIUS, RADIUS, 0, RADIUS]);
 
-const shape = (segments: ArrayLike<number>): TWebGLShape => ({
+type TPath = Extract<TScenePrimitive, { kind: "path" }>;
+
+function appendPaths(paths: readonly TPath[], bucket: number, out: TEncodedChunk): void {
+  for (const path of paths) appendPathInstances(path, path.stroke.width as number, bucket, out, true);
+}
+
+const shape = (segments: ArrayLike<number>): TPath => ({
+  kind: "path",
   segments: new Float32Array(segments),
   stroke: { color: "#000", width: 2 },
 });
@@ -37,7 +44,7 @@ function instance(instances: TInstances, index: number): Float32Array {
 /** The connection length every instance of a lone shape carries, encoded at `bucket`. */
 function lengthAt(segments: ArrayLike<number>, bucket: number): number {
   const out = createEncodedChunk();
-  encodeShapes([shape(segments)], bucket, out);
+  appendPaths([shape(segments)], bucket, out);
   const first = out.lines.count ? out.lines : out.curves;
   return instance(first, 0)[13];
 }
@@ -148,7 +155,7 @@ describe("piece lengths", () => {
   });
 });
 
-describe("encodeShapes", () => {
+describe("appendPaths", () => {
   it("writes straight segments into the line instances and curve pieces into the curve instances", () => {
     const curve = [100, 0, 250, 0, 250, 100, 400, 100];
     const segments = [
@@ -159,7 +166,7 @@ describe("encodeShapes", () => {
     const pieces = piecesAt(curve, 0, 0);
     expect(pieces).toBeGreaterThan(1);
     const out = createEncodedChunk();
-    encodeShapes([shape(segments)], 0, out);
+    appendPaths([shape(segments)], 0, out);
     expect([out.lines.count, out.curves.count]).toEqual([2, pieces]);
 
     const stored = new Float32Array(segments);
@@ -186,9 +193,9 @@ describe("encodeShapes", () => {
 
   it("appends to the instances already in `out`, growing them", () => {
     const out = createEncodedChunk();
-    encodeShapes([shape(lineSegment({ x: 0, y: 0 }, { x: 10, y: 0 }))], 0, out);
+    appendPaths([shape(lineSegment({ x: 0, y: 0 }, { x: 10, y: 0 }))], 0, out);
     const lines = Array.from({ length: 100 }, (_, i) => shape(lineSegment({ x: 0, y: i }, { x: 10, y: i })));
-    encodeShapes([...lines, shape(LONG_BEZIER)], 0, out);
+    appendPaths([...lines, shape(LONG_BEZIER)], 0, out);
     expect([out.lines.count, out.curves.count]).toEqual([101, 5]);
     expect(instance(out.lines, 0)[1]).toBe(0);
     expect(instance(out.lines, 100)[1]).toBe(99);

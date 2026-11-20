@@ -1,6 +1,6 @@
-import { INSTANCE_FLOATS } from "../../../../../components/canvas/connections/webgl/encode";
 import { InstanceRanges } from "../../instances/InstanceRanges";
 import { canCoarsenCurves, createCurveBins, curveChords, partitionCurves } from "../curveTessellation";
+import { INSTANCE_FLOATS } from "../encodePathInstances";
 import { PATH_ELEMENT_FLOATS } from "../pathRecords";
 
 const gentle = [0, 0, 10, 0, 20, 0.5, 30, 1];

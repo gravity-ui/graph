@@ -2,11 +2,8 @@ import { Texture } from "@luma.gl/core";
 import type { BufferLayout } from "@luma.gl/core";
 import { DynamicBuffer, Model } from "@luma.gl/engine";
 
-import type { ConnectionEffect } from "../../../../components/canvas/connections/effects/ConnectionEffect";
-import type {
-  TConnectionEffectScaleRange,
-  TUniformTypes,
-} from "../../../../components/canvas/connections/effects/types";
+import type { PathEffect } from "../../effects/PathEffect";
+import type { TSceneEffectScaleRange, TUniformTypes } from "../../effects/types";
 import type { TSceneBackendStats } from "../../renderer/backendTypes";
 import { InstanceRanges } from "../instances/InstanceRanges";
 import { OverviewCurveGroups } from "../paths/overviewCurves";
@@ -23,7 +20,7 @@ export type TUniforms = Record<string, number | readonly number[]>;
 /** The tables a program samples. */
 export type TTextureName = "scene_elements" | "scene_styles" | "scene_atlas";
 
-export type TEffect = ConnectionEffect<TUniformTypes, never>;
+export type TEffect = PathEffect<TUniformTypes, never>;
 
 /** An instance attribute's pointer: shader location, float components, byte offset in the instance and stride. */
 export type TPointer = { location: number; components: number; byteOffset: number; stride: number };
@@ -97,7 +94,7 @@ export type TInstancePointerTarget = Pick<TBatch, "model" | "layout" | "instance
 export type TTranslucentWrite = { batch: TBatch; instances: Float32Array; companion?: Float32Array };
 
 /** The paths of one pass and one effect instance: a batch per vertex template. */
-export type TPathGroup = TConnectionEffectScaleRange & {
+export type TPathGroup = TSceneEffectScaleRange & {
   pass: TPass;
   strokeUnion?: boolean;
   writesDepth?: boolean;

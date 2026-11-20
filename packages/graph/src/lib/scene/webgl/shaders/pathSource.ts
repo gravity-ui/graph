@@ -1,15 +1,13 @@
 /**
- * GLSL ES 3.00 sources of the connection programs. Attributes, varyings, outputs, uniforms and helper functions are
+ * GLSL ES 3.00 sources of the path programs. Attributes, varyings, outputs, uniforms and helper functions are
  * internal and carry the `graph_` prefix, which leaves every other name to effects.
  */
 
-import { CURVE_CHORDS } from "./encode";
+import { CURVE_CHORDS } from "../paths/encodePathInstances";
 
 /** Everything an effect can read, before the effect's source. */
 export const FRAGMENT_PRELUDE = /* glsl */ `precision highp float;
 #define GRAPH_PATH_FRAGMENT 1
-#define GRAPH_CONNECTION_FRAGMENT GRAPH_PATH_FRAGMENT
-#define ConnectionFragment PathFragment
 
 in vec4 graph_vColor;
 in float graph_vAcross;

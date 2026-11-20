@@ -1,13 +1,14 @@
+import { isLineSegment } from "../../../../components/canvas/connections/geometry/segments";
 import { HAS_NODE_ENV } from "../../../../utils/development";
-import { parseColor } from "../../../../utils/functions/color";
-import { isLineSegment } from "../geometry/segments";
-import type { TLineInteraction, TLineStroke, TWebGLShape } from "../lines/types";
+import { MAX_PATH_EFFECT_PARAMS } from "../../effects/types";
+import type { TPathInteraction, TScenePrimitive } from "../../types";
+import { colorFloats } from "../../utils/colorAlpha";
 
 /**
  * Floats per instance (one cubic piece):
  * 0-3 p0, c1 | 4-7 c2, p3 | 8-11 straight rgba 0..1 |
- * 12-15 width, connection length, distance at the piece start, piece length | 16-19 dash: on, off, on, off |
- * 20-27 effect params (the shape's `params`, zeros after them) |
+ * 12-15 width, path length, distance at the piece start, piece length | 16-19 dash: on, off, on, off |
+ * 20-27 effect params (the path's `params`, zeros after them) |
  * 28-31 interaction: the selection color's straight rgb 0..1, then hovered + 2 selected + 4 round(selection alpha *
  * 255) + 1024 when the effect shows the selection (`effectShowsSelection`), an exact integer (zeros without an
  * interaction).
@@ -17,9 +18,6 @@ export const INSTANCE_FLOATS = 32;
 
 /** Numbers of a dash pattern the instance holds: two on/off pairs. */
 export const DASH_FLOATS = 4;
-
-/** Numbers an effect reads per connection, `f.params0` and `f.params1` in the shader. */
-export const EFFECT_PARAMS = 8;
 
 const DASH_OFFSET = 16;
 
@@ -43,15 +41,13 @@ const MAX_BUCKET = 4;
 
 const MAX_PIECES = 64;
 
-const BLACK = { r: 0, g: 0, b: 0, a: 1 };
-
 /** 5-point Gauss–Legendre nodes on [-1, 1] and their weights. */
 const GAUSS_NODES = [0, -0.5384693101056831, 0.5384693101056831, -0.906179845938664, 0.906179845938664];
 const GAUSS_WEIGHTS = [
   0.5688888888888889, 0.47862867049936647, 0.47862867049936647, 0.23692688505618908, 0.23692688505618908,
 ];
 
-/** Instances of one vertex template, `INSTANCE_FLOATS` apart; `data` grows as `encodeShapes` writes them. */
+/** Instances of one vertex template, `INSTANCE_FLOATS` apart; `data` grows as paths are encoded. */
 export type TInstances = { data: Float32Array; count: number };
 
 /** Encoded strokes by vertex template: straight segments drawn as one quad each, curve pieces as `CURVE_CHORDS`. */
@@ -140,13 +136,6 @@ function reserve(instances: TInstances, extra: number): void {
   instances.data = data;
 }
 
-/** Straight rgba in 0..1 of a CSS color; black when the color does not parse. */
-export function colorFloats(css: string): [number, number, number, number] {
-  // parseColor gives r, g, b in 0..255 and a in 0..1.
-  const color = parseColor(css) ?? BLACK;
-  return [color.r / 255, color.g / 255, color.b / 255, color.a];
-}
-
 /** Pattern texts already reported as too long, so each is reported once. */
 const reportedPatterns = new Set<string>();
 
@@ -155,9 +144,9 @@ function reportLongPattern(pattern: readonly number[], normalized: readonly numb
   if (reportedPatterns.has(text)) return;
   reportedPatterns.add(text);
   console.warn(
-    `[@gravity-ui/graph] WebGL connections draw dash patterns of up to ${DASH_FLOATS} numbers. ` +
+    `[@gravity-ui/graph] WebGL paths draw dash patterns of up to ${DASH_FLOATS} numbers. ` +
       `[${text}] has ${normalized.length}${pattern.length % 2 ? " once repeated to an even length" : ""}, ` +
-      `so WebGL draws [${normalized.slice(0, DASH_FLOATS).join(", ")}] while Path2D draws all of it.`
+      `so WebGL draws [${normalized.slice(0, DASH_FLOATS).join(", ")}] while Canvas 2D draws all of it.`
   );
 }
 
@@ -166,8 +155,7 @@ function reportLongPattern(pattern: readonly number[], normalized: readonly numb
  * first two on/off pairs are kept (a longer pattern reports one development warning); a 2-number pattern leaves the
  * second pair at zero. No dash, an empty pattern, or one with a negative or non-finite number is solid: all zeros.
  */
-function dashFloats(dash: TLineStroke["dash"]): readonly number[] {
-  const pattern = dash?.pattern;
+function dashFloats(pattern: readonly number[] | undefined): readonly number[] {
   if (!pattern?.length) return NO_DASH;
   for (const value of pattern) if (!Number.isFinite(value) || value < 0) return NO_DASH;
   const normalized = pattern.length % 2 ? [...pattern, ...pattern] : pattern;
@@ -176,11 +164,11 @@ function dashFloats(dash: TLineStroke["dash"]): readonly number[] {
   return [normalized[0], normalized[1], normalized[2] ?? 0, normalized[3] ?? 0];
 }
 
-/** Writes the effect params of an instance: missing ones as zero, at most `EFFECT_PARAMS`. */
+/** Writes the effect params of an instance: missing ones as zero, at most `MAX_PATH_EFFECT_PARAMS`. */
 function writeParams(params: readonly number[] | undefined, out: Float32Array, offset: number): void {
   let i = 0;
-  if (params) for (; i < params.length && i < EFFECT_PARAMS; i++) out[offset + i] = params[i];
-  out.fill(0, offset + i, offset + EFFECT_PARAMS);
+  if (params) for (; i < params.length && i < MAX_PATH_EFFECT_PARAMS; i++) out[offset + i] = params[i];
+  out.fill(0, offset + i, offset + MAX_PATH_EFFECT_PARAMS);
 }
 
 /** The selection color turned into floats last: shapes mostly share one, the theme's. */
@@ -194,7 +182,7 @@ let lastSelectionFloats: [number, number, number, number] = [0, 0, 0, 0];
  * an interaction.
  */
 function interactionFloats(
-  interaction: TLineInteraction | undefined,
+  interaction: TPathInteraction | undefined,
   effectShowsSelection: boolean
 ): readonly number[] {
   if (!interaction) return NO_INTERACTION;
@@ -235,63 +223,55 @@ function writeTotal(instances: TInstances, first: number, total: number): void {
   for (let i = first; i < instances.count; i++) instances.data[i * INSTANCE_FLOATS + 13] = total;
 }
 
-/**
- * Appends every cubic of the shapes to `out`, tessellated for the scale bucket (see `piecesAt`): straight segments to
- * the line instances with their exact chord length, curve pieces to the curve instances with their arc length by
- * quadrature. The distance runs on across the pieces and segments of one shape, whatever their template, and every
- * instance of a shape carries the shape's whole length. Counts are not reset: a new chunk starts from
- * `createEncodedChunk()` or zero counts.
- */
-export function encodeShapes(
-  shapes: readonly TWebGLShape[],
+/** Appends one scene path to the line and curve records for this scale bucket. */
+export function appendPathInstances(
+  path: Extract<TScenePrimitive, { kind: "path" }>,
+  width: number,
   bucket: number,
   out: TEncodedChunk,
-  measureDistance = true
+  measureDistance: boolean
 ): void {
   const { lines, curves } = out;
-  for (const { segments, stroke, params, interaction, effectShowsSelection = false } of shapes) {
-    const instanceStroke: TInstanceStroke = {
-      color: colorFloats(stroke.color),
-      width: stroke.width,
-      dash: dashFloats(stroke.dash),
-      params,
-      interaction: interactionFloats(interaction, effectShowsSelection),
-    };
-    const firstLine = lines.count;
-    const firstCurve = curves.count;
-    let distance = 0;
-    for (let o = 0; o + 8 <= segments.length; o += 8) {
-      if (isLineSegment(segments, o)) {
-        reserve(lines, 1);
-        const base = lines.count * INSTANCE_FLOATS;
-        for (let i = 0; i < 8; i++) lines.data[base + i] = segments[o + i];
-        const length = measureDistance
-          ? Math.hypot(segments[o + 6] - segments[o], segments[o + 7] - segments[o + 1])
-          : 0;
-        writeStroke(lines.data, base, instanceStroke, distance, length);
-        distance += length;
-        lines.count++;
-        continue;
-      }
-      const pieces = curvePieces(segments, o, bucket);
-      reserve(curves, pieces);
-      for (let k = 0; k < pieces; k++) {
-        const base = curves.count * INSTANCE_FLOATS;
-        const t0 = k / pieces;
-        const t1 = (k + 1) / pieces;
-        if (pieces === 1) {
-          for (let i = 0; i < 8; i++) curves.data[base + i] = segments[o + i];
-        } else {
-          writePiece(segments, o, t0, t1, curves.data, base);
-        }
-        const length = measureDistance ? pieceLength(segments, o, t0, t1) : 0;
-        writeStroke(curves.data, base, instanceStroke, distance, length);
-        distance += length;
-        curves.count++;
-      }
+  const { segments, stroke, effect, effectShowsSelection = false } = path;
+  const instanceStroke: TInstanceStroke = {
+    color: colorFloats(stroke.color ?? "#000"),
+    width,
+    dash: dashFloats(stroke.dash),
+    params: effect?.params,
+    interaction: interactionFloats(effect || effectShowsSelection ? path.interaction : undefined, effectShowsSelection),
+  };
+  const firstLine = lines.count;
+  const firstCurve = curves.count;
+  let distance = 0;
+  for (let o = 0; o + 8 <= segments.length; o += 8) {
+    if (isLineSegment(segments, o)) {
+      reserve(lines, 1);
+      const base = lines.count * INSTANCE_FLOATS;
+      for (let i = 0; i < 8; i++) lines.data[base + i] = segments[o + i];
+      const length = measureDistance ? Math.hypot(segments[o + 6] - segments[o], segments[o + 7] - segments[o + 1]) : 0;
+      writeStroke(lines.data, base, instanceStroke, distance, length);
+      distance += length;
+      lines.count++;
+      continue;
     }
-    // The whole length is known once every piece of the shape is written.
-    writeTotal(lines, firstLine, distance);
-    writeTotal(curves, firstCurve, distance);
+    const pieces = curvePieces(segments, o, bucket);
+    reserve(curves, pieces);
+    for (let k = 0; k < pieces; k++) {
+      const base = curves.count * INSTANCE_FLOATS;
+      const t0 = k / pieces;
+      const t1 = (k + 1) / pieces;
+      if (pieces === 1) {
+        for (let i = 0; i < 8; i++) curves.data[base + i] = segments[o + i];
+      } else {
+        writePiece(segments, o, t0, t1, curves.data, base);
+      }
+      const length = measureDistance ? pieceLength(segments, o, t0, t1) : 0;
+      writeStroke(curves.data, base, instanceStroke, distance, length);
+      distance += length;
+      curves.count++;
+    }
   }
+  // The whole length is known once every piece of the shape is written.
+  writeTotal(lines, firstLine, distance);
+  writeTotal(curves, firstCurve, distance);
 }

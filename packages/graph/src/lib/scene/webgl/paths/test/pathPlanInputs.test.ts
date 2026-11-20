@@ -1,5 +1,5 @@
-import { INSTANCE_FLOATS } from "../../../../../components/canvas/connections/webgl/encode";
 import { InstanceRanges } from "../../instances/InstanceRanges";
+import { INSTANCE_FLOATS } from "../encodePathInstances";
 import { appendPathPlanInputs, pathPlanResizes, visiblePathResize } from "../pathPlanInputs";
 import type { TPathPlanInput } from "../pathPlanInputs";
 import { PATH_ELEMENT_FLOATS } from "../pathRecords";

@@ -1,4 +1,4 @@
-import { toConnectionEffect } from "../ConnectionEffect";
+import { toPathEffect } from "../PathEffect";
 import { dashFlow, pulse } from "../library";
 
 const STROKE = { color: "#fff", width: 2 };
@@ -15,14 +15,14 @@ describe("dashFlow", () => {
 
   it("falls back to a still dash", () => {
     const { params } = dashFlow.use({ pattern: [90, 160], speed: 120 });
-    expect(toConnectionEffect(dashFlow).getFallbackStroke(STROKE, params ?? [])).toEqual({
+    expect(toPathEffect(dashFlow).getFallbackStroke(STROKE, params ?? [])).toEqual({
       ...STROKE,
       dash: { pattern: [90, 160] },
     });
   });
 
   it("is animated", () => {
-    expect(toConnectionEffect(dashFlow).animated).toBe(true);
+    expect(toPathEffect(dashFlow).animated).toBe(true);
   });
 });
 
@@ -33,7 +33,7 @@ describe("pulse", () => {
   });
 
   it("falls back to the plain stroke and is animated", () => {
-    const effect = toConnectionEffect(pulse);
+    const effect = toPathEffect(pulse);
     expect(effect.getFallbackStroke(STROKE, [3, 0])).toBe(STROKE);
     expect(effect.animated).toBe(true);
   });

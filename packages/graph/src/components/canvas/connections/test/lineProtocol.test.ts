@@ -193,8 +193,8 @@ describe("BlockConnection line protocol", () => {
       public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
         return { ...super.getStroke(state), dash: { pattern }, effect: { effect, params } };
       }
-      public override getSceneShape() {
-        const shape = super.getSceneShape();
+      public override getSceneStrokeEffect() {
+        const shape = super.getSceneStrokeEffect();
         return shape && { ...shape, interaction };
       }
     }

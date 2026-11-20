@@ -4,13 +4,11 @@ import { DynamicBuffer, Model } from "@luma.gl/engine";
 import { WEBGLBuffer, WEBGLTexture, WEBGLVertexArray, webgl2Adapter, withGLParameters } from "@luma.gl/webgl";
 import { untracked, effect as watch } from "@preact/signals-core";
 
-import { toConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import { turnedPolylineStrokes } from "../../../components/canvas/connections/geometry/utils/polylineStroke";
-import { CURVE_CHORDS, INSTANCE_FLOATS, scaleBucket } from "../../../components/canvas/connections/webgl/encode";
-import { createCurveTemplate, createLineTemplate } from "../../../components/canvas/connections/webgl/shaders";
 import type { TSceneLevel } from "../../../services/scene/types";
 import { track } from "../../../utils/functions/track";
 import type { TTileRect } from "../../culling/TileIndex";
+import { pathEffectId, toPathEffect } from "../effects/PathEffect";
 import { isSceneEffectActive } from "../effects/scaleRange";
 import type { TSceneEffectScaleRange } from "../effects/types";
 import { LEVEL_BIT, isOnLevel } from "../levels";
@@ -23,7 +21,7 @@ import type {
   TSceneTextFrame,
 } from "../renderer/backendTypes";
 import type { SceneStore } from "../store/SceneStore";
-import { bakeElementStyle, connectionEffectId, styleOpacity } from "../styles/style";
+import { bakeElementStyle, styleOpacity } from "../styles/style";
 import { isLayoutValid, layoutText } from "../text/textLayout";
 import type { TTextLayout } from "../text/textLayout";
 import { peekSceneTextLayout, sceneTextLayout, sceneTextMetrics } from "../text/textMetrics";
@@ -134,6 +132,7 @@ import { orderTranslucentChunks } from "./order/translucentOrder";
 import type { TTranslucentOrderCache, TTranslucentPart, TTranslucentRun } from "./order/translucentOrder";
 import { SUB_FLOAT, elementSteps, splitSteps } from "./order/translucentSteps";
 import { canCoarsenCurves, createCurveBins, partitionCurves } from "./paths/curveTessellation";
+import { CURVE_CHORDS, INSTANCE_FLOATS, scaleBucket } from "./paths/encodePathInstances";
 import { createPathScratch, encodePaths } from "./paths/encodePaths";
 import { firstOverlappingOwnerRange, updateMixedOwnerRanges } from "./paths/mixedOwnerRanges";
 import type { TMixedOwnerSnapshot } from "./paths/mixedOwnerRanges";
@@ -168,6 +167,7 @@ import {
   createPathPlugin,
   createStockPathPlugin,
 } from "./shaders/path";
+import { createCurveTemplate, createLineTemplate } from "./shaders/pathSource";
 import { ALPHA_FRAGMENT, ALPHA_VERTEX, QUAD_TEMPLATE } from "./shaders/scene";
 import { GlyphAtlas } from "./text/GlyphAtlas";
 import { CameraTextEpochs } from "./text/cameraTextEpochs";
@@ -1819,7 +1819,7 @@ class WebGLSceneBackend implements ISceneBackend {
    * stroke colour takes the base colour from the style table, which is opaque or none: it stays opaque.
    */
   private pathGroupOf(primitive: TPathPrimitive): TPathGroup {
-    const effect = primitive.effect ? toConnectionEffect(primitive.effect.effect) : undefined;
+    const effect = primitive.effect ? toPathEffect(primitive.effect.effect) : undefined;
     const pass: TPass = effect || isTranslucentPaint(primitive.stroke.color) ? "translucent" : "opaque";
     const strokeUnion = !effect && pass === "translucent" && turnedPolylineStrokes.has(primitive.segments);
     return this.pathGroupFor(pass, effect, primitive.effect, strokeUnion);
@@ -1832,7 +1832,7 @@ class WebGLSceneBackend implements ISceneBackend {
     strokeUnion = false
   ): TPathGroup {
     const plainGroup = strokeUnion ? "union" : "plain";
-    const key = `${pass}|${effect ? connectionEffectId(effect) : plainGroup}|${range?.minScale ?? 0}|${range?.maxScale ?? Infinity}`;
+    const key = `${pass}|${effect ? pathEffectId(effect) : plainGroup}|${range?.minScale ?? 0}|${range?.maxScale ?? Infinity}`;
     const known = this.pathGroups.get(key);
     if (known) return known;
     const programKey = effect?.programKey;

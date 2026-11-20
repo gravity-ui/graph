@@ -1,7 +1,7 @@
-import { INSTANCE_FLOATS } from "../../../../components/canvas/connections/webgl/encode";
 import type { InstanceRanges } from "../instances/InstanceRanges";
 import { SUB_FLOAT } from "../order/translucentSteps";
 
+import { INSTANCE_FLOATS } from "./encodePathInstances";
 import { PATH_ELEMENT_FLOATS } from "./pathRecords";
 
 type TSource = { ranges: InstanceRanges; companion?: { ranges: InstanceRanges } };

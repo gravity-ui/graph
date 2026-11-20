@@ -1,5 +1,7 @@
 import type { Signal } from "@preact/signals-core";
 
+import type { TLineStroke } from "../../../components/canvas/connections/lines/types";
+
 export type TSceneEffectKind = "path";
 
 export type TUniformType = "float" | "vec2" | "vec3" | "vec4";
@@ -16,6 +18,20 @@ export type TSceneShaderDefinition<U extends TUniformTypes, P> = {
   /** Pack typed input into the per-primitive parameters read by the shader. */
   encode?: (input: P) => readonly number[];
 };
+
+/** A shader defining `vec4 effect(PathFragment f, vec4 color)` in GLSL ES 3.00. */
+export type TSceneEffectDefinition<
+  U extends TUniformTypes = TUniformTypes,
+  P = readonly number[],
+> = TSceneShaderDefinition<U, P> & {
+  kind: "path";
+  /** CSS pixels the shader may draw outside each side of the stroke. */
+  extraWidth?: number;
+  /** Alternate stroke for a line with imperative Canvas hooks. */
+  fallback?: (stroke: TLineStroke, params: readonly number[]) => TLineStroke;
+};
+
+export const MAX_PATH_EFFECT_PARAMS = 8;
 
 /** Optional camera-scale bounds for the effect. The primitive remains visible outside this range. */
 export type TSceneEffectScaleRange = {

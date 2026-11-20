@@ -1,10 +1,10 @@
-import { INSTANCE_FLOATS } from "../../../../components/canvas/connections/webgl/encode";
 import { isOnLevel, sameLevelVisibility } from "../../levels";
 import type { TSceneFrame } from "../../renderer/backendTypes";
 import type { TInstanceUpload } from "../instances/InstanceRanges";
 import type { ElementTable } from "../instances/tables";
 
 import { MITER_LIMIT } from "./closedStroke";
+import { INSTANCE_FLOATS } from "./encodePathInstances";
 import { PATH_ELEMENT_FLOATS } from "./pathRecords";
 
 /** Large enough to keep fragmented connection order from becoming a draw per connection. */

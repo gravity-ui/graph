@@ -1,7 +1,7 @@
 import { defineSceneEffect } from "../../../../../lib/scene/effects/defineSceneEffect";
+import { dashFlow } from "../../../../../lib/scene/effects/library";
 import type { TConnection } from "../../../../../store/connection/ConnectionState";
 import type { BlockConnection } from "../../BlockConnection";
-import { dashFlow, toConnectionEffect } from "../../effects";
 import { bezierSegment, lineSegment } from "../../geometry";
 import type { TConnectionGeometry } from "../../geometry";
 import { SceneLine } from "../SceneLine";
@@ -68,12 +68,12 @@ describe("SceneLine", () => {
     });
   });
 
-  describe("getSceneShape", () => {
+  describe("getSceneStrokeEffect", () => {
     it("uses the shared shaft stroke directly when it has no effect", () => {
       const { connection } = stubConnection(straight);
       const line = new SceneLine(connection);
       line.update();
-      expect(line.getSceneShape()).toBeUndefined();
+      expect(line.getSceneStrokeEffect()).toBeUndefined();
       expect(line.getSceneStrokes().shaft).toEqual({ color: "#aaa", width: 2, dash: undefined });
       line.update({ id: "c", hovered: true });
       expect(line.getSceneStrokes().shaft.width).toBe(4);
@@ -93,7 +93,7 @@ describe("SceneLine", () => {
       const { connection } = stubConnection(closedArrowGeometry);
       const line = new SceneLine(connection);
       line.update();
-      line.getSceneShape();
+      line.getSceneStrokeEffect();
       line.hitTest(1, 1, 8);
       expect(countPath2D).not.toHaveBeenCalled();
 
@@ -133,18 +133,12 @@ describe("SceneLine", () => {
       }
     }
 
-    it("emits no effect shape when its endpoints have no geometry", () => {
-      const line = new EffectLine(stubConnection(undefined).connection);
-      line.update();
-      expect(line.getSceneShape()).toBeUndefined();
-    });
-
-    it("passes the effect and params into the line shape", () => {
+    it("passes the effect and params into the scene appearance", () => {
       const line = new EffectLine(stubConnection(closedArrowGeometry).connection);
       line.update();
-      const shape = line.getSceneShape();
-      expect(shape?.effect).toBe(toConnectionEffect(pulse as never));
-      expect(shape?.params).toEqual([3]);
+      const shape = line.getSceneStrokeEffect();
+      expect(shape?.effect?.effect).toBe(pulse);
+      expect(shape?.effect.params).toEqual([3]);
     });
 
     it("keeps the effect on hover and selection", () => {
@@ -157,7 +151,7 @@ describe("SceneLine", () => {
       const stroke = selected.getStroke({ id: "c", selected: true });
       expect(stroke).toMatchObject({ color: "#fc0", width: 8, effect: { params: [3] } });
       selected.update();
-      expect(selected.getSceneShape()?.effect).toBe(toConnectionEffect(pulse as never));
+      expect(selected.getSceneStrokeEffect()?.effect?.effect).toBe(pulse);
     });
 
     it("draws and groups the Path2D fallback with the fallback stroke", () => {
@@ -299,7 +293,7 @@ describe("SceneLine", () => {
     it("draws a line without an effect as its stroke: the selection color comes from withInteraction()", () => {
       const line = new SceneLine(stubConnection(straight, { selected: true }).connection);
       line.update();
-      expect(line.getSceneShape()).toBeUndefined();
+      expect(line.getSceneStrokeEffect()).toBeUndefined();
       expect(line.getSceneStrokes().shaft).toEqual({ color: "#fc0", width: 4, dash: undefined });
 
       const styles = { selectedBackground: "rgba(255, 0, 0, 0.5)" };
@@ -313,7 +307,7 @@ describe("SceneLine", () => {
         const selected = stubConnection(closedArrowGeometry, { selected: true });
         const line = new Line(selected.connection);
         line.update();
-        const shape = line.getSceneShape();
+        const shape = line.getSceneStrokeEffect();
         const own = Line === EffectLook ? "#2f7cf6" : "#aaa";
         expect(shape?.stroke.color).toBe(own);
         expect(shape?.effectShowsSelection).toBe(true);
@@ -326,8 +320,8 @@ describe("SceneLine", () => {
 
       const hovered = new AddedEffectLine(stubConnection(straight, { hovered: true }, noArrows).connection);
       hovered.update();
-      expect(hovered.getSceneShape()?.stroke.color).toBe("#aaa");
-      expect(hovered.getSceneShape()?.effectShowsSelection).toBeUndefined();
+      expect(hovered.getSceneStrokeEffect()?.stroke.color).toBe("#aaa");
+      expect(hovered.getSceneStrokeEffect()?.effectShowsSelection).toBeUndefined();
     });
 
     it("keeps a color set over withInteraction() for an effect: drawn as returned", () => {
@@ -340,8 +334,8 @@ describe("SceneLine", () => {
       const selected = stubConnection(closedArrowGeometry, { selected: true });
       const line = new OverriddenLine(selected.connection);
       line.update();
-      expect(line.getSceneShape()?.stroke.color).toBe("#e5484d");
-      expect(line.getSceneShape()?.effectShowsSelection).toBeUndefined();
+      expect(line.getSceneStrokeEffect()?.stroke.color).toBe("#e5484d");
+      expect(line.getSceneStrokeEffect()?.effectShowsSelection).toBeUndefined();
       expect(line.getSceneStrokes().arrow?.color).toBe("#e5484d");
     });
 
@@ -356,7 +350,7 @@ describe("SceneLine", () => {
       const withEffect = stubConnection(closedArrowGeometry, { selected: true });
       const effectLine = new (ownLook(widen as unknown as typeof flow))(withEffect.connection);
       effectLine.update();
-      const shape = effectLine.getSceneShape();
+      const shape = effectLine.getSceneStrokeEffect();
       expect(shape?.stroke).toEqual({ color: "#f00", width: 2 });
       expect(shape?.effectShowsSelection).toBeUndefined();
       expect(shape?.interaction).toEqual({ hovered: false, selected: true, selectionColor: "#fc0" });
@@ -369,20 +363,24 @@ describe("SceneLine", () => {
       const { connection } = stubConnection(closedArrowGeometry);
       const line = new EffectLook(connection);
       line.update();
-      expect(line.getSceneShape()?.interaction).toEqual({ hovered: false, selected: false, selectionColor: "#fc0" });
+      expect(line.getSceneStrokeEffect()?.interaction).toEqual({
+        hovered: false,
+        selected: false,
+        selectionColor: "#fc0",
+      });
 
       // The state passed to update(), not the connection's.
       const selectedBackground = "rgba(255, 0, 0, 0.5)";
       line.update({ id: "c", hovered: true, selected: true, styles: { selectedBackground } }, connection.props);
-      expect(line.getSceneShape()?.interaction).toEqual({
+      expect(line.getSceneStrokeEffect()?.interaction).toEqual({
         hovered: true,
         selected: true,
         selectionColor: selectedBackground,
       });
-      expect(line.getSceneShape()?.stroke.color).toBe("#2f7cf6");
+      expect(line.getSceneStrokeEffect()?.stroke.color).toBe("#2f7cf6");
     });
 
-    it("rebuilds the shape when only the interaction changes", () => {
+    it("updates the scene appearance when only the interaction changes", () => {
       const stroke: TSceneLineStroke = { color: "#2f7cf6", width: 6, effect: flow.use([]) };
       class FixedLine extends SceneLine {
         public override getStroke(): TSceneLineStroke {
@@ -392,10 +390,10 @@ describe("SceneLine", () => {
       const { connection } = stubConnection(straight, {}, noArrows);
       const line = new FixedLine(connection);
       line.update();
-      const before = line.getSceneShape();
-      expect(line.getSceneShape()).toBe(before);
+      const before = line.getSceneStrokeEffect();
+      expect(line.getSceneStrokeEffect()).toBe(before);
       line.update({ id: "c", selected: true }, connection.props);
-      const after = line.getSceneShape();
+      const after = line.getSceneStrokeEffect();
       expect(after).not.toBe(before);
       expect(after?.interaction?.selected).toBe(true);
     });

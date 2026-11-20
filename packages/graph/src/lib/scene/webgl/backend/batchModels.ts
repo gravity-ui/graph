@@ -3,8 +3,8 @@ import type { Buffer, BufferLayout, Device } from "@luma.gl/core";
 import { Model } from "@luma.gl/engine";
 import type { ShaderPlugin } from "@luma.gl/shadertools";
 
-import { INSTANCE_FLOATS } from "../../../../components/canvas/connections/webgl/encode";
 import { InstanceRanges } from "../instances/InstanceRanges";
+import { INSTANCE_FLOATS } from "../paths/encodePathInstances";
 import { PathDrawIds } from "../paths/pathDrawIds";
 import { PATH_ELEMENT_FLOATS, PATH_RECORD_TEXELS } from "../paths/pathRecords";
 import { GLYPH_FRAGMENT, GLYPH_VERTEX } from "../shaders/glyph";

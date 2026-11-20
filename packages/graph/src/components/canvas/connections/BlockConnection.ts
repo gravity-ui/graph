@@ -1,7 +1,7 @@
 import intersects from "intersects";
 
 import type { TComponentMode } from "../../../lib/CoreComponent";
-import type { TScenePrimitive, TSceneStroke, TSceneStyle } from "../../../lib/scene/types";
+import type { TPathInteraction, TScenePrimitive, TSceneStroke, TSceneStyle } from "../../../lib/scene/types";
 import { resolveSceneSize } from "../../../lib/scene/utils/size";
 import { largestSize } from "../../../lib/scene/webgl/order/levelBounds";
 import { HitBoxData } from "../../../services/HitTest";
@@ -28,7 +28,6 @@ import { SceneLine } from "./lines";
 import type { ConnectionLine, TConnectionLineClass, TLineStroke } from "./lines";
 import { getSelectionColor } from "./lines/ConnectionLine";
 import { arrowSegments } from "./lines/SceneLine";
-import type { TLineInteraction } from "./lines/types";
 import type { TMultipointConnection } from "./types";
 import { hasChangedValue } from "./utils/hasChangedValue";
 import { warnRemovedConnectionMethods } from "./utils/removedMethods";
@@ -171,7 +170,7 @@ export class BlockConnection<T extends TConnection = TConnection>
 
   private sceneHitHalfWidth = 0;
 
-  private sceneInteraction?: TLineInteraction;
+  private sceneInteraction?: TPathInteraction;
 
   /**
    * Creates a new BlockConnection instance.
@@ -270,7 +269,7 @@ export class BlockConnection<T extends TConnection = TConnection>
     }
   }
 
-  private getSceneInteraction(state: TBaseConnectionState): TLineInteraction {
+  private getSceneInteraction(state: TBaseConnectionState): TPathInteraction {
     const hovered = Boolean(state.hovered);
     const selected = Boolean(state.selected);
     const selectionColor = getSelectionColor(this, state);
@@ -287,20 +286,19 @@ export class BlockConnection<T extends TConnection = TConnection>
     state: TBaseConnectionState,
     props: TConnectionProps
   ): TScenePrimitive[] {
-    const shape = this.line.getSceneShape();
+    const appearance = this.line.getSceneStrokeEffect();
     const strokes = this.line.getSceneStrokes();
+    const effect = appearance?.effect;
     const primitives: TScenePrimitive[] = [
       {
         kind: "path",
         part: "line",
-        segments: shape?.segments ?? geometry.segments,
-        stroke: sceneStroke(shape?.stroke ?? strokes.shaft),
-        canvasStroke: shape?.effect ? sceneStroke(strokes.shaft) : undefined,
-        effect: shape?.effect
-          ? { effect: shape.effect, params: shape.params?.slice() ?? [], ...shape.effectScaleRange }
-          : undefined,
-        interaction: { ...(shape?.interaction ?? this.getSceneInteraction(state)) },
-        effectShowsSelection: shape?.effectShowsSelection,
+        segments: geometry.segments,
+        stroke: sceneStroke(appearance?.stroke ?? strokes.shaft),
+        canvasStroke: effect ? sceneStroke(strokes.shaft) : undefined,
+        effect: effect && { ...effect, params: effect.params?.slice() ?? [] },
+        interaction: { ...(appearance?.interaction ?? this.getSceneInteraction(state)) },
+        effectShowsSelection: appearance?.effectShowsSelection,
       },
     ];
     const arrow = props.showConnectionArrows ? geometry.arrow : undefined;

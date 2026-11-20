@@ -1,16 +1,17 @@
+import { toPathEffect } from "../../../../lib/scene/effects/PathEffect";
 import { isSceneEffectActive, validateSceneEffectScaleRange } from "../../../../lib/scene/effects/scaleRange";
 import type { TSceneEffectScaleRange, TSceneEffectUse } from "../../../../lib/scene/effects/types";
+import type { TPathInteraction } from "../../../../lib/scene/types";
 import type { TConnection } from "../../../../store/connection/ConnectionState";
 import type { TBaseConnectionState } from "../BaseConnection";
 import type { Path2DRenderStyleResult } from "../BatchPath2D";
 import type { BlockConnection, TConnectionProps } from "../BlockConnection";
-import { toConnectionEffect } from "../effects/ConnectionEffect";
 import { createArrowPath, createSegmentsPath, lineSegment } from "../geometry";
 import type { TConnectionArrow, TConnectionGeometry } from "../geometry";
 import { distanceToArrow, distanceToSegments } from "../geometry/distance";
 
 import { ConnectionLine, getSelectionColor } from "./ConnectionLine";
-import type { TLineInteraction, TLineStroke, TWebGLShape } from "./types";
+import type { TLineStroke, TSceneStrokeEffect } from "./types";
 import { GeometryCache, applyArrowStyle, applyLineStyle, getArrowGroup, strokeKey } from "./utils/fallbackPath";
 
 /** Stroke used by both scene renderers, with an optional WebGL fragment effect. */
@@ -42,7 +43,7 @@ function declaredEffectRange(effect: TSceneEffectUse<"path">): TSceneEffectScale
   return minScale !== undefined || maxScale !== undefined ? { minScale, maxScale } : undefined;
 }
 
-function readInteraction(connection: BlockConnection<TConnection>, state: TBaseConnectionState): TLineInteraction {
+function readInteraction(connection: BlockConnection<TConnection>, state: TBaseConnectionState): TPathInteraction {
   return {
     hovered: Boolean(state.hovered),
     selected: Boolean(state.selected),
@@ -73,17 +74,16 @@ export function arrowSegments(arrow: TConnectionArrow): Float32Array {
 export class SceneLine<
   C extends BlockConnection<TConnection> = BlockConnection<TConnection>,
 > extends ConnectionLine<C> {
-  private lineShape?: {
-    geometry: TConnectionGeometry;
+  private sceneStroke?: {
     stroke: TLineStroke;
-    interaction: TLineInteraction;
-    shape: TWebGLShape;
+    interaction: TPathInteraction;
+    value: TSceneStrokeEffect;
   };
 
   private fallback?: TCanvasStrokes;
 
   /** Hover and selection of the state the strokes were read for last, for the line shape. */
-  private interaction?: TLineInteraction;
+  private interaction?: TPathInteraction;
 
   private readonly pathCache = new GeometryCache<Path2D>();
 
@@ -106,7 +106,7 @@ export class SceneLine<
       this.interaction = readInteraction(this.connection, state);
     } else if (this.interaction) {
       this.interaction = undefined;
-      this.lineShape = undefined;
+      this.sceneStroke = undefined;
     }
   }
 
@@ -188,32 +188,26 @@ export class SceneLine<
   }
 
   /** @internal Supplies the additional scene data needed by a shader attached to the stroke. */
-  public override getSceneShape(): TWebGLShape | undefined {
+  public override getSceneStrokeEffect(): TSceneStrokeEffect | undefined {
     const stroke = this.getCurrentStroke() as TMarkedStroke;
     if (!stroke.effect) return undefined;
-    const geometry = this.connection.getGeometry();
-    if (!geometry) return undefined;
     const interaction = this.getInteraction();
-    const cached = this.lineShape;
-    if (cached && cached.geometry === geometry && cached.stroke === stroke && cached.interaction === interaction) {
-      return cached.shape;
-    }
+    const cached = this.sceneStroke;
+    if (cached && cached.stroke === stroke && cached.interaction === interaction) return cached.value;
+
     const { [INTERACTION_MARK]: mark, effect, ...plain } = stroke;
-    // The selection color withInteraction() applied goes back to the line's own color for an effect, which shows the
-    // selection itself; every other stroke is drawn as it is.
+    // Recover the base color when the shader paints the selection itself.
     const shown = mark && plain.color === mark.applied ? mark : undefined;
-    const drawn = shown ? { ...plain, color: shown.base } : plain;
-    const shape: TWebGLShape = {
-      segments: geometry.segments,
-      stroke: drawn,
+    toPathEffect(effect.effect);
+    validateSceneEffectScaleRange(effect);
+    const value: TSceneStrokeEffect = {
+      stroke: shown ? { ...plain, color: shown.base } : plain,
+      effect,
       interaction,
-      effect: toConnectionEffect(effect.effect),
-      params: effect.params ?? [],
-      effectScaleRange: declaredEffectRange(effect),
     };
-    if (shown) shape.effectShowsSelection = true;
-    this.lineShape = { geometry, stroke, interaction, shape };
-    return shape;
+    if (shown) value.effectShowsSelection = true;
+    this.sceneStroke = { stroke, interaction, value };
+    return value;
   }
 
   /** Default: the geometry's segments. Override for any Canvas2D shape. */
@@ -270,14 +264,14 @@ export class SceneLine<
     const fallbackInput = range ? { ...plain } : plain;
     if (range && plain.dash) fallbackInput.dash = { ...plain.dash };
     const fallbackStroke = effect
-      ? toConnectionEffect(effect.effect).getFallbackStroke(fallbackInput, effect.params ?? [])
+      ? toPathEffect(effect.effect).getFallbackStroke(fallbackInput, effect.params ?? [])
       : plain;
     this.fallback = { stroke, plain, fallbackStroke, range };
     return this.fallback;
   }
 
   /** The interaction the strokes were read for last; the connection's state before the first read. */
-  private getInteraction(): TLineInteraction {
+  private getInteraction(): TPathInteraction {
     this.interaction ??= readInteraction(this.connection, this.connection.state);
     return this.interaction;
   }

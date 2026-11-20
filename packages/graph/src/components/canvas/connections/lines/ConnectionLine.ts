@@ -6,7 +6,7 @@ import type { IConnectionBatchItem } from "../batch";
 import { getSegmentsBounds } from "../geometry";
 import type { TConnectionGeometry } from "../geometry";
 
-import type { TLineStroke, TWebGLShape } from "./types";
+import type { TLineStroke, TSceneStrokeEffect } from "./types";
 
 /** @internal The selection color of a connection state: `styles.selectedBackground`, else the theme's. */
 export function getSelectionColor(connection: BlockConnection<TConnection>, state: TBaseConnectionState): string {
@@ -243,7 +243,7 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
   }
 
   /** @internal Additional scene data for an effect attached to the stroke. */
-  public getSceneShape(): TWebGLShape | undefined {
+  public getSceneStrokeEffect(): TSceneStrokeEffect | undefined {
     return undefined;
   }
 

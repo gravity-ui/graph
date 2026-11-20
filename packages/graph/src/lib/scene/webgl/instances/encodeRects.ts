@@ -1,6 +1,6 @@
-import { colorFloats } from "../../../../components/canvas/connections/webgl/encode";
 import { ALL_LEVELS_MASK } from "../../levels";
 import type { TScenePrimitive, TSceneSize, TSceneStroke } from "../../types";
+import { colorFloats } from "../../utils/colorAlpha";
 import { DEPTH_INDICES } from "../order/depth";
 
 import { USE_BASE_ALPHA } from "./tables";

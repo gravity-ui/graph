@@ -1,8 +1,16 @@
-import type { TLineInteraction, TLineStroke, TWebGLShape } from "../../lines/types";
-import { INSTANCE_FLOATS, createEncodedChunk, encodeShapes, piecesAt } from "../encode";
-import type { TInstances } from "../encode";
+import { dashFlow } from "../../../effects/library";
+import type { TPathInteraction, TScenePrimitive, TSceneStroke } from "../../../types";
+import { INSTANCE_FLOATS, appendPathInstances, createEncodedChunk, piecesAt } from "../encodePathInstances";
+import type { TEncodedChunk, TInstances } from "../encodePathInstances";
 
-const shape = (segments: number[], stroke: Partial<TLineStroke> = {}): TWebGLShape => ({
+type TPath = Extract<TScenePrimitive, { kind: "path" }>;
+
+function appendPaths(paths: readonly TPath[], bucket: number, out: TEncodedChunk): void {
+  for (const path of paths) appendPathInstances(path, path.stroke.width as number, bucket, out, true);
+}
+
+const shape = (segments: number[], stroke: Partial<TSceneStroke> = {}): TPath => ({
+  kind: "path",
   segments: new Float32Array(segments),
   stroke: { color: "#ff8000", width: 3, ...stroke },
 });
@@ -23,11 +31,11 @@ test("writes one instance per cubic with the stroke: color, width, connection le
     shape([0, 0, 10, 0, 20, 0, 30, 0]),
     shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60], {
       color: "rgba(0, 0, 255, 0.5)",
-      dash: { pattern: [6, 4] },
+      dash: [6, 4],
     }),
   ];
   const out = createEncodedChunk();
-  encodeShapes(shapes, 0, out);
+  appendPaths(shapes, 0, out);
   // Straight segments: line instances only.
   expect([out.lines.count, out.curves.count]).toEqual([3, 0]);
 
@@ -65,7 +73,7 @@ describe("dash patterns, normalized like canvas setLineDash", () => {
 
   const dashOf = (pattern: readonly number[]): number[] => {
     const out = createEncodedChunk();
-    encodeShapes([shape([0, 0, 10, 0, 20, 0, 30, 0], { dash: { pattern } })], 0, out);
+    appendPaths([shape([0, 0, 10, 0, 20, 0, 30, 0], { dash: pattern })], 0, out);
     return instance(out.lines, 0).slice(16, 20);
   };
 
@@ -81,6 +89,7 @@ describe("dash patterns, normalized like canvas setLineDash", () => {
     expect(dashOf([4, 2, 1])).toEqual([4, 2, 1, 4]);
     expect(dashOf([1, 2, 3, 4, 5, 6])).toEqual([1, 2, 3, 4]);
     expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls[0][0]).toContain("WebGL paths");
     expect(warn.mock.calls[0][0]).toMatch(/^\[@gravity-ui\/graph\] /);
     expect(warn.mock.calls[0][0]).toContain("[4, 2, 1]");
     expect(warn.mock.calls[0][0]).toContain("[4, 2, 1, 4]");
@@ -105,7 +114,7 @@ describe("dash patterns, normalized like canvas setLineDash", () => {
 test("distances run on across the segments of one shape and start again with the next shape", () => {
   const shapes = [shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60]), shape([0, 0, 10, 0, 20, 0, 30, 0])];
   const out = createEncodedChunk();
-  encodeShapes(shapes, 0, out);
+  appendPaths(shapes, 0, out);
   expect(instance(out.lines, 0).slice(14, 16)).toEqual([0, 30]);
   // The second segment starts where the first ended.
   expect(instance(out.lines, 1).slice(14, 16)).toEqual([30, 30]);
@@ -114,19 +123,20 @@ test("distances run on across the segments of one shape and start again with the
 
 test("leaves the effect params at zero without params", () => {
   const out = filledChunk(2, 9);
-  encodeShapes([shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60])], 0, out);
+  appendPaths([shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60])], 0, out);
   expect(instance(out.lines, 0).slice(20, 28)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
   expect(instance(out.lines, 1).slice(20, 28)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 test("writes a shape's params into every instance, missing ones as zero and at most eight", () => {
   const segments = [0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60];
-  const shapes: TWebGLShape[] = [
-    { ...shape(segments), params: [1, 2.5, -3] },
-    { ...shape([0, 0, 10, 0, 20, 0, 30, 0]), params: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+  const effect = dashFlow.use({ pattern: [4, 2], speed: 1 });
+  const shapes: TPath[] = [
+    { ...shape(segments), effect: { ...effect, params: [1, 2.5, -3] } },
+    { ...shape([0, 0, 10, 0, 20, 0, 30, 0]), effect: { ...effect, params: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } },
   ];
   const out = filledChunk(3, 9);
-  encodeShapes(shapes, 0, out);
+  appendPaths(shapes, 0, out);
   expect(out.lines.count).toBe(3);
   expect(instance(out.lines, 0).slice(20, 28)).toEqual([1, 2.5, -3, 0, 0, 0, 0, 0]);
   expect(instance(out.lines, 1).slice(20, 28)).toEqual([1, 2.5, -3, 0, 0, 0, 0, 0]);
@@ -135,13 +145,15 @@ test("writes a shape's params into every instance, missing ones as zero and at m
   expect(instance(out.lines, 2).slice(0, 2)).toEqual([0, 0]);
 });
 
+const effect = dashFlow.use({ pattern: [4, 2], speed: 1 });
+
 describe("the interaction floats: selection rgb, then hovered + 2 selected + 4 round(alpha * 255) + 1024 shown", () => {
   const segments = [0, 0, 10, 0, 20, 0, 30, 0];
 
   /** The interaction floats of the shape's first line instance; the rgb in 0..255. */
-  const interactionOf = (interaction: TLineInteraction | undefined): number[] => {
+  const interactionOf = (interaction: TPathInteraction | undefined): number[] => {
     const out = filledChunk(1, 9);
-    encodeShapes([{ ...shape(segments), interaction }], 0, out);
+    appendPaths([{ ...shape(segments), interaction, effect }], 0, out);
     const floats = instance(out.lines, 0).slice(28, 32);
     return [...floats.slice(0, 3).map((value) => Math.round(value * 255)), floats[3]];
   };
@@ -166,7 +178,7 @@ describe("the interaction floats: selection rgb, then hovered + 2 selected + 4 r
   it("sets bit 10 when the effect shows the selection in place of the selection color", () => {
     const out = filledChunk(1, 9);
     const interaction = { hovered: false, selected: true, selectionColor: "#ffcc00" };
-    encodeShapes([{ ...shape(segments), interaction, effectShowsSelection: true }], 0, out);
+    appendPaths([{ ...shape(segments), interaction, effectShowsSelection: true }], 0, out);
     expect(instance(out.lines, 0)[31]).toBe(1024 + 2 + 4 * 255);
   });
 
@@ -178,7 +190,7 @@ describe("the interaction floats: selection rgb, then hovered + 2 selected + 4 r
     const curve = [0, 0, 0, 3000, 100, -3000, 100, 0];
     const out = createEncodedChunk();
     const interaction = { hovered: true, selected: true, selectionColor: "#ffcc00" };
-    encodeShapes([{ ...shape([...segments, ...curve]), interaction }, shape(segments)], 0, out);
+    appendPaths([{ ...shape([...segments, ...curve]), interaction, effect }, shape(segments)], 0, out);
     expect(out.curves.count).toBeGreaterThan(1);
     for (let i = 0; i < out.curves.count; i++) expect(instance(out.curves, i)[31]).toBe(1023);
     expect(instance(out.lines, 0)[31]).toBe(1023);
@@ -189,7 +201,7 @@ describe("the interaction floats: selection rgb, then hovered + 2 selected + 4 r
 
 test("a shape without segments writes nothing", () => {
   const out = createEncodedChunk();
-  encodeShapes([shape([])], 0, out);
+  appendPaths([shape([])], 0, out);
   expect([out.lines.count, out.curves.count]).toEqual([0, 0]);
 });
 
@@ -210,7 +222,7 @@ test("splits a strongly curved cubic into continuous pieces that follow it, with
   const count = piecesAt(segments, 0, 0);
   expect(count).toBeGreaterThan(1);
   const encoded = createEncodedChunk();
-  encodeShapes([shape(segments)], 0, encoded);
+  appendPaths([shape(segments)], 0, encoded);
   expect([encoded.lines.count, encoded.curves.count]).toEqual([0, count]);
   const out = encoded.curves.data;
 

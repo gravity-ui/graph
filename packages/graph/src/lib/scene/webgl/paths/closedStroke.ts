@@ -1,6 +1,7 @@
 import { isLineSegment } from "../../../../components/canvas/connections/geometry/segments";
-import { INSTANCE_FLOATS, piecesAt } from "../../../../components/canvas/connections/webgl/encode";
-import type { TEncodedChunk } from "../../../../components/canvas/connections/webgl/encode";
+
+import { INSTANCE_FLOATS, piecesAt } from "./encodePathInstances";
+import type { TEncodedChunk } from "./encodePathInstances";
 
 /** The Canvas default and the reach limit of a closed WebGL stroke, in half widths. */
 export const MITER_LIMIT = 10;

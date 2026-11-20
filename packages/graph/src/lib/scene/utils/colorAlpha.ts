@@ -114,3 +114,12 @@ export function fadeColor(color: string, opacity: number): string {
   if (!rgba) return color;
   return rgbaText(rgba[0], rgba[1], rgba[2], rgba[3] * Math.max(0, opacity));
 }
+
+const BLACK = { r: 0, g: 0, b: 0, a: 1 };
+
+/** Straight rgba in 0..1 of a CSS color; black when the color does not parse. */
+export function colorFloats(css: string): [number, number, number, number] {
+  // parseColor gives r, g, b in 0..255 and a in 0..1.
+  const color = parseColor(css) ?? BLACK;
+  return [color.r / 255, color.g / 255, color.b / 255, color.a];
+}

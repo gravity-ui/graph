@@ -1,5 +1,5 @@
-import { defineSceneEffect } from "../../../../lib/scene/effects/defineSceneEffect";
-import type { TUniformType } from "../../../../lib/scene/effects/types";
+import { defineSceneEffect } from "./defineSceneEffect";
+import type { TUniformType } from "./types";
 
 /**
  * A running dash: the pattern moves along the line at `speed` world units per second, from the source to the target

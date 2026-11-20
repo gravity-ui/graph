@@ -1,17 +1,13 @@
 import type { ShaderModule, ShaderPlugin } from "@luma.gl/shadertools";
 
-import { toConnectionEffect } from "../../../../components/canvas/connections/effects/ConnectionEffect";
-import type { ConnectionEffect } from "../../../../components/canvas/connections/effects/ConnectionEffect";
-import { dashFlow, pulse } from "../../../../components/canvas/connections/effects/library";
-import type { TUniformTypes } from "../../../../components/canvas/connections/effects/types";
-import {
-  FRAGMENT_MAIN,
-  FRAGMENT_PRELUDE,
-  IDENTITY_EFFECT,
-} from "../../../../components/canvas/connections/webgl/shaders";
+import { toPathEffect } from "../../effects/PathEffect";
+import type { PathEffect } from "../../effects/PathEffect";
+import { dashFlow, pulse } from "../../effects/library";
+import type { TUniformTypes } from "../../effects/types";
 import { MITER_LIMIT } from "../paths/closedStroke";
 import { MIXED_PATH_SOURCE_BITS, MIXED_PATH_SOURCE_STRIDE } from "../paths/mixedPathPlan";
 
+import { FRAGMENT_MAIN, FRAGMENT_PRELUDE, IDENTITY_EFFECT } from "./pathSource";
 import { SCENE_COMMON } from "./scene";
 
 const MIXED_RECORD_ADDRESS = /* glsl */ `
@@ -269,13 +265,13 @@ const OPAQUE_PASS_OUTPUT = /* glsl */ `  if (scene_opaquePass > 0.5 && graph_fra
 
 /**
  * The one shader injection of the scene: the path program's effect (the plain stroke without one) after the
- * connection prelude, and the opaque pass's output at the end of `main()`. Compiler logs count lines from the
+ * path prelude, and the opaque pass's output at the end of `main()`. Compiler logs count lines from the
  * effect's first line, as in #451.
  */
-export function createPathPlugin(effect: ConnectionEffect<TUniformTypes, never> | undefined): ShaderPlugin {
+export function createPathPlugin(effect: PathEffect<TUniformTypes, never> | undefined): ShaderPlugin {
   const source = effect ? `${effect.uniformDeclarations}#line 1\n${effect.fragment}` : IDENTITY_EFFECT;
   return {
-    name: "sceneConnectionEffect",
+    name: "scenePathEffect",
     modules: [PATH_PRELUDE_MODULE],
     injections: [
       { target: "fs:#decl", injection: `uniform float scene_opaquePass;\n${source}` },
@@ -286,10 +282,10 @@ export function createPathPlugin(effect: ConnectionEffect<TUniformTypes, never> 
 
 /** Uses the exact built-in bodies and shared prelude, changing only their entry point names to coexist. */
 export function createStockPathPlugin(): ShaderPlugin {
-  const dash = toConnectionEffect(dashFlow).fragment.replace("vec4 effect(", "vec4 graph_dashFlowEffect(");
-  const wave = toConnectionEffect(pulse).fragment.replace("vec4 effect(", "vec4 graph_pulseEffect(");
+  const dash = toPathEffect(dashFlow).fragment.replace("vec4 effect(", "vec4 graph_dashFlowEffect(");
+  const wave = toPathEffect(pulse).fragment.replace("vec4 effect(", "vec4 graph_pulseEffect(");
   return {
-    name: "sceneStockConnectionEffects",
+    name: "sceneStockPathEffects",
     modules: [PATH_PRELUDE_MODULE],
     injections: [
       { target: "fs:#decl", injection: `uniform float scene_opaquePass;\n${dash}\n${wave}` },

@@ -1,5 +1,4 @@
-import { ConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
-import type { TConnectionEffectUse } from "../../../components/canvas/connections/effects/types";
+import { PathEffect, pathEffectId } from "../effects/PathEffect";
 import type { TScenePartStyle, TScenePrimitive, TSceneStroke, TSceneStyle } from "../types";
 import { fadeColor, mixColor, parseColorAlpha } from "../utils/colorAlpha";
 
@@ -220,19 +219,6 @@ function translucent(color: string | undefined): boolean {
  */
 const encodeKeys = new WeakMap<object, string>();
 
-const effectIds = new WeakMap<TConnectionEffectUse["effect"], number>();
-let nextEffectId = 0;
-
-/** Effects with one shader can have independent, mutable uniform signals. */
-export function connectionEffectId(effect: TConnectionEffectUse["effect"]): number {
-  let id = effectIds.get(effect);
-  if (id === undefined) {
-    id = ++nextEffectId;
-    effectIds.set(effect, id);
-  }
-  return id;
-}
-
 export function styleEncodeKey(style: TSceneStyle | undefined): string {
   if (!style) return "";
   const cached = encodeKeys.get(style);
@@ -295,7 +281,7 @@ const lookKeys = new WeakMap<object, string>();
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
   if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
-  if (value instanceof ConnectionEffect) return String(connectionEffectId(value));
+  if (value instanceof PathEffect) return String(pathEffectId(value));
   const record = value as Record<string, unknown>;
   const entries: string[] = [];
   for (const key of Object.keys(record).sort()) {

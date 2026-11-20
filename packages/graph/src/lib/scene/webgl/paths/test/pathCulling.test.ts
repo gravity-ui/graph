@@ -1,6 +1,6 @@
-import { INSTANCE_FLOATS } from "../../../../../components/canvas/connections/webgl/encode";
 import type { TSceneFrame } from "../../../renderer/backendTypes";
 import { ElementTable } from "../../instances/tables";
+import { INSTANCE_FLOATS } from "../encodePathInstances";
 import { PathCulling } from "../pathCulling";
 import { PATH_ELEMENT_FLOATS } from "../pathRecords";
 
