@@ -274,6 +274,34 @@ describe("PathCulling", () => {
     expect(culling.preparedRanges(frame, 500)).toEqual([{ first: 0, count: CHUNK }]);
   });
 
+  it("reuses a whole batch only while the camera and chunk bounds stay ready", () => {
+    const data = paths(Array.from({ length: CHUNK * 2 }, (_, i) => (i < CHUNK ? 10 : 500)));
+    const culling = new PathCulling();
+    culling.update(data.paths, data.elements, data.table, frame);
+    const scan = jest.spyOn(culling, "forEachRange");
+    const visit = jest.fn();
+
+    culling.forEachFullRange(frame, 0, visit, {});
+    culling.forEachFullRange(frame, 0, visit, {});
+    visit.mockClear();
+    scan.mockClear();
+    culling.forEachFullRange({ ...frame, time: 1 }, 0, visit, {});
+    expect(visit.mock.calls).toEqual([[0, CHUNK, undefined]]);
+    expect(scan).not.toHaveBeenCalled();
+
+    visit.mockClear();
+    culling.forEachFullRange({ ...frame, x: -490 }, 0, visit, {});
+    expect(visit.mock.calls).toEqual([[CHUNK, CHUNK, undefined]]);
+
+    culling.forEachFullRange(frame, 0, visit, {});
+    culling.forEachFullRange(frame, 0, visit, {});
+    data.table.write("e0", -490, 0, 0, false, 0);
+    culling.update(data.paths, data.elements, data.table, frame);
+    visit.mockClear();
+    culling.forEachFullRange(frame, 0, visit, {});
+    expect(visit.mock.calls).toEqual([[CHUNK, CHUNK, undefined]]);
+  });
+
   it("uses the control hull, stroke width, effect halo and hairline rim at the current scale and DPR", () => {
     const data = paths([110]);
     const culling = new PathCulling();

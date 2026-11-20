@@ -154,13 +154,14 @@ test("growing a resident path texture preserves every line and uploads only the 
       });
       render();
     };
-    const initial = perRow * 4;
+    // Start above the large-texture growth threshold and include a long path in the replay comparison.
+    const initial = perRow * (Math.ceil((4 * 1024 * 1024) / (perRow * 160)) + 3);
     const before = backend.stats.uploadBytes;
     add("resident", initial, 10);
     const initialBytes = backend.stats.uploadBytes - before;
     type Batch = {
       pathRecords?: { texture: { height: number } };
-      ranges: { data: Float32Array; floats: number; ownerRanges(id: string): unknown[] };
+      ranges: { count: number; data: Float32Array; floats: number; ownerRanges(id: string): unknown[] };
     };
     const internal = backend as unknown as { allBatches(): Iterable<Batch> };
     const batch = [...internal.allBatches()].find((b) => b.pathRecords && b.ranges.ownerRanges("resident").length);
@@ -176,7 +177,12 @@ test("growing a resident path texture preserves every line and uploads only the 
     const beforeEdit = backend.stats.uploadBytes;
     add("new-line", cpuSlots - slots + 1, 200);
     const editBytes = backend.stats.uploadBytes - beforeEdit;
-    const grew = batch.pathRecords.texture.height > height;
+    const grownHeight = batch.pathRecords.texture.height;
+    const changed = backend.canvas.toDataURL() !== beforeImage;
+    if (canCopy) {
+      add("fill-compact-reserve", grownHeight * perRow - batch.ranges.count + 1, 300);
+    }
+    const nextHeight = batch.pathRecords.texture.height;
     const image = backend.canvas.toDataURL();
     backend.replay(scene.store);
     render();
@@ -185,13 +191,20 @@ test("growing a resident path texture preserves every line and uploads only the 
       fillBytes,
       editBytes,
       canCopy,
-      grew,
-      changed: image !== beforeImage,
+      height,
+      grownHeight,
+      nextHeight,
+      changed,
       sameAsReplay: image === backend.canvas.toDataURL(),
       error: gl.getError(),
     };
   });
-  expect(result).toMatchObject({ grew: true, changed: true, sameAsReplay: true, error: 0 });
+  expect(result).toMatchObject({ changed: true, sameAsReplay: true, error: 0 });
+  expect(result.grownHeight).toBeGreaterThan(result.height);
+  if (result.canCopy) {
+    expect(result.grownHeight).toBeLessThan(result.height * 2);
+    expect(result.nextHeight).toBe(result.height * 2);
+  }
   expect(result.fillBytes).toBeLessThan(result.initialBytes / 2);
   expect(result.editBytes).toBeGreaterThan(0);
   if (result.canCopy) expect(result.editBytes).toBeLessThan(result.initialBytes / 2);

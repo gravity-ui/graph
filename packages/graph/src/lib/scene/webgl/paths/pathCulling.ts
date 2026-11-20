@@ -48,6 +48,12 @@ function resetBounds(box: TBounds): void {
   box.untranslated = true;
 }
 
+export function sameViewport(a: TSceneFrame, b: TSceneFrame): boolean {
+  return (
+    a.x === b.x && a.y === b.y && a.scale === b.scale && a.width === b.width && a.height === b.height && a.dpr === b.dpr
+  );
+}
+
 /**
  * Conservative bounds of resident curve instances, in buffer order. Upload spans invalidate only touched chunks;
  * moving an element refreshes its chunks without rewriting any instances. Each chunk caches a hull per exact
@@ -68,6 +74,7 @@ export class PathCulling {
   private readonly levelMasks = new Set<number>();
   private from = Infinity;
   private to = -Infinity;
+  private previousFullView?: TSceneFrame;
   private preparedView?: TSceneFrame & { extraWidth: number; curveChords?: 8 };
   private prepared: TRange[] = [];
 
@@ -114,7 +121,10 @@ export class PathCulling {
       }
     }
     this.originRevision = originRevision;
-    if (reselectAll || resized || this.dirty.size) this.preparedView = undefined;
+    if (reselectAll || resized || this.dirty.size) {
+      this.previousFullView = undefined;
+      this.preparedView = undefined;
+    }
     for (const chunk of this.dirty) {
       this.writeChunk(chunk, paths, elements, data);
       if (!reselectAll) this.selectHull(this.chunks[chunk], scale);
@@ -177,18 +187,9 @@ export class PathCulling {
   /** The identity changes only when clipping or curve detail changes the full physical command ranges. */
   public preparedRanges(frame: TSceneFrame, extraWidth: number, curveChords?: 8): readonly TRange[] {
     const view = this.preparedView;
-    if (
-      view &&
-      view.x === frame.x &&
-      view.y === frame.y &&
-      view.scale === frame.scale &&
-      view.width === frame.width &&
-      view.height === frame.height &&
-      view.dpr === frame.dpr &&
-      view.extraWidth === extraWidth &&
-      view.curveChords === curveChords
-    )
+    if (view && sameViewport(view, frame) && view.extraWidth === extraWidth && view.curveChords === curveChords) {
       return this.prepared;
+    }
     const ranges = this.ranges(0, this.count, frame, extraWidth, { curveChords });
     const previous = this.prepared;
     if (
@@ -203,6 +204,24 @@ export class PathCulling {
       this.prepared = ranges;
     this.preparedView = { ...frame, extraWidth, curveChords };
     return this.prepared;
+  }
+
+  public forEachFullRange(
+    frame: TSceneFrame,
+    extraWidth: number,
+    visit: TRangeVisitor,
+    options: { curveChords?: 8 }
+  ): void {
+    const previous = this.previousFullView;
+    this.previousFullView = frame;
+    // Camera motion and new bounds use the streaming visitor without allocating a range list.
+    if (!previous || !sameViewport(previous, frame)) {
+      this.forEachRange(0, this.count, frame, extraWidth, visit, options);
+      return;
+    }
+    for (const { first, count, curveChords } of this.preparedRanges(frame, extraWidth, options.curveChords)) {
+      visit(first, count, curveChords);
+    }
   }
 
   public ranges(

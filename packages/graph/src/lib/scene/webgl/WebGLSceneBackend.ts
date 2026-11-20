@@ -150,7 +150,7 @@ import {
 import type { TMixedPathRange, TNativePathRange, TSubpixelPathWidth } from "./paths/mixedPathPlan";
 import { resizeMixedPlan } from "./paths/mixedPlanResize";
 import { OverviewCurveGroups, overviewCamera } from "./paths/overviewCurves";
-import { PathCulling } from "./paths/pathCulling";
+import { PathCulling, sameViewport } from "./paths/pathCulling";
 import { PathDrawIds } from "./paths/pathDrawIds";
 import { appendPathPlanInputs, pathPlanResizes, visiblePathResize } from "./paths/pathPlanInputs";
 import type { TMixedResize, TPathPlanInput } from "./paths/pathPlanInputs";
@@ -220,6 +220,7 @@ const UPLOAD_COST: Record<TUploadKind, number> = { none: 0, range: 1, full: 2 };
 
 /** RGBA32F texels of the element and style tables, r8 of the atlas: bytes per texel. */
 const TABLE_TEXEL_BYTES = 16;
+const LARGE_PATH_TEXTURE_BYTES = 4 * 1024 * 1024;
 
 /** `scene_dimColor` without a dim colour: alpha -1, the shaders leave every paint undimmed. */
 const NO_DIM_COLOR: readonly number[] = [0, 0, 0, -1];
@@ -348,6 +349,8 @@ class WebGLSceneBackend implements ISceneBackend {
   private cullingBatch?: TBatch;
   private cullingDraws: TDraw[] = [];
   private readonly cullingOptions: { curveChords?: 8 } = {};
+  private previousPathFrame?: TSceneFrame;
+  private stablePathView = false;
   private readonly appendCulledRange = (first: number, count: number, curveDetail?: number): void => {
     const batch = this.cullingBatch;
     if (!batch) return;
@@ -658,6 +661,9 @@ class WebGLSceneBackend implements ISceneBackend {
       return false;
     }
     const start = performance.now();
+    const previous = this.previousPathFrame;
+    this.stablePathView = previous !== undefined && sameViewport(previous, frame);
+    this.previousPathFrame = frame;
     this.frameUploadBytes = this.spriteUploadBytes;
     this.frameUploadWrites = this.spriteUploadWrites;
     this.spriteUploadBytes = this.spriteUploadWrites = 0;
@@ -3299,14 +3305,12 @@ class WebGLSceneBackend implements ISceneBackend {
       batch.curveChords && canCoarsenCurves(frame, batch.culling.untranslated) ? batch.curveChords : undefined;
     this.cullingBatch = batch;
     this.cullingDraws = draws;
-    batch.culling.forEachRange(
-      first,
-      count,
-      frame,
-      Number(batch.uniforms.graph_extraWidth ?? 0),
-      this.appendCulledRange,
-      this.cullingOptions
-    );
+    const extraWidth = Number(batch.uniforms.graph_extraWidth ?? 0);
+    if (this.stablePathView && first === 0 && count === batch.ranges.count) {
+      batch.culling.forEachFullRange(frame, extraWidth, this.appendCulledRange, this.cullingOptions);
+    } else {
+      batch.culling.forEachRange(first, count, frame, extraWidth, this.appendCulledRange, this.cullingOptions);
+    }
   }
 
   /**
@@ -3561,23 +3565,28 @@ class WebGLSceneBackend implements ISceneBackend {
       if (rows > limit) throw new Error("Path record table exceeds the device texture capacity");
       // Leave one row for local edits before the next allocation.
       const reservedRows = rows > 1 ? rows + 1 : rows;
-      const height = Math.min(
-        limit,
-        Math.max(reservedRows, records.texture.width === width ? records.texture.height * 2 : 1)
-      );
+      const sameWidth = records.texture.width === width;
       const source =
         payload.kind !== "full" &&
         elements.kind !== "full" &&
-        records.texture.width === width &&
+        sameWidth &&
         this.gl.getExtension("EXT_color_buffer_float")
           ? records.texture
           : undefined;
+      const oldHeight = records.texture.height;
+      const doubleHeight = Math.min(limit, oldHeight * 2);
+      const growthTarget = sameWidth ? records.growthTarget : undefined;
+      const compact =
+        source && growthTarget === undefined && width * oldHeight * TABLE_TEXEL_BYTES >= LARGE_PATH_TEXTURE_BYTES;
+      const reserve = compact ? Math.ceil(oldHeight * 1.125) : growthTarget ?? doubleHeight;
+      const height = Math.min(limit, Math.max(reservedRows, sameWidth ? reserve : 1));
       if (!source) records.texture.destroy();
       // eslint-disable-next-line no-bitwise -- luma usage flags are bit masks
       const next = createTableTexture(this.device, width, height, TEXTURE_USAGE | Texture.COPY_SRC);
       if (!source || !copyPathRecordRows(this.gl, source, next)) payload = { kind: "full" };
       source?.destroy();
       records.texture = next;
+      records.growthTarget = compact && height < doubleHeight ? doubleHeight : undefined;
       batch.uniforms.graph_recordWidth = width;
       batch.model.setBindings(this.batchBindings(batch));
       batch.plain?.model.setBindings(this.batchBindings(batch));

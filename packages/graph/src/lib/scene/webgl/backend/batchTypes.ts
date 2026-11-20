@@ -41,6 +41,8 @@ export type TCompanion = { kind: "elements" | "subs"; ranges: InstanceRanges; bu
 /** Paths keep one GPU copy of their payload and companion; the instance buffer holds only ordered addresses. */
 export type TPathRecords = {
   texture: Texture;
+  /** Height to use if the smaller first reservation runs out. */
+  growthTarget?: number;
   companion: TCompanion;
   ids: PathDrawIds;
   overview?: OverviewCurveGroups;
