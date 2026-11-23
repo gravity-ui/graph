@@ -31,9 +31,9 @@ export type TSceneLevel = "minimalistic" | "schematic" | "detailed";
  * in its owner's raised bucket at its owner's order. `entityType` is the `static entityType` of the component that
  * wrote the element.
  */
-export type TSceneElementView = Readonly<
+export type TSceneElementView<TSpriteImage = HTMLImageElement | HTMLCanvasElement> = Readonly<
   Pick<
-    TSceneElement,
+    TSceneElement<TSpriteImage>,
     | "id"
     | "entityType"
     | "parent"
@@ -128,15 +128,15 @@ export interface IGraphScene {
    * filter by level and entity type and add hidden ones. The bounds are grown where an element's style scales its
    * circles or widens its strokes past them (a hover scale), as the Canvas 2D renderer culls; the views' `bounds` are
    * the element's own. Views own their primitive data, including buffers. `bounds` stays relative to each
-   * element's origin.
+   * element's origin. Sprite images are detached canvases containing a copy of the decoded pixels.
    */
-  query(rect: TRect, options?: TSceneQueryOptions): readonly TSceneElementView[];
+  query(rect: TRect, options?: TSceneQueryOptions): readonly TSceneElementView<HTMLCanvasElement>[];
   /**
    * Steps once at the end of a graph frame in which elements of this entity type changed (added, moved, restyled,
    * hidden, reordered, removed; an element nested in one that was hidden, raised, moved to another bucket or reordered
    * included), or style rows were rewritten (a rule, level or root-tag change) or the dim colour changed. A row change
    * to a row that looks the same steps nothing, whatever the order of the rows' properties and parts. A layer that
-   * draws from `query()` (the minimap, with `"block"`) redraws on it, one frame after the change. The same signal for
+   * draws scene elements (the minimap, with `"block"`) redraws on it, one frame after the change. The same signal for
    * every call with one type; a counter first asked for during a frame steps at its end for that frame's changes.
    */
   revisionOf(entityType: string): ReadonlySignal<number>;

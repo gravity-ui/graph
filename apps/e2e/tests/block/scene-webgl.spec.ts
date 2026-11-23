@@ -790,6 +790,64 @@ test.describe("Scene blocks with the WebGL renderer", () => {
     expect(result.error).toBe(0);
   });
 
+  test("queries an independently drawable copy of a decoded scene sprite", async ({ page }) => {
+    let requests = 0;
+    await page.route("**/snapshot-sprite.svg", (route) => {
+      requests++;
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        headers: { "Cache-Control": "no-store" },
+        body:
+          '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8">' +
+          '<rect width="8" height="8" fill="red"/></svg>',
+      });
+    });
+    await new GraphPageObject(page).initialize({ ...CONFIG, blocks: [], settings: { renderer: "canvas" } });
+
+    const result = await page.evaluate(async () => {
+      const image = new Image();
+      image.src = "/snapshot-sprite.svg";
+      await image.decode();
+      const { scene } = window.graph;
+      const box = { x: 0, y: 0, width: 8, height: 8 };
+      scene.store.add({
+        id: "sprite",
+        zIndex: 100,
+        x: 0,
+        y: 0,
+        bounds: { minX: 0, minY: 0, maxX: 8, maxY: 8 },
+        primitives: [{ kind: "sprite", ...box, image }],
+      });
+      const queryImage = () => {
+        const sprite = scene.query(box).find((element) => element.id === "sprite")?.primitives[0];
+        if (sprite?.kind !== "sprite") throw new Error("Expected a sprite in the query result");
+        return sprite.image;
+      };
+      const ctx = document.createElement("canvas").getContext("2d")!;
+      const pixel = (source: CanvasImageSource) => {
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.drawImage(source, 0, 0);
+        return [...ctx.getImageData(0, 0, 1, 1).data];
+      };
+      const copy = queryImage();
+      const first = pixel(copy);
+      copy.width = 1;
+      const second = pixel(queryImage());
+      scene.store.update("sprite", { primitives: [{ kind: "sprite", ...box, image: new Image() }] });
+      const empty = pixel(queryImage());
+      return { first, second, empty, distinct: !Object.is(copy, image), liveWidth: image.width };
+    });
+
+    expect(result).toEqual({
+      first: [255, 0, 0, 255],
+      second: [255, 0, 0, 255],
+      empty: [0, 0, 0, 0],
+      distinct: true,
+      liveWidth: 8,
+    });
+    expect(requests).toBe(1);
+  });
+
   test("draws a decoded sprite in scene order with top-left UVs and straight alpha", async ({ page }) => {
     const graph = new GraphPageObject(page);
     await graph.initialize({ ...CONFIG, blocks: [] });

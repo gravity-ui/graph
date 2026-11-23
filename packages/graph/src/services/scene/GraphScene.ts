@@ -758,7 +758,7 @@ export class GraphScene implements IGraphScene {
     return key && element ? { element, sub: key.sub } : undefined;
   }
 
-  public query(rect: TRect, options: TSceneQueryOptions = {}): readonly TSceneElementView[] {
+  public query(rect: TRect, options: TSceneQueryOptions = {}): readonly TSceneElementView<HTMLCanvasElement>[] {
     const snapshot = createPrimitiveSnapshot();
     return this.queryLive(rect, options).map((element) =>
       Object.freeze({
@@ -783,7 +783,7 @@ export class GraphScene implements IGraphScene {
    * @internal Borrow store rows for synchronous drawing. Their `hidden` flag describes each row itself.
    * Do not mutate or retain the rows. Use `query()` to keep a snapshot.
    */
-  public queryLive(rect: TRect, options: TSceneQueryOptions = {}): readonly TSceneElementView[] {
+  public queryLive(rect: TRect, options: TSceneQueryOptions = {}): readonly TSceneElementView<HTMLImageElement>[] {
     const tileRect = { minX: rect.x, minY: rect.y, maxX: rect.x + rect.width, maxY: rect.y + rect.height };
     const types = options.entityTypes;
     const found = this.store.query(tileRect, options.level, undefined, options.includeHidden);

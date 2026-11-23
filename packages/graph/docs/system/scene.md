@@ -369,7 +369,10 @@ read-only views of the elements whose bounds meet it, in draw order, bottom firs
 what is nested in it, in the pre-order of its nesting. By default it returns visible elements only, and a view's
 `hidden` is `false`. A view's `bounds` is relative to the element's origin (`x`, `y`). The snapshot owns its bounds,
 primitives and their data, including path buffers and effect uniforms. Editing a buffer or resource in a snapshot
-cannot affect the live scene's drawing, picking or later queries. Apply scene changes through the component or graph data.
+cannot affect the live scene's drawing, picking or later queries. A sprite's `image` in the snapshot is a detached
+canvas, with its decoded pixels ready for `drawImage()`. Each call copies the pixels once per distinct image in the
+result. Sprites in components still take a decoded `HTMLImageElement`.
+Apply scene changes through the component or graph data.
 The options (`TSceneQueryOptions`):
 
 - `level`: only elements with a primitive on that level. An owner left out still places its children that have one.

@@ -8,6 +8,9 @@ import { cutPathGaps } from "../utils/cutPathGaps";
 
 import { appendSegments, applyStroke, drawShape, strokeKey } from "./drawShapes";
 
+type TCanvasSceneElement = TSceneElement<HTMLImageElement | HTMLCanvasElement>;
+type TCanvasPrimitives = TCanvasSceneElement["primitives"];
+
 export function isPrimitiveVisible(primitive: TScenePrimitive, scale: number, level?: TSceneLevel): boolean {
   if (primitive.minScale !== undefined && scale < primitive.minScale) return false;
   if (primitive.maxScale !== undefined && scale >= primitive.maxScale) return false;
@@ -37,7 +40,7 @@ export type TDrawElementsOptions = {
 };
 
 function isPrimitiveDrawn(primitive: TScenePrimitive, scale: number, options: TDrawElementsOptions): boolean {
-  if (primitive.kind === "sprite" || (options.skipText && primitive.kind === "text")) return false;
+  if (options.skipText && primitive.kind === "text") return false;
   return isPrimitiveVisible(primitive, scale, options.level);
 }
 
@@ -50,10 +53,10 @@ type TPaints = {
 };
 
 // Styles change on tag/theme updates; the primitive list changes on geometry edits. Neither changes during a pan.
-const elementPaints = new WeakMap<readonly TScenePrimitive[], TPaints>();
+const elementPaints = new WeakMap<TCanvasPrimitives, TPaints>();
 
 function paintsOf(
-  primitives: readonly TScenePrimitive[],
+  primitives: TCanvasPrimitives,
   style: TSceneStyle | undefined,
   dimColor: string | undefined
 ): readonly TPaint[] {
@@ -61,7 +64,10 @@ function paintsOf(
   if (cached && cached.style === style && cached.dimColor === dimColor) return cached.paints;
   const paints: TPaint[] = [];
   for (let i = 0; i < primitives.length; i++) {
-    const source = i === 0 ? trimConnectionShaft(primitives[0], primitives[1], style) : primitives[i];
+    const item = primitives[i];
+    if (item.kind === "sprite") continue;
+    const next = primitives[1];
+    const source = i === 0 && next?.kind === "path" ? trimConnectionShaft(item, next, style) : item;
     const painted = source.kind === "path" && source.canvasStroke ? { ...source, stroke: source.canvasStroke } : source;
     const primitive = applyStyle(painted, style, dimColor);
     if (primitive?.kind === "path" && primitive.arrowPosition !== undefined && primitive.closed) {
@@ -97,8 +103,8 @@ function resolveMaxRun(maxRun: number | undefined): number {
 type TPathSpan = {
   dimColor?: string;
   members: {
-    element: TSceneElement;
-    primitives: readonly TScenePrimitive[];
+    element: TCanvasSceneElement;
+    primitives: TCanvasPrimitives;
     style?: TSceneStyle;
     x: number;
     y: number;
@@ -108,7 +114,7 @@ type TPathSpan = {
 
 // Keep only the spans used by the last paint of this canvas. Chunk boundaries follow scene order so a path
 // entering the viewport or changing during a drag does not invalidate the rest of a long series of connections.
-const canvasSpans = new WeakMap<CanvasRenderingContext2D, Map<TSceneElement, TPathSpan>>();
+const canvasSpans = new WeakMap<CanvasRenderingContext2D, Map<TCanvasSceneElement, TPathSpan>>();
 
 const SPAN_SIZE = 128;
 
@@ -117,7 +123,7 @@ function isOpaque(color: string): boolean {
   return readColorRgba(color)?.[3] === 1;
 }
 
-function pathSpanEnd(elements: readonly TSceneElement[], start: number): number {
+function pathSpanEnd(elements: readonly TCanvasSceneElement[], start: number): number {
   const bucket = Math.floor(elements[start].order / SPAN_SIZE);
   let end = start + 1;
   while (
@@ -133,7 +139,7 @@ function pathSpanEnd(elements: readonly TSceneElement[], start: number): number 
 
 function samePathSpan(
   previous: TPathSpan,
-  elements: readonly TSceneElement[],
+  elements: readonly TCanvasSceneElement[],
   start: number,
   end: number,
   options: TDrawElementsOptions
@@ -156,7 +162,7 @@ function samePathSpan(
 }
 
 function opaquePathSpan(
-  elements: readonly TSceneElement[],
+  elements: readonly TCanvasSceneElement[],
   start: number,
   end: number,
   options: TDrawElementsOptions,
@@ -198,7 +204,7 @@ function opaquePathSpan(
 /** Draws visible primitives in scene order. Only consecutive opaque strokes may share a paint. */
 export function drawElements(
   ctx: CanvasRenderingContext2D,
-  elements: readonly TSceneElement[],
+  elements: readonly TCanvasSceneElement[],
   scale: number,
   options: TDrawElementsOptions = {}
 ): number {
@@ -207,7 +213,7 @@ export function drawElements(
   let run: TRun | undefined;
   let drawn = 0;
   const cached = canvasSpans.get(ctx);
-  let next: Map<TSceneElement, TPathSpan> | undefined;
+  let next: Map<TCanvasSceneElement, TPathSpan> | undefined;
   const useSpans = compositeOpaque && maxRun === Infinity && elements.length >= SPAN_SIZE;
   let nextSpan = 0;
   const flush = (): void => {
