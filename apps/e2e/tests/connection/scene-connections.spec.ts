@@ -751,6 +751,7 @@ test("a saved polyline with a filled arrow follows a CollapsibleGroup without re
 
 for (const renderer of ["canvas", "webgl"] as const) {
   test(`an anchor connection follows a transfer between collapsed groups in ${renderer}`, async ({ page }) => {
+    if (renderer === "webgl") test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
     const graph = new GraphPageObject(page);
     await graph.initialize({
       blocks: [
@@ -764,7 +765,6 @@ for (const renderer of ["canvas", "webgl"] as const) {
       connections: [{ ...CONNECTION, sourceAnchorId: "out" }],
       settings: { renderer, useBezierConnections: false, showConnectionArrows: false },
     });
-    if (renderer === "webgl") test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
     await centerOrigin(graph);
     await expectRenderer(page, renderer);
 
