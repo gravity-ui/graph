@@ -398,6 +398,45 @@ describe("a kept group rebinds to the new group state of a group added back in t
       start(collapsible(false));
     });
 
+    it("moves a block's connection to the new collapsed group until that group expands", () => {
+      start(collapsible(false));
+      const sourceGroup = collapse();
+      graph.api.addBlock(block("h-member", 500, "h"));
+      const group: TCollapsibleGroup = {
+        id: "h",
+        rect: { x: 480, y: 350, width: 160, height: 100 },
+        component: CollapsibleGroup,
+        collapsed: true,
+      };
+      graph.rootStore.groupsList.addGroup(group);
+      frames();
+      const destination = viewOf("h");
+      if (!(destination instanceof CollapsibleGroup)) throw new Error("not a collapsible group");
+      const connection = graph.rootStore.connectionsList.getConnectionState("c");
+      const source = () => connection?.$geometry.value?.[0];
+      const destinationEdge = outputPort("h-member")?.$point.value;
+      expect(destinationEdge).toBeDefined();
+      expect(source()).toEqual(outputPort("b")?.$point.value);
+      expect(source()).not.toEqual(destinationEdge);
+
+      graph.api.updateBlock({ id: "a", group: "h", x: 520, y: 370 });
+      frames();
+      expect(source()).toEqual(destinationEdge);
+      expect(blockState("a").$hidden.value).toBe(true);
+      expect(outputPort("a")?.isDelegated).toBe(true);
+
+      sourceGroup.expand();
+      frames();
+      expect(source()).toEqual(destinationEdge);
+      expect(blockState("a").$hidden.value).toBe(true);
+
+      destination.expand();
+      frames();
+      expect(source()).toEqual({ x: 620, y: 395 });
+      expect(blockState("a").$hidden.value).toBe(false);
+      expect(outputPort("a")?.isDelegated).toBe(false);
+    });
+
     describe("a block that leaves the collapsed group is shown, hit and owns its ports again", () => {
       /** a is shown and hit at its body, and the line c starts at a's own output port, not at the group's edge. */
       const expectLeft = (): void => {

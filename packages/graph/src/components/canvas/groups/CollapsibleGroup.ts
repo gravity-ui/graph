@@ -531,15 +531,14 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   // A collapse hides the group's blocks and delegates their ports to the group's edge ports. It records what it did,
   // per block id (`collapseMembers`), and one release path (`releaseMembers`) gives it back: when a block leaves the
   // group (its data names another group or none, or it is removed), when the group expands, and when the group binds
-  // to a new state or unmounts (`leaveGroupState`). So a block outside a collapsed group is always shown and owns its
-  // ports, whichever way it left, and the group's unmount reaches the blocks its collapse hid even before a frame
-  // applied the collapse to the component's own state.
+  // to a new state or unmounts (`leaveGroupState`). A move to another collapsed group transfers the record's effects
+  // to that group in the same batch.
 
   /** Hides the group's blocks (`requestHidden`) and records them. */
-  private hideMembers(): void {
+  private hideMembers(states: readonly BlockState[] = this.getGroupBlocks()): ReadonlyMap<TBlockId, TCollapseMember> {
     const members = this.getCollapseMembers();
     let added = false;
-    for (const state of this.getGroupBlocks()) {
+    for (const state of states) {
       state.requestHidden(true);
       const member = members.get(state.id);
       if (member?.state === state) continue;
@@ -557,12 +556,12 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
     }
     // The membership watch reads the new records.
     if (added) this.getCollapseRevision().value += 1;
+    return members;
   }
 
   /**
-   * The one release path: undelegates the ports this collapse delegated, and shows the blocks it hid, of the blocks
-   * `ids` names or of all of them. A state no longer registered (its block was removed, or added back as a new state)
-   * is not shown: a block component kept for its id binds to the new state and takes that state's hidden value.
+   * Releases the recorded delegations and visibility of the given members or of all of them. If a retained block
+   * moved to another collapsed group, that group takes over before the batch publishes the new port positions.
    */
   private releaseMembers(ids?: readonly TBlockId[]): void {
     const members = this.collapseMembers;
@@ -577,7 +576,19 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
         member.ports.forEach((port) => {
           if (port.isDelegated) port.undelegate();
         });
-        if (member.state.isAttached()) member.state.requestHidden(false);
+        if (!member.state.isAttached()) continue;
+        const groupId = member.group.peek();
+        const destination =
+          groupId === undefined || groupId === this.props.id
+            ? undefined
+            : this.context.graph.rootStore.groupsList.getGroupState(groupId)?.getViewComponent();
+        if (destination instanceof CollapsibleGroup && destination.isCollapsed()) {
+          const transferred = destination.hideMembers([member.state]).get(id);
+          if (transferred) destination.delegateMemberPorts(transferred);
+          destination.performRender();
+        } else {
+          member.state.requestHidden(false);
+        }
       }
     });
   }
@@ -598,7 +609,9 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
       return left;
     });
     this.subscribeGroupSignal(watch, (left) => {
-      if (left.length > 0) this.releaseMembers(left);
+      if (left.length === 0) return;
+      this.releaseMembers(left);
+      this.performRender();
     });
   }
 
