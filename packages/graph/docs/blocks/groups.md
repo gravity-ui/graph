@@ -133,6 +133,8 @@ graph.addLayer(AutoGroups, {
 When a connection crosses the collapsed group boundary, its visible endpoint follows the delegated port as the group
 moves. On a stock multipoint route the stored `points` stay in world coordinates. Expansion restores the original
 endpoint, including its anchor when the connection uses one.
+When `api.updateBlock()` moves a block between collapsed groups, the block stays hidden and its connections follow
+the destination group's edge. Expanding that group restores the block's own ports.
 
 **Do this:**
 

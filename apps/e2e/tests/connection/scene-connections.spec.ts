@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import type { TMultipointConnection, TPoint } from "@gravity-ui/graph";
+import type { TCollapsibleGroup, TMultipointConnection, TPoint } from "@gravity-ui/graph";
 
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
 import { ReactGraphPageObject } from "../../page-objects/ReactGraphPageObject";
@@ -748,6 +748,71 @@ test("a saved polyline with a filled arrow follows a CollapsibleGroup without re
   await setCollapsed(false);
   await assertRoute(expanded, moved);
 });
+
+for (const renderer of ["canvas", "webgl"] as const) {
+  test(`an anchor connection follows a transfer between collapsed groups in ${renderer}`, async ({ page }) => {
+    if (renderer === "webgl") test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+    const graph = new GraphPageObject(page);
+    await graph.initialize({
+      blocks: [
+        {
+          ...START,
+          group: "a",
+          anchors: [{ id: "out", blockId: START.id, type: "OUT" }],
+        },
+        END,
+      ],
+      connections: [{ ...CONNECTION, sourceAnchorId: "out" }],
+      settings: { renderer, useBezierConnections: false, showConnectionArrows: false },
+    });
+    await centerOrigin(graph);
+    await expectRenderer(page, renderer);
+
+    const source = (): Promise<TPoint | undefined> =>
+      page.evaluate(() => window.graph.connections.getConnectionState("edge")?.$geometry.value?.[0]);
+    const anchor = await source();
+    if (!anchor) throw new Error("The source anchor must resolve before collapsing");
+    await page.evaluate(() => {
+      const { BlockGroups, CollapsibleGroup } = window.GraphModule;
+      const groups = window.graph.addLayer(BlockGroups, {});
+      const rect = { x: 40, y: 80, width: 230, height: 105 };
+      const collapsedRect = { x: 140, y: 80, width: 130, height: 40 };
+      groups.setGroups<TCollapsibleGroup>([
+        { id: "a", component: CollapsibleGroup, rect, collapsed: true, collapsedRect },
+        { id: "b", component: CollapsibleGroup, rect, collapsed: true, collapsedRect: { ...collapsedRect, y: 330 } },
+      ]);
+    });
+    const formerEdge = { x: 290, y: 100 };
+    const newEdge = { x: 290, y: 350 };
+    const pointOnRoute = (from: TPoint): TPoint => {
+      const x = 450;
+      const t = (x - from.x) / (END.x - from.x);
+      return { x, y: from.y + t * (END.y + END.height / 2 - from.y) };
+    };
+    const assertRoute = async (from: TPoint, old: TPoint): Promise<void> => {
+      await expect.poll(source).toEqual(from);
+      await graph.waitForFrames(2);
+      const here = pointOnRoute(from);
+      const stale = pointOnRoute(old);
+      const around = ({ x, y }: TPoint): TSample => ({ ...SHAFT, x: x - 3, y: y - 3, width: 6, height: 6 });
+      const [painted, cleared] = await sampleScene(page, [around(here), around(stale)]);
+      expect(painted).toBeGreaterThan(5);
+      expect(cleared).toBe(0);
+      expect(await connectionHit(page, here)).toBe(true);
+      expect(await connectionHit(page, stale)).toBe(false);
+    };
+
+    await assertRoute(formerEdge, newEdge);
+    await graph.evaluate((graph) => graph.api.updateBlock({ id: "from", group: "b" }));
+    await assertRoute(newEdge, formerEdge);
+    await page.evaluate(() => {
+      const group = window.graph.rootStore.groupsList.getGroupState("b")?.getViewComponent();
+      if (!(group instanceof window.GraphModule.CollapsibleGroup)) throw new Error("Missing destination group");
+      group.expand();
+    });
+    await assertRoute(anchor, newEdge);
+  });
+}
 
 test("a convex custom arrow keeps its fill and hit area in the WebGL scene", async ({ page }) => {
   const graph = new GraphPageObject(page);
