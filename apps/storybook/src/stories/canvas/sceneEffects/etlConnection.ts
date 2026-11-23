@@ -3,11 +3,11 @@ import type { TStyleRule } from "@gravity-ui/graph";
 
 import { createEtlConnection } from "../webglConnections/etl";
 
-export const EtlScaleConnection = createEtlConnection(() => "comets");
+export const EtlScaleConnection = createEtlConnection(() => "dash");
 
 /** Keep the original target class for hover rules while bounding the running line's effect. */
 export function createEtlScaleConnection(minScale: number): typeof EtlScaleConnection {
-  const bounded = createEtlConnection(() => "comets", { minScale });
+  const bounded = createEtlConnection(() => "dash", { minScale });
   return class extends EtlScaleConnection {
     public static override line = bounded.line;
   };

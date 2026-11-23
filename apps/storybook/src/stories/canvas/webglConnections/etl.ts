@@ -1,4 +1,4 @@
-import { dashFlow, pulse } from "@gravity-ui/graph";
+import { dashFlow, pathGradient } from "@gravity-ui/graph";
 import type {
   Graph,
   TBaseConnectionState,
@@ -8,7 +8,7 @@ import type {
   TSceneEffectScaleRange,
 } from "@gravity-ui/graph";
 
-import { createConnection, glow, gradient, particles } from "./lines";
+import { createConnection } from "./lines";
 import type { TLook } from "./lines";
 
 export type TEtlStageKind = "source" | "extract" | "validate" | "transform" | "load" | "consumer";
@@ -32,7 +32,7 @@ export type TEtlBlock = TBlock & {
 export type TEtlConnection = TConnection & { volume: number; status: TEtlFlowStatus };
 
 /** The effects a running flow can show; "plain" is a steady line. */
-export type TEtlEffect = "comets" | "dash" | "pulse" | "particles" | "gradient" | "glow" | "plain";
+export type TEtlEffect = "plain" | "dash" | "gradient";
 
 const flowColor = "#2f7cf6";
 const failedColor = "#e5484d";
@@ -94,18 +94,13 @@ export function getFlowStatus(source: TEtlStageStatus, target: TEtlStageStatus):
 }
 
 /** The look of a running flow; `volume` (1..10, relative rows per second) sets speed, spacing and width. */
-function runningLook(effect: TEtlEffect, volume: number, range?: TSceneEffectScaleRange): TLook {
+function runningLook(
+  effect: TEtlEffect,
+  volume: number,
+  range?: TSceneEffectScaleRange,
+  readGradientSpeed?: () => number
+): TLook {
   switch (effect) {
-    case "comets": {
-      // Short flows (200–450 units): a dense train of comets keeps every flow readable.
-      const pattern = [40, 50];
-      return {
-        color: flowColor,
-        width: 3 + volume * 0.5,
-        pattern,
-        effect: dashFlow.use({ pattern, speed: 40 + volume * 20, fade: true }, range),
-      };
-    }
     case "dash": {
       const pattern = [16, 10];
       return {
@@ -115,26 +110,12 @@ function runningLook(effect: TEtlEffect, volume: number, range?: TSceneEffectSca
         effect: dashFlow.use({ pattern, speed: 15 + volume * 10 }, range),
       };
     }
-    case "pulse":
-      return {
-        color: flowColor,
-        width: 3 + volume * 0.4,
-        effect: pulse.use({ period: 4.5 - volume * 0.3, wavelength: 3000 }, range),
-      };
-    case "particles":
-      return {
-        color: flowColor,
-        width: 12,
-        effect: particles.use({ spacing: 150 - volume * 8, speed: 40 + volume * 20 }, range),
-      };
     case "gradient":
       return {
         color: "#7a8aa6",
         width: 4 + volume * 0.4,
-        effect: gradient.use({ from: [0.18, 0.49, 0.96], to: [0.95, 0.56, 0.17], laps: 0.1 + volume * 0.05 }, range),
+        effect: pathGradient.use({ from: flowColor, to: "#f28e2b", speed: readGradientSpeed?.() ?? 0.6 }, range),
       };
-    case "glow":
-      return { color: flowColor, width: 2 + volume * 0.3, effect: glow.use([], range) };
     default:
       return { color: flowColor, width: 2 + volume * 0.4 };
   }
@@ -143,13 +124,14 @@ function runningLook(effect: TEtlEffect, volume: number, range?: TSceneEffectSca
 /** Failed and idle flows look the same for every effect; a running flow takes the selected one. */
 export function createEtlConnection(
   readEffect: () => TEtlEffect,
-  range?: TSceneEffectScaleRange
+  range?: TSceneEffectScaleRange,
+  readGradientSpeed?: () => number
 ): ReturnType<typeof createConnection> {
   return createConnection((_id, state: TBaseConnectionState) => {
     const { status, volume = 1 } = state as TBaseConnectionState & Partial<TEtlConnection>;
     if (status === "failed") return { color: failedColor, width: 3, pattern: [10, 8] };
     if (status === "idle") return { color: "rgba(120, 120, 120, 0.6)", width: 1 };
-    return runningLook(readEffect(), volume, range);
+    return runningLook(readEffect(), volume, range, readGradientSpeed);
   });
 }
 

@@ -753,7 +753,11 @@ test("real connections refresh after move, add and delete and restore the same o
     graph.scene.styles.add([
       {
         target: GraphModule.BlockConnection,
-        style: { parts: { line: { effect: GraphModule.pulse.use({ period: 2 }, { minScale: 0.025 }) } } },
+        style: {
+          parts: {
+            line: { effect: GraphModule.pathGradient.use({ from: "#ff0000", to: "#0000ff" }, { minScale: 0.025 }) },
+          },
+        },
       },
     ]);
   });

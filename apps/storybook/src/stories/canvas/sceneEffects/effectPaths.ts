@@ -1,7 +1,86 @@
-import { dashFlow, pulse } from "@gravity-ui/graph";
+import { dashFlow, defineSceneEffect } from "@gravity-ui/graph";
 import type { TSceneEffectScaleRange, TScenePartStyle, TScenePrimitive } from "@gravity-ui/graph";
 
-import { glow, gradient, particles } from "../webglConnections/lines";
+const pulse = defineSceneEffect({
+  kind: "path",
+  animated: true,
+  fragment: /* glsl */ `
+vec4 effect(PathFragment f, vec4 color) {
+  float wave = graph_wave(f.world, f.time, f.params0.x, f.params0.y);
+  if (f.selected > 0.5) return mix(f.selectionColor, color, wave);
+  return vec4(color.rgb, color.a * wave);
+}`,
+  encode: ({ period, wavelength }: { period: number; wavelength?: number }) => [period, wavelength ?? 0],
+});
+
+/** Custom effects, defined once at module scope: `use()` carries the per-connection values. */
+
+/**
+ * Round particles over a faint trace. params: spacing and speed (world units, units per second); `u_speed` scales the
+ * speed. Selected, the trace takes the selection color and the particles keep theirs, a little brighter.
+ */
+const particles = defineSceneEffect({
+  kind: "path",
+  animated: true,
+  uniforms: { speed: { type: "float", value: 1 } },
+  fragment: /* glsl */ `
+    vec4 effect(PathFragment f, vec4 color) {
+      float spacing = f.params0.x;
+      float offset = mod(f.along - f.time * f.params0.y * u_speed, spacing) - spacing * 0.5;
+      float dist = length(vec2(offset * f.scale, f.across));
+      float particle = 1.0 - smoothstep(f.halfWidth - 1.0, f.halfWidth, dist);
+      vec4 trace = f.selected > 0.5
+        ? vec4(f.selectionColor.rgb, f.selectionColor.a * 0.6)
+        : vec4(color.rgb, color.a * 0.12);
+      vec3 dotColor = mix(color.rgb, vec3(1.0), 0.2 * f.selected);
+      // The particles over the trace.
+      return mix(trace, vec4(dotColor, 1.0), color.a * particle);
+    }`,
+  encode: ({ spacing, speed }: { spacing: number; speed: number }) => [spacing, speed],
+});
+
+/**
+ * Source color to target color, and a band running along. params: source rgb, laps per second, target rgb. Selected,
+ * a border in the selection color runs along both edges and the gradient keeps running inside.
+ */
+const animatedGradient = defineSceneEffect({
+  kind: "path",
+  animated: true,
+  fragment: /* glsl */ `
+    vec4 effect(PathFragment f, vec4 color) {
+      vec3 rgb = mix(f.params0.rgb, f.params1.rgb, f.t);
+      float band = smoothstep(0.8, 1.0, fract(f.t - f.time * f.params0.w));
+      vec4 inside = vec4(rgb, color.a * mix(0.35, 1.0, band));
+      // The border: the outer 1.5 CSS pixels of each side, at most half of a thin line.
+      float edge = f.halfWidth - min(1.5, f.halfWidth * 0.5);
+      float border = f.selected * smoothstep(edge - 0.5, edge, abs(f.across));
+      return mix(inside, f.selectionColor, border);
+    }`,
+  encode: ({ from, to, laps }: { from: readonly number[]; to: readonly number[]; laps: number }) => [
+    ...from,
+    laps,
+    ...to,
+  ],
+});
+
+/**
+ * A soft halo outside the line; `u_intensity` scales it. The inner edge is composed here. Selected, the halo takes the
+ * selection color at a stronger intensity and the line keeps its color.
+ */
+export const glow = defineSceneEffect({
+  kind: "path",
+  extraWidth: 6,
+  uniforms: { intensity: { type: "float", value: 0.6 } },
+  fragment: /* glsl */ `
+    vec4 effect(PathFragment f, vec4 color) {
+      float outside = max(abs(f.across) - f.halfWidth, 0.0) / f.extraWidth;
+      float falloff = pow(1.0 - clamp(outside, 0.0, 1.0), 2.0);
+      vec4 halo = f.selected > 0.5
+        ? vec4(f.selectionColor.rgb, f.selectionColor.a * min(u_intensity + 0.4, 1.0) * falloff)
+        : vec4(color.rgb, color.a * u_intensity * falloff);
+      return mix(halo, color, f.coverage);
+    }`,
+});
 
 /**
  * The effect parts of the scene blocks. Each effect is one part, hidden by a base rule and shown by a tag rule, so a tag
@@ -251,7 +330,7 @@ export function gradientOutline(box: TBox, look: { width: number; laps: number }
     part: "gradient",
     segments: roundedRectPath(box).segments,
     stroke: { color: "#7a8aa6", width: look.width },
-    effect: gradient.use({ from: [0.18, 0.49, 0.96], to: [0.95, 0.56, 0.17], laps: look.laps }),
+    effect: animatedGradient.use({ from: [0.18, 0.49, 0.96], to: [0.95, 0.56, 0.17], laps: look.laps }),
   };
 }
 

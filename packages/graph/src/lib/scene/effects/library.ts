@@ -1,5 +1,14 @@
+import { readColorRgba } from "../utils/colorAlpha";
+
+import { PathEffect } from "./PathEffect";
 import { defineSceneEffect } from "./defineSceneEffect";
-import type { TUniformType } from "./types";
+import type {
+  TSceneEffect,
+  TSceneEffectDefinition,
+  TSceneEffectScaleRange,
+  TSceneEffectUse,
+  TUniformType,
+} from "./types";
 
 /**
  * A running dash: the pattern moves along the line at `speed` world units per second, from the source to the target
@@ -47,25 +56,62 @@ vec4 effect(PathFragment f, vec4 color) {
   fallback: (stroke, params) => ({ ...stroke, dash: { pattern: [params[0], params[1]] } }),
 });
 
-/**
- * A brightness wave: the line dims to 15% and a narrow crest passes every `period` seconds. With a `wavelength`
- * (world units) the crest travels along the x axis, so neighbouring connections pulse in step; without it
- * (`0`) the whole line pulses in place. Selected, the dim part takes the selection color and the crest keeps the
- * line's; hover only widens the line.
- *
- * @example
- * getStroke() {
- *   return { color: "#fb4", width: 2, effect: pulse.use({ period: 3, wavelength: 24000 }) };
- * }
- */
-export const pulse = defineSceneEffect<Record<never, TUniformType>, { period: number; wavelength?: number }>({
+const BLACK_RGB = [0, 0, 0] as const;
+
+function encodeRgb(color: string): readonly [number, number, number] {
+  const [r, g, b] = readColorRgba(color) ?? BLACK_RGB;
+  return [r / 255, g / 255, b / 255];
+}
+
+type TGradientInput = {
+  from: string;
+  to: string;
+  /** Cycles per second. Positive moves toward the target, negative toward the source. Defaults to 0. */
+  speed?: number;
+};
+
+const gradientDefinition: TSceneEffectDefinition<Record<never, TUniformType>, TGradientInput> = {
   kind: "path",
-  animated: true,
   fragment: /* glsl */ `
 vec4 effect(PathFragment f, vec4 color) {
-  float wave = graph_wave(f.world, f.time, f.params0.x, f.params0.y);
-  if (f.selected > 0.5) return mix(f.selectionColor, color, wave);
-  return vec4(color.rgb, color.a * wave);
+  float t = f.t;
+  float speed = f.params0.w;
+  if (speed != 0.0) {
+    float phase = 6.2831853 * (t - fract(f.time * speed));
+    float wave = 0.5 + 0.5 * sin(phase);
+    // Sweep the full palette through the interior and smoothly pin both endpoint colours.
+    t = mix(t, wave, smoothstep(0.0, 0.15, min(t, 1.0 - t)));
+  }
+  vec4 fill = vec4(mix(f.params0.rgb, f.params1.rgb, t), color.a);
+  if (f.selected > 0.5) {
+    float edge = f.halfWidth - min(1.5, f.halfWidth * 0.5);
+    fill = mix(fill, f.selectionColor, smoothstep(edge - 0.5, edge, abs(f.across)));
+  }
+  if (scene_dimColor.a >= 0.0) fill.rgb = mix(fill.rgb, scene_dimColor.rgb, graph_vDim);
+  return fill;
 }`,
-  encode: ({ period, wavelength }) => [period, wavelength ?? 0],
-});
+  encode: ({ from, to, speed = 0 }) => [...encodeRgb(from), speed, ...encodeRgb(to)],
+};
+
+// Both variants share the shader. Separate effect instances keep static paths out of animation scheduling.
+const movingGradient = defineSceneEffect({ ...gradientDefinition, animated: true });
+
+class PathGradient extends PathEffect<Record<never, TUniformType>, TGradientInput> {
+  public override use(input: TGradientInput, range?: TSceneEffectScaleRange): TSceneEffectUse<"path"> {
+    const speed = Math.fround(input.speed ?? 0);
+    if (!Number.isFinite(speed)) throw new RangeError("[@gravity-ui/graph] Gradient speed must be finite.");
+    return speed === 0 ? super.use(input, range) : movingGradient.use(input, range);
+  }
+
+  public override clone(): PathGradient {
+    return new PathGradient(gradientDefinition);
+  }
+}
+
+/**
+ * A continuous gradient along the whole path. The stroke supplies opacity and the Canvas fallback.
+ * A selected connection keeps the gradient inside an edge in its selection color.
+ */
+export const pathGradient: TSceneEffect<"path", Record<never, TUniformType>, TGradientInput> = new PathGradient(
+  gradientDefinition
+);

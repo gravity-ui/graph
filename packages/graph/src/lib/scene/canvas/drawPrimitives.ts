@@ -1,5 +1,6 @@
 import type { TSceneLevel } from "../../../services/scene/types";
 import { isOnLevel } from "../levels";
+import { trimConnectionShaft } from "../styles/connectionArrow";
 import { applyStyle } from "../styles/style";
 import type { TSceneElement, TScenePrimitive, TSceneStroke, TSceneStyle, TSceneTextPolicy } from "../types";
 import { readColorRgba } from "../utils/colorAlpha";
@@ -58,10 +59,27 @@ function paintsOf(
   const cached = elementPaints.get(primitives);
   if (cached && cached.style === style && cached.dimColor === dimColor) return cached.paints;
   const paints: TPaint[] = [];
-  for (const source of primitives) {
+  for (let i = 0; i < primitives.length; i++) {
+    const source = i === 0 ? trimConnectionShaft(primitives[0], primitives[1], style) : primitives[i];
     const painted = source.kind === "path" && source.canvasStroke ? { ...source, stroke: source.canvasStroke } : source;
     const primitive = applyStyle(painted, style, dimColor);
-    if (primitive) paints.push({ source, primitive });
+    if (primitive?.kind === "path" && primitive.arrowPosition !== undefined && primitive.closed) {
+      const { segments, stroke } = primitive;
+      if (stroke.width !== undefined) {
+        const points = new Float32Array([
+          segments[0],
+          segments[1],
+          segments[6],
+          segments[7],
+          segments[14],
+          segments[15],
+        ]);
+        paints.push({
+          source,
+          primitive: { ...primitive, kind: "polygon", points, fill: stroke.color, stroke: undefined },
+        });
+      }
+    } else if (primitive) paints.push({ source, primitive });
   }
   elementPaints.set(primitives, { style, dimColor, paints });
   return paints;

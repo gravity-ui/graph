@@ -157,7 +157,8 @@ segment array directly. Its stroke type extends `TLineStroke` with an optional e
 type TSceneLineStroke = TLineStroke & { effect?: TSceneEffectUse<"path"> };
 ```
 
-- The arrow is drawn with `getArrowStroke()`, never with the effect.
+- Path effects on the `line` part paint the shaft. Stock arrows use their solid base paint from `getArrowStroke()`
+  and can be styled through the `arrow` part.
 - Dash patterns of up to 4 numbers are drawn as canvas `setLineDash` draws them; an odd-length list is repeated, so
   `[a, b, c]` counts as 6 numbers. A longer pattern draws its first 4 numbers in WebGL, with one development-build
   warning. Canvas2D draws the full base dash pattern.
@@ -314,6 +315,15 @@ Library geometries:
 | `multipointGeometry` | A polyline through `points` with rounded corners (maximum radius 10) and a closed triangle at the end; `blockGeometry` without `points`, no shape when all supplied points coincide |
 | `bezierMultipointGeometry` | The same with Bézier pieces; pieces along the direction stay straight |
 
+The default position is the middle for straight and Bézier connections and the destination for multipoint routes.
+`showConnectionArrows` is the graph-wide switch. The `arrow` part controls the head's color, visibility and
+opacity. Its width controls the chevron stroke.
+
+For a different position or shape, override the connection class's `static geometry`. It can keep the segments
+from a library geometry and replace only `arrow`. Read `input.connection` to choose the head for each connection.
+For example, `getTriangleArrowPoints(source, target, 16, 20, 0.75)` returns a head at 75% of a straight segment.
+The same arrow points are used for rendering and hit testing in both scene renderers.
+
 Builders for custom geometries return plain arrays of 8 numbers per segment; concatenate them into a `Float32Array`:
 `lineSegment(from, to)`, `bezierSegment(p0, c1, c2, p3)` and `roundedPolyline(points, radius)` (corners rounded with
 cubic arcs of at most `radius`). `SEGMENT_FLOATS` is 8; `isLineSegment(segments, offset)` tells whether a segment is a
@@ -391,7 +401,8 @@ const graph = new Graph({
 ```
 
 Open [Multipoint route in Storybook](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-webglconnections--multipoint-route)
-to compare a solid stroke, a static dash and a running dash on the same route. A `parts.line` rule styles its
+to compare the stroke presets and move the arrow along the rounded route with **Arrow position**. The example's
+connection class sets the arrow geometry. A `parts.line` rule styles its
 entire shaft. Use `parts.arrow` for the arrow. On WebGL, `dashFlow` uses the accumulated distance from the
 source, so the pattern continues around bends. Canvas and image export show the base stroke. Click any segment
 to select the connection, including in a gap between dashes. To vary color along a single route, a
@@ -605,7 +616,7 @@ class GlowConnection extends BlockConnection {
 `mix()` weights), and `f.selectionColor` is the straight RGBA of its selection color (`styles.selectedBackground` or
 the theme's `colors.connection.selectedBackground`), whatever the state. A selected line built with
 `withInteraction()` comes in with its own stroke color, so the effect decides how the selection looks: the library's
-`dashFlow` fills its gaps with the selection color and `pulse` dims to it. Here the faint trace of particles turns
+`dashFlow` fills its gaps with the selection color and `pathGradient` draws it along the edges. Here the faint trace of particles turns
 into the selection color and the particles keep theirs. The scene paints the base stroke on Canvas. The optional
 callback supplies a dotted stroke for the [Canvas compatibility batch](#fallback-strokes).
 
@@ -672,23 +683,20 @@ effect on a connection and a block contour.
 Built with the public API above:
 
 ```typescript
-import { BlockConnection, SceneLine, dashFlow, pulse } from "@gravity-ui/graph";
+import { BlockConnection, SceneLine, dashFlow, pathGradient } from "@gravity-ui/graph";
 import type { TBaseConnectionState, TConnection, TSceneLineStroke } from "@gravity-ui/graph";
 
-type TFlowConnection = TConnection & { flow?: "data" | "signal" };
+type TFlowConnection = TConnection & { flow?: "dash" | "gradient" };
+
+const dashes = dashFlow.use({ pattern: [12, 8], speed: 40 });
+const gradient = pathGradient.use({ from: "#2f7cf6", to: "#f28e2b", speed: 0.6 });
 
 class PipelineLine extends SceneLine {
   public override getStroke(state: TBaseConnectionState): TSceneLineStroke {
     const { flow } = state as Partial<TFlowConnection>;
     if (!flow) return super.getStroke(state);
-    // Hover and selection widen the line; selected, the comets run over the selection color and the wave dims to it.
-    if (flow === "data") {
-      // Comets from the source to the target; a negative speed runs them back.
-      const effect = dashFlow.use({ pattern: [90, 160], speed: 120, fade: true });
-      return this.withInteraction({ color: "#2f7cf6", width: 6, effect }, state);
-    }
-    // A brightness wave travelling along x: neighbouring connections pulse in step.
-    return this.withInteraction({ color: "#2bb24c", width: 5, effect: pulse.use({ period: 3, wavelength: 24000 }) }, state);
+    const effect = flow === "dash" ? dashes : gradient;
+    return this.withInteraction({ color: "#2f7cf6", width: 6, effect }, state);
   }
 }
 
@@ -702,17 +710,20 @@ class PipelineConnection extends BlockConnection<TFlowConnection> {
   each dash a comet with a transparent tail. The effect draws the dash itself, so the base stroke has no `dash`.
   Selected, the gaps take the selection color and the dashes keep the line's; a comet's tail fades into the selection
   color. The compatibility batch's fallback draws a still dash with the same pattern.
-- `pulse.use({ period, wavelength? })`: the line dims to 15% and a crest passes every `period` seconds; with a
-  `wavelength` (world units) the crest travels along the x axis, without it the whole line pulses in place. Selected,
-  the dim part takes the selection color and the crest keeps the line's. Canvas draws the plain stroke.
+- `pathGradient.use({ from, to, speed? })` fills the WebGL stroke by distance along the entire path, including
+  Bézier curves and multipoint bends. The stops supply RGB from CSS colours. `speed` defaults to zero for a static fill.
+  Positive speeds move a band of colour toward the target and negative speeds move it toward the source. The unit is
+  cycles per second. The band sweeps through both colours inside the stroke. Endpoint colours and opacity stay fixed.
+  The Canvas fallback is the base stroke. Scene dimming applies to the whole gradient. Selection adds an edge in
+  the selection colour and keeps the gradient inside.
 
 GLSL helpers available in every effect program, versioned like `PathFragment`:
 
-| Helper | Returns |
-|---|---|
-| `float graph_dashPhase(float along, float on, float off, float offset)` | The position in a repeating on/off pattern, `0..on+off`, shifted by `offset`; the dash is where it is below `on` |
-| `float graph_comet(float phase, float on, float speed)` | Comet brightness inside a dash (`phase < on`): the head leads in the direction of `speed` |
-| `float graph_wave(vec2 world, float time, float period, float wavelength)` | A travelling crest, `0.15..1`; `wavelength` 0 pulses in place |
+| Helper                                                                     | Returns                                                                                                          |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `float graph_dashPhase(float along, float on, float off, float offset)`    | The position in a repeating on/off pattern, `0..on+off`, shifted by `offset`; the dash is where it is below `on` |
+| `float graph_comet(float phase, float on, float speed)`                    | Comet brightness inside a dash (`phase < on`): the head leads in the direction of `speed`                        |
+| `float graph_wave(vec2 world, float time, float period, float wavelength)` | A travelling crest, `0.15..1`; `wavelength` 0 pulses in place                                                    |
 
 They combine into new effects, for example comets that pulse:
 
@@ -775,7 +786,7 @@ on the inside of that bend. Separate connections blend in scene order. Dashes ke
 the entire route, and a gap remains part of the connection's hit area. WebGL uses the shared pass for
 these strokes when the route turns.
 
-Plain strokes, `dashFlow` and `pulse` can share a draw while retaining their individual parameters and scale
+Plain strokes, `dashFlow` and `pathGradient` can share a draw while retaining their individual parameters and scale
 ranges. Their animation runs in the shader from the graph clock; mixing these effects does not require rebuilding
 connection geometry. For scenes whose translucent paint consists only of these compatible paths, the backend
 culls their resident ranges and caches their exact scene order without searching for spatial overlaps.

@@ -122,7 +122,7 @@ describe("BlockConnection line protocol", () => {
     jest.restoreAllMocks();
   });
 
-  it("carries a direct, scoped WebGL effect use onto the native shaft only", () => {
+  it("keeps a direct, scoped WebGL effect on the shaft", () => {
     const effect = defineSceneEffect({
       kind: "path",
       fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
@@ -330,9 +330,13 @@ describe("BlockConnection line protocol", () => {
     expect(a.getGeometry()?.arrow?.closed).toBe(true);
     expect(b.getGeometry()?.arrow?.closed).toBe(false);
     const id = a.getSceneKey()?.elementId;
-    expect(id && graph.scene.store.get(id)?.primitives.some(({ kind }) => kind === "polygon")).toBe(true);
+    expect(id && graph.scene.store.get(id)?.primitives).toContainEqual(
+      expect.objectContaining({ kind: "path", part: "arrow", closed: true })
+    );
     const otherId = b.getSceneKey()?.elementId;
-    expect(otherId && graph.scene.store.get(otherId)?.primitives.some(({ kind }) => kind === "polygon")).toBe(false);
+    expect(otherId && graph.scene.store.get(otherId)?.primitives).toContainEqual(
+      expect.objectContaining({ kind: "path", part: "arrow", closed: false })
+    );
   });
 
   it("invalidateLine() reads a stroke that depends on data outside the store again", () => {

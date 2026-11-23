@@ -56,10 +56,15 @@ describe("library geometries", () => {
     const geometry = multipointGeometry(input({ points }));
     expect(geometry?.segments.length).toBe(24);
     expect(geometry?.arrow?.closed).toBe(true);
-    const [tip, left, right] = getTriangleArrowPoints(points[1], points[2], 16, 10);
+    const [tip, left, right] = getTriangleArrowPoints(points[1], points[2], 16, 20);
     expect(Array.from(geometry?.arrow?.points ?? [])).toEqual(f32([tip.x, tip.y, left.x, left.y, right.x, right.y]));
     expect(multipointGeometry(input())).toEqual(blockGeometry(input()));
     expect(multipointGeometry(input({ points: [{ x: 1, y: 1 }] }))).toBeUndefined();
+  });
+
+  it("omits arrows when the endpoints coincide", () => {
+    expect(straightGeometry(input({ source: target }))?.arrow).toBeUndefined();
+    expect(bezierGeometry(input({ source: target }))?.arrow).toBeUndefined();
   });
 
   it("bezierMultipointGeometry: bezier pieces, straight pieces along the direction stay lines", () => {

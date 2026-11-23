@@ -21,8 +21,10 @@ export type TConnectionGeometryInput = {
 export type TConnectionArrow = {
   /** x, y pairs in world units. */
   points: Float32Array;
-  /** Open: stroked like the line (a chevron). Closed: filled and stroked (a triangle). */
+  /** Open chevron or closed polygon. */
   closed: boolean;
+  /** @internal Stock head geometry. An end head can shorten the shaft to its base. */
+  position?: "inline" | "end";
 };
 
 export type TConnectionGeometry = {

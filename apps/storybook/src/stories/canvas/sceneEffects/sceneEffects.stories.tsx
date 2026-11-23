@@ -8,10 +8,9 @@ import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import { signal } from "@preact/signals-core";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { glow } from "../webglConnections/lines";
-
 import { StageCardView } from "./StageCardView";
 import { PlainView, viewConfiguration } from "./blockView";
+import { glow } from "./effectPaths";
 import { EtlSimulation, createEtlAtScale, pipelineRect } from "./etlAtScale";
 import { startEtlCameraMotion } from "./etlCameraMotion";
 import type { TEtlCameraMotion } from "./etlCameraMotion";

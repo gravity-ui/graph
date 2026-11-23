@@ -16,6 +16,10 @@ import { colorFloats } from "../../utils/colorAlpha";
  */
 export const INSTANCE_FLOATS = 32;
 
+/** The upper interaction bits distinguish heads in the same instance layout. */
+export const OPEN_ARROW = 2048;
+export const FILLED_ARROW = 4096;
+
 /** Numbers of a dash pattern the instance holds: two on/off pairs. */
 export const DASH_FLOATS = 4;
 
@@ -240,6 +244,22 @@ export function appendPathInstances(
     params: effect?.params,
     interaction: interactionFloats(effect || effectShowsSelection ? path.interaction : undefined, effectShowsSelection),
   };
+  if (path.arrowPosition !== undefined) {
+    reserve(lines, 1);
+    const base = lines.count++ * INSTANCE_FLOATS;
+    const tip = path.closed ? 0 : 6;
+    const left = path.closed ? 6 : 0;
+    const right = 14;
+    const [tx, ty] = [segments[tip], segments[tip + 1]];
+    const [lx, ly] = [segments[left], segments[left + 1]];
+    const [rx, ry] = [segments[right], segments[right + 1]];
+    // The three vertices and base centre keep the culling hull in the same eight floats as a cubic.
+    lines.data.set([tx, ty, lx, ly, rx, ry, (lx + rx) / 2, (ly + ry) / 2], base);
+    writeStroke(lines.data, base, instanceStroke, 0, 0);
+    lines.data[base + 13] = 0;
+    lines.data[base + 31] = path.closed ? FILLED_ARROW : OPEN_ARROW;
+    return;
+  }
   const firstLine = lines.count;
   const firstCurve = curves.count;
   let distance = 0;
@@ -272,6 +292,7 @@ export function appendPathInstances(
     }
   }
   // The whole length is known once every piece of the shape is written.
+  if (measureDistance) distance += path.arrowTrim ?? 0;
   writeTotal(lines, firstLine, distance);
   writeTotal(curves, firstCurve, distance);
 }

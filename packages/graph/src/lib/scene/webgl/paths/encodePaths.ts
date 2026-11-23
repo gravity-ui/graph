@@ -128,7 +128,8 @@ export function encodePaths(
     // Only dashes and effects read the longitudinal distances in the shader.
     const usesDistance = effect !== undefined || Boolean(stroke.dash?.length);
     appendPathInstances(primitive, widthValue, bucket, chunk, usesDistance);
-    if (primitive.closed && !usesDistance) closeStroke(primitive.segments, bucket, chunk, lines, curves);
+    if (primitive.closed && !usesDistance && primitive.arrowPosition === undefined)
+      closeStroke(primitive.segments, bucket, chunk, lines, curves);
     if (stroke.color === undefined) {
       useBase(chunk.lines.data, lines, chunk.lines.count);
       useBase(chunk.curves.data, curves, chunk.curves.count);

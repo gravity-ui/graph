@@ -19,12 +19,12 @@ function config(useBezierConnections: boolean): GraphConfig {
   };
 }
 
-type TLineKind = "plain" | "dashFlow" | "pulse" | "stillDashFlow" | "customHelpers";
+type TLineKind = "plain" | "dashFlow" | "gradient" | "stillDashFlow" | "customHelpers";
 
 /** Switches the graph to a connection class using a scene line with an optional WebGL effect. */
 async function useWebGLConnection(page: Page, kind: TLineKind): Promise<void> {
   await page.evaluate((lineKind) => {
-    const { BlockConnection, SceneLine, dashFlow, pulse, defineSceneEffect } = window.GraphModule;
+    const { BlockConnection, SceneLine, dashFlow, pathGradient, defineSceneEffect } = window.GraphModule;
     const custom =
       lineKind === "customHelpers" &&
       defineSceneEffect({
@@ -48,8 +48,8 @@ async function useWebGLConnection(page: Page, kind: TLineKind): Promise<void> {
             effect: dashFlow.use({ pattern: [40, 30], speed: 120, fade: true }),
           };
         }
-        if (lineKind === "pulse") {
-          return { ...base, color: "#fb4", width: 3, effect: pulse.use({ period: 3, wavelength: 400 }) };
+        if (lineKind === "gradient") {
+          return { ...base, color: "#fb4", width: 3, effect: pathGradient.use({ from: "#ff0000", to: "#0000ff" }) };
         }
         if (lineKind === "stillDashFlow") {
           // A dash that stands still: a screenshot finds its dashes and gaps.
@@ -329,7 +329,7 @@ test.describe("WebGL connections", () => {
     }
   }
 
-  for (const kind of ["dashFlow", "pulse", "customHelpers"] as const) {
+  for (const kind of ["dashFlow", "gradient", "customHelpers"] as const) {
     test(`${kind} renders in WebGL without console errors`, async ({ page }) => {
       const errors: string[] = [];
       page.on("console", (message) => {

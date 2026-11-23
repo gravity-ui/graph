@@ -68,9 +68,9 @@ describe("connection paint bounds at the viewport edge", () => {
     expect(view.isInViewport()).toBe(true);
     expect(primitives).toContainEqual(
       expect.objectContaining({
-        kind: "polygon",
+        kind: "path",
         part: "arrow",
-        points: new Float32Array([1011, 100, 995, 105, 995, 95]),
+        closed: true,
       })
     );
     expect(view.onHitBox(pointHitBox(988, 104))).toBe(true);

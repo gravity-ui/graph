@@ -53,9 +53,9 @@ import type {
   TUploadKind,
 } from "./backend/batchTypes";
 import {
+  GRADIENT_PROGRAM,
   MIN_MIXED_CONNECTION_VERTICES,
   MIXED_EFFECT_PROGRAMS,
-  PULSE_PROGRAM,
   hasEffectDepthWrites,
   hasVisibleStroke,
   matchesLayout,
@@ -318,6 +318,7 @@ class WebGLSceneBackend implements ISceneBackend {
   private readonly mixedOwnedRanges = new WeakMap<TBatch, TMixedOwnerSnapshot & { connectionCount?: number }>();
   private mixedPlan?: {
     layouts: number[];
+    stockPhysical: boolean;
     opaque: readonly TDraw[];
     translucent: readonly TDraw[];
     plan?: TMixedPlan;
@@ -754,7 +755,22 @@ class WebGLSceneBackend implements ISceneBackend {
       }
     }
     this.cullingBatch = undefined;
-    const mixed = this.prepareMixedPlane(frame, opaqueDraws, translucentDraws);
+    // The mixed planner sorts the lower plane itself. Give it the culled resident spans when there are no upper
+    // stock paths whose painter order comes from orderedStockPaths.
+    const stockPhysical =
+      stockOrder !== undefined &&
+      this.stockPhysicalDraws.length < stockOrder.length &&
+      this.stockPhysicalDraws.some(({ batch }) => this.pathBatchGroups.get(batch)?.effect) &&
+      this.stockPhysicalDraws.every(({ batch }) => {
+        const { ranges } = this.drawOwnership(batch);
+        return ranges.length === 1 && ranges[0].first === 0 && ranges[0].connection;
+      });
+    const mixed = this.prepareMixedPlane(
+      frame,
+      opaqueDraws,
+      stockPhysical ? this.stockPhysicalDraws : translucentDraws,
+      stockPhysical
+    );
     const nativeRuns: TDraw[][] = [];
     for (const command of mixed?.plan.commands ?? []) {
       // Individual passes prevent gather's local merging from crossing a stock window.
@@ -2464,14 +2480,18 @@ class WebGLSceneBackend implements ISceneBackend {
     }
   }
 
-  private buildMixedPlane(opaque: readonly TDraw[], translucent: readonly TDraw[]): TMixedPlan | undefined {
+  private buildMixedPlane(
+    opaque: readonly TDraw[],
+    translucent: readonly TDraw[],
+    stockPhysical: boolean
+  ): TMixedPlan | undefined {
     const upperOpaque: TDraw[] = [];
     const upperTranslucent: TDraw[] = [];
     const lowerOpaque: TDraw[] = [];
     const lowerTranslucent: TDraw[] = [];
     this.splitMixedDraws(opaque, upperOpaque, lowerOpaque);
-    this.splitMixedDraws(translucent, upperTranslucent, lowerTranslucent);
-    const lower = [...lowerOpaque, ...lowerTranslucent];
+    if (!stockPhysical) this.splitMixedDraws(translucent, upperTranslucent, lowerTranslucent);
+    const lower = [...lowerOpaque, ...(stockPhysical ? translucent : lowerTranslucent)];
     const nativeOnlyPaint: TDraw[] = [];
     const lowerPaths: TDraw[] = [];
     for (const draw of lower) {
@@ -2503,7 +2523,8 @@ class WebGLSceneBackend implements ISceneBackend {
     for (const draw of lowerPaths) {
       const group = groupOf.get(draw.batch);
       const tie = ties.get(draw.batch);
-      if (!group || tie === undefined || !this.collectMixedPaths(draw, group, tie, work)) return undefined;
+      if (!group || tie === undefined || !this.collectMixedPaths(draw, group, tie, work, stockPhysical))
+        return undefined;
     }
     canonicalizeMixedSources(work.sources, work.ranges);
     const schedule = this.mixedBands.schedule(work.ranges);
@@ -2550,7 +2571,13 @@ class WebGLSceneBackend implements ISceneBackend {
     return stock;
   }
 
-  private collectMixedPaths(draw: TDraw, group: TPathGroup, tie: number, work: TMixedPathWork): boolean {
+  private collectMixedPaths(
+    draw: TDraw,
+    group: TPathGroup,
+    tie: number,
+    work: TMixedPathWork,
+    stockPhysical: boolean
+  ): boolean {
     const { batch } = draw;
     const { pathRecords, companion } = batch;
     if (!pathRecords || !companion || group.fallback) return false;
@@ -2565,6 +2592,7 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     const elements = companion.ranges.data;
     const data = batch.ranges.data;
+    const visibility = stockPhysical && group.pass === "translucent" ? this.visibility.get(batch) : undefined;
     const scan = (
       first: number,
       end: number,
@@ -2583,7 +2611,7 @@ class WebGLSceneBackend implements ISceneBackend {
         )
           last++;
         const key = this.table.data[owner * 4 + 2];
-        if (key >= 0) {
+        if (key >= 0 && (!visibility || visibility.any(first, last - first))) {
           if (native) {
             if (work.customKey !== undefined && work.customKey !== key) return false;
             work.customEffect = native;
@@ -2669,7 +2697,8 @@ class WebGLSceneBackend implements ISceneBackend {
   ): boolean {
     if (connectionOnly && !this.hasResidentConnectionWork()) return false;
     let remaining = MIN_MIXED_CONNECTION_VERTICES;
-    const grouped = !connectionOnly && translucent !== this.translucentFrameDraws;
+    const grouped =
+      !connectionOnly && translucent !== this.translucentFrameDraws && translucent !== this.stockPhysicalDraws;
     const lists = grouped ? [opaque, ...this.preparedGroups.ordered] : [opaque, translucent];
     for (const draws of lists) {
       // Prepared groups keep their instance counts and curve detail. Connection ownership may change independently.
@@ -2760,7 +2789,8 @@ class WebGLSceneBackend implements ISceneBackend {
   private prepareMixedPlane(
     frame: TSceneFrame,
     opaque: readonly TDraw[],
-    translucent: readonly TDraw[]
+    translucent: readonly TDraw[],
+    stockPhysical: boolean
   ): TPreparedMixed | undefined {
     // Reject light workloads before inspecting ownership or allocating the target.
     if (
@@ -2786,7 +2816,7 @@ class WebGLSceneBackend implements ISceneBackend {
       this.mixedRootsSeparated = separatedConnectionDepths(roots);
     }
     if (!this.mixedRootsSeparated || !this.hasMixedVertexWork(opaque, translucent, true)) return undefined;
-    const plan = this.cachedMixedPlane(opaque, translucent);
+    const plan = this.cachedMixedPlane(opaque, translucent, stockPhysical);
     if (
       !plan ||
       plan.sources.length + 2 > this.mixedTextureUnits ||
@@ -2824,26 +2854,39 @@ class WebGLSceneBackend implements ISceneBackend {
     return { plan, draw, target: this.mixedTarget, upload };
   }
 
-  private cachedMixedPlane(opaque: readonly TDraw[], translucent: readonly TDraw[]): TMixedPlan | undefined {
+  private cachedMixedPlane(
+    opaque: readonly TDraw[],
+    translucent: readonly TDraw[],
+    stockPhysical: boolean
+  ): TMixedPlan | undefined {
     // Camera-driven packing can move records while a prepared span retains identical first/count values.
     const batches = new Set<TBatch>();
     for (const draw of opaque) batches.add(draw.batch);
     for (const draw of translucent) batches.add(draw.batch);
     const layouts: number[] = [];
-    for (const batch of batches) layouts.push(batch.ranges.layoutRevision, batch.companion?.ranges.layoutRevision ?? 0);
+    for (const batch of batches) {
+      layouts.push(batch.ranges.layoutRevision, batch.companion?.ranges.layoutRevision ?? 0);
+      if (stockPhysical) layouts.push(this.visibility.get(batch)?.visibilityRevision ?? 0);
+    }
     let cached = this.mixedPlan;
     if (
       !cached ||
+      cached.stockPhysical !== stockPhysical ||
       !sameNumbers(cached.layouts, layouts) ||
       !sameDraws(cached.opaque, opaque) ||
       !sameDraws(cached.translucent, translucent)
     ) {
-      const repaired = cached?.plan && this.repairMixedPlane(cached, opaque, translucent, layouts);
+      const repaired =
+        !stockPhysical &&
+        !cached?.stockPhysical &&
+        cached?.plan &&
+        this.repairMixedPlane(cached, opaque, translucent, layouts);
       cached = {
         layouts,
+        stockPhysical,
         opaque: opaque.map((draw) => ({ ...draw })),
         translucent: translucent.map((draw) => ({ ...draw })),
-        plan: repaired ?? this.buildMixedPlane(opaque, translucent),
+        plan: repaired || this.buildMixedPlane(opaque, translucent, stockPhysical),
       };
       this.mixedPlan = cached;
     }
@@ -3215,7 +3258,7 @@ class WebGLSceneBackend implements ISceneBackend {
         (isSplitPathSource(draw.splitSources ?? 0, index) ? 256 : 0) +
         chords +
         (group.effectActive ? 0 : 32) +
-        (group.effect?.programKey === PULSE_PROGRAM ? 64 : 0) +
+        (group.effect?.programKey === GRADIENT_PROGRAM ? 64 : 0) +
         (records.overview?.pieces === 2 ? 128 : 0);
     });
     draw.model.setBindings(bindings);

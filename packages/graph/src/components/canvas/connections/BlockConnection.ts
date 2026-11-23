@@ -96,6 +96,8 @@ function samePrimitive(a: TScenePrimitive, b: TScenePrimitive): boolean {
     return (
       sameStroke(a.stroke, b.stroke) &&
       sameStroke(a.canvasStroke, b.canvasStroke) &&
+      a.closed === b.closed &&
+      a.arrowPosition === b.arrowPosition &&
       a.effect?.effect === b.effect?.effect &&
       Object.is(a.effect?.minScale, b.effect?.minScale) &&
       Object.is(a.effect?.maxScale, b.effect?.maxScale) &&
@@ -289,32 +291,42 @@ export class BlockConnection<T extends TConnection = TConnection>
     const appearance = this.line.getSceneStrokeEffect();
     const strokes = this.line.getSceneStrokes();
     const effect = appearance?.effect;
-    const primitives: TScenePrimitive[] = [
-      {
-        kind: "path",
-        part: "line",
-        segments: geometry.segments,
-        stroke: sceneStroke(appearance?.stroke ?? strokes.shaft),
-        canvasStroke: effect ? sceneStroke(strokes.shaft) : undefined,
-        effect: effect && { ...effect, params: effect.params?.slice() ?? [] },
-        interaction: { ...(appearance?.interaction ?? this.getSceneInteraction(state)) },
-        effectShowsSelection: appearance?.effectShowsSelection,
-      },
-    ];
+    const shaft: Extract<TScenePrimitive, { kind: "path" }> = {
+      kind: "path",
+      part: "line",
+      segments: geometry.segments,
+      stroke: sceneStroke(appearance?.stroke ?? strokes.shaft),
+      canvasStroke: effect ? sceneStroke(strokes.shaft) : undefined,
+      effect: effect && { ...effect, params: effect.params?.slice() ?? [] },
+      interaction: { ...(appearance?.interaction ?? this.getSceneInteraction(state)) },
+      effectShowsSelection: appearance?.effectShowsSelection,
+    };
+    const primitives: TScenePrimitive[] = [shaft];
     const arrow = props.showConnectionArrows ? geometry.arrow : undefined;
     if (arrow && strokes.arrow && arrow.points.length >= 4) {
       const { points, closed } = arrow;
       const stroke = sceneStroke(strokes.arrow);
-      if (closed) {
-        for (let i = 2; i + 3 < points.length; i += 2) {
-          const triangle =
-            points.length === 6
-              ? points.slice()
-              : new Float32Array([points[0], points[1], points[i], points[i + 1], points[i + 2], points[i + 3]]);
-          primitives.push({ kind: "polygon", part: "arrow", points: triangle, fill: stroke.color });
+      if (arrow.position !== undefined && points.length === 6) {
+        primitives.push({
+          kind: "path",
+          part: "arrow",
+          segments: arrowSegments(arrow),
+          closed,
+          arrowPosition: arrow.position,
+          stroke,
+        });
+      } else {
+        if (closed) {
+          for (let i = 2; i + 3 < points.length; i += 2) {
+            const triangle =
+              points.length === 6
+                ? points.slice()
+                : new Float32Array([points[0], points[1], points[i], points[i + 1], points[i + 2], points[i + 3]]);
+            primitives.push({ kind: "polygon", part: "arrow", points: triangle, fill: stroke.color });
+          }
         }
+        primitives.push({ kind: "path", part: "arrow", segments: arrowSegments(arrow), stroke });
       }
-      primitives.push({ kind: "path", part: "arrow", segments: arrowSegments(arrow), stroke });
     }
     this.appendSceneLabels(primitives, state);
     return primitives;

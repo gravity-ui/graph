@@ -83,7 +83,7 @@ const effectApis: Record<TEffectPart, string> = {
   particles: "particles.use({ spacing: 36, speed: 20 + rows / 500 })",
   spinner: "a circle as 4 cubics, dashFlow.use({ pattern: [0.3 C, 0.7 C], speed: C })",
   glow: "glow.use([]); the slider writes glow.uniforms.intensity",
-  gradient: "gradient.use({ from, to, laps: 0.3 })",
+  gradient: "animatedGradient.use({ from, to, laps: 0.3 })",
   spark: "pulse.use({ period: 2, wavelength: 400 }) on a smoothed polyline",
 };
 

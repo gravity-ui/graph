@@ -249,6 +249,9 @@ const connection = {
 };
 ```
 
+Straight and Bézier connections use a mid-path chevron. Multipoint routes use a triangle at their destination.
+Override the [connection geometry](webgl-connections.md#geometry) to choose the arrow's position and contour.
+
 ## Performance and Scale
 
 Built-in lines, Béziers and polylines use the renderer in `graph.updateSettings({ renderer: "webgl" })`
@@ -470,7 +473,7 @@ as selection changes, including when the line itself is outside the viewport.
 ### Custom Connection with Special Rendering
 
 A scene tag rule or a `SceneLine` stroke can supply a library effect (`dashFlow` for running dashes and
-comets, `pulse` for a brightness wave) or your own shader from `defineSceneEffect({ kind: "path", ... })`.
+comets, `pathGradient` for a continuous colour gradient) or your own shader from `defineSceneEffect({ kind: "path", ... })`.
 
 ```typescript
 import { BlockConnection, SceneLine, dashFlow } from "@gravity-ui/graph";

@@ -16,41 +16,58 @@ import { markPolylineStroke } from "./utils/polylineStroke";
 
 const POLYLINE_RADIUS = 10;
 const TRIANGLE_HEIGHT = 16;
-const TRIANGLE_BASE = 10;
+const TRIANGLE_BASE = 20;
 
 function bezierPiece(from: TPoint, to: TPoint, direction: "horizontal" | "vertical"): number[] {
   const [p0, c1, c2, p3] = generateBezierParams(from, to, direction);
   return bezierSegment(p0, c1, c2, p3);
 }
 
-function triangleArrow(from: TPoint, to: TPoint): TConnectionGeometry["arrow"] {
-  const [tip, left, right] = getTriangleArrowPoints(from, to, TRIANGLE_HEIGHT, TRIANGLE_BASE);
-  return { points: new Float32Array([tip.x, tip.y, left.x, left.y, right.x, right.y]), closed: true };
+function endArrow(segments: Float32Array): TConnectionGeometry["arrow"] {
+  const last = segments.length - 2;
+  const x = segments[last];
+  const y = segments[last + 1];
+  let previous = last - 2;
+  while (previous >= 0 && segments[previous] === x && segments[previous + 1] === y) previous -= 2;
+  if (previous < 0) return undefined;
+  const from = { x: segments[previous], y: segments[previous + 1] };
+  const [tip, left, right] = getTriangleArrowPoints(from, { x, y }, TRIANGLE_HEIGHT, TRIANGLE_BASE);
+  return {
+    points: new Float32Array([tip.x, tip.y, left.x, left.y, right.x, right.y]),
+    closed: true,
+    position: "end",
+  };
 }
 
-export const straightGeometry: TConnectionGeometryFn = ({ source, target }) => {
+function middleArrow(input: TConnectionGeometryInput, bezier: boolean): TConnectionGeometry["arrow"] {
+  const { source, target, bezierDirection } = input;
+  if (source.x === target.x && source.y === target.y) return undefined;
+  return {
+    points: new Float32Array(getArrowCoords(bezier, source.x, source.y, target.x, target.y, bezierDirection)),
+    closed: false,
+    position: "inline",
+  };
+}
+
+export const straightGeometry: TConnectionGeometryFn = (input) => {
+  const { source, target } = input;
   const segments = new Float32Array(SEGMENT_FLOATS);
   writeLineSegment(segments, 0, source, target);
   return {
     segments,
-    arrow: {
-      points: new Float32Array(getArrowCoords(false, source.x, source.y, target.x, target.y)),
-      closed: false,
-    },
+    arrow: middleArrow(input, false),
   };
 };
 
-export const bezierGeometry: TConnectionGeometryFn = ({ source, target, bezierDirection }) => {
+export const bezierGeometry: TConnectionGeometryFn = (input) => {
+  const { source, target, bezierDirection } = input;
   const [p0, c1, c2, p3] = generateBezierParams(source, target, bezierDirection);
   const segments = new Float32Array(SEGMENT_FLOATS);
   writeBezierSegment(segments, 0, p0, c1, c2, p3);
   stockBezierSegments.add(segments);
   return {
     segments,
-    arrow: {
-      points: new Float32Array(getArrowCoords(true, source.x, source.y, target.x, target.y, bezierDirection)),
-      closed: false,
-    },
+    arrow: middleArrow(input, true),
   };
 };
 
@@ -80,10 +97,8 @@ export const multipointGeometry: TConnectionGeometryFn = (input) => {
   let previous = points.length - 2;
   while (previous >= 0 && points[previous].x === end.x && points[previous].y === end.y) previous--;
   if (previous < 0) return undefined;
-  return {
-    segments: markPolylineStroke(new Float32Array(roundedPolyline(points, POLYLINE_RADIUS)), points),
-    arrow: triangleArrow(points[previous], end),
-  };
+  const segments = markPolylineStroke(new Float32Array(roundedPolyline(points, POLYLINE_RADIUS)), points);
+  return { segments, arrow: endArrow(segments) };
 };
 
 export const bezierMultipointGeometry: TConnectionGeometryFn = (input) => {
@@ -106,8 +121,6 @@ export const bezierMultipointGeometry: TConnectionGeometryFn = (input) => {
       numbers.push(...(straight ? lineSegment(from, to) : bezierPiece(from, to, bezierDirection)));
     }
   }
-  return {
-    segments: new Float32Array(numbers),
-    arrow: triangleArrow(points[points.length - 2], points[points.length - 1]),
-  };
+  const segments = new Float32Array(numbers);
+  return { segments, arrow: endArrow(segments) };
 };

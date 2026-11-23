@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import type { TMultipointConnection } from "@gravity-ui/graph";
+
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
 
 type TEffectTestWindow = Window & {
@@ -103,6 +105,102 @@ test("tagged effects on stock connections keep independent uniforms and a plain 
   await expect.poll(() => linePixels(page)).toEqual([[255, 255, 0], green]);
   await graph.evaluate((each) => each.api.selectConnections(["line-0"], true));
   await expect.poll(() => linePixels(page)).toEqual([[255, 0, 255], green]);
+});
+
+test("a stock arrow keeps its base paint while the shaft animates", async ({ page }) => {
+  const graph = new GraphPageObject(page);
+  const connection: TMultipointConnection = {
+    id: "arrow",
+    sourceBlockId: "end-0",
+    targetBlockId: "end-1",
+    styles: { background: "#16416a" },
+    points: [
+      { x: 110, y: 180 },
+      { x: 500, y: 180 },
+    ],
+  };
+  await graph.initialize({
+    blocks: [50, 500].map((x, i) => ({ id: `end-${i}`, name: "Stage", is: "Block", x, y: 160, width: 60, height: 40 })),
+    settings: { renderer: "webgl", showConnectionArrows: true },
+  });
+  test.skip(
+    !(await page.evaluate(() => Boolean(document.createElement("canvas").getContext("webgl2")))),
+    "WebGL2 unavailable"
+  );
+  await expect.poll(() => page.evaluate(() => window.graph.scene.$renderer.peek())).toBe("webgl");
+  await page.evaluate((connection) => {
+    const { MultipointConnection, defineTag } = window.GraphModule;
+    const graph = window.graph;
+    graph.updateSettings({ connection: MultipointConnection });
+    graph.api.addConnection(connection);
+    graph.cameraService.set({ x: 0, y: 0, scale: 1 });
+    const tag = defineTag("effect-arrow");
+    graph.scene.tags.add(tag, { connection: ["arrow"] });
+    const paint = (preset: "gradient" | "dash") =>
+      graph.scene.styles.add([
+        {
+          target: MultipointConnection,
+          tags: [tag],
+          style: {
+            parts: {
+              line: {
+                effect:
+                  preset === "gradient"
+                    ? window.GraphModule.pathGradient.use({ from: "#0000ff", to: "#ff0000", speed: 0.5 })
+                    : window.GraphModule.dashFlow.use({ pattern: [24, 16], speed: 40 }),
+              },
+            },
+          },
+        },
+      ]);
+    let remove = paint("gradient");
+    Object.assign(window, {
+      arrowPaint: (preset: "gradient" | "dash") => {
+        remove();
+        remove = paint(preset);
+      },
+    });
+  }, connection);
+  const draw = async (times: number[]) => {
+    await graph.waitForFrames(3);
+    return page.evaluate((times) => {
+      const { scene, cameraService } = window.graph;
+      const backend = scene.layer.getBackend();
+      const gl = backend?.canvas.getContext("webgl2");
+      if (!backend || !gl) throw new Error("Missing scene context");
+      return times.map((time) => {
+        backend.draw({ ...cameraService.getCameraState(), dpr: 1, time, dimColor: scene.store.getDimColor() });
+        return {
+          pixels: [
+            [480, 180],
+            [488, 184],
+          ].map(([x, y]) => {
+            const pixel = new Uint8Array(4);
+            gl.readPixels(x, gl.drawingBufferHeight - y - 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+            return Array.from(pixel);
+          }),
+          bytes: backend.stats.lastUploadBytes,
+        };
+      });
+    }, times);
+  };
+  const arrowColor = [22, 65, 106, 255];
+  const gradient = await draw([0, 1]);
+  expect(gradient.map(({ pixels }) => pixels[1])).toEqual([arrowColor, arrowColor]);
+  expect(gradient[1].pixels[0]).not.toEqual(gradient[0].pixels[0]);
+  expect(gradient[1].bytes).toBe(0);
+
+  await page.evaluate(() => (window as unknown as { arrowPaint(preset: "dash"): void }).arrowPaint("dash"));
+  const dash = await draw([(378.5 - 12) / 40, (378.5 - 36) / 40]);
+  expect(dash.map(({ pixels }) => pixels.map((pixel) => pixel[3]))).toEqual([
+    [255, 255],
+    [0, 255],
+  ]);
+  expect(dash.map(({ pixels }) => pixels[1])).toEqual([arrowColor, arrowColor]);
+  expect(dash[1].bytes).toBe(0);
+
+  await graph.evaluate((graph) => graph.updateSettings({ showConnectionArrows: false }));
+  expect((await draw([(378.5 - 12) / 40]))[0].pixels[1][3]).toBe(0);
 });
 
 test("effect scale ranges keep resident paths, stop animation and preserve custom depth", async ({ page }) => {
@@ -270,9 +368,7 @@ test("effect scale ranges keep resident paths, stop animation and preserve custo
   expect((await draw(1)).animated, "hidden effects stop requesting frames").toBe(false);
 });
 
-test("mixed connection sources activate the same effect independently without replacing their address stream", async ({
-  page,
-}) => {
+test("mixed gradients animate within their scale range without replacing the address stream", async ({ page }) => {
   const graph = new GraphPageObject(page);
   await graph.initialize({ blocks: [], connections: [], settings: { renderer: "webgl" } });
   test.skip(
@@ -281,7 +377,7 @@ test("mixed connection sources activate the same effect independently without re
   );
   await expect.poll(() => page.evaluate(() => window.graph.scene.$renderer.peek())).toBe("webgl");
   await page.evaluate(() => {
-    const { pulse, lineSegment } = window.GraphModule;
+    const { pathGradient, lineSegment } = window.GraphModule;
     const { scene, cameraService } = window.graph;
     cameraService.set({ x: 0, y: 0, scale: 1 });
     for (let i = 0; i < 2; i++)
@@ -299,7 +395,10 @@ test("mixed connection sources activate the same effect independently without re
             stroke: { color: "#0000ff", width: 12 },
             interaction: i === 1 ? { selected: true, hovered: false, selectionColor: "#ff00ff" } : undefined,
             effectShowsSelection: i === 1,
-            effect: pulse.use({ period: 2 }, { minScale: i === 0 ? 0.5 : 0.75, maxScale: 1.25 }),
+            effect: pathGradient.use(
+              { from: "#ff0000", to: "#ff00ff", speed: i === 0 ? 0 : 0.5 },
+              { minScale: i === 0 ? 0.5 : 0.75, maxScale: 1.25 }
+            ),
           },
         ],
       });
@@ -325,41 +424,41 @@ test("mixed connection sources activate the same effect independently without re
         ...cameraService.getCameraState(),
         scale,
         dpr: 1,
-        time: 1, // trough of the 2-second pulse
+        time: 1,
         dimColor: scene.store.getDimColor(),
       };
       const animated = backend.draw(frame);
       const previous = ids;
       ids = probe.mixedDraw?.ids.data;
       const pixels = () =>
-        [0, 1].map((i) => {
-          const pixel = new Uint8Array(4);
-          gl.readPixels(
-            Math.floor(250 * scale),
-            gl.drawingBufferHeight - Math.floor((100 + i * 80) * scale) - 1,
-            1,
-            1,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            pixel
-          );
-          return Array.from(pixel);
-        });
-      const trough = {
+        [0, 1].map((i) =>
+          [175, 325].map((worldX) => {
+            const pixel = new Uint8Array(4);
+            gl.readPixels(
+              Math.floor(worldX * scale),
+              gl.drawingBufferHeight - Math.floor((100 + i * 80) * scale) - 1,
+              1,
+              1,
+              gl.RGBA,
+              gl.UNSIGNED_BYTE,
+              pixel
+            );
+            return Array.from(pixel);
+          })
+        );
+      const samples = pixels();
+      const result = {
         scale,
-        pixels: pixels(),
+        pixels: samples,
         animated,
         mixed: Boolean(probe.mixedTarget),
         sameIds: previous?.buffer === ids?.buffer && previous?.length === ids?.length,
         uploads: backend.stats.lastUploadBytes,
         error: gl.getError(),
       };
-      let crest: number[][] | undefined;
-      if (scale === 1) {
-        backend.draw({ ...frame, time: 0 });
-        crest = pixels();
-      }
-      return { ...trough, crest };
+      if (scale !== 1) return result;
+      backend.draw({ ...frame, time: 0 });
+      return { ...result, laterPixels: pixels(), timeUploadBytes: backend.stats.lastUploadBytes };
     });
   });
   for (const [i, row] of result.entries()) {
@@ -369,20 +468,27 @@ test("mixed connection sources activate the same effect independently without re
       expect(row.sameIds).toBe(true);
       expect(row.uploads).toBe(0);
     }
-    expect(row.animated).toBe(row.scale < 1.25);
-    if (row.scale === 1) {
-      expect(row.crest, "both active pulses reach their original blue at the crest").toEqual([
-        [0, 0, 255, 255],
-        [0, 0, 255, 255],
-      ]);
+    const moving = row.scale >= 0.75 && row.scale < 1.25;
+    expect(row.animated).toBe(moving);
+    if ("laterPixels" in row) {
+      expect(row.laterPixels[0]).toEqual(row.pixels[0]);
+      expect(row.laterPixels[1].map((pixel) => pixel[2])).toEqual([255, 0]);
+      expect(row.laterPixels[1].map((pixel) => pixel[3])).toEqual([255, 255]);
+      expect(row.timeUploadBytes).toBe(0);
     }
-    // At the trough the plain blue line is 15% opaque. The selected line mixes blue with magenta,
-    // then becomes solid magenta when its own effect is out of range.
-    expect(Math.abs(row.pixels[0][3] - (row.scale < 1.25 ? 38 : 255))).toBeLessThanOrEqual(1);
-    const selected = row.pixels[1];
-    const active = row.scale >= 0.75 && row.scale < 1.25;
-    expect(Math.abs(selected[0] - (active ? 217 : 255))).toBeLessThanOrEqual(1);
-    expect(selected.slice(1)).toEqual([0, 255, 255]);
+    for (const [line, samples] of row.pixels.entries()) {
+      const active = row.scale >= (line === 0 ? 0.5 : 0.75) && row.scale < 1.25;
+      if (!active) {
+        const base = line === 0 ? [0, 0, 255, 255] : [255, 0, 255, 255];
+        expect(samples).toEqual([base, base]);
+        continue;
+      }
+      const blue = line === 0 ? [64, 191] : [0, 255];
+      for (const [sample, pixel] of samples.entries()) {
+        expect([pixel[0], pixel[1], pixel[3]]).toEqual([255, 0, 255]);
+        expect(Math.abs(pixel[2] - blue[sample])).toBeLessThanOrEqual(2);
+      }
+    }
   }
 });
 
@@ -395,7 +501,7 @@ test("alternating stock effects share a native draw without changing translucent
   );
   await expect.poll(() => page.evaluate(() => window.graph.scene.$renderer.peek())).toBe("webgl");
   await page.evaluate(() => {
-    const { dashFlow, pulse, lineSegment, bezierSegment } = window.GraphModule;
+    const { dashFlow, pathGradient, lineSegment, bezierSegment } = window.GraphModule;
     const { scene, cameraService } = window.graph;
     cameraService.set({ x: 0, y: 0, scale: 1 });
     for (let i = 0; i < 48; i++) {
@@ -404,7 +510,7 @@ test("alternating stock effects share a native draw without changing translucent
           ? undefined
           : i % 3 === 1
             ? dashFlow.use({ pattern: [12, 8], speed: 30 })
-            : pulse.use({ period: 2 }, { minScale: 0.5 });
+            : pathGradient.use({ from: "#20b548", to: "#f2b841" }, { minScale: 0.5 });
       scene.store.add({
         id: `alternating-${i}`,
         entityType: "connection",
@@ -449,6 +555,9 @@ test("alternating stock effects share a native draw without changing translucent
     if (!backend) throw new Error("Missing backend");
     const probe = backend as typeof backend & {
       prepareStockPaths(...args: unknown[]): { plan: { commands: { native?: unknown }[] } } | undefined;
+      prepareMixedPlane(frame: unknown, opaque: unknown, translucent: unknown, physical: boolean): unknown;
+      hasMixedVertexWork(): boolean;
+      translucentFrameDraws: unknown;
       orderedStockPaths(...args: unknown[]): unknown;
       stockOrder?: unknown;
       stockDraw?: unknown;
@@ -536,13 +645,37 @@ test("alternating stock effects share a native draw without changing translucent
         backend.draw(frame);
         probe.prepareStockPaths = prepare;
         const actual = pixels();
+        const after = backend.stats.drawCalls;
+        let mixedComparison: { usedPhysical: boolean; samePixels: boolean } | undefined;
+        if (phase === "initial" && scale === 0.25) {
+          const mixed = probe.prepareMixedPlane;
+          const workload = probe.hasMixedVertexWork;
+          probe.hasMixedVertexWork = () => true;
+          let usedPhysical = false;
+          probe.prepareMixedPlane = function (...args) {
+            const result = mixed.apply(this, args);
+            usedPhysical = args[3] && Boolean(result);
+            return result;
+          };
+          backend.draw(frame);
+          const fast = pixels();
+          probe.prepareMixedPlane = function (frame, opaque) {
+            return mixed.call(this, frame, opaque, this.translucentFrameDraws, false);
+          };
+          backend.draw(frame);
+          const sorted = pixels();
+          mixedComparison = { usedPhysical, samePixels: fast.every((value, i) => value === sorted[i]) };
+          probe.prepareMixedPlane = mixed;
+          probe.hasMixedVertexWork = workload;
+        }
         return {
           scale,
           phase,
           strict: Boolean(probe.stockOrder),
           hasGroupedCommands: probe.preparedGroups.ordered.length > 0 || Boolean(probe.stockCommands.last),
           before,
-          after: backend.stats.drawCalls,
+          after,
+          mixedComparison,
           stock: Boolean(probe.stockDraw),
           native,
           different: actual.reduce((n, value, i) => n + Number(value !== reference[i]), 0),
@@ -552,6 +685,7 @@ test("alternating stock effects share a native draw without changing translucent
     });
   });
   for (const row of result) {
+    if (row.mixedComparison) expect(row.mixedComparison).toEqual({ usedPhysical: true, samePixels: true });
     expect(row.stock).toBe(true);
     expect(row.strict, JSON.stringify(row)).toBe(!["custom", "nonpath", "scoped-custom"].includes(row.phase));
     if (row.strict)

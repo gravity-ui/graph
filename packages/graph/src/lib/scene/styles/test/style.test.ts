@@ -1,4 +1,4 @@
-import { dashFlow, pulse } from "../../effects/library";
+import { dashFlow, pathGradient } from "../../effects/library";
 import type { TScenePrimitive, TSceneStyle } from "../../types";
 import {
   applyStyle,
@@ -34,7 +34,7 @@ describe("path effects", () => {
     stroke: { color: "#f00", width: 2, dash: [3, 4] },
   };
   const flow = dashFlow.use({ pattern: [12, 8], speed: 40 });
-  const own = pulse.use({ period: 2, wavelength: 20 });
+  const own = pathGradient.use({ from: "#00f", to: "#0f0" });
 
   it("bakes a named part's effect for WebGL while Canvas uses the styled stroke", () => {
     const style = { parts: { line: { effect: flow, color: "rgba(0, 255, 0, 0.5)" } }, opacity: 0.5 };
@@ -53,13 +53,13 @@ describe("path effects", () => {
 
   it("uses the base effect only for an unset path effect and lets a tag override or disable it", () => {
     const base = { line: { effect: flow } };
-    const alreadyAnimated = { ...path, effect: own };
+    const withOwnEffect = { ...path, effect: own };
     expect(bakeElementStyle([path], { base })[0]).toMatchObject({ effect: flow });
-    expect(bakeElementStyle([alreadyAnimated], { base })[0]).toBe(alreadyAnimated);
-    expect(bakeElementStyle([alreadyAnimated], { base, parts: { line: { effect: flow } } })[0]).toMatchObject({
+    expect(bakeElementStyle([withOwnEffect], { base })[0]).toBe(withOwnEffect);
+    expect(bakeElementStyle([withOwnEffect], { base, parts: { line: { effect: flow } } })[0]).toMatchObject({
       effect: flow,
     });
-    expect(bakeElementStyle([alreadyAnimated], { base, parts: { line: { effect: null } } })[0]).toMatchObject({
+    expect(bakeElementStyle([withOwnEffect], { base, parts: { line: { effect: null } } })[0]).toMatchObject({
       effect: undefined,
     });
   });

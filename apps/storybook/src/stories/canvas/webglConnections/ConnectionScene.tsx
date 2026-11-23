@@ -3,47 +3,17 @@ import React, { useEffect, useMemo } from "react";
 import type { Graph, TBlock, TGraphConfig, TRect, TSceneRenderer } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useSignal } from "@gravity-ui/graph-react";
 import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
-import type { Meta } from "@storybook/react-webpack5";
 
 import { coloredConnections } from "../../configurations/coloredConnections";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 
-import { glow, particles } from "./lines";
 import type { TConnectionClass } from "./lines";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
 export type ConnectionArgs = { renderer: TSceneRenderer };
-export type ShaderArgs = { effect: string; particleSpeed: number; glowIntensity: number };
 export const rendererControl = { name: "Renderer", control: "inline-radio", options: ["canvas", "webgl"] } as const;
-
-export const shaderControls = {
-  particleSpeed: {
-    name: "Particle speed",
-    control: { type: "range", min: 0, max: 3, step: 0.1 },
-    if: { arg: "effect", eq: "particles" },
-  },
-  glowIntensity: {
-    name: "Glow intensity",
-    control: { type: "range", min: 0, max: 1.5, step: 0.05 },
-    if: { arg: "effect", eq: "glow" },
-  },
-} satisfies Meta<ShaderArgs>["argTypes"];
-
-export const shaderDefaults = { particleSpeed: 1, glowIntensity: 0.6 };
-
-export function useShaderControls({ effect, particleSpeed, glowIntensity }: ShaderArgs): void {
-  useEffect(() => {
-    if (effect !== "particles" && effect !== "glow") return undefined;
-    const uniform = effect === "particles" ? particles.uniforms.speed : glow.uniforms.intensity;
-    const previous = uniform.value;
-    uniform.value = effect === "particles" ? particleSpeed : glowIntensity;
-    return () => {
-      uniform.value = previous;
-    };
-  }, [effect, particleSpeed, glowIntensity]);
-}
 
 type PreviewProps = {
   graph: Graph;

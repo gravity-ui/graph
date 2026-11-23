@@ -1,5 +1,5 @@
 import { toPathEffect } from "../PathEffect";
-import { dashFlow, pulse } from "../library";
+import { dashFlow, pathGradient } from "../library";
 
 const STROKE = { color: "#fff", width: 2 };
 
@@ -26,15 +26,36 @@ describe("dashFlow", () => {
   });
 });
 
-describe("pulse", () => {
-  it("encodes period and wavelength", () => {
-    expect(pulse.use({ period: 3, wavelength: 24000 }).params).toEqual([3, 24000]);
-    expect(pulse.use({ period: 2 }).params).toEqual([2, 0]);
+describe("pathGradient", () => {
+  it("encodes the RGB channels of both stops in separate shader vectors", () => {
+    expect(pathGradient.use({ from: "#f80", to: "rgb(0 255 128 / 20%)" }).params).toEqual([
+      1,
+      136 / 255,
+      0,
+      0,
+      0,
+      1,
+      128 / 255,
+    ]);
   });
 
-  it("falls back to the plain stroke and is animated", () => {
-    const effect = toPathEffect(pulse);
-    expect(effect.getFallbackStroke(STROKE, [3, 0])).toBe(STROKE);
-    expect(effect.animated).toBe(true);
+  it("keeps the base stroke as fallback and does not request animation frames", () => {
+    const use = pathGradient.use({ from: "#000", to: "#fff" });
+    const effect = toPathEffect(pathGradient);
+    expect(effect.getFallbackStroke(STROKE, use.params ?? [])).toBe(STROKE);
+    expect(effect.animated).toBe(false);
+  });
+
+  it("shares one program between static and moving gradients and only animates at nonzero speed", () => {
+    const stops = { from: "#00f", to: "#f80" };
+    const still = pathGradient.use({ ...stops, speed: 0 });
+    const moving = pathGradient.clone().use({ ...stops, speed: -0.5 }, { minScale: 0.4 });
+    expect(moving.params?.[3]).toBe(-0.5);
+    expect(moving.minScale).toBe(0.4);
+    const stillEffect = toPathEffect(still.effect);
+    const movingEffect = toPathEffect(moving.effect);
+    expect(stillEffect.animated).toBe(false);
+    expect(movingEffect.animated).toBe(true);
+    expect(movingEffect.programKey).toBe(stillEffect.programKey);
   });
 });

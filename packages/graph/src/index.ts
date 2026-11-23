@@ -91,7 +91,7 @@ export type {
 } from "./services/scene/types";
 export type { ISceneKeyed, TSceneKey } from "./services/scene/sceneKey";
 export { defineSceneEffect } from "./lib/scene/effects/defineSceneEffect";
-export { dashFlow, pulse } from "./lib/scene/effects/library";
+export { dashFlow, pathGradient } from "./lib/scene/effects/library";
 export type {
   TSceneEffect,
   TSceneEffectDefinition,

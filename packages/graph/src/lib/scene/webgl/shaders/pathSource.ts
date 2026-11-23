@@ -15,6 +15,7 @@ in float graph_vHalfWidth;
 in float graph_vHairline;
 in float graph_vAlong;
 in vec2 graph_vWorld;
+flat in float graph_vDim;
 flat in vec4 graph_vDash;
 flat in float graph_vLength;
 flat in vec4 graph_vParams0;
@@ -26,6 +27,7 @@ uniform vec3 graph_camera;
 uniform float graph_dpr;
 uniform float graph_time;
 uniform float graph_extraWidth;
+uniform vec4 scene_dimColor;
 
 out vec4 graph_fragColor;
 
@@ -73,6 +75,22 @@ export const IDENTITY_EFFECT = /* glsl */ `vec4 effect(PathFragment f, vec4 colo
 
 export const FRAGMENT_MAIN = /* glsl */ `
 void main() {
+  if (graph_vDash.z < 0.0) {
+    // A stock head uses its base paint and analytical coverage, independent of the path's effect.
+    vec2 p = vec2(graph_vAlong, abs(graph_vAcross));
+    vec2 side = vec2(-graph_vDash.y, graph_vDash.w);
+    float sideLength2 = max(dot(side, side), 1e-12);
+    float distanceToEdge;
+    if (graph_vDash.z == -1.0) {
+      distanceToEdge = length(p - side * clamp(dot(p, side) / sideLength2, 0.0, 1.0)) - graph_vHalfWidth;
+    } else {
+      float slopingEdge = (side.y * p.x - side.x * p.y) * inversesqrt(sideLength2);
+      distanceToEdge = max(side.x - p.x, slopingEdge);
+    }
+    float alpha = graph_vColor.a * clamp(0.5 - distanceToEdge * graph_dpr, 0.0, 1.0) * graph_vHairline;
+    graph_fragColor = vec4(graph_vColor.rgb * alpha, alpha);
+    return;
+  }
   // The still dash, two on/off pairs like canvas setLineDash: an effect never draws in its gaps.
   float dashLength = graph_vDash.x + graph_vDash.y + graph_vDash.z + graph_vDash.w;
   if (dashLength > 0.0) {

@@ -2,6 +2,8 @@ import { PathEffect, pathEffectId } from "../effects/PathEffect";
 import type { TScenePartStyle, TScenePrimitive, TSceneStroke, TSceneStyle } from "../types";
 import { fadeColor, mixColor, parseColorAlpha } from "../utils/colorAlpha";
 
+import { trimConnectionShaft } from "./connectionArrow";
+
 type TPaintSlot = "border" | "fill" | "color" | "stroke";
 
 /** Which paint a part's colour addresses. */
@@ -226,6 +228,7 @@ export function styleEncodeKey(style: TSceneStyle | undefined): string {
   const key: Record<string, unknown> = {};
   const elementOpacity = styleOpacity(style, undefined);
   if (elementOpacity < 1) key.opacity = elementOpacity;
+  if ((style.parts?.arrow?.visible ?? style.base?.arrow?.visible) === false) key.hiddenArrow = true;
   for (const layer of ["base", "parts"] as const) {
     for (const [part, value] of Object.entries(style[layer] ?? {})) {
       const opacity = styleOpacity(style, part);
@@ -341,10 +344,12 @@ export function bakeElementStyle(
   primitives: readonly TScenePrimitive[],
   style: TSceneStyle | undefined
 ): readonly TScenePrimitive[] {
-  if (!style) return primitives;
+  const first = primitives[0];
+  const shaft = first && trimConnectionShaft(first, primitives[1], style);
   const key = styleEncodeKey(style);
-  if (key === "{}" || key === "") return primitives;
-  return primitives.map((primitive) => {
+  if (!style || key === "{}") return shaft === first ? primitives : [shaft, ...primitives.slice(1)];
+  return primitives.map((primitive, index) => {
+    if (index === 0) primitive = shaft;
     const part = primitive.part;
     const opacity = styleOpacity(style, part);
     const base = part === undefined ? undefined : style.base?.[part];
@@ -363,7 +368,7 @@ function withPathEffect(
   base: TScenePartStyle["effect"],
   override: TScenePartStyle["effect"]
 ): TScenePrimitive {
-  if (primitive.kind !== "path") return primitive;
+  if (primitive.kind !== "path" || primitive.arrowPosition !== undefined) return primitive;
   const effect = (override === undefined ? primitive.effect ?? base : override) ?? undefined;
   return effect === primitive.effect ? primitive : { ...primitive, effect };
 }

@@ -216,6 +216,10 @@ export type TScenePrimitive = Readonly<
           segments: Float32Array;
           /** Joins the ends of one continuous solid contour whose final point repeats its first. */
           closed?: boolean;
+          /** @internal Stock connection head. An end head can shorten the shaft to its base. */
+          arrowPosition?: "inline" | "end";
+          /** @internal Distance from the shortened shaft to the tip of a terminal head. */
+          arrowTrim?: number;
           stroke: TSceneStroke;
           effect?: TSceneEffectUse<"path">;
           canvasStroke?: TSceneStroke;

@@ -6,8 +6,6 @@ import { GraphCanvas, useGraph, useSignal } from "@gravity-ui/graph-react";
 import { Button, Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { glow } from "../webglConnections/lines";
-
 import { EffectCardView } from "./EffectCardView";
 import { PlainView, viewConfiguration } from "./blockView";
 import {
@@ -22,7 +20,7 @@ import {
   onCardEncode,
 } from "./effectCard";
 import type { TEffectCard } from "./effectCard";
-import { EFFECT_PARTS } from "./effectPaths";
+import { EFFECT_PARTS, glow } from "./effectPaths";
 import type { TEffectPart } from "./effectPaths";
 
 type Args = {
@@ -164,7 +162,7 @@ BlockEffects.parameters = {
     description: {
       story:
         "Each card is a `CanvasBlock` subclass whose level methods return a path primitive with an effect " +
-        "(`dashFlow`, `pulse`, or the `particles`, `glow` and `gradient` shaders) in its own part. A base rule hides " +
+        "(`dashFlow` or a custom shader) in its own part. A base rule hides " +
         "the effect parts and one tag per effect shows its part, so `graph.scene.tags` switches an effect without " +
         "running the level methods again. WebGL animates the effects; Canvas 2D draws their static strokes. " +
         "Enable HTML at detailed zoom to replace each scene card with a React card (`GraphBlock`) that shows a " +

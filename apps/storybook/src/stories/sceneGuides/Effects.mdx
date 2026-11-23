@@ -4,7 +4,7 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 # Scene effects
 
-Use a WebGL effect to change the appearance of a path over time. A path can be a connection shaft or a contour
+Use a WebGL effect to colour or animate a path. A path can be a connection shaft or a contour
 your component draws.
 
 ## Run an effect while a tag is present
@@ -34,7 +34,9 @@ export function setRunning(id: string, running: boolean) {
 }
 ```
 
-`dashFlow` moves dashes along the path. `pulse.use({ period: 2 })` pulses its brightness every two seconds.
+`dashFlow` moves dashes along the path. Use `pathGradient.use({ from: "#2f7cf6", to: "#f28e2b", speed: 0.6 })`
+in the same rule to move a fully coloured gradient along the route. The speed is in cycles per second. Use zero
+for a static fill or a negative value to reverse the motion.
 The tagged stroke keeps its teal colour in Canvas 2D or below the effect's `minScale`. An effect's optional
 `maxScale` is exclusive. Removing the tag stops this rule from supplying the effect. Set `effect: null` in a
 matching rule when you need to override an effect supplied by the path or another rule.
@@ -82,6 +84,6 @@ Rectangles and text keep their own paint. Textured sprites have a separate shade
     <a href="./?path=/story/canvas-webglconnections--etl-pipeline" target="_top">
       ETL pipeline
     </a>{" "}
-    shows how step status changes the incoming and outgoing flows.
+    shows how step status changes the incoming and outgoing flows. Select Gradient to adjust its speed in Controls.
   </li>
 </ul>
