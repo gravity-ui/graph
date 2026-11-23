@@ -1,6 +1,6 @@
 {
   "name": "@gravity-ui/graph-layered",
-  "version": "0.0.0",
+  "version": "1.0.0-next.0",
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "description": "Layered (hierarchical) layout algorithm for Gravity UI Graph",

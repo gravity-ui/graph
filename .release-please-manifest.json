@@ -1,12 +1,12 @@
 {
-  "packages/graph": "1.11.3",
-  "packages/graph-react": "0.0.0",
-  "packages/graph-minimap": "0.0.0",
-  "packages/graph-devtools": "0.0.0",
-  "packages/graph-duplicate-block": "0.0.0",
-  "packages/graph-elk": "0.0.0",
-  "packages/graph-layered": "0.0.0",
-  "packages/graph-playwright": "0.0.0",
-  "packages/graph-css-variables": "0.0.0",
-  "packages/graph-connection-editing": "0.0.0"
+  "packages/graph": "2.0.0-next.0",
+  "packages/graph-react": "1.0.0-next.0",
+  "packages/graph-minimap": "1.0.0-next.0",
+  "packages/graph-devtools": "1.0.0-next.0",
+  "packages/graph-duplicate-block": "1.0.0-next.0",
+  "packages/graph-elk": "1.0.0-next.0",
+  "packages/graph-layered": "1.0.0-next.0",
+  "packages/graph-playwright": "1.0.0-next.0",
+  "packages/graph-css-variables": "1.0.0-next.0",
+  "packages/graph-connection-editing": "1.0.0-next.0"
 }
