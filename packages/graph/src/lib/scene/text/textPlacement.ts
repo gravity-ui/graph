@@ -1,5 +1,6 @@
 import type { TTileRect } from "../../culling/TileIndex";
 import type { TSceneTextPolicy } from "../types";
+import { rotateBounds } from "../utils/rotateBounds";
 
 import { TEXT_METRICS_PX, boundingLineCount, pitchRatio, verticalShare } from "./textLayout";
 import type { ISceneTextMetrics, TTextPrimitive } from "./textLayout";
@@ -114,16 +115,32 @@ export function textBounds(
   drawnLines?: number
 ): TTileRect {
   const clip = textClip(primitive);
-  if (primitive.height !== undefined) return clip;
+  const rotation = primitive.rotation;
+  if (primitive.height !== undefined) {
+    if (!rotation) return clip;
+    const anchor = textAnchor(primitive, 1);
+    return rotateBounds(clip, anchor.x, anchor.y, rotation);
+  }
   const lines = drawnLines ?? boundingLineCount(primitive, largestSize, metrics);
   const pitch = pitchRatio(primitive) * largestSize;
   const anchor = textAnchor(primitive, lines);
   const top = anchor.y - verticalShare(primitive.verticalAlign) * lines * pitch;
   const pad = largestSize / 2;
-  return {
+  const bounds = {
     minX: clip.minX,
     minY: Math.min(primitive.y, top) - pad,
     maxX: clip.maxX,
     maxY: Math.max(primitive.y + boxHeight(primitive, lines), top + lines * pitch) + pad,
+  };
+  if (!rotation) return bounds;
+  const rotated = rotateBounds(bounds, anchor.x, anchor.y, rotation);
+  if (!primitive.cameraAware || anchor.y === primitive.y) return rotated;
+  // The alignment anchor of camera-aware, heightless text can move when its line count changes.
+  const first = rotateBounds(bounds, anchor.x, primitive.y, rotation);
+  return {
+    minX: Math.min(rotated.minX, first.minX),
+    minY: Math.min(rotated.minY, first.minY),
+    maxX: Math.max(rotated.maxX, first.maxX),
+    maxY: Math.max(rotated.maxY, first.maxY),
   };
 }

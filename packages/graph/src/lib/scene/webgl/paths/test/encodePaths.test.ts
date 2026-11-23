@@ -14,6 +14,28 @@ const curved = new Float32Array([0, 0, 0, 50, 50, 50, 50, 0]);
 const slotOf = (part: string | undefined): number => (part === undefined ? 0 : 5);
 
 describe("encodePaths", () => {
+  it("cuts multiple gaps but keeps the distance and gradient length of each visible run", () => {
+    const segments = new Float32Array(lineSegment({ x: 0, y: 0 }, { x: 120, y: 0 }));
+    const path: TScenePrimitive = {
+      kind: "path",
+      segments,
+      gaps: [
+        [80, 90],
+        [30, 45],
+        [40, 50],
+      ],
+      stroke: { width: 2, dash: [7, 5] },
+    };
+    const { lines } = encodePaths([path], 0, 0, slotOf);
+    expect(lines).toHaveLength(3 * INSTANCE_FLOATS);
+    expect(lines[6]).toBe(30);
+    expect(lines[INSTANCE_FLOATS]).toBe(50);
+    expect(lines[2 * INSTANCE_FLOATS]).toBe(90);
+    expect(Array.from(lines.subarray(13, 16))).toEqual([120, 0, 30]);
+    expect(Array.from(lines.subarray(INSTANCE_FLOATS + 13, INSTANCE_FLOATS + 16))).toEqual([120, 50, 30]);
+    expect(Array.from(lines.subarray(2 * INSTANCE_FLOATS + 13, 2 * INSTANCE_FLOATS + 16))).toEqual([120, 90, 30]);
+  });
+
   it("retains translucent records when the next element reuses the encoder", () => {
     const primitives: TScenePrimitive[] = [
       { kind: "path", segments: straight, stroke: { color: "rgba(255,0,0,0.5)", width: 2 } },

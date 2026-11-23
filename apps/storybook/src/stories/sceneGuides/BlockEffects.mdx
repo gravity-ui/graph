@@ -1,0 +1,42 @@
+import { Canvas, Controls, Meta, Source } from "@storybook/addon-docs/blocks";
+
+import * as BlockEffectStories from "../canvas/sceneEffects/blockEffects.stories";
+
+<Meta title="Scene/Guides/Block effects" />
+
+# Block effects
+
+A block can draw its body and title alongside a separate path. Give the path a part name so that a tag rule
+can show it, set its color, or apply a WebGL effect. The same rule can style the block's other parts.
+
+## Try it
+
+Toggle an item in **Effects** to show or hide its path. Use **Renderer** to compare the WebGL animation with
+the base stroke in Canvas. Enable **HTML at detailed zoom** and select **Detailed** to see the gallery's
+React cards with their CSS effects.
+
+<Canvas
+  of={BlockEffectStories.BlockEffects}
+  meta={BlockEffectStories}
+  layout="fullscreen"
+  story={{ inline: true }}
+  sourceState="none"
+/>
+
+<Controls of={BlockEffectStories.BlockEffects} exclude={["Count card encodes"]} />
+
+<a href="./?path=/story/canvas-sceneeffects--block-effects" target="_top">
+  Open Block effects
+</a>
+
+## Add a running border
+
+The example uses the current **Renderer** and **Marching border** settings. Pass a container with a width
+and height to `mountGraph`, then call `setRunning(graph, true)` when the job starts.
+
+<Source of={BlockEffectStories.BlockEffects} />
+
+`schematic()` supplies the shape and the part name `march`. `getSceneStyles()` hides that part by default.
+When the block receives `runningTag`, one rule shows the path, runs `dashFlow` on it, and colors the title.
+Call `setRunning(graph, false)` when the job finishes. In Canvas, the running state draws the static border
+and uses the same title color.

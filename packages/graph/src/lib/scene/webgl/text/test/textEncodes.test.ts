@@ -141,6 +141,7 @@ describe("textEncodes", () => {
     const full = text("a", {
       weight: "bold",
       verticalAlign: "middle",
+      rotation: Math.PI / 4,
       minScale: 0.1,
       fadeInUntil: 0.3,
       maxScale: 2,
@@ -168,6 +169,7 @@ describe("textEncodes", () => {
       wrap: false,
       overflow: "ellipsis",
       maxLines: 2,
+      rotation: -Math.PI / 4,
       minScale: 0.2,
       fadeInUntil: 0.4,
       maxScale: 3,

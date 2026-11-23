@@ -164,8 +164,14 @@ function drawText(
   if (lines === 0) return;
   const place = placeText(primitive, lines, size, sceneTextMetrics);
   const clip = layout.overflows;
-  if (clip || opacity < 1) ctx.save();
+  const rotation = primitive.rotation ?? 0;
+  if (clip || opacity < 1 || rotation) ctx.save();
   if (opacity < 1) ctx.globalAlpha *= opacity;
+  if (rotation) {
+    ctx.translate(ox + place.x, oy + place.y);
+    ctx.rotate(rotation);
+    ctx.translate(-ox - place.x, -oy - place.y);
+  }
   if (clip) {
     const box = textClip(primitive);
     ctx.beginPath();
@@ -180,7 +186,7 @@ function drawText(
   for (let row = 0; row < lines; row++) {
     ctx.fillText(layout.lines[row], ox + place.x, oy + place.top + row * place.pitch);
   }
-  if (clip || opacity < 1) ctx.restore();
+  if (clip || opacity < 1 || rotation) ctx.restore();
 }
 
 /**

@@ -1,7 +1,7 @@
 import intersects from "intersects";
 
 import type { TComponentMode } from "../../../lib/CoreComponent";
-import type { TPathInteraction, TScenePrimitive, TSceneStroke, TSceneStyle } from "../../../lib/scene/types";
+import type { TPathGap, TPathInteraction, TScenePrimitive, TSceneStroke, TSceneStyle } from "../../../lib/scene/types";
 import { resolveSceneSize } from "../../../lib/scene/utils/size";
 import { largestSize } from "../../../lib/scene/webgl/order/levelBounds";
 import { HitBoxData } from "../../../services/HitTest";
@@ -21,6 +21,7 @@ import type { IConnectionLabelOwner } from "./Label";
 import { blockGeometry } from "./geometry";
 import type { TConnectionGeometry, TConnectionGeometryFn } from "./geometry";
 import { distanceToArrow, distanceToSegments } from "./geometry/distance";
+import { measurePath } from "./geometry/pathMetrics";
 import { stockBezierSegments } from "./geometry/segments";
 import { turnedPolylineStrokes } from "./geometry/utils/polylineStroke";
 import { getLabelCoords } from "./labelHelper";
@@ -31,6 +32,8 @@ import { arrowSegments } from "./lines/SceneLine";
 import type { TMultipointConnection } from "./types";
 import { hasChangedValue } from "./utils/hasChangedValue";
 import { warnRemovedConnectionMethods } from "./utils/removedMethods";
+import { hitRouteLabel, layoutRouteLabels } from "./utils/routeLabels";
+import type { TRouteLabelLayout } from "./utils/routeLabels";
 
 export type TConnectionProps = TBaseConnectionProps & {
   useBezier: boolean;
@@ -72,6 +75,10 @@ function sameNumbers(a: ArrayLike<number> | undefined, b: ArrayLike<number> | un
   return true;
 }
 
+function sameGaps(a: readonly TPathGap[] | undefined, b: readonly TPathGap[] | undefined): boolean {
+  return a === b || Boolean(a && b && a.length === b.length && a.every((gap, i) => sameNumbers(gap, b[i])));
+}
+
 function sameStroke(a: TSceneStroke | undefined, b: TSceneStroke | undefined): boolean {
   return (
     a === b ||
@@ -97,6 +104,7 @@ function samePrimitive(a: TScenePrimitive, b: TScenePrimitive): boolean {
       sameStroke(a.stroke, b.stroke) &&
       sameStroke(a.canvasStroke, b.canvasStroke) &&
       a.closed === b.closed &&
+      sameGaps(a.gaps, b.gaps) &&
       a.arrowPosition === b.arrowPosition &&
       a.effect?.effect === b.effect?.effect &&
       Object.is(a.effect?.minScale, b.effect?.minScale) &&
@@ -130,7 +138,7 @@ export class BlockConnection<T extends TConnection = TConnection>
   /** The line's appearance and optional Canvas drawing hooks. The graph scene picks its renderer. */
   public static line: TConnectionLineClass = SceneLine;
 
-  /** Pure shape: cubic segments and the arrow, in world coordinates. */
+  /** Pure shape: cubic segments and the arrow, with optional label positions along the route. */
   public static geometry: TConnectionGeometryFn = blockGeometry;
 
   public declare readonly __styleParts?: TStyleParts<"line" | "arrow" | "labelBackground" | "label">;
@@ -144,7 +152,11 @@ export class BlockConnection<T extends TConnection = TConnection>
 
   protected labelGeometry: { x: number; y: number; width: number; height: number } | undefined = undefined;
 
-  private labelPaintGeometry: typeof this.labelGeometry;
+  private labelPaintGeometry?: TRect;
+
+  private routeDistances?: Float64Array;
+
+  private routeLabels?: TRouteLabelLayout;
 
   private labelFont = "";
 
@@ -258,7 +270,12 @@ export class BlockConnection<T extends TConnection = TConnection>
 
   protected override onSceneStyleChange(style: TSceneStyle): void {
     const previous = this.sceneHitStyle;
+    const labelsWereVisible = this.routeLabels && this.isScenePartVisible("label");
     this.sceneHitStyle = style;
+    if (this.routeLabels && labelsWereVisible !== this.isScenePartVisible("label")) {
+      this.pendingSceneUpdate = "appearance";
+      this.performRender();
+    }
     const line = style.parts?.line?.width;
     const arrow = style.parts?.arrow?.width;
     const halfWidth = Math.max(largestSize(line ?? 0), largestSize(arrow ?? 0)) / 2;
@@ -295,6 +312,7 @@ export class BlockConnection<T extends TConnection = TConnection>
       kind: "path",
       part: "line",
       segments: geometry.segments,
+      gaps: this.routeLabels && this.isScenePartVisible("label") ? this.routeLabels.gaps : undefined,
       stroke: sceneStroke(appearance?.stroke ?? strokes.shaft),
       canvasStroke: effect ? sceneStroke(strokes.shaft) : undefined,
       effect: effect && { ...effect, params: effect.params?.slice() ?? [] },
@@ -302,7 +320,7 @@ export class BlockConnection<T extends TConnection = TConnection>
       effectShowsSelection: appearance?.effectShowsSelection,
     };
     const primitives: TScenePrimitive[] = [shaft];
-    const arrow = props.showConnectionArrows ? geometry.arrow : undefined;
+    const arrow = this.getSceneArrow(geometry, props);
     if (arrow && strokes.arrow && arrow.points.length >= 4) {
       const { points, closed } = arrow;
       const stroke = sceneStroke(strokes.arrow);
@@ -332,28 +350,65 @@ export class BlockConnection<T extends TConnection = TConnection>
     return primitives;
   }
 
+  private getSceneArrow(geometry: TConnectionGeometry, props: TConnectionProps): TConnectionGeometry["arrow"] {
+    const arrow = props.showConnectionArrows ? geometry.arrow : undefined;
+    const labels = this.routeLabels?.labels;
+    if (!arrow || !labels || !this.isScenePartVisible("label")) return arrow;
+    const { points } = arrow;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i + 1 < points.length; i += 2) {
+      minX = Math.min(minX, points[i]);
+      minY = Math.min(minY, points[i + 1]);
+      maxX = Math.max(maxX, points[i]);
+      maxY = Math.max(maxY, points[i + 1]);
+    }
+    if (
+      labels.some(({ bounds }) =>
+        intersects.boxBox(minX, minY, maxX - minX, maxY - minY, bounds.x, bounds.y, bounds.width, bounds.height)
+      )
+    )
+      return undefined;
+    return arrow;
+  }
+
   protected appendSceneLabels(primitives: TScenePrimitive[], state: TBaseConnectionState): void {
-    if (!state.label || !this.labelPaintGeometry) return;
+    if (!this.routeLabels && (!state.label || !this.labelPaintGeometry)) return;
     const rect = this.labelPaintGeometry;
     const [top, right, , left] = this.context.constants.connection.LABEL.INNER_PADDINGS;
     const size = this.context.connectionLabelFontSize.peek();
     const { background, text } = this.getLabelColors(state);
-    primitives.push(
-      { kind: "rect", part: "labelBackground", ...rect, fill: background },
-      {
-        kind: "text",
-        part: "label",
-        text: state.label,
-        color: text,
-        family: "sans-serif",
-        x: rect.x + left,
-        y: rect.y + top,
-        size,
-        lineHeight: size,
-        width: rect.width - left - right + 1,
-        wrap: false,
+    const label = {
+      kind: "text",
+      part: "label",
+      color: text,
+      family: "sans-serif",
+      size,
+      lineHeight: size,
+      wrap: false,
+    } as const;
+    if (this.routeLabels) {
+      for (const { text, x, y, width, height, rotation } of this.routeLabels.labels) {
+        primitives.push({
+          ...label,
+          text,
+          x,
+          y,
+          width,
+          height,
+          rotation,
+          align: "center",
+          verticalAlign: "middle",
+        });
       }
-    );
+    } else if (rect && state.label) {
+      primitives.push(
+        { kind: "rect", part: "labelBackground", ...rect, fill: background },
+        { ...label, text: state.label, x: rect.x + left, y: rect.y + top, width: rect.width - left - right + 1 }
+      );
+    }
   }
 
   protected getLabelColors({ selected, hovered }: TBaseConnectionState): { background: string; text: string } {
@@ -423,8 +478,13 @@ export class BlockConnection<T extends TConnection = TConnection>
     this.syncLabelSubscription();
   }
 
-  private syncLabelSubscription(): void {
-    if (!this.state.label || !this.props.showConnectionLabels) {
+  private routeLabelSpecs() {
+    return this.shape?.labels && this.usesSceneDrawing() ? this.shape.labels : undefined;
+  }
+
+  private syncLabelSubscription(props: TConnectionProps = this.props): void {
+    const specs = this.routeLabelSpecs();
+    if (!props.showConnectionLabels || (specs ? specs.length === 0 : !this.state.label)) {
       this.unsubscribeLabelFontSize?.();
       this.unsubscribeLabelFontSize = undefined;
     } else if (!this.unsubscribeLabelFontSize) {
@@ -618,11 +678,14 @@ export class BlockConnection<T extends TConnection = TConnection>
   protected override updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props): void {
     this.geometryContext = this.context;
     this.readConnectionPoints();
+    const previousLabels = this.shape?.labels;
     this.shape = this.computeGeometry(props);
+    this.routeDistances = undefined;
     this.line.readStrokes(this.state, props);
     this.updateBounds(additionalPoints, props);
     this.updateCullingBounds(props);
     this.updateDrawing(this.state, props);
+    if (previousLabels !== this.shape?.labels) this.syncLabelSubscription(props);
   }
 
   /** Runs `static geometry` on the endpoints, props and data of the connection; undefined without endpoints. */
@@ -734,13 +797,14 @@ export class BlockConnection<T extends TConnection = TConnection>
       distanceToSegments(geometry.segments, x, y, 0.5 / scale, width) <= width
     )
       return true;
+    const arrow = this.getSceneArrow(geometry, this.props);
     const arrowWidth = this.line.getArrowHalfWidth();
     const arrowSize = style?.parts?.arrow?.width;
     return (
-      geometry.arrow !== undefined &&
+      arrow !== undefined &&
       arrowWidth !== undefined &&
       this.isScenePartVisible("arrow") &&
-      distanceToArrow(geometry.arrow, x, y) <=
+      distanceToArrow(arrow, x, y) <=
         (arrowSize === undefined ? arrowWidth : resolveSceneSize(arrowSize, scale) / 2) + threshold
     );
   }
@@ -750,23 +814,31 @@ export class BlockConnection<T extends TConnection = TConnection>
     return (style?.parts?.[part]?.visible ?? style?.base?.[part]?.visible) !== false;
   }
 
+  /** Finds the local id of a visible route label at a point in world coordinates. */
+  public hitTestRouteLabel(point: TPoint): string | undefined {
+    if (!this.routeLabels || !this.isScenePartVisible("label") || !this.isRenderAllowed()) return undefined;
+    const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT / this.context.camera.getCameraScale();
+    return this.routeLabels.labels.find((label) => hitRouteLabel(label, point.x, point.y, threshold))?.id;
+  }
+
   /** Whether the point hits the label: a square of `THRESHOLD_LINE_HIT` screen pixels around it meets the label. */
   protected hitTestLabel(shape: HitBoxData): boolean {
-    if (this.labelGeometry === undefined) return false;
+    const label = this.labelGeometry;
+    if (!label) return false;
     const x = (shape.minX + shape.maxX) / 2;
     const y = (shape.minY + shape.maxY) / 2;
+    if (this.routeLabels) return this.hitTestRouteLabel({ x, y }) !== undefined;
     const relativeThreshold =
       this.context.constants.connection.THRESHOLD_LINE_HIT / this.context.camera.getCameraScale();
-
     return intersects.boxBox(
       x - relativeThreshold / 2,
       y - relativeThreshold / 2,
       relativeThreshold,
       relativeThreshold,
-      this.labelGeometry.x,
-      this.labelGeometry.y,
-      this.labelGeometry.width,
-      this.labelGeometry.height
+      label.x,
+      label.y,
+      label.width,
+      label.height
     );
   }
 
@@ -813,11 +885,30 @@ export class BlockConnection<T extends TConnection = TConnection>
   protected updateLabelGeometry(props: TConnectionProps): void {
     this.labelGeometry = undefined;
     this.labelPaintGeometry = undefined;
+    this.routeLabels = undefined;
     const fontSize = this.context.connectionLabelFontSize.peek();
-    if (!this.state.label || !props.showConnectionLabels || !this.connectionPoints || !fontSize) {
+    if (!props.showConnectionLabels || !this.connectionPoints || !fontSize) return;
+    const specs = this.routeLabelSpecs();
+    if (!specs && !this.state.label) return;
+    const padding = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    if (specs && this.shape) {
+      if (specs.length) {
+        const { segments, arrow } = this.shape;
+        this.routeDistances ??= measurePath(segments);
+        this.routeLabels = layoutRouteLabels(
+          specs,
+          segments,
+          this.routeDistances,
+          fontSize,
+          padding,
+          props.showConnectionArrows ? arrow : undefined
+        );
+        this.labelGeometry = this.routeLabels?.bounds;
+      }
       return;
     }
-    const [top, right, bottom, left] = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    if (!this.state.label) return;
+    const [top, right, bottom, left] = padding;
     this.labelFont = `${fontSize}px sans-serif`;
     const measure = cachedMeasureText(this.state.label, { font: this.labelFont });
     const width = measure.width + left + right;
@@ -834,7 +925,7 @@ export class BlockConnection<T extends TConnection = TConnection>
     );
     this.labelPaintGeometry = { x, y, width, height };
     // Subclasses may extend labelGeometry for their own decoration without resizing the standard label.
-    this.labelGeometry = { ...this.labelPaintGeometry };
+    this.labelGeometry = { x, y, width, height };
   }
 
   protected unmount(): void {

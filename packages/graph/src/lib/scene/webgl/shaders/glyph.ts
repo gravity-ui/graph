@@ -1,6 +1,7 @@
 import { TEXT_METRICS_PX } from "../../text/textLayout";
 import { USE_BASE_ALPHA } from "../instances/tables";
 import { SDF_EDGE } from "../text/GlyphAtlas";
+import { GLYPH_ROTATION_STEPS } from "../text/encodeText";
 
 import { SCENE_COMMON, SCENE_OUTPUT } from "./scene";
 
@@ -36,7 +37,7 @@ layout(location = 3) in vec4 glyph_uv;        // u0, v0, u1, v1 in the atlas
 layout(location = 4) in vec4 glyph_color;     // straight rgba; alpha -3: the base colour
 layout(location = 5) in vec4 glyph_size;      // camera-aware font size: mode, value, min, max
 layout(location = 6) in vec4 glyph_origin;    // the text's anchor x, y from the element origin, fade end, clip top
-layout(location = 7) in vec4 glyph_scales;    // minScale, maxScale, levelMask, clip bottom
+layout(location = 7) in vec4 glyph_scales;    // minScale, maxScale, level mask plus rotation, clip bottom
 layout(location = 8) in float glyph_sub;      // the primitive's sub, from a buffer of its own
 ${SCENE_COMMON}
 out vec2 glyph_vUv;
@@ -46,10 +47,11 @@ flat out vec4 glyph_vClip;   // the text's box from the element origin: left, to
 
 void main() {
   vec4 element = sceneElement(glyph_ids.x);
+  int levelAndRotation = int(glyph_scales.z);
   bool revealed = glyph_origin.z > glyph_scales.x && scene_camera.z >= glyph_origin.z
     && (glyph_color.a >= 1.0 || glyph_color.a == ${USE_BASE_ALPHA.toFixed(1)});
   if (sceneHidden(element.w, glyph_ids.z) || !sceneShown(element.z, glyph_scales.x, glyph_scales.y)
-      || !sceneOnLevel(glyph_scales.z)
+      || !sceneOnLevel(float(levelAndRotation & 7))
       || (scene_glyphPass > 1.5 ? !revealed : scene_glyphPass > 0.5 && revealed)) {
     gl_Position = SCENE_HIDDEN;
     return;
@@ -57,8 +59,16 @@ void main() {
   // The text's block of lines scales about its anchor by the resolved size over the size its quads were placed at:
   // between line breaks the glyphs follow the camera continuously (textLayout.ts).
   float s = sceneSize(glyph_size, scene_camera.z) / ${TEXT_METRICS_PX.toFixed(1)};
-  vec2 local = glyph_origin.xy + (glyph_quad.xy + scene_template * glyph_quad.zw) * s;
-  gl_Position = sceneClip(element.xy + local, sceneDepth(element.z, glyph_sub));
+  vec2 offset = (glyph_quad.xy + scene_template * glyph_quad.zw) * s;
+  vec2 local = glyph_origin.xy + offset;
+  vec2 position = local;
+  int turn = levelAndRotation >> 3;
+  if (turn != 0) {
+    float angle = float(turn) * ${((2 * Math.PI) / GLYPH_ROTATION_STEPS).toPrecision(12)};
+    float cosine = cos(angle), sine = sin(angle);
+    position = glyph_origin.xy + mat2(cosine, sine, -sine, cosine) * offset;
+  }
+  gl_Position = sceneClip(element.xy + position, sceneDepth(element.z, glyph_sub));
   glyph_vUv = mix(glyph_uv.xy, glyph_uv.zw, scene_template);
   glyph_vLocal = local;
   glyph_vClip = vec4(glyph_ids.y, glyph_origin.w, glyph_ids.w, glyph_scales.w);

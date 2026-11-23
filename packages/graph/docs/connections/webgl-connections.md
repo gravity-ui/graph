@@ -408,6 +408,46 @@ source, so the pattern continues around bends. Canvas and image export show the 
 to select the connection, including in a gap between dashes. To vary color along a single route, a
 [custom effect](#writing-a-tagged-shader-effect) can use `f.t` (0 at the source, 1 at the target).
 
+### Labels along a route
+
+Return `labels` from the connection's geometry to draw one or more captions on its shaft in Canvas and WebGL.
+Give each label a stable `id` that is unique within the connection. Each `at` is a fraction of the route length
+between 0 and 1. The connection measures and rotates the text, cuts the shaft under it, and uses the same bounds
+for hit testing. The first descriptor has priority if labels overlap.
+A label that cannot fit on the route is skipped together with its gap.
+
+```typescript
+import { BlockConnection, bezierGeometry, hoveredTag, selectedTag } from "@gravity-ui/graph";
+import type { TConnectionGeometryFn, TSceneStyles } from "@gravity-ui/graph";
+
+class AnnotatedConnection extends BlockConnection {
+  public static override geometry: TConnectionGeometryFn = (input) => {
+    const shape = bezierGeometry(input);
+    if (!shape) return undefined;
+    return {
+      ...shape,
+      labels: [
+        { id: "read", text: "Read", at: 0.25 },
+        { id: "write", text: "Write", at: 0.75 },
+      ],
+    };
+  };
+
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [
+      { tags: [hoveredTag], notTags: [selectedTag], style: { parts: { label: { color: "#1767b2" } } } },
+      { tags: [selectedTag], style: { parts: { label: { color: "#a74513" } } } },
+    ];
+  }
+}
+```
+
+Register the class in `settings.connection` and enable `showConnectionLabels`. Rules on the `label` scene part
+style all captions on the connection together. `connection.hitTestRouteLabel(point)` finds a caption's local id
+at a world point. Clicking a caption selects its connection.
+If `geometry` omits `labels`, the connection uses its usual data `label`. An empty array draws
+no geometry labels and suppresses the data label.
+
 ## Effects
 
 Define a path effect once at module scope with `defineSceneEffect({ kind: "path", ... })`. Assign

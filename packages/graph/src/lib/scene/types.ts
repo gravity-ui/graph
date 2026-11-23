@@ -114,6 +114,7 @@ export type TSceneVisibility = {
 
 /** Interaction values supplied to a path shader. */
 export type TPathInteraction = { hovered: boolean; selected: boolean; selectionColor: string };
+export type TPathGap = readonly [from: number, to: number];
 
 /** Fragment program for a WebGL sprite. Return straight RGBA; UV (0, 0) is the top-left corner. */
 export type TSceneSpriteEffect = {
@@ -149,6 +150,8 @@ export type TScenePrimitive = Readonly<
       | {
           kind: "text";
           text: string;
+          /** Clockwise radians around this text's alignment anchor. */
+          rotation?: number;
           /** Reveal the text as the camera zooms from minScale (default 0) to this scale. */
           fadeInUntil?: number;
           family: string;
@@ -220,6 +223,8 @@ export type TScenePrimitive = Readonly<
           arrowPosition?: "inline" | "end";
           /** @internal Distance from the shortened shaft to the tip of a terminal head. */
           arrowTrim?: number;
+          /** Hidden intervals in world units along the path. Stroke patterns keep their original phase. */
+          gaps?: readonly TPathGap[];
           stroke: TSceneStroke;
           effect?: TSceneEffectUse<"path">;
           canvasStroke?: TSceneStroke;

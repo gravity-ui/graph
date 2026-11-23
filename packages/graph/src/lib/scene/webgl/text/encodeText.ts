@@ -42,6 +42,8 @@ export const GLYPH_SUB_FLOATS = 1;
 
 const NO_LIMIT = 1e9;
 
+export const GLYPH_ROTATION_STEPS = 65536;
+
 /**
  * The smallest scale a hidden glyph (`writeTextGlyphs`) shows at: never reached, so its scale range is empty and the
  * vertex shader moves its quad out of the clip volume (`sceneShown`): it draws no pixel and writes no depth.
@@ -144,7 +146,11 @@ export function writeTextGlyphs(
   const minScale = scaleBound(primitive.minScale, 0);
   const maxScale = scaleBound(primitive.maxScale, NO_LIMIT);
   const fadeEnd = fadeInUntil(primitive) ?? minScale;
-  const levelMask = primitive.levelMask ?? ALL_LEVELS_MASK;
+  const rotation = primitive.rotation ?? 0;
+  const step = rotation ? Math.round((rotation / (2 * Math.PI)) * GLYPH_ROTATION_STEPS) : 0;
+  const turn = ((step % GLYPH_ROTATION_STEPS) + GLYPH_ROTATION_STEPS) % GLYPH_ROTATION_STEPS;
+  // The low three bits remain the level mask; ordinary text keeps the same glyph stride and mask.
+  const levelAndRotation = (primitive.levelMask ?? ALL_LEVELS_MASK) + turn * 8;
   const placed = glyphs.length / GLYPH_RUN_FLOATS;
   if (placed > count) throw new RangeError(`A text places ${placed} glyphs, past the ${count} it keeps`);
   let offset = at;
@@ -174,7 +180,7 @@ export function writeTextGlyphs(
     out[offset + 23] = clipBound(clip.minY);
     out[offset + 24] = minScale;
     out[offset + 25] = maxScale;
-    out[offset + 26] = levelMask;
+    out[offset + 26] = levelAndRotation;
     out[offset + 27] = clipBound(clip.maxY);
     offset += GLYPH_FLOATS;
   }

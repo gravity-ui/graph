@@ -13,11 +13,12 @@ import {
   selectedTag,
   straightGeometry,
 } from "@gravity-ui/graph";
-import type { Graph, TBlock, TConnectionGeometryInput } from "@gravity-ui/graph";
+import type { Graph, TBlock, TConnectionGeometry, TConnectionGeometryInput, TSceneStyles } from "@gravity-ui/graph";
 import { GraphBlock, useGraph } from "@gravity-ui/graph-react";
 
 import { ConnectionPreview } from "./ConnectionScene";
 import type { ConnectionArgs } from "./ConnectionScene";
+import { createSvgPath, sampleSvgPath } from "./svgPath";
 
 const strokeNames = {
   solid: "Solid",
@@ -30,10 +31,14 @@ type Stroke = keyof typeof strokeNames;
 export type GalleryArgs = ConnectionArgs & {
   stroke: "mixed" | Stroke;
   lineWidth: number;
+  arrowPosition: number;
   arrowLength: number;
   arrowWidth: number;
   showArrows: boolean;
   showLabels: boolean;
+  labelPlacement: "route" | "target";
+  labelPosition: number;
+  secondaryLabelPosition: number;
 };
 
 const tracks = [
@@ -43,6 +48,8 @@ const tracks = [
 ] as const;
 
 const pattern = [14, 9];
+const labelHoverColor = "#1767b2";
+const labelSelectedColor = "#a74513";
 const effects = {
   flow: dashFlow.use({ pattern, speed: 45 }),
   gradient: pathGradient.use({ from: "#6947ae", to: "#bf5414", speed: 0.45 }),
@@ -76,23 +83,39 @@ function galleryGeometry(input: TConnectionGeometryInput) {
   });
 }
 
-function sizedGeometry(
+type GalleryGeometryOptions = Pick<
+  GalleryArgs,
+  "arrowPosition" | "arrowLength" | "arrowWidth" | "labelPlacement" | "labelPosition" | "secondaryLabelPosition"
+>;
+
+function connectionGeometry(
   input: TConnectionGeometryInput,
-  { arrowLength, arrowWidth }: Pick<GalleryArgs, "arrowLength" | "arrowWidth">
-) {
+  options: GalleryGeometryOptions
+): TConnectionGeometry | undefined {
   const geometry = galleryGeometry(input);
-  const arrow = geometry?.arrow;
-  if (!arrow) return geometry;
-  const { points, closed } = arrow;
-  const tipIndex = closed ? 0 : 2;
-  const leftIndex = closed ? 2 : 0;
-  const tip = { x: points[tipIndex], y: points[tipIndex + 1] };
-  const base = { x: (points[leftIndex] + points[4]) / 2, y: (points[leftIndex + 1] + points[5]) / 2 };
+  if (!geometry) return undefined;
+  const { arrowPosition, arrowLength, arrowWidth, labelPlacement, labelPosition, secondaryLabelPosition } = options;
+  const labels =
+    labelPlacement === "route"
+      ? [
+          { id: "stroke", text: input.connection.label ?? "", at: labelPosition / 100 },
+          { id: "orders", text: "Orders", at: secondaryLabelPosition / 100 },
+        ]
+      : undefined;
+  if (!geometry.arrow) return { ...geometry, labels };
+  const { closed } = geometry.arrow;
+  const path = createSvgPath(geometry.segments);
+  const length = path.getTotalLength();
+  if (length === 0) return { ...geometry, labels };
+  const { point: tip, dx, dy } = sampleSvgPath(path, (length * arrowPosition) / 100, length);
+  const base = { x: tip.x - dx, y: tip.y - dy };
   const [head, left, right] = getTriangleArrowPoints(base, tip, arrowLength, arrowWidth);
   return {
     ...geometry,
+    labels,
     arrow: {
-      ...arrow,
+      closed,
+      position: arrowPosition === 100 ? "end" : "inline",
       points: new Float32Array(
         closed ? [head.x, head.y, left.x, left.y, right.x, right.y] : [left.x, left.y, head.x, head.y, right.x, right.y]
       ),
@@ -108,39 +131,109 @@ function renderEndpoint(graph: Graph, block: TBlock) {
   );
 }
 
-function arrowCode(length: number, width: number) {
-  return `import { BlockConnection, getTriangleArrowPoints, straightGeometry } from "@gravity-ui/graph";
-import type { TConnectionGeometryFn } from "@gravity-ui/graph";
+export function connectionCode({
+  renderer,
+  arrowPosition = 100,
+  arrowLength,
+  arrowWidth,
+  showArrows,
+  showLabels,
+  labelPlacement = "route",
+  labelPosition = 65,
+  secondaryLabelPosition = 25,
+}: GalleryArgs) {
+  const labels =
+    labelPlacement === "route"
+      ? `
+      labels: [
+        { id: "stroke", text: input.connection.label ?? "", at: ${labelPosition / 100} },
+        { id: "orders", text: "Orders", at: ${secondaryLabelPosition / 100} },
+      ],`
+      : "";
+  return `import { BlockConnection, Graph, getTriangleArrowPoints, hoveredTag, selectedTag, straightGeometry } from "@gravity-ui/graph";
+import type { TConnectionGeometryFn, TSceneStyles } from "@gravity-ui/graph";
 
-class TriangleConnection extends BlockConnection {
+class RouteConnection extends BlockConnection {
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [
+      { tags: [hoveredTag], notTags: [selectedTag], style: { parts: { label: { color: "${labelHoverColor}" } } } },
+      { tags: [selectedTag], style: { parts: { label: { color: "${labelSelectedColor}" } } } },
+    ];
+  }
+
   public static override geometry: TConnectionGeometryFn = (input) => {
     const geometry = straightGeometry(input);
     if (!geometry?.arrow) return geometry;
-    const [tip, left, right] = getTriangleArrowPoints(input.source, input.target, ${length}, ${width}, 0.5);
+    const [tip, left, right] = getTriangleArrowPoints(
+      input.source, input.target, ${arrowLength}, ${arrowWidth}, ${arrowPosition / 100}
+    );
     return {
-      ...geometry,
-      arrow: { closed: true, points: new Float32Array([tip.x, tip.y, left.x, left.y, right.x, right.y]) },
+      ...geometry,${labels}
+      arrow: {
+        closed: false,
+        position: "${arrowPosition === 100 ? "end" : "inline"}",
+        points: new Float32Array([left.x, left.y, tip.x, tip.y, right.x, right.y]),
+      },
     };
   };
 }
 
-// Use settings: { connection: TriangleConnection } when creating the graph.`;
+export function mountGraph(root: HTMLDivElement) {
+  const graph = new Graph(
+    {
+      settings: {
+        connection: RouteConnection,
+        renderer: "${renderer}",
+        showConnectionLabels: ${showLabels},
+        showConnectionArrows: ${showArrows},
+      },
+      blocks: [
+        { id: "source", is: "Block", name: "Source", x: 16, y: 24, width: 100, height: 48 },
+        { id: "target", is: "Block", name: "Target", x: 540, y: 24, width: 100, height: 48 },
+      ],
+      connections: [{ id: "route", sourceBlockId: "source", targetBlockId: "target", label: "Read" }],
+    },
+    root
+  );
+  graph.start();
+  return graph;
+}`;
 }
 
 export function ConnectionGallery({
   renderer,
   stroke,
   lineWidth,
+  arrowPosition = 100,
   arrowLength,
   arrowWidth,
   showArrows,
   showLabels,
-}: GalleryArgs) {
-  const dimensions = useRef({ arrowLength, arrowWidth });
+  labelPlacement = "route",
+  labelPosition = 65,
+  secondaryLabelPosition = 25,
+  embedded = false,
+}: GalleryArgs & { embedded?: boolean }) {
+  const geometryOptions = useRef({
+    arrowPosition,
+    arrowLength,
+    arrowWidth,
+    labelPlacement,
+    labelPosition,
+    secondaryLabelPosition,
+  });
   const [connection] = useState(
     () =>
       class GalleryConnection extends BlockConnection {
-        public static override geometry = (input: TConnectionGeometryInput) => sizedGeometry(input, dimensions.current);
+        public static override getSceneStyles(): TSceneStyles<typeof this> {
+          return [
+            { tags: [hoveredTag], notTags: [selectedTag], style: { parts: { label: { color: labelHoverColor } } } },
+            { tags: [selectedTag], style: { parts: { label: { color: labelSelectedColor } } } },
+          ];
+        }
+
+        public static override geometry = (input: TConnectionGeometryInput) =>
+          connectionGeometry(input, geometryOptions.current);
       }
   );
   const { graph, setEntities, start, zoomTo } = useGraph({
@@ -164,9 +257,16 @@ export function ConnectionGallery({
   }, [graph, setEntities, start, zoomTo]);
 
   useEffect(() => {
-    dimensions.current = { arrowLength, arrowWidth };
+    geometryOptions.current = {
+      arrowPosition,
+      arrowLength,
+      arrowWidth,
+      labelPlacement,
+      labelPosition,
+      secondaryLabelPosition,
+    };
     for (const { id } of tracks) graph.connections.getConnectionState(id)?.getViewComponent()?.updateGeometry();
-  }, [graph, arrowLength, arrowWidth]);
+  }, [graph, arrowPosition, arrowLength, arrowWidth, labelPlacement, labelPosition, secondaryLabelPosition]);
 
   useEffect(() => {
     return graph.scene.styles.add(
@@ -199,8 +299,18 @@ export function ConnectionGallery({
     <ConnectionPreview
       graph={graph}
       renderBlock={renderEndpoint}
-      code={arrowCode(arrowLength, arrowWidth)}
-      instruction="Hover or select a connection. Drag a block to see the route follow it. Canvas shows the base stroke for WebGL effects."
+      height={embedded ? 400 : undefined}
+      instruction={
+        !embedded && (
+          <>
+            Hover or select a connection to highlight its labels. Drag a block to change its route. Canvas shows the
+            base stroke for WebGL effects.{" "}
+            <a href="./?path=/docs/scene-guides-connection-labels--docs" target="_top">
+              Connection labels guide
+            </a>
+          </>
+        )
+      }
     />
   );
 }

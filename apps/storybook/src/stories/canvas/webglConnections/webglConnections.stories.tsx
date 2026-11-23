@@ -4,7 +4,6 @@ import {
   BlockConnection,
   ECanDrag,
   MultipointConnection,
-  SEGMENT_FLOATS,
   dashFlow,
   defineTag,
   getTriangleArrowPoints,
@@ -26,7 +25,7 @@ import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { BlockStory } from "../../main/Block";
 
-import { ConnectionGallery } from "./ConnectionGallery";
+import { ConnectionGallery, connectionCode } from "./ConnectionGallery";
 import type { GalleryArgs } from "./ConnectionGallery";
 import { ConnectionPreview, GeneratedConnections, rendererControl } from "./ConnectionScene";
 import type { ConnectionArgs } from "./ConnectionScene";
@@ -36,6 +35,7 @@ import { ETL_BLOCK_IS, createEtlConnection, etlBlocks, etlFlows, isEtlBlock } fr
 import type { TEtlEffect } from "./etl";
 import { EtlBlock, etlBlockRules } from "./etlBlock";
 import { dataStyled, runningDash } from "./lines";
+import { createSvgPath, sampleSvgPath } from "./svgPath";
 
 const meta: Meta<ConnectionArgs> = {
   id: "canvas-webglconnections",
@@ -47,15 +47,25 @@ const meta: Meta<ConnectionArgs> = {
 
 export default meta;
 
+const arrowPositionControl = {
+  name: "Arrow position",
+  description: "Percent of the route length from the source",
+  control: { type: "range", min: 5, max: 100, step: 1 },
+} as const;
+
 export const RenderingShowcase: StoryObj<GalleryArgs> = {
   name: "Rendering showcase",
   args: {
     stroke: "mixed",
     lineWidth: 3,
+    arrowPosition: 100,
     arrowLength: 16,
     arrowWidth: 20,
     showArrows: true,
     showLabels: true,
+    labelPlacement: "route",
+    labelPosition: 65,
+    secondaryLabelPosition: 25,
   },
   argTypes: {
     stroke: {
@@ -73,6 +83,7 @@ export const RenderingShowcase: StoryObj<GalleryArgs> = {
       },
     },
     lineWidth: { name: "Line width", description: "World units", control: { type: "range", min: 1, max: 16, step: 1 } },
+    arrowPosition: { ...arrowPositionControl, if: { arg: "showArrows" } },
     arrowLength: {
       name: "Arrow length",
       description: "World units",
@@ -85,8 +96,35 @@ export const RenderingShowcase: StoryObj<GalleryArgs> = {
     },
     showArrows: { name: "Show arrows", control: "boolean" },
     showLabels: { name: "Show labels", control: "boolean" },
+    labelPlacement: {
+      name: "Label placement",
+      options: ["route", "target"],
+      control: { type: "inline-radio", labels: { route: "On the route", target: "Near the target" } },
+      if: { arg: "showLabels" },
+    },
+    labelPosition: {
+      name: "Label position",
+      description: "Percent of the route length, with room for the label at each end",
+      control: { type: "range", min: 0, max: 100, step: 1 },
+      if: { arg: "labelPlacement", eq: "route" },
+    },
+    secondaryLabelPosition: {
+      name: "Second label position",
+      description: "Percent of the route length. The second label is hidden if it would overlap the first.",
+      control: { type: "range", min: 0, max: 100, step: 1 },
+      if: { arg: "labelPlacement", eq: "route" },
+    },
   },
-  render: (args) => <ConnectionGallery {...args} />,
+  parameters: {
+    docs: {
+      source: {
+        language: "ts",
+        type: "dynamic",
+        transform: (_source: string, { args }: { args: GalleryArgs }) => connectionCode(args),
+      },
+    },
+  },
+  render: (args, { viewMode }) => <ConnectionGallery {...args} embedded={viewMode === "docs"} />,
 };
 
 const densities = { example: "example", small: 50, medium: 400, large: 1000 } as const;
@@ -176,20 +214,11 @@ const routeStyleTag = defineTag("route-style");
 function geometryAt(input: TConnectionGeometryInput, position: number) {
   const geometry = multipointGeometry(input);
   if (!geometry || position === 100) return geometry;
-  const { segments } = geometry;
-  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  let d = `M ${segments[0]} ${segments[1]}`;
-  for (let i = 0; i < segments.length; i += SEGMENT_FLOATS) {
-    d += ` C ${segments.subarray(i + 2, i + SEGMENT_FLOATS).join(" ")}`;
-  }
-  path.setAttribute("d", d);
+  const path = createSvgPath(geometry.segments);
   const length = path.getTotalLength();
   if (length === 0) return geometry;
-  const distance = (length * position) / 100;
-  const tip = path.getPointAtLength(distance);
-  const before = path.getPointAtLength(Math.max(0, distance - 0.5));
-  const after = path.getPointAtLength(Math.min(length, distance + 0.5));
-  const tail = { x: tip.x + before.x - after.x, y: tip.y + before.y - after.y };
+  const { point: tip, dx, dy } = sampleSvgPath(path, (length * position) / 100, length);
+  const tail = { x: tip.x - dx, y: tip.y - dy };
   const [head, left, right] = getTriangleArrowPoints(tail, tip, 16, 20);
   return {
     ...geometry,
@@ -397,11 +426,7 @@ export const MultipointRoute: StoryObj<RouteArgs> = {
       },
     },
     lineWidth: { name: "Line width", description: "World units", control: { type: "range", min: 1, max: 16, step: 1 } },
-    arrowPosition: {
-      name: "Arrow position",
-      description: "Percent of the route length",
-      control: { type: "range", min: 5, max: 100, step: 1 },
-    },
+    arrowPosition: arrowPositionControl,
     gradientFrom: { name: "Gradient start color", control: "color", if: { arg: "preset", eq: "gradient" } },
     gradientTo: { name: "Gradient end color", control: "color", if: { arg: "preset", eq: "gradient" } },
     gradientSpeed: { ...gradientSpeedControl, if: { arg: "preset", eq: "gradient" } },

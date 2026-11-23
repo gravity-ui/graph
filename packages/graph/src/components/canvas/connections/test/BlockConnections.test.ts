@@ -2,13 +2,15 @@ import { Graph } from "../../../../graph";
 import { globalScheduler } from "../../../../lib/Scheduler";
 import { applyStyle } from "../../../../lib/scene/styles/style";
 import { entityKey } from "../../../../services/tags/TagStore";
-import { selectedTag } from "../../../../services/tags/builtinTags";
+import { hoveredTag, selectedTag } from "../../../../services/tags/builtinTags";
 import { defineTag } from "../../../../services/tags/defineTag";
 import type { TConnection } from "../../../../store/connection/ConnectionState";
 import { SceneComponent } from "../../scene/SceneComponent";
 import { BaseConnection } from "../BaseConnection";
 import type { TBaseConnectionState } from "../BaseConnection";
 import { BlockConnection } from "../BlockConnection";
+import { straightGeometry } from "../geometry";
+import type { TConnectionGeometryFn } from "../geometry";
 import { SceneLine } from "../lines";
 
 class StyledLine extends SceneLine {
@@ -19,6 +21,22 @@ class StyledLine extends SceneLine {
 
 class StyledConnection extends BlockConnection {
   public static override line = StyledLine;
+}
+
+class RouteLabelsConnection extends BlockConnection {
+  public static override geometry: TConnectionGeometryFn = (input) => {
+    const shape = straightGeometry(input);
+    if (!shape) return undefined;
+    return {
+      ...shape,
+      labels: [
+        { id: "read", text: "Read", at: 0.25 },
+        { id: "blocked", text: "Blocked by Read", at: 0.25 },
+        { id: "write", text: "Write", at: 0.75 },
+        { id: "read", text: "Duplicate", at: 0.5 },
+      ],
+    };
+  };
 }
 
 class CustomCanvasLine extends SceneLine {
@@ -121,6 +139,99 @@ describe("connection drawing ownership", () => {
     const view = graph.connections.getConnectionState("edge")?.getViewComponent();
     expect(view).toBeInstanceOf(CanvasConnection);
     expect(graph.scene.store.get(entityKey("connection", "edge"))).toBeUndefined();
+  });
+
+  it("publishes fitting route labels and removes their gaps when labels are hidden or the route shrinks", () => {
+    const graph = mount(RouteLabelsConnection);
+    graph.api.updateConnection("edge", { label: undefined });
+    frames();
+    const state = graph.connections.getConnectionState("edge");
+    const view = state?.getViewComponent();
+    if (!state || !(view instanceof RouteLabelsConnection)) throw new Error("Expected an annotated connection");
+    const primitives = () => view.getSceneElementView()?.primitives ?? [];
+    const labels = () => primitives().flatMap((primitive) => (primitive.kind === "text" ? [primitive] : []));
+    const shaft = () => primitives().find((primitive) => primitive.kind === "path" && primitive.part === "line");
+
+    expect(labels().map(({ text }) => text)).toEqual(["Read", "Write"]);
+    expect(shaft()).toMatchObject({ gaps: [expect.any(Array), expect.any(Array)] });
+    const segments = view.getGeometry()?.segments;
+    const firstSize = labels()[0].size;
+    graph.cameraService.set({ scale: 0.3 });
+    frames();
+    expect(view.getGeometry()?.segments).toBe(segments);
+    expect(labels()[0].size).toBeGreaterThan(firstSize);
+
+    graph.updateSettings({ showConnectionLabels: false });
+    frames();
+    expect(labels()).toHaveLength(0);
+    expect(shaft()).toMatchObject({ gaps: undefined });
+
+    graph.updateSettings({ showConnectionLabels: true });
+    state.$targetPortState.value.updatePort({ x: 113, y: 100, lookup: false });
+    frames();
+    expect(labels()).toHaveLength(0);
+    expect(shaft()).toMatchObject({ gaps: undefined });
+
+    state.$targetPortState.value.updatePort({ x: 400, y: 100, lookup: false });
+    frames();
+    expect(labels().map(({ text }) => text)).toEqual(["Read", "Write"]);
+
+    const showLabels = graph.scene.styles.add([
+      { target: RouteLabelsConnection, style: { parts: { label: { visible: false } } } },
+    ]);
+    frames();
+    expect(shaft()).toMatchObject({ gaps: undefined });
+    showLabels();
+    frames();
+    expect(shaft()).toMatchObject({ gaps: [expect.any(Array), expect.any(Array)] });
+  });
+
+  it("styles all route labels through connection tags and keeps their local hit ids", () => {
+    const graph = mount(RouteLabelsConnection);
+    const view = graph.connections.getConnectionState("edge")?.getViewComponent();
+    if (!(view instanceof RouteLabelsConnection)) throw new Error("Expected an annotated connection");
+    const layer = graph.getGraphLayer();
+    const colors = () => {
+      const element = view.getSceneElementView();
+      if (!element) throw new Error("Expected the connection in the scene");
+      const style = graph.scene.store.getStyles()[element.styleId];
+      return element.primitives.flatMap((primitive) => {
+        if (primitive.kind !== "text") return [];
+        const paint = applyStyle(primitive, style);
+        return paint?.kind === "text" ? [paint.color] : [];
+      });
+    };
+    const move = (clientX: number) => {
+      layer.handleEvent(new MouseEvent("mousemove", { clientX, clientY: 100 }));
+      frames();
+    };
+    graph.scene.styles.add([
+      {
+        target: BlockConnection,
+        tags: [hoveredTag],
+        notTags: [selectedTag],
+        style: { parts: { label: { color: "#1767b2" } } },
+      },
+      { target: BlockConnection, tags: [selectedTag], style: { parts: { label: { color: "#a74513" } } } },
+    ]);
+    const resting = colors();
+    expect(view.hitTestRouteLabel({ x: 175, y: 100 })).toBe("read");
+    expect(view.hitTestRouteLabel({ x: 325, y: 100 })).toBe("write");
+
+    move(175);
+    expect(colors()).toEqual(["#1767b2", "#1767b2"]);
+    move(250);
+    expect(colors()).toEqual(["#1767b2", "#1767b2"]);
+    graph.api.selectConnections(["edge"], true);
+    frames();
+    expect(colors()).toEqual(["#a74513", "#a74513"]);
+
+    layer.handleEvent(new MouseEvent("mouseleave"));
+    frames();
+    expect(colors()).toEqual(["#a74513", "#a74513"]);
+    graph.api.selectConnections(["edge"], false);
+    frames();
+    expect(colors()).toEqual(resting);
   });
 
   it("keeps the shaft of an immediate connection on the same Canvas as its render hook", () => {

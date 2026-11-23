@@ -1,8 +1,10 @@
+import { cubicPieceLength, writeCubicPiece } from "../../../../components/canvas/connections/geometry/cubic";
 import { isLineSegment } from "../../../../components/canvas/connections/geometry/segments";
 import { HAS_NODE_ENV } from "../../../../utils/development";
 import { MAX_PATH_EFFECT_PARAMS } from "../../effects/types";
 import type { TPathInteraction, TScenePrimitive } from "../../types";
 import { colorFloats } from "../../utils/colorAlpha";
+import { cutPathGaps } from "../../utils/cutPathGaps";
 
 /**
  * Floats per instance (one cubic piece):
@@ -45,12 +47,6 @@ const MAX_BUCKET = 4;
 
 const MAX_PIECES = 64;
 
-/** 5-point Gauss–Legendre nodes on [-1, 1] and their weights. */
-const GAUSS_NODES = [0, -0.5384693101056831, 0.5384693101056831, -0.906179845938664, 0.906179845938664];
-const GAUSS_WEIGHTS = [
-  0.5688888888888889, 0.47862867049936647, 0.47862867049936647, 0.23692688505618908, 0.23692688505618908,
-];
-
 /** Instances of one vertex template, `INSTANCE_FLOATS` apart; `data` grows as paths are encoded. */
 export type TInstances = { data: Float32Array; count: number };
 
@@ -88,47 +84,6 @@ function curvePieces(s: ArrayLike<number>, o: number, bucket: number): number {
   const chords = Math.sqrt((6 * Math.max(a, b) * 2 ** bucket) / (8 * TESSELLATION_TOLERANCE));
   if (!Number.isFinite(chords)) return 1;
   return Math.min(MAX_PIECES, Math.max(1, Math.ceil(chords / CURVE_CHORDS)));
-}
-
-function bezier(p0: number, c1: number, c2: number, p3: number, t: number): number {
-  const u = 1 - t;
-  return u * u * u * p0 + 3 * u * u * t * c1 + 3 * u * t * t * c2 + t * t * t * p3;
-}
-
-function bezierSlope(p0: number, c1: number, c2: number, p3: number, t: number): number {
-  const u = 1 - t;
-  return 3 * u * u * (c1 - p0) + 6 * u * t * (c2 - c1) + 3 * t * t * (p3 - c2);
-}
-
-/** Writes the cubic over [t0, t1] as a cubic of its own: the end points and the end tangents scaled to the range. */
-function writePiece(s: ArrayLike<number>, o: number, t0: number, t1: number, out: Float32Array, base: number): void {
-  const h = (t1 - t0) / 3;
-  for (let axis = 0; axis < 2; axis++) {
-    const p0 = s[o + axis];
-    const c1 = s[o + 2 + axis];
-    const c2 = s[o + 4 + axis];
-    const p3 = s[o + 6 + axis];
-    const start = bezier(p0, c1, c2, p3, t0);
-    const end = bezier(p0, c1, c2, p3, t1);
-    out[base + axis] = start;
-    out[base + 2 + axis] = start + h * bezierSlope(p0, c1, c2, p3, t0);
-    out[base + 4 + axis] = end - h * bezierSlope(p0, c1, c2, p3, t1);
-    out[base + 6 + axis] = end;
-  }
-}
-
-/** Arc length of the cubic over [t0, t1]: 5-point Gauss–Legendre quadrature of |B'(t)|. */
-function pieceLength(s: ArrayLike<number>, o: number, t0: number, t1: number): number {
-  const half = (t1 - t0) / 2;
-  const middle = (t0 + t1) / 2;
-  let sum = 0;
-  for (let i = 0; i < GAUSS_NODES.length; i++) {
-    const t = middle + half * GAUSS_NODES[i];
-    const dx = bezierSlope(s[o], s[o + 2], s[o + 4], s[o + 6], t);
-    const dy = bezierSlope(s[o + 1], s[o + 3], s[o + 5], s[o + 7], t);
-    sum += GAUSS_WEIGHTS[i] * Math.hypot(dx, dy);
-  }
-  return half * sum;
 }
 
 /** Makes room for `extra` more instances, keeping the ones written. */
@@ -236,7 +191,9 @@ export function appendPathInstances(
   measureDistance: boolean
 ): void {
   const { lines, curves } = out;
-  const { segments, stroke, effect, effectShowsSelection = false } = path;
+  const { stroke, effect, effectShowsSelection = false } = path;
+  const cut = path.gaps && cutPathGaps(path.segments, path.gaps);
+  const segments = cut?.segments ?? path.segments;
   const instanceStroke: TInstanceStroke = {
     color: colorFloats(stroke.color ?? "#000"),
     width,
@@ -263,7 +220,9 @@ export function appendPathInstances(
   const firstLine = lines.count;
   const firstCurve = curves.count;
   let distance = 0;
+  let run = 0;
   for (let o = 0; o + 8 <= segments.length; o += 8) {
+    if (measureDistance && cut?.runs[run]?.offset === o) distance = cut.runs[run++].distance;
     if (isLineSegment(segments, o)) {
       reserve(lines, 1);
       const base = lines.count * INSTANCE_FLOATS;
@@ -283,16 +242,16 @@ export function appendPathInstances(
       if (pieces === 1) {
         for (let i = 0; i < 8; i++) curves.data[base + i] = segments[o + i];
       } else {
-        writePiece(segments, o, t0, t1, curves.data, base);
+        writeCubicPiece(segments, o, t0, t1, curves.data, base);
       }
-      const length = measureDistance ? pieceLength(segments, o, t0, t1) : 0;
+      const length = measureDistance ? cubicPieceLength(segments, o, t0, t1) : 0;
       writeStroke(curves.data, base, instanceStroke, distance, length);
       distance += length;
       curves.count++;
     }
   }
   // The whole length is known once every piece of the shape is written.
-  if (measureDistance) distance += path.arrowTrim ?? 0;
+  if (measureDistance) distance = (cut?.length ?? distance) + (path.arrowTrim ?? 0);
   writeTotal(lines, firstLine, distance);
   writeTotal(curves, firstCurve, distance);
 }

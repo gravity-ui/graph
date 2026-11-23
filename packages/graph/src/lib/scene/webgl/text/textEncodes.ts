@@ -89,6 +89,7 @@ export const TEXT_FIELDS = [
   "size",
   "lineHeight",
   "color",
+  "rotation",
   "x",
   "y",
   "width",
@@ -152,6 +153,7 @@ function sameLayoutFields(a: TTextPrimitive, b: TTextPrimitive): boolean {
 function sameDrawFields(a: TTextPrimitive, b: TTextPrimitive): boolean {
   return (
     Object.is(a.color, b.color) &&
+    Object.is(a.rotation, b.rotation) &&
     Object.is(a.minScale, b.minScale) &&
     Object.is(a.fadeInUntil, b.fadeInUntil) &&
     Object.is(a.maxScale, b.maxScale) &&

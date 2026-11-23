@@ -3,10 +3,11 @@ import React, { useEffect, useState } from "react";
 import { ECanDrag } from "@gravity-ui/graph";
 import type { Graph, TBlock, TSceneRenderer } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useSignal } from "@gravity-ui/graph-react";
-import { Button, Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { EffectCardView } from "./EffectCardView";
+import { blockEffectsCode } from "./blockEffectsCode";
 import { PlainView, viewConfiguration } from "./blockView";
 import {
   EFFECT_CARD_IS,
@@ -30,6 +31,7 @@ type Args = {
   glowIntensity: number;
   rowsPerSecond: number;
   showEncodes: boolean;
+  view: "fit" | "schematic" | "detailed";
 };
 
 function CardEncodeCount({ graph }: { graph: Graph }) {
@@ -59,7 +61,9 @@ const BlockEffectsApp = ({
   glowIntensity,
   rowsPerSecond,
   showEncodes,
-}: Args): React.JSX.Element => {
+  view,
+  embedded = false,
+}: Args & { embedded?: boolean }): React.JSX.Element => {
   const { graph, setEntities, start, zoomTo } = useGraph({ viewConfiguration });
   const rendererState = useSignal(graph.scene.$renderer);
   const level = useSignal(graph.scene.$level);
@@ -73,9 +77,13 @@ const BlockEffectsApp = ({
     const remove = graph.scene.styles.add(effectCardRules);
     setEntities({ blocks: effectCards });
     start();
-    zoomTo("center", { padding: 60 });
     return remove;
-  }, [graph, setEntities, start, zoomTo]);
+  }, [graph, setEntities, start]);
+
+  useEffect(() => {
+    if (view === "fit") zoomTo("center", { padding: 60 });
+    else graph.zoom({ scale: view === "detailed" ? 1 : 0.5 });
+  }, [graph, view, zoomTo]);
 
   // Each effect's tag is on its card while the effect is enabled: the rules show the part, nothing is re-encoded.
   useEffect(() => {
@@ -102,22 +110,23 @@ const BlockEffectsApp = ({
 
   return (
     <ThemeProvider theme="light">
-      <Flex direction="column" style={{ height: "100vh" }}>
-        <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">What can be animated on a block</Text>
-          <Text variant="body-1">
-            Choose effects in Controls. WebGL animates the paths, and Canvas shows the base strokes. Enable HTML at
-            detailed zoom to see the React cards.
-          </Text>
-          <Flex alignItems="center" gap={2} wrap>
-            <Button onClick={() => graph.zoom({ scale: 1 })}>Detailed (1)</Button>
-            <Button onClick={() => graph.zoom({ scale: 0.5 })}>Schematic (0.5)</Button>
+      <Flex direction="column" style={{ height: embedded ? 400 : "100vh" }}>
+        {!embedded && (
+          <Flex direction="column" gap={2} style={{ padding: 16 }}>
+            <Text variant="header-1">What can be animated on a block</Text>
+            <Text variant="body-1">
+              Choose effects in Controls. WebGL animates the paths, and Canvas shows the base strokes. Enable HTML at
+              detailed zoom to see the React cards.{" "}
+              <a href="./?path=/docs/scene-guides-block-effects--docs" target="_top">
+                Block effects guide
+              </a>
+            </Text>
             <Text variant="body-1" color="secondary">
               Renderer: <b>{rendererState}</b> · Level: <b>{level}</b>
               {showEncodes && <CardEncodeCount graph={graph} />}
             </Text>
           </Flex>
-        </Flex>
+        )}
         <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
           <GraphCanvas graph={graph} className="graph-canvas" renderBlock={html ? renderEffectCard : undefined} />
         </div>
@@ -137,10 +146,16 @@ const meta: Meta<Args> = {
     glowIntensity: 0.6,
     rowsPerSecond: 18400,
     showEncodes: false,
+    view: "fit",
   },
   argTypes: {
     renderer: { name: "Renderer", control: "inline-radio", options: ["canvas", "webgl"] },
     html: { name: "HTML at detailed zoom", control: "boolean" },
+    view: {
+      name: "View",
+      options: ["fit", "schematic", "detailed"],
+      control: { type: "inline-radio", labels: { fit: "Fit all", schematic: "Schematic", detailed: "Detailed" } },
+    },
     effects: { name: "Effects", options: [...EFFECT_PARTS], control: { type: "check", labels: effectTitles } },
     glowIntensity: { name: "Glow intensity", control: { type: "range", min: 0, max: 1.5, step: 0.05 } },
     rowsPerSecond: { name: "Throughput (rows/s)", control: { type: "range", min: 0, max: 60000, step: 200 } },
@@ -155,10 +170,17 @@ const meta: Meta<Args> = {
 
 export default meta;
 
-export const BlockEffects: StoryFn<Args> = (args) => <BlockEffectsApp {...args} />;
+export const BlockEffects: StoryFn<Args> = (args, { viewMode }) => (
+  <BlockEffectsApp {...args} embedded={viewMode === "docs"} />
+);
 BlockEffects.storyName = "Block effects";
 BlockEffects.parameters = {
   docs: {
+    source: {
+      language: "ts",
+      type: "dynamic",
+      transform: (_source: string, { args }: { args: Args }) => blockEffectsCode(args.renderer, args.effects),
+    },
     description: {
       story:
         "Each card is a `CanvasBlock` subclass whose level methods return a path primitive with an effect " +

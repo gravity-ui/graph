@@ -4,6 +4,7 @@ import { trimConnectionShaft } from "../styles/connectionArrow";
 import { applyStyle } from "../styles/style";
 import type { TSceneElement, TScenePrimitive, TSceneStroke, TSceneStyle, TSceneTextPolicy } from "../types";
 import { readColorRgba } from "../utils/colorAlpha";
+import { cutPathGaps } from "../utils/cutPathGaps";
 
 import { appendSegments, applyStroke, drawShape, strokeKey } from "./drawShapes";
 
@@ -173,6 +174,7 @@ function opaquePathSpan(
     for (const { primitive } of paintsOf(element.primitives, style, options.dimColor)) {
       if (
         primitive.kind !== "path" ||
+        primitive.gaps !== undefined ||
         primitive.minScale !== undefined ||
         primitive.maxScale !== undefined ||
         primitive.levelMask !== undefined ||
@@ -222,8 +224,30 @@ export function drawElements(
   const drawPath = (primitive: Extract<TScenePrimitive, { kind: "path" }>, x: number, y: number): void => {
     const stroke = primitive.stroke;
     if (!stroke?.color || stroke.width === undefined) return;
+    const cut = primitive.gaps && cutPathGaps(primitive.segments, primitive.gaps);
+    if (cut && stroke.dash?.length) {
+      flush();
+      ctx.save();
+      if (applyStroke(ctx, stroke, scale)) {
+        const initialOffset = ctx.lineDashOffset;
+        for (const [i, { offset, distance }] of cut.runs.entries()) {
+          const path = new Path2D();
+          appendSegments(path, cut.segments.subarray(offset, cut.runs[i + 1]?.offset), x, y);
+          ctx.lineDashOffset = initialOffset + distance;
+          ctx.stroke(path);
+        }
+      }
+      ctx.restore();
+      return;
+    }
     const path = strokePath(stroke, strokeKey(stroke, scale), 1);
-    appendSegments(path, primitive.segments, x, y, primitive.closed);
+    if (cut) {
+      for (const [i, { offset }] of cut.runs.entries()) {
+        appendSegments(path, cut.segments.subarray(offset, cut.runs[i + 1]?.offset), x, y);
+      }
+    } else {
+      appendSegments(path, primitive.segments, x, y, primitive.closed);
+    }
     if (!compositeOpaque || !isOpaque(stroke.color)) flush();
   };
   for (let e = 0; e < elements.length; e++) {

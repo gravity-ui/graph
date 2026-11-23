@@ -17,8 +17,9 @@ export const rendererControl = { name: "Renderer", control: "inline-radio", opti
 
 type PreviewProps = {
   graph: Graph;
-  code: string;
-  instruction: string;
+  code?: string;
+  instruction?: React.ReactNode;
+  height?: number | string;
   renderBlock?: (graph: Graph, block: TBlock) => React.JSX.Element;
 };
 
@@ -26,24 +27,34 @@ function renderStoryBlock(graph: Graph, block: TBlock): React.JSX.Element {
   return <BlockStory graph={graph} block={block} />;
 }
 
-export function ConnectionPreview({ graph, code, instruction, renderBlock = renderStoryBlock }: PreviewProps) {
+export function ConnectionPreview({
+  graph,
+  code,
+  instruction,
+  height = "100vh",
+  renderBlock = renderStoryBlock,
+}: PreviewProps) {
   const actual = useSignal(graph.scene.$renderer);
   const blocks = useSignal(graph.rootStore.blocksList.$blocks);
   const connections = useSignal(graph.rootStore.connectionsList.$connections);
   return (
     <ThemeProvider theme="light">
-      <Flex direction="column" style={{ height: "100vh" }}>
-        <Flex direction="column" gap={1} style={{ padding: "8px 16px" }}>
-          <Text variant="body-1">{instruction}</Text>
-          <Text variant="body-1" color="secondary">
-            {actual} · {blocks.length.toLocaleString()} {blocks.length === 1 ? "block" : "blocks"} ·{" "}
-            {connections.length.toLocaleString()} {connections.length === 1 ? "connection" : "connections"}
-          </Text>
-          <details>
-            <summary>Connection code</summary>
-            <pre style={{ margin: 0, maxHeight: 180, overflow: "auto" }}>{code}</pre>
-          </details>
-        </Flex>
+      <Flex direction="column" style={{ height }}>
+        {(instruction || code) && (
+          <Flex direction="column" gap={1} style={{ padding: "8px 16px" }}>
+            {instruction && <Text variant="body-1">{instruction}</Text>}
+            <Text variant="body-1" color="secondary">
+              {actual} · {blocks.length.toLocaleString()} {blocks.length === 1 ? "block" : "blocks"} ·{" "}
+              {connections.length.toLocaleString()} {connections.length === 1 ? "connection" : "connections"}
+            </Text>
+            {code && (
+              <details>
+                <summary>Connection code</summary>
+                <pre style={{ margin: 0, maxHeight: 180, overflow: "auto" }}>{code}</pre>
+              </details>
+            )}
+          </Flex>
+        )}
         <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
           <GraphCanvas graph={graph} className="graph-canvas" renderBlock={renderBlock} />
         </div>
