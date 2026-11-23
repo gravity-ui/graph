@@ -45,7 +45,9 @@ It caches its picture and redraws it only when what it shows changes:
 
 `@gravity-ui/graph` is a required peer dependency. This package uses its public `Layer` API and shares the consumer's core runtime. React is not required.
 
-The layer sets its per-instance position and dimensions inline on the canvas when attached. Configure them through the layer props; overriding them with CSS requires `!important`. Import core styles before `@gravity-ui/graph-minimap/styles.css` for the default border and background. The default selector `canvas.layer:where(.graph-minimap)` has specificity `(0,1,1)`. Custom rules with two classes, such as `.graph-minimap.my-minimap`, override these visual defaults regardless of their load order. A single-class selector such as `.my-minimap` or `.graph-minimap` has lower specificity and does not override them.
+Update `width`, `height`, `location`, `classNames`, `cameraBorderSize`, and `cameraBorderColor` on an existing layer with `layer.setProps()` or React's `useLayer`. Pass `undefined` explicitly to restore an option to its default. The layer sets its per-instance position and dimensions inline on the canvas. CSS overrides of these inline styles require `!important`.
+
+Import core styles before `@gravity-ui/graph-minimap/styles.css` for the default border and background. The default selector `canvas.layer:where(.graph-minimap)` has specificity `(0,1,1)`. Custom rules with two classes, such as `.graph-minimap.my-minimap`, override these visual defaults regardless of their load order. A single-class selector such as `.my-minimap` or `.graph-minimap` has lower specificity and does not override them.
 
 ## API
 
