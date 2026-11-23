@@ -1637,9 +1637,9 @@ the detailed level starts them at the schematic level, or marks anchor ports `sn
 
 ### Minimap, export and the canvas
 
-- The minimap draws the scene's block elements with `graph.scene.query(rect, { level: "minimalistic", includeHidden:
-  true, entityTypes })` and the interpreter, in the blocks list order. `entityTypes` are `"block"` and the types of the
-  other block classes on the list or in `blockComponents`. Blocks handed over to HTML and blocks in collapsed groups
+- The minimap reads live scene rows at the minimalistic level and draws them with the interpreter in the blocks list
+  order. It reads `"block"` and the entity types of the other block classes on the list or in `blockComponents`.
+  Blocks handed over to HTML and blocks in collapsed groups
   stay on it; anchors and child components do not. `LegacyCanvasBlock`s draw with
   `renderMinimalisticBlock(ctx, { text: false })` and redraw it on every camera move.
 - The minimap draws from a cached picture, redrawn on `graph.scene.revisionOf()` of those types and on block moves.

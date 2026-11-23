@@ -367,7 +367,9 @@ level does not hit, as point queries do.
 `query(rect, options)` takes a world rectangle as `TRect` (`{ x, y, width, height }`, like `zoomToRect`) and returns
 read-only views of the elements whose bounds meet it, in draw order, bottom first: owner elements, each followed by
 what is nested in it, in the pre-order of its nesting. By default it returns visible elements only, and a view's
-`hidden` is `false`. A view's `bounds` is relative to the element's origin (`x`, `y`). Views are frozen snapshots.
+`hidden` is `false`. A view's `bounds` is relative to the element's origin (`x`, `y`). The snapshot owns its bounds,
+primitives and their data, including path buffers and effect uniforms. Editing a buffer or resource in a snapshot
+cannot affect the live scene's drawing, picking or later queries. Apply scene changes through the component or graph data.
 The options (`TSceneQueryOptions`):
 
 - `level`: only elements with a primitive on that level. An owner left out still places its children that have one.
@@ -375,8 +377,6 @@ The options (`TSceneQueryOptions`):
   in them. Their views say `hidden: true`.
 - `entityTypes`: only elements of these types. An element's `entityType` (in its view too) is the `static entityType`
   of the component that wrote it.
-
-The option `live` is `@internal`: the minimap reads the store's live elements with it instead of frozen copies.
 
 `drawInterpreted(ctx, elements, scale, options)` draws views on any 2D context with the Canvas 2D interpreter,
 whatever the active renderer. The caller owns the context transform, device pixel ratio included. Options:

@@ -24,7 +24,7 @@ graph.start();
 ## What it draws
 
 The minimap draws the scene's block elements at the minimalistic level, without text, through the Canvas 2D
-interpreter (`graph.scene.query()` and `drawInterpreted()`), whatever the main view's renderer and level, in the order
+interpreter (`drawInterpreted()`) using the scene's live rows, whatever the main view's renderer and level, in the order
 of the blocks list. Blocks handed to HTML and blocks in collapsed groups stay on it; anchors and other scene elements
 do not. Tags and style rules show on it. A `LegacyCanvasBlock` draws itself with
 `renderMinimalisticBlock(ctx, { text: false })`, in its place in the list.

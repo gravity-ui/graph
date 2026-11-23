@@ -47,6 +47,7 @@ import type {
   TSceneState,
 } from "./types";
 import { afterScenePaint } from "./utils/afterScenePaint";
+import { createPrimitiveSnapshot } from "./utils/snapshotPrimitive";
 
 /** Canvas limits that hold in current browsers (side and area); larger outputs come back blank, so toImage throws. */
 const MAX_IMAGE_SIDE = 16384;
@@ -758,13 +759,8 @@ export class GraphScene implements IGraphScene {
   }
 
   public query(rect: TRect, options: TSceneQueryOptions = {}): readonly TSceneElementView[] {
-    const tileRect = { minX: rect.x, minY: rect.y, maxX: rect.x + rect.width, maxY: rect.y + rect.height };
-    const includeHidden = options.includeHidden ?? false;
-    const types = options.entityTypes;
-    const found = this.store.query(tileRect, options.level, undefined, includeHidden);
-    const elements = types ? found.filter((element) => types.includes(element.entityType ?? "")) : found;
-    if (options.live) return elements;
-    return elements.map((element) =>
+    const snapshot = createPrimitiveSnapshot();
+    return this.queryLive(rect, options).map((element) =>
       Object.freeze({
         id: element.id,
         entityType: element.entityType,
@@ -773,14 +769,25 @@ export class GraphScene implements IGraphScene {
         childOrder: element.childOrder,
         x: element.x,
         y: element.y,
-        bounds: element.bounds,
-        primitives: element.primitives,
+        bounds: Object.freeze({ ...element.bounds }),
+        primitives: Object.freeze(element.primitives.map(snapshot)),
         zIndex: element.zIndex,
         order: element.order,
         styleId: element.styleId,
-        hidden: includeHidden && this.store.isDrawnHidden(element),
+        hidden: Boolean(options.includeHidden) && this.store.isDrawnHidden(element),
       })
     );
+  }
+
+  /**
+   * @internal Borrow store rows for synchronous drawing. Their `hidden` flag describes each row itself.
+   * Do not mutate or retain the rows. Use `query()` to keep a snapshot.
+   */
+  public queryLive(rect: TRect, options: TSceneQueryOptions = {}): readonly TSceneElementView[] {
+    const tileRect = { minX: rect.x, minY: rect.y, maxX: rect.x + rect.width, maxY: rect.y + rect.height };
+    const types = options.entityTypes;
+    const found = this.store.query(tileRect, options.level, undefined, options.includeHidden);
+    return types ? found.filter((element) => types.includes(element.entityType ?? "")) : found;
   }
 
   public drawInterpreted(

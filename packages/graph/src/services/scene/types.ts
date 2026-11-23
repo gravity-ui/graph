@@ -62,13 +62,6 @@ export type TSceneQueryOptions = {
   readonly includeHidden?: boolean;
   /** Only elements of these entity types: the `static entityType` of the component that wrote the element. */
   readonly entityTypes?: readonly string[];
-  /**
-   * @internal The store's live elements instead of frozen copies (the minimap's redraw). Read them at once; never keep
-   * or change them. Their `hidden` is the element's own flag, not the drawn state: with `includeHidden`, a child of a
-   * hidden owner says `hidden: false`. A caller that combines the two and needs the drawn state reads
-   * `graph.scene.store.isDrawnHidden(element)`; an owner's own flag is its drawn state.
-   */
-  readonly live?: boolean;
 };
 
 /** A component whose level methods measured text (SceneComponent.measureText). */
@@ -134,7 +127,8 @@ export interface IGraphScene {
    * Elements whose bounds meet a world rectangle, in draw order (bottom first): visible ones by default; options
    * filter by level and entity type and add hidden ones. The bounds are grown where an element's style scales its
    * circles or widens its strokes past them (a hover scale), as the Canvas 2D renderer culls; the views' `bounds` are
-   * the element's own. Views are frozen snapshots; `bounds` stays relative to each element's origin.
+   * the element's own. Views own their primitive data, including buffers. `bounds` stays relative to each
+   * element's origin.
    */
   query(rect: TRect, options?: TSceneQueryOptions): readonly TSceneElementView[];
   /**
