@@ -660,10 +660,11 @@ export class SceneStore {
     return found;
   }
 
-  /** @internal Widen the index on demand for configured zoom below the default. Ordinary frames keep the same index. */
-  public ensurePaintScale(scale: number): void {
-    if (!(scale > 0 && scale < this.minimumPaintScale)) return;
-    this.minimumPaintScale = scale;
+  /** @internal Reindex only when the camera enters a different range of paint widths. */
+  public setPaintScale(scale: number): void {
+    const minimum = scale > 0 && scale < MIN_CAMERA_SCALE ? 2 ** Math.floor(Math.log2(scale)) : MIN_CAMERA_SCALE;
+    if (minimum === this.minimumPaintScale) return;
+    this.minimumPaintScale = minimum;
     this.canvasQuery = undefined;
     for (const node of this.nodes.values()) {
       if (this.restyle(node, true)) this.place(node);

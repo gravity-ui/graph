@@ -210,7 +210,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     const { scale } = camera;
     const viewport = cameraWorldViewport(camera, this.getDRP());
     const store = this.props.store;
-    store.ensurePaintScale(Math.min(scale, camera.scaleMin));
+    store.setPaintScale(scale);
     const level = this.props.level?.peek();
     // The query leaves out elements with nothing to draw on the level (an anchor at the minimalistic level).
     drawElements(ctx, store.queryForCanvas(viewport, scale, level), scale, {

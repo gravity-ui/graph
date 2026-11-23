@@ -615,9 +615,10 @@ receives (with their `cameraAware` objects), so changing one in place throws a `
 - Limitation: `toImage()` resolves its own styles. Geometry grown only by an export's rules (a rule scoped to the
   export's level or scale) is not indexed, so such an export can crop it.
 - A `{ px }` width without `maxWorld` in a rule grows the bounds to its width at the minimum camera scale,
-  and so does a `{ world }` width with a `minPx`. The default minimum is `0.01`. At a lower configured minimum,
-  Canvas and `query()` widen the index before finding elements. Development builds warn about unbounded widths,
-  because they keep more elements in the viewport query.
+  and so does a `{ world }` width with a `minPx`. Below the default minimum of `0.01`, Canvas and `query()`
+  size the index for the current zoom range. They reuse it within that range and restore the default bounds when
+  zoom returns to `0.01` or above. Development builds warn about unbounded widths because they keep more elements
+  in the viewport query.
 
 ## Limits
 

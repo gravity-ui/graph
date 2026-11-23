@@ -43,7 +43,7 @@ export function encodeTriangles(
     const at = subBase + sub;
     checkSub(at, maxSub);
     const fill = paintFloats(primitive.fill);
-    const out = (isTranslucentFloats(fill) ? translucent : opaque).next();
+    const out = (primitive.fill !== undefined && isTranslucentFloats(fill) ? translucent : opaque).next();
     out[0] = elementIndex;
     out[1] = at;
     out[2] = slotOf(primitive.part);
