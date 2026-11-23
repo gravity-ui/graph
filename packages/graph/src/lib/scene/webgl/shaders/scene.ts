@@ -50,6 +50,11 @@ float sceneSize(vec4 size, float scale) {
   return clamp(size.y * scale, size.z, size.w) / scale;
 }
 
+float sceneStrokeWidth(vec4 size, float scale) {
+  float width = sceneSize(size, scale);
+  return width > 0.0 && !isinf(width) ? width : 0.0;
+}
+
 vec4 sceneClip(vec2 world, float depth) {
   vec2 screen = world * scene_camera.z + scene_camera.xy;
   return vec4((screen / scene_viewport) * vec2(2.0, -2.0) + vec2(-1.0, 1.0), depth * 2.0 - 1.0, 1.0);

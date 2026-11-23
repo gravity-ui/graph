@@ -164,15 +164,20 @@ void main() {
   vec2 c1 = graph_p0c1.zw + element.xy;
   vec2 c2 = graph_c2p3.xy + element.xy;
   vec2 p3 = graph_c2p3.zw + element.xy;
-  // Widths below one device pixel are drawn one pixel wide with reduced alpha, like canvas hairlines.
+  int interaction = int(graph_interaction.w + 0.5);
+  int arrow = interaction >> 11;
   float mode = float(levelAndWidth >> 3);
-  float width = sceneSize(vec4(mode, graph_stroke.x, scene_pathIds.w, scene_pathScales.w), graph_camera.z);
+  float width = sceneStrokeWidth(vec4(mode, graph_stroke.x, scene_pathIds.w, scene_pathScales.w), graph_camera.z);
+  // A zero-alpha strip can still write depth without MSAA. Filled heads use the width only for their outline.
+  if (width == 0.0 && arrow != 2) {
+    gl_Position = SCENE_HIDDEN;
+    return;
+  }
+  // Positive widths below one device pixel are drawn one pixel wide with reduced alpha, like canvas hairlines.
   float deviceWidth = width * graph_camera.z * graph_dpr;
   float halfPx = max(deviceWidth, 1.0) * 0.5 / graph_dpr;
   // Analytic coverage needs a fringe. A multisampled union uses the physical edge of the strip itself.
   float extent = halfPx + graph_extraWidth${sampleEdges ? "" : " + 1.0 / graph_dpr"};
-  int interaction = int(graph_interaction.w + 0.5);
-  int arrow = interaction >> 11;
   vec2 center;
   vec2 offset;
   float across = graph_template.y * extent;

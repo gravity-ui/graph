@@ -340,7 +340,7 @@ You can create custom connection implementations by extending the base connectio
 
 A `BlockConnection` has two pluggable parts, set as statics of its class:
 
-- `static geometry`: the shape, a pure function from the endpoints, `points` and the connection's data to cubic Bézier
+- `static geometry`: computes the shape from the endpoints, `points` and the connection's data as cubic Bézier
   segments and an arrow. Bounds and hit testing follow it.
 - `static line` defaults to `SceneLine`. Extend it to derive the stroke and arrow style from connection data.
   Both scene renderers draw the same returned stroke. WebGL also runs its optional shader effect.

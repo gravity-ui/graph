@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import type { TScenePrimitive } from "@gravity-ui/graph";
+
 import type { GraphConfig } from "../../page-objects/GraphPageObject";
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
 
@@ -98,6 +100,74 @@ async function anchorPoint(page: Page, blockId: string, anchorId: string): Promi
 }
 
 test.describe("Scene blocks with the WebGL renderer", () => {
+  test("skips zero-width paths and ignores invalid borders without obscuring fills", async ({ page }) => {
+    await page.addInitScript(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, options?: object) {
+        return Reflect.apply(original, this, [type, type === "webgl2" ? { ...options, antialias: false } : options]);
+      } as typeof original;
+    });
+    const graph = new GraphPageObject(page);
+    await graph.initialize({ ...CONFIG, blocks: [] });
+    test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+    await expect.poll(() => rendererState(page)).toBe("webgl");
+    const result = await page.evaluate(() => {
+      const { scene, cameraService, scheduler } = window.graph;
+      const gl = scene.layer.getBackend()!.canvas.getContext("webgl2")!;
+      const dpr = window.devicePixelRatio;
+      const origin = { x: 0, y: 0, bounds: { minX: 0, minY: 0, maxX: 160, maxY: 100 } };
+      scene.store.add({
+        ...origin,
+        id: "background",
+        zIndex: 0,
+        primitives: [{ kind: "rect", x: 0, y: 0, width: 160, height: 100, fill: "#0f0" }],
+      });
+      const paths = [0, { px: 4, maxWorld: 0 }, { world: 4, maxPx: 0 }, 0.25 / dpr].map<TScenePrimitive>((width, i) => {
+        const y = 20 + 10 * i + 0.5 / dpr;
+        return {
+          kind: "path",
+          segments: new Float32Array([10, y, 30, y, 50, y, 70, y]),
+          stroke: { color: "#f00", width },
+        };
+      });
+      const rects = [-15, Infinity, NaN].map<TScenePrimitive>((width, i) => ({
+        kind: "rect",
+        x: 100,
+        y: 10 + 25 * i,
+        width: 40,
+        height: 20,
+        fill: "#00f",
+        border: { color: "#f00", width, align: "outside" },
+      }));
+      scene.store.add({ ...origin, id: "foreground", zIndex: 1, primitives: [...paths, ...rects] });
+      cameraService.set({ x: 0, y: 0, scale: 1 });
+      scene.layer.performRender();
+      scheduler.performUpdate();
+      const pixel = (x: number, y: number): number[] => {
+        const rgba = new Uint8Array(4);
+        gl.readPixels(
+          Math.floor(x * dpr),
+          gl.drawingBufferHeight - Math.floor(y * dpr) - 1,
+          1,
+          1,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          rgba
+        );
+        return [...rgba];
+      };
+      return {
+        samples: gl.getParameter(gl.SAMPLES) as number,
+        strokes: [20, 30, 40, 50].map((y) => pixel(40, y)),
+        fills: [20, 45, 70].map((y) => pixel(105, y)),
+      };
+    });
+    expect(result.samples).toBe(0);
+    expect(result.strokes.slice(0, 3)).toEqual(Array.from({ length: 3 }, () => [0, 255, 0, 255]));
+    expect(result.strokes[3][0]).toBeGreaterThan(0);
+    expect(result.fills).toEqual(Array.from({ length: 3 }, () => [0, 0, 255, 255]));
+  });
+
   test("preserves glyph weight and a one-pixel edge during a subpixel pan", async ({ page }) => {
     const graph = new GraphPageObject(page);
     await graph.initialize({ ...CONFIG, blocks: [] });
@@ -928,6 +998,50 @@ test.describe("Scene blocks with the WebGL renderer", () => {
       const overlap = await countColor(page, { x: 130, y: 100, width: 16, height: 16 }, [26, 86, 127], 3);
       expect(overlap.matched, `${renderer} translucent fill over blue`).toBe(overlap.total);
     }
+  });
+
+  test("keeps the scene hidden while switching from Canvas to WebGL", async ({ page }) => {
+    test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+    const graph = new GraphPageObject(page);
+    await graph.initialize({ ...CONFIG, settings: { renderer: "canvas" } });
+    const visibility = () =>
+      page.evaluate(() => {
+        const layer = window.graph.scene.layer;
+        const canvas = layer.getCanvas();
+        const webgl = layer.getBackend()?.canvas;
+        return [canvas && getComputedStyle(canvas).visibility, webgl && getComputedStyle(webgl).visibility];
+      });
+    expect(await visibility()).toEqual(["visible", undefined]);
+    await graph.evaluate((graph) => graph.getGraphLayer().hide());
+    expect(await visibility()).toEqual(["hidden", undefined]);
+    await graph.evaluate((graph) => graph.updateSettings({ renderer: "webgl" }));
+    await expect.poll(() => rendererState(page)).toBe("webgl");
+    expect(await visibility()).toEqual(["hidden", "hidden"]);
+    await graph.evaluate((graph) => graph.getGraphLayer().show());
+    expect(await visibility()).toEqual(["visible", "visible"]);
+  });
+
+  test("draws a triangle whose fill comes from its scene part", async ({ page }) => {
+    test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+    const graph = new GraphPageObject(page);
+    await graph.initialize({ ...CONFIG, blocks: [] });
+    await expect.poll(() => rendererState(page)).toBe("webgl");
+    await page.evaluate(() => {
+      const { scene, cameraService } = window.graph;
+      cameraService.set({ x: 0, y: 0, scale: 1 });
+      scene.store.add({
+        id: "styled-triangle",
+        x: 60,
+        y: 60,
+        zIndex: 100,
+        bounds: { minX: 0, minY: 0, maxX: 80, maxY: 80 },
+        primitives: [{ kind: "polygon", part: "triangle", points: new Float32Array([0, 0, 80, 0, 0, 80]) }],
+      });
+      scene.store.setStyle("styled-triangle", scene.store.defineStyle({ base: { triangle: { color: "#ff0000" } } }));
+    });
+    await graph.waitForFrames(3);
+    const sample = await countColor(page, { x: 70, y: 70, width: 8, height: 8 }, [255, 0, 0], 2);
+    expect(sample.matched).toBe(sample.total);
   });
 
   test("draws a filled arrow triangle in scene order", async ({ page }) => {

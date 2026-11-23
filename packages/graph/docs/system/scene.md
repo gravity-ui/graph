@@ -614,9 +614,10 @@ receives (with their `cameraAware` objects), so changing one in place throws a `
   joins of a path or a polygon reach up to 5 stroke widths from a vertex (Canvas 2D's default miter limit).
 - Limitation: `toImage()` resolves its own styles. Geometry grown only by an export's rules (a rule scoped to the
   export's level or scale) is not indexed, so such an export can crop it.
-- A `{ px }` width without `maxWorld` in a rule grows the bounds to its width at the minimum camera scale
-  (`px / 0.01` world units), and so does a `{ world }` width with a `minPx`. Culling is then much looser around every
-  element drawn with the rule. Development builds warn once.
+- A `{ px }` width without `maxWorld` in a rule grows the bounds to its width at the minimum camera scale,
+  and so does a `{ world }` width with a `minPx`. The default minimum is `0.01`. At a lower configured minimum,
+  Canvas and `query()` widen the index before finding elements. Development builds warn about unbounded widths,
+  because they keep more elements in the viewport query.
 
 ## Limits
 

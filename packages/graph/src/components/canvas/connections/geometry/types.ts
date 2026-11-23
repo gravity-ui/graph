@@ -43,5 +43,5 @@ export type TConnectionGeometry = {
   labels?: readonly Readonly<TConnectionRouteLabel>[];
 };
 
-/** Pure shape of a connection; `undefined` means no geometry: the connection is neither drawn nor hit. */
+/** Computes the connection shape. `undefined` means the connection is neither drawn nor hit. */
 export type TConnectionGeometryFn = (input: TConnectionGeometryInput) => TConnectionGeometry | undefined;

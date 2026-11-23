@@ -783,7 +783,7 @@ describe("bounds grown by a style", () => {
   const widened = (store: SceneStore, width: number): void =>
     store.setStyle("ring", store.defineStyle({ parts: { ring: { width } } }));
 
-  it("covers a widened inside circle border as Canvas 2D strokes it: centred on the radius", () => {
+  it("keeps a widened inside circle border inside the circle", () => {
     const store = new SceneStore(100);
     store.add(
       bordered(
@@ -793,9 +793,8 @@ describe("bounds grown by a style", () => {
     );
     const strip = { minX: 11.5, minY: -0.5, maxX: 12.5, maxY: 0.5 };
     expect(ids(store, strip)).toEqual([]);
-    // Canvas 2D strokes arc(r 9) with lineWidth 8 whatever the alignment: the stroke reaches 9 + 4 = 13.
-    widened(store, 8);
-    expect(ids(store, strip)).toEqual(["ring"]);
+    widened(store, 24);
+    expect(ids(store, strip)).toEqual([]);
     expect(store.get("ring")?.bounds).toEqual({ minX: -10, minY: -10, maxX: 10, maxY: 10 });
   });
 

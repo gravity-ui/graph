@@ -142,6 +142,41 @@ describe("BlockConnection line protocol", () => {
     expect(arrow?.effect).toBeUndefined();
   });
 
+  it("keeps each retained route pickable where it is drawn when the geometry reuses its output", () => {
+    const segments = new Float32Array(8);
+    const arrow = { points: new Float32Array(6), closed: true };
+    const labels = [{ id: "", text: "Stage", at: 0.25 }];
+    class ReusingConnection extends BlockConnection {
+      public static override geometry: TConnectionGeometryFn = ({ source, target, connection }) => {
+        const { y } = source;
+        segments.set([source.x, y, 180, y, 320, y, target.x, y]);
+        arrow.points.set([450, y - 6, 470, y, 450, y + 6]);
+        labels[0].id = String(connection.id);
+        return { segments, arrow, labels };
+      };
+    }
+    const mounted = (graph = mount({ connection: ReusingConnection, showConnectionLabels: true }));
+
+    expect(pathsOf(mounted, "a").map(({ part, segments: path }) => [part, path[1]])).toEqual([
+      ["line", 100],
+      ["arrow", 94],
+    ]);
+    expect(pathsOf(mounted, "b").map(({ part, segments: path }) => [part, path[1]])).toEqual([
+      ["line", 300],
+      ["arrow", 294],
+    ]);
+    const pick = (x: number, y: number) => {
+      const connection = mounted.getElementOverPoint({ x, y });
+      return connection instanceof BlockConnection ? connection.state.id : undefined;
+    };
+    expect([pick(250, 100), pick(460, 100), pick(250, 300), pick(460, 300)]).toEqual(["a", "a", "b", "b"]);
+
+    mounted.cameraService.set({ scale: 0.3 });
+    frames();
+    expect(view(mounted, "a").hitTestRouteLabel({ x: 175, y: 100 })).toBe("a");
+    expect(view(mounted, "b").hitTestRouteLabel({ x: 175, y: 300 })).toBe("b");
+  });
+
   it("keeps a new effect resource, exact shader params and the stock geometry certificate observable", () => {
     const definition = {
       kind: "path" as const,

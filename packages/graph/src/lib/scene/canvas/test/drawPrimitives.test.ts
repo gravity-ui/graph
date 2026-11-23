@@ -179,6 +179,56 @@ describe("scene primitives", () => {
     expect(widths).toEqual([2, 3]);
   });
 
+  it.each([0, -2, Infinity, NaN, { px: 4, maxWorld: 0 }])("skips a stroke with width %p", (width) => {
+    const ctx = createContext();
+    const stroke = jest.spyOn(ctx, "stroke");
+    const hidden = element({ primitives: [{ kind: "path", segments: SEGMENTS, stroke: { color: "#456", width } }] });
+    drawElements(ctx, [line("visible"), hidden], 2);
+    expect(stroke).toHaveBeenCalledTimes(1);
+    expect(ctx.lineWidth).toBe(2);
+  });
+
+  it.each([
+    { align: undefined, radii: [10] },
+    { align: "inside" as const, radii: [10, 8] },
+    { align: "outside" as const, radii: [10, 12] },
+  ])("places a circle's $align border without moving its fill", ({ align, radii }) => {
+    const ctx = createContext();
+    const arc = jest.spyOn(ctx, "arc");
+    const circle: TScenePrimitive = {
+      kind: "circle",
+      cx: 2,
+      cy: 3,
+      r: 10,
+      fill: "#fff",
+      border: { color: "#000", width: { px: 8 }, dash: [3, 2], align },
+    };
+    drawElements(ctx, [element({ x: 100, y: 50, primitives: [circle] })], 2);
+    expect(arc.mock.calls).toEqual(radii.map((r) => [102, 53, r, 0, 2 * Math.PI]));
+    expect(ctx.beginPath).toHaveBeenCalledTimes(radii.length);
+    expect(ctx.__getDrawCalls().map(({ type }) => type)).toEqual(["fill", "stroke"]);
+    expect(ctx.lineWidth).toBe(4);
+    expect(ctx.getLineDash()).toEqual([3, 2]);
+  });
+
+  it("saturates an oversized inside circle border at the face", () => {
+    const ctx = createContext();
+    const arc = jest.spyOn(ctx, "arc");
+    const circle: TScenePrimitive = {
+      kind: "circle",
+      cx: 0,
+      cy: 0,
+      r: 5,
+      fill: "#fff",
+      border: { color: "#000", width: 20, dash: [3, 2], align: "inside" },
+    };
+    drawElements(ctx, [element({ primitives: [circle] })], 1);
+    expect(arc).toHaveBeenLastCalledWith(0, 0, 2.5, 0, 2 * Math.PI);
+    expect(ctx.__getDrawCalls().map(({ type }) => type)).toEqual(["fill", "stroke"]);
+    expect(ctx.lineWidth).toBe(5);
+    expect(ctx.getLineDash()).toEqual([3, 2]);
+  });
+
   it("insets an inside border and outsets an outside one by half its width", () => {
     const ctx = createContext();
     const roundRect = jest.spyOn(Path2D.prototype, "roundRect");

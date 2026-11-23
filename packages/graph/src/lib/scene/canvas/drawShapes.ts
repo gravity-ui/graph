@@ -12,11 +12,10 @@ type TRectPaths = { x: number; y: number; face?: Path2D; inset?: number; border?
 // A primitive is immutable. Keep just its latest position and resolved border inset.
 const rectPaths = new WeakMap<TScenePrimitive, TRectPaths>();
 
-/** How far a stroke's centre line moves inwards from the shape's edge; an unset width draws no stroke. */
-function strokeInset(stroke: TSceneStroke, scale: number): number {
-  const width = stroke.width === undefined ? 0 : resolveSceneSize(stroke.width, scale);
-  if (stroke.align === "inside") return width / 2;
-  if (stroke.align === "outside") return -width / 2;
+/** How far a stroke's centre line moves inwards from the shape's edge. */
+function strokeInset(align: TSceneStroke["align"], width: number): number {
+  if (align === "inside") return width / 2;
+  if (align === "outside") return -width / 2;
   return 0;
 }
 
@@ -36,7 +35,8 @@ function drawSquareRect(
 ): boolean {
   const radius = rect.radius;
   if (typeof radius === "number" ? radius !== 0 : radius?.some((value) => value !== 0)) return false;
-  const inset = rect.border ? strokeInset(rect.border, scale) : 0;
+  const inset =
+    rect.border?.width === undefined ? 0 : strokeInset(rect.border.align, resolveSceneSize(rect.border.width, scale));
   // Outsetting an explicit zero radius rounds the border; an omitted radius stays square.
   if (radius !== undefined && inset < 0) return false;
   if (!(rect.width > Math.max(0, 2 * inset) && rect.height > Math.max(0, 2 * inset))) return false;
@@ -76,8 +76,9 @@ function drawRect(
       ctx.fill();
     }
   }
-  if (rect.border && applyStroke(ctx, rect.border, scale)) {
-    const inset = strokeInset(rect.border, scale);
+  const width = rect.border && applyStroke(ctx, rect.border, scale);
+  if (width) {
+    const inset = strokeInset(rect.border?.align, width);
     if (paths) {
       if (inset === 0) ctx.stroke((paths.face ??= buildRectPath(rect, x, y, 0)));
       else {
@@ -117,13 +118,16 @@ function appendRect(
   else path.roundRect(x + inset, y + inset, width, height, radius);
 }
 
-/** Sets the stroke's style; false when its colour or width is unset, which draws nothing. */
-export function applyStroke(ctx: CanvasRenderingContext2D, stroke: TSceneStroke, scale: number): boolean {
-  if (stroke.color === undefined || stroke.width === undefined) return false;
+/** Sets the stroke's style and returns its resolved width, or 0 when it draws nothing. */
+export function applyStroke(ctx: CanvasRenderingContext2D, stroke: TSceneStroke, scale: number): number {
+  if (stroke.color === undefined || stroke.width === undefined) return 0;
+  const width = resolveSceneSize(stroke.width, scale);
+  // Canvas ignores invalid line widths and would stroke with the previous width.
+  if (!(width > 0) || !Number.isFinite(width)) return 0;
   ctx.strokeStyle = stroke.color;
-  ctx.lineWidth = resolveSceneSize(stroke.width, scale);
+  ctx.lineWidth = width;
   ctx.setLineDash(stroke.dash ? [...stroke.dash] : []);
-  return true;
+  return width;
 }
 
 export function strokeKey(stroke: TSceneStroke | undefined, scale: number): string {
@@ -217,15 +221,28 @@ export function drawShape(
       return;
     }
     case "circle": {
-      ctx.beginPath();
-      ctx.arc(ox + primitive.cx, oy + primitive.cy, primitive.r, 0, 2 * Math.PI);
-      if (primitive.fill) {
-        ctx.fillStyle = primitive.fill;
+      const { r, fill, border } = primitive;
+      const x = ox + primitive.cx;
+      const y = oy + primitive.cy;
+      if (fill) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, 2 * Math.PI);
+        ctx.fillStyle = fill;
         ctx.fill();
       }
-      if (primitive.border && applyStroke(ctx, primitive.border, scale)) {
-        ctx.stroke();
+      if (!border) return;
+      const width = applyStroke(ctx, border, scale);
+      if (!width) return;
+      // An inside border fills the radius at most. Keep a valid centre line for dashes at that limit.
+      const strokeWidth = border.align === "inside" ? Math.min(width, r) : width;
+      if (strokeWidth <= 0) return;
+      if (strokeWidth !== width) ctx.lineWidth = strokeWidth;
+      const inset = strokeInset(border.align, strokeWidth);
+      if (!fill || inset !== 0) {
+        ctx.beginPath();
+        ctx.arc(x, y, r - inset, 0, 2 * Math.PI);
       }
+      ctx.stroke();
       return;
     }
     case "text":

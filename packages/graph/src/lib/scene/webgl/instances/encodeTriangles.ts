@@ -13,18 +13,18 @@ import {
 } from "./encodeRects";
 import type { TEncodedInstances, TSlotOf } from "./encodeRects";
 
-type TFilledPolygon = Extract<TScenePrimitive, { kind: "polygon" }> & { fill: string };
+type TPolygon = Extract<TScenePrimitive, { kind: "polygon" }>;
 
 export const TRIANGLE_FLOATS = 16;
 
 const TRIANGLE_LISTS = createInstanceLists(TRIANGLE_FLOATS);
 
-export function isFilledTriangle(primitive: TScenePrimitive): primitive is TFilledPolygon {
+export function isFilledTriangle(primitive: TScenePrimitive): primitive is TPolygon {
   // shortcut: fill-only triangles for arrowheads. Add polygon tessellation if general polygon support is needed.
   return (
     primitive.kind === "polygon" &&
     primitive.points.length === 6 &&
-    Boolean(primitive.fill) &&
+    (primitive.fill !== undefined ? Boolean(primitive.fill) : primitive.part !== undefined) &&
     !hasStrokeWidth(primitive.stroke)
   );
 }
