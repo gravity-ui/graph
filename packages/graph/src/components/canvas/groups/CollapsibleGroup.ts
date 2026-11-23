@@ -1,5 +1,4 @@
-import { batch, computed, signal } from "@preact/signals-core";
-import type { ReadonlySignal, Signal } from "@preact/signals-core";
+import { batch, computed } from "@preact/signals-core";
 
 import { DragContext, DragDiff } from "../../../services/drag";
 import { EAnchorType } from "../../../store/anchor/Anchor";
@@ -7,7 +6,6 @@ import { BlockState } from "../../../store/block/Block";
 import type { TBlockId } from "../../../store/block/Block";
 import { PortState } from "../../../store/connection/port/Port";
 import { TGroup, TGroupId } from "../../../store/group/Group";
-import { track } from "../../../utils/functions/track";
 import { TRect } from "../../../utils/types/shapes";
 import type { Block } from "../blocks/Block";
 
@@ -187,8 +185,6 @@ type TPortDelegationCounts = { left: number; right: number };
 /** What a collapse applied to one block: the state it hid, and the ports it delegated to the group's edge ports. */
 type TCollapseMember = {
   readonly state: BlockState;
-  /** The group the block's data names, read reactively: another value means the block left. */
-  readonly group: ReadonlySignal<string | undefined>;
   readonly ports: PortState[];
   /** The component whose ports were last delegated (`delegateMemberPorts`): a bind of the same one is skipped. */
   delegatedFor?: Block;
@@ -211,9 +207,6 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
    * and may collapse, before this class's fields are set; `getCollapseMembers` creates it.
    */
   private declare collapseMembers: Map<TBlockId, TCollapseMember> | undefined;
-
-  /** Bumped when a record is added, so that the membership watch reads it (`watchMembers`). */
-  private declare collapseRevision: Signal<number> | undefined;
 
   public static define(config: {
     style?: Partial<TGroupStyle>;
@@ -537,7 +530,6 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   /** Hides the group's blocks (`requestHidden`) and records them. */
   private hideMembers(states: readonly BlockState[] = this.getGroupBlocks()): ReadonlyMap<TBlockId, TCollapseMember> {
     const members = this.getCollapseMembers();
-    let added = false;
     for (const state of states) {
       state.requestHidden(true);
       const member = members.get(state.id);
@@ -547,15 +539,11 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
       member?.stopViewWatch?.();
       const next: TCollapseMember = {
         state,
-        group: computed(() => state.$state.value.group),
         ports: member?.ports ?? [],
       };
       next.stopViewWatch = this.watchMemberView(next);
       members.set(state.id, next);
-      added = true;
     }
-    // The membership watch reads the new records.
-    if (added) this.getCollapseRevision().value += 1;
     return members;
   }
 
@@ -566,6 +554,9 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   private releaseMembers(ids?: readonly TBlockId[]): void {
     const members = this.collapseMembers;
     if (!members || members.size === 0) return;
+    const { graph } = this.context;
+    const { groupsList } = graph.rootStore;
+    const pending: TCollapseMember[] = [];
     this.invalidatePortDelegationCountsCache();
     batch(() => {
       for (const id of ids ?? Array.from(members.keys())) {
@@ -573,44 +564,69 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
         if (!member) continue;
         members.delete(id);
         member.stopViewWatch?.();
-        member.ports.forEach((port) => {
-          if (port.isDelegated) port.undelegate();
-        });
-        if (!member.state.isAttached()) continue;
-        const groupId = member.group.peek();
+        const groupId = member.state.$state.peek().group;
         const destination =
-          groupId === undefined || groupId === this.props.id
+          groupId === undefined || groupId === this.props.id || !member.state.isAttached()
             ? undefined
-            : this.context.graph.rootStore.groupsList.getGroupState(groupId)?.getViewComponent();
-        if (destination instanceof CollapsibleGroup && destination.isCollapsed()) {
-          const transferred = destination.hideMembers([member.state]).get(id);
-          if (transferred) destination.delegateMemberPorts(transferred);
-          destination.performRender();
+            : groupsList.getGroupState<TCollapsibleGroup>(groupId);
+        const view = destination?.getViewComponent();
+        if (!view && destination?.$state.peek().collapsed) {
+          // A newly configured group mounts after GraphLayer updates. Keep the last drawn route until it can take over.
+          pending.push(member);
         } else {
-          member.state.requestHidden(false);
+          this.releaseMember(member, view);
         }
       }
     });
+    if (pending.length) {
+      const stop = graph.scene.onFrameEnd(() => {
+        stop();
+        this.invalidatePortDelegationCountsCache();
+        batch(() => {
+          for (const member of pending) {
+            const groupId = member.state.$state.peek().group;
+            const view = groupId === undefined ? undefined : groupsList.getGroupState(groupId)?.getViewComponent();
+            this.releaseMember(member, view);
+          }
+        });
+      });
+    }
   }
 
-  /**
-   * Follows the recorded blocks while the group is bound to its state: a block whose id is removed, or whose data
-   * names another group, left, and its record is released at once. A record's component binding is followed by the
-   * record itself (`watchMemberView`), so a bind costs one record's work, not a pass over the group.
-   */
+  private releaseMember(member: TCollapseMember, destination: Group | undefined): void {
+    member.ports.forEach((port) => {
+      if (port.isDelegated) port.undelegate();
+    });
+    if (!member.state.isAttached()) return;
+    if (destination instanceof CollapsibleGroup && destination.isCollapsed()) {
+      const transferred = destination.hideMembers([member.state]).get(member.state.id);
+      if (transferred) destination.delegateMemberPorts(transferred);
+      destination.performRender();
+    } else {
+      member.state.requestHidden(false);
+    }
+  }
+
+  /** Match the collapse records to the current members even when the group's own data has not changed. */
   private watchMembers(): void {
-    const watch = computed((): TBlockId[] => {
-      track(this.getCollapseRevision());
-      const blocks = this.context.graph.rootStore.blocksList.$blocksMap.value;
+    const watch = computed(() => (this.isCollapsed() ? this.getGroupBlocks() : undefined));
+    this.subscribeGroupSignal(watch, (states) => {
+      if (!states) return;
+      const blocks = new Map(states.map((state) => [state.id, state]));
       const left: TBlockId[] = [];
       this.collapseMembers?.forEach((member, id) => {
-        if (blocks.get(id) !== member.state || member.group.value !== this.props.id) left.push(id);
+        if (blocks.get(id) !== member.state) left.push(id);
       });
-      return left;
-    });
-    this.subscribeGroupSignal(watch, (left) => {
-      if (left.length === 0) return;
-      this.releaseMembers(left);
+      const arrived = states.filter((state) => this.collapseMembers?.get(state.id)?.state !== state);
+      if (!left.length && !arrived.length) return;
+      batch(() => {
+        if (left.length) this.releaseMembers(left);
+        const members = this.hideMembers(arrived);
+        for (const state of arrived) {
+          const member = members.get(state.id);
+          if (member) this.delegateMemberPorts(member);
+        }
+      });
       this.performRender();
     });
   }
@@ -637,11 +653,6 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   private getCollapseMembers(): Map<TBlockId, TCollapseMember> {
     if (!this.collapseMembers) this.collapseMembers = new Map();
     return this.collapseMembers;
-  }
-
-  private getCollapseRevision(): Signal<number> {
-    if (!this.collapseRevision) this.collapseRevision = signal(0);
-    return this.collapseRevision;
   }
 
   // ---------------------------------------------------------------------------

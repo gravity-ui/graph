@@ -386,7 +386,9 @@ test("one custom SceneLine draws in Canvas and WebGL through switching, loss and
 test("a replacement awaits a drawn frame when WebGL loses its context before the native event", async ({ page }) => {
   const graph = new GraphPageObject(page);
   await graph.initialize({ blocks: [], connections: [], settings: { renderer: "webgl" } });
-  await page.waitForFunction(() => window.graph.scene.state === "ready" && window.graph.scene.$renderer.peek() === "webgl");
+  await page.waitForFunction(
+    () => window.graph.scene.state === "ready" && window.graph.scene.$renderer.peek() === "webgl"
+  );
   const firstFrame = await page.evaluate(async (block) => {
     const current = window.graph;
     const gl = current.scene.layer.getBackend()?.canvas.getContext("webgl2");
@@ -399,7 +401,9 @@ test("a replacement awaits a drawn frame when WebGL loses its context before the
     return { lost: gl.isContextLost(), renderer: current.scene.$renderer.peek(), scene: current.scene.state };
   }, START);
   expect(firstFrame).toEqual({ lost: true, renderer: "lost", scene: "initialize" });
-  await page.waitForFunction(() => window.graph.scene.state === "ready" && window.graph.scene.$renderer.peek() === "lost");
+  await page.waitForFunction(
+    () => window.graph.scene.state === "ready" && window.graph.scene.$renderer.peek() === "lost"
+  );
 });
 
 test("reconnecting a resident line reuses its order and mixed plan, while paint width and depth still gate the plane", async ({
@@ -749,15 +753,18 @@ test("a saved polyline with a filled arrow follows a CollapsibleGroup without re
   await assertRoute(expanded, moved);
 });
 
-for (const renderer of ["canvas", "webgl"] as const) {
-  test(`an anchor connection follows a transfer between collapsed groups in ${renderer}`, async ({ page }) => {
+const groupTransfers = (["canvas", "webgl"] as const).flatMap((renderer) =>
+  (["ungrouped", "expanded", "collapsed"] as const).map((previous) => ({ renderer, previous }))
+);
+for (const { renderer, previous } of groupTransfers) {
+  test(`an anchor connection moves from ${previous} to a collapsed group in ${renderer}`, async ({ page }) => {
     if (renderer === "webgl") test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
     const graph = new GraphPageObject(page);
     await graph.initialize({
       blocks: [
         {
           ...START,
-          group: "a",
+          group: previous === "ungrouped" ? undefined : "a",
           anchors: [{ id: "out", blockId: START.id, type: "OUT" }],
         },
         END,
@@ -772,17 +779,17 @@ for (const renderer of ["canvas", "webgl"] as const) {
       page.evaluate(() => window.graph.connections.getConnectionState("edge")?.$geometry.value?.[0]);
     const anchor = await source();
     if (!anchor) throw new Error("The source anchor must resolve before collapsing");
-    await page.evaluate(() => {
+    await page.evaluate((previous) => {
       const { BlockGroups, CollapsibleGroup } = window.GraphModule;
       const groups = window.graph.addLayer(BlockGroups, {});
       const rect = { x: 40, y: 80, width: 230, height: 105 };
       const collapsedRect = { x: 140, y: 80, width: 130, height: 40 };
       groups.setGroups<TCollapsibleGroup>([
-        { id: "a", component: CollapsibleGroup, rect, collapsed: true, collapsedRect },
+        { id: "a", component: CollapsibleGroup, rect, collapsed: previous === "collapsed", collapsedRect },
         { id: "b", component: CollapsibleGroup, rect, collapsed: true, collapsedRect: { ...collapsedRect, y: 330 } },
       ]);
-    });
-    const formerEdge = { x: 290, y: 100 };
+    }, previous);
+    const formerEdge = previous === "collapsed" ? { x: 290, y: 100 } : anchor;
     const newEdge = { x: 290, y: 350 };
     const pointOnRoute = (from: TPoint): TPoint => {
       const x = 450;
@@ -805,12 +812,14 @@ for (const renderer of ["canvas", "webgl"] as const) {
     await assertRoute(formerEdge, newEdge);
     await graph.evaluate((graph) => graph.api.updateBlock({ id: "from", group: "b" }));
     await assertRoute(newEdge, formerEdge);
+    expect(await page.evaluate(() => window.graph.blocks.getBlockState("from")?.$hidden.value)).toBe(true);
     await page.evaluate(() => {
       const group = window.graph.rootStore.groupsList.getGroupState("b")?.getViewComponent();
       if (!(group instanceof window.GraphModule.CollapsibleGroup)) throw new Error("Missing destination group");
       group.expand();
     });
     await assertRoute(anchor, newEdge);
+    expect(await page.evaluate(() => window.graph.blocks.getBlockState("from")?.$hidden.value)).toBe(false);
   });
 }
 

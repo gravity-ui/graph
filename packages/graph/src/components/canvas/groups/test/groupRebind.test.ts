@@ -58,6 +58,7 @@ const Grouping = BlockGroups.withBlockGrouping({
 
 describe("a kept group rebinds to the new group state of a group added back in the same frame", () => {
   let graph: Graph;
+  let groups: BlockGroups;
 
   /** Blocks a and b in group g, block o outside it (700..800), connection c from a to o. */
   function start(group: TGroup | TCollapsibleGroup): void {
@@ -70,8 +71,8 @@ describe("a kept group rebinds to the new group state of a group added back in t
     });
     graph.cameraService.set({ width: 1000, height: 800, x: 0, y: 0, scale: 1 });
     graph.start();
-    graph.addLayer(BlockGroups, { draggable: true });
-    graph.rootStore.groupsList.setGroups([group]);
+    groups = graph.addLayer(BlockGroups, { draggable: true });
+    groups.setGroups([group]);
     frames();
   }
 
@@ -435,6 +436,107 @@ describe("a kept group rebinds to the new group state of a group added back in t
       expect(source()).toEqual({ x: 620, y: 395 });
       expect(blockState("a").$hidden.value).toBe(false);
       expect(outputPort("a")?.isDelegated).toBe(false);
+    });
+
+    it.each([undefined, "g"])("takes in a visible block whose previous group is %s", (group) => {
+      start(collapsible(false));
+      graph.api.updateBlock({ id: "a", group });
+      graph.api.updateBlock({ id: "b", group: "h" });
+      const destination: TCollapsibleGroup = {
+        id: "h",
+        rect: { x: 480, y: 350, width: 160, height: 100 },
+        component: CollapsibleGroup,
+        collapsed: true,
+      };
+      groups.setGroups([collapsible(false), destination]);
+      frames();
+
+      const source = () => graph.connections.getConnectionState("c")?.$geometry.value?.[0];
+      const edge = outputPort("b")?.$point.value;
+      expect(edge).toBeDefined();
+      expect(source()).toEqual({ x: 200, y: 125 });
+      expect(blockState("a").$hidden.value).toBe(false);
+      const members = graph.rootStore.groupsList.$blockGroups.value;
+      graph.api.updateBlock({ id: "a", x: 110 });
+      expect(graph.rootStore.groupsList.$blockGroups.value).toBe(members);
+      graph.api.updateBlock({ id: "a", group: "h", x: 520, y: 370 });
+      frames();
+
+      expect(blockState("a").$hidden.value).toBe(true);
+      expect(source()).toEqual(edge);
+      expect(graph.getElementOverPoint({ x: 570, y: 395 }, [Block]) === blockView("a")).toBe(false);
+
+      const view = viewOf("h");
+      if (!(view instanceof CollapsibleGroup)) throw new Error("not a collapsible group");
+      view.expand();
+      frames();
+      expect(blockState("a").$hidden.value).toBe(false);
+      expect(source()).toEqual({ x: 620, y: 395 });
+      expect(graph.getElementOverPoint({ x: 570, y: 395 }, [Block]) === blockView("a")).toBe(true);
+    });
+
+    it("hides and delegates a block added back to the same manual collapsed group", () => {
+      start(collapsible(true));
+      const before = blockState("a");
+      graph.rootStore.blocksList.deleteBlocks(["a"]);
+      graph.api.addBlock(block("a", 120, "g"));
+      frames();
+
+      expect(blockState("a") === before).toBe(false);
+      expect(blockState("a").$hidden.value).toBe(true);
+      expect(outputPort("a")?.$point.value).toEqual(outputPort("b")?.$point.value);
+      expect(outputPort("a")?.isDelegated).toBe(true);
+    });
+
+    it("distinguishes an ungrouped block from a group named undefined", () => {
+      start({ ...collapsible(true), id: "undefined" });
+      expect(blockState("o").$hidden.value).toBe(false);
+
+      graph.api.updateBlock({ id: "o", group: "undefined" });
+      frames();
+      expect(blockState("o").$hidden.value).toBe(true);
+      expect(outputPort("o")?.isDelegated).toBe(true);
+    });
+
+    it("keeps the old visual delegation until a new collapsed group can take it over", () => {
+      start(collapsible(true));
+      const old = outputPort("a")?.$point.peek();
+      expect(old).toBeDefined();
+      const connection = graph.connections.getConnectionState("c");
+      const drawnStart = () => {
+        const element = connection?.getViewComponent()?.getSceneElementView();
+        const shaft = element?.primitives[0];
+        return element && shaft?.kind === "path"
+          ? { x: element.x + shaft.segments[0], y: element.y + shaft.segments[1] }
+          : undefined;
+      };
+      const destination: TCollapsibleGroup = {
+        id: "h",
+        component: CollapsibleGroup,
+        collapsed: true,
+        rect: { x: 480, y: 350, width: 160, height: 100 },
+      };
+      groups.setGroups([collapsible(true), destination]);
+      graph.updateEntities({ blocks: [block("a", 100, "h")] });
+      expect(blockState("a").$hidden.peek()).toBe(true);
+      expect(outputPort("a")?.$point.peek()).toEqual(old);
+
+      frames(1);
+      expect(blockView("a")?.getSceneElementView()?.hidden).toBe(true);
+      expect(drawnStart()).toEqual(old);
+      frames();
+      expect(connection?.$geometry.peek()?.[0]).toEqual(outputPort("a")?.$point.peek());
+      expect(connection?.$geometry.peek()?.[0]).not.toEqual(old);
+      expect(drawnStart()).toEqual(connection?.$geometry.peek()?.[0]);
+      expect(outputPort("a")?.isDelegated).toBe(true);
+
+      graph.setEntities({
+        blocks: [block("a", 100), block("b", 300, "g"), block("o", 700)],
+        connections: [{ id: "c", sourceBlockId: "a", targetBlockId: "o" }],
+      });
+      frames();
+      expect(blockView("a")?.getSceneElementView()?.hidden).toBe(false);
+      expect(connection?.$geometry.peek()?.[0]).toEqual({ x: 200, y: 125 });
     });
 
     describe("a block that leaves the collapsed group is shown, hit and owns its ports again", () => {
