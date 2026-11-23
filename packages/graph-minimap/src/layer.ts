@@ -18,6 +18,7 @@ type MiniMapPosition = Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "ri
  * the frame after its period ends at the latest.
  */
 const PICTURE_THROTTLE_MS = 100;
+const DEFAULT_SIZE = 200;
 
 /** A signal-like source: `subscribe` calls the handler at once and on every change, and returns the unsubscribe. */
 type TSubscribable<T> = { subscribe: (handler: (value: T) => void) => () => void };
@@ -45,8 +46,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   private relativeX: number;
   private relativeY: number;
   private scale: number;
-  private cameraBorderSize: number;
-  private cameraBorderColor: string;
+  private readonly customClassNames = new Set<string>();
 
   /** The blocks' picture at the minimap's pixel size; a camera move only copies it (see `onCameraChange`). */
   private picture?: HTMLCanvasElement;
@@ -82,30 +82,43 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   private metTypes: ReadonlySet<string> = new Set<string>();
 
   constructor(props: MiniMapLayerProps) {
-    const classNames = [...(Array.isArray(props.classNames) ? props.classNames : []), "graph-minimap"];
-
     super({
+      ...props,
       canvas: {
         zIndex: 300,
-        classNames,
         transformByCameraPosition: false,
+        ...props.canvas,
       },
-      ...props,
     });
 
     this.minimapCanvas = this.requireCanvas();
+    this.minimapCanvas.classList.add("graph-minimap");
+    this.applyCustomClassNames(props.classNames);
 
-    this.minimapWidth = this.props.width ?? 200;
-    this.minimapHeight = this.props.height ?? 200;
-    this.cameraBorderSize = this.props.cameraBorderSize ?? 2;
-    this.cameraBorderColor = this.props.cameraBorderColor ?? "rgba(255, 119, 0, 0.9)";
+    this.minimapWidth = this.props.width ?? DEFAULT_SIZE;
+    this.minimapHeight = this.props.height ?? DEFAULT_SIZE;
     this.relativeX = 0;
     this.relativeY = 0;
     this.scale = 1;
   }
 
+  protected override propsChanged(nextProps: MiniMapLayerProps): void {
+    super.propsChanged(nextProps);
+    const width = nextProps.width ?? DEFAULT_SIZE;
+    const height = nextProps.height ?? DEFAULT_SIZE;
+    if (this.minimapWidth !== width || this.minimapHeight !== height) {
+      this.minimapWidth = width;
+      this.minimapHeight = height;
+      this.applySizeStyle();
+      this.updateSize();
+    }
+    if (this.props.location !== nextProps.location) this.applyPositionStyle(nextProps.location);
+    if (this.props.classNames !== nextProps.classNames) this.applyCustomClassNames(nextProps.classNames);
+  }
+
   protected afterInit(): void {
-    this.applyPositionStyle();
+    this.applyPositionStyle(this.props.location);
+    this.applySizeStyle();
     this.picture ??= this.minimapCanvas.ownerDocument.createElement("canvas");
     const { graph } = this.props;
     const throttled = (): void => this.requestThrottledPicture();
@@ -324,12 +337,33 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.renderBlocks(ctx);
   }
 
-  private applyPositionStyle(): void {
-    const canvas = this.minimapCanvas;
-    Object.assign(canvas.style, this.getPositionOfMiniMap(this.props.location), {
-      width: `${this.minimapWidth}px`,
-      height: `${this.minimapHeight}px`,
-    });
+  private applyPositionStyle(location: MiniMapLayerProps["location"]): void {
+    const { style } = this.minimapCanvas;
+    const position = this.getPositionOfMiniMap(location);
+    for (const side of ["top", "left", "bottom", "right"] as const) {
+      if (style[side] !== position[side]) style[side] = position[side];
+    }
+  }
+
+  private applySizeStyle(): void {
+    const { style } = this.minimapCanvas;
+    style.width = `${this.minimapWidth}px`;
+    style.height = `${this.minimapHeight}px`;
+  }
+
+  private applyCustomClassNames(classNames: MiniMapLayerProps["classNames"]): void {
+    const next = Array.isArray(classNames) ? classNames : [];
+    const { classList } = this.minimapCanvas;
+    for (const name of this.customClassNames) {
+      if (next.includes(name)) continue;
+      classList.remove(name);
+      this.customClassNames.delete(name);
+    }
+    for (const name of next) {
+      if (classList.contains(name)) continue;
+      classList.add(name);
+      this.customClassNames.add(name);
+    }
   }
 
   private calculateViewPortCoords(): void {
@@ -367,7 +401,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     let xPos = -cameraState.relativeX;
     let yPos = -cameraState.relativeY;
 
-    const scaledCameraBorderSize = this.cameraBorderSize / this.scale;
+    const scaledCameraBorderSize = (this.props.cameraBorderSize ?? 2) / this.scale;
 
     if (xPos <= this.relativeX && xPos + width <= this.relativeX) {
       xPos = this.relativeX;
@@ -406,7 +440,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     }
 
     this.context.ctx.lineWidth = scaledCameraBorderSize;
-    this.context.ctx.strokeStyle = computeCssVariable(this.cameraBorderColor);
+    this.context.ctx.strokeStyle = computeCssVariable(this.props.cameraBorderColor ?? "rgba(255, 119, 0, 0.9)");
 
     this.context.ctx.strokeRect(xPos, yPos, width, height);
   }
