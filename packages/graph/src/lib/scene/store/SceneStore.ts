@@ -18,7 +18,7 @@ import {
   styleRaise,
 } from "../styles/style";
 import type { TSceneChange, TSceneElement, TSceneStyle, TSceneStyleChange } from "../types";
-import { paintedGeometryBounds } from "../webgl/order/levelBounds";
+import { MIN_CAMERA_SCALE, paintedGeometryBounds } from "../webgl/order/levelBounds";
 
 import { preparePrimitives, validateStyleEffects } from "./validateScenePaint";
 
@@ -126,6 +126,7 @@ export class SceneStore {
 
   private readonly index: TileIndex<TNode>;
   private canvasQuery?: TCanvasQuery;
+  private minimumPaintScale = MIN_CAMERA_SCALE;
 
   /** The last query's mark (`TNode.mark`). */
   private queryMark = 0;
@@ -659,6 +660,17 @@ export class SceneStore {
     return found;
   }
 
+  /** @internal Reindex only when the camera enters a different range of paint widths. */
+  public setPaintScale(scale: number): void {
+    const minimum = scale > 0 && scale < MIN_CAMERA_SCALE ? 2 ** Math.floor(Math.log2(scale)) : MIN_CAMERA_SCALE;
+    if (minimum === this.minimumPaintScale) return;
+    this.minimumPaintScale = minimum;
+    this.canvasQuery = undefined;
+    for (const node of this.nodes.values()) {
+      if (this.restyle(node, true)) this.place(node);
+    }
+  }
+
   /** @internal Reuses nearby elements in draw order as the camera pans or their geometry moves. */
   public queryForCanvas(rect: TTileRect, scale: number, level?: TSceneLevel): readonly TSceneElement[] {
     const { minX, minY, maxX, maxY } = rect;
@@ -890,8 +902,8 @@ export class SceneStore {
   /** The element's bounds grown by the geometry its row bakes (a circle scale, a wider stroke); undefined if equal. */
   private styledBounds(element: TSceneElement): TTileRect | undefined {
     const style = this.styles[element.styleId];
-    // The stroke Canvas 2D paints, not only the alignment's reach: it strokes a circle centred on its radius.
-    const baked = paintedGeometryBounds(bakeElementStyle(element.primitives, style));
+    // Include the reach of Canvas 2D miter joins and very wide inside rect borders.
+    const baked = paintedGeometryBounds(bakeElementStyle(element.primitives, style), this.minimumPaintScale);
     const { bounds } = element;
     if (
       !baked ||
@@ -916,7 +928,8 @@ export class SceneStore {
     const key = styleGeometryKey(this.styles[node.element.styleId]);
     if (!force && key === node.drawnKey) return false;
     node.drawnKey = key;
-    const drawn = key === "" ? undefined : this.styledBounds(node.element);
+    const drawn =
+      key === "" && this.minimumPaintScale === MIN_CAMERA_SCALE ? undefined : this.styledBounds(node.element);
     if (sameRect(drawn, node.drawn)) return false;
     node.drawn = drawn;
     return true;

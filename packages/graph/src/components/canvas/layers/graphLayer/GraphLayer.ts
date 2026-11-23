@@ -72,6 +72,16 @@ function graphComponentAbove(component: EventedComponent): GraphComponent | unde
 }
 
 export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
+  public override hide(): void {
+    super.hide();
+    this.props.graph.scene?.layer.hide();
+  }
+
+  public override show(): void {
+    super.show();
+    this.props.graph.scene?.layer.show();
+  }
+
   public declare $: Component["$"] & { camera?: Camera };
 
   private camera: ICamera;

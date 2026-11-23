@@ -76,6 +76,16 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     return this.backend;
   }
 
+  public override hide(): void {
+    super.hide();
+    this.syncCanvasVisibility(this.backend?.canvas);
+  }
+
+  public override show(): void {
+    super.show();
+    this.syncCanvasVisibility(this.backend?.canvas);
+  }
+
   public setRenderer(renderer: TSceneRenderer): void {
     this.requested = renderer;
     if (renderer === "canvas") {
@@ -200,6 +210,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     const { scale } = camera;
     const viewport = cameraWorldViewport(camera, this.getDRP());
     const store = this.props.store;
+    store.setPaintScale(scale);
     const level = this.props.level?.peek();
     // The query leaves out elements with nothing to draw on the level (an anchor at the minimalistic level).
     drawElements(ctx, store.queryForCanvas(viewport, scale, level), scale, {
@@ -286,6 +297,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
         created.dispose();
         return;
       }
+      this.syncCanvasVisibility(created.canvas);
       if (this.pendingContext === "restored") {
         created.dispose();
         await this.loadBackend("restoring");

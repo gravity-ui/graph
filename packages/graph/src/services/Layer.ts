@@ -181,7 +181,7 @@ export class Layer<
 
   public hide() {
     this.hiddenByUser = true;
-    this.canvas?.classList.add(HIDDEN_CLASS_NAME);
+    this.syncCanvasVisibility(this.canvas);
     this.html?.classList.add(HIDDEN_CLASS_NAME);
   }
 
@@ -193,8 +193,13 @@ export class Layer<
 
   public show() {
     this.hiddenByUser = false;
-    this.canvas?.classList.remove(HIDDEN_CLASS_NAME);
+    this.syncCanvasVisibility(this.canvas);
     this.html?.classList.toggle(HIDDEN_CLASS_NAME, !this.htmlActive);
+  }
+
+  /** Applies the layer's visibility to its Canvas and any renderer canvas that belongs to it. */
+  protected syncCanvasVisibility(canvas: HTMLCanvasElement | undefined): void {
+    canvas?.classList.toggle(HIDDEN_CLASS_NAME, this.hiddenByUser);
   }
 
   /**

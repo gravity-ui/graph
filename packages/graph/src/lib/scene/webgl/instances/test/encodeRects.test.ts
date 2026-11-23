@@ -1,9 +1,22 @@
 import type { TScenePrimitive } from "../../../types";
 import { InstanceRanges } from "../InstanceRanges";
 import { InstanceList, MAX_SUB, RECT_FLOATS, encodeRects } from "../encodeRects";
+import { TRIANGLE_FLOATS, encodeTriangles } from "../encodeTriangles";
 import { USE_BASE_ALPHA } from "../tables";
 
 const slotOf = (part: string | undefined): number => (part === "border" ? 3 : Number(part !== undefined) * 2);
+
+it("leaves the base paint of a triangle in the opaque pass", () => {
+  const { opaque, translucent } = encodeTriangles(
+    [{ kind: "polygon", part: "body", points: new Float32Array([0, 0, 10, 0, 0, 10]) }],
+    0,
+    slotOf,
+    0,
+    MAX_SUB
+  );
+  expect(opaque).toHaveLength(TRIANGLE_FLOATS);
+  expect(translucent).toHaveLength(0);
+});
 
 describe("encodeRects", () => {
   it("writes the level mask of a primitive", () => {

@@ -223,9 +223,8 @@ describe("paintedGeometryBounds", () => {
     border: { width, align: "inside" },
   });
 
-  it("pads a circle border by half its width at least: Canvas 2D strokes it centred on the radius", () => {
-    expect(geometryBounds([circle("inside")])).toEqual(box(-9, -9, 9, 9));
-    expect(paintedGeometryBounds([circle("inside")])).toEqual(box(-13, -13, 13, 13));
+  it("bounds a circle border by the reach of its alignment", () => {
+    expect(paintedGeometryBounds([circle("inside")])).toEqual(box(-9, -9, 9, 9));
     expect(paintedGeometryBounds([circle("center")])).toEqual(box(-13, -13, 13, 13));
     expect(paintedGeometryBounds([circle("outside")])).toEqual(box(-17, -17, 17, 17));
   });

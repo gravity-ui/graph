@@ -18,7 +18,13 @@ import { Path2DRenderInstance, TPathBounds } from "./BatchPath2D";
 import { BlockConnections, TGraphConnectionsContext } from "./BlockConnections";
 import { ConnectionLabel } from "./Label";
 import type { IConnectionLabelOwner } from "./Label";
-import { blockGeometry } from "./geometry";
+import {
+  bezierGeometry,
+  bezierMultipointGeometry,
+  blockGeometry,
+  multipointGeometry,
+  straightGeometry,
+} from "./geometry";
 import type { TConnectionGeometry, TConnectionGeometryFn } from "./geometry";
 import { distanceToArrow, distanceToSegments } from "./geometry/distance";
 import { measurePath } from "./geometry/pathMetrics";
@@ -52,18 +58,30 @@ export type TBlockConnection = {
 /** The geometry input of connections without `points`. */
 const NO_POINTS: readonly TPoint[] = Object.freeze([]);
 
+const STOCK_GEOMETRIES = new Set([
+  blockGeometry,
+  straightGeometry,
+  bezierGeometry,
+  multipointGeometry,
+  bezierMultipointGeometry,
+]);
+
 function sceneStroke(stroke: TLineStroke): TSceneStroke {
   return { color: stroke.color, width: stroke.width, dash: stroke.dash?.pattern.slice() };
 }
 
-/** Connection geometries may reuse their buffers. The scene owns the shaft until its next published update. */
+function snapshotSegments(segments: Float32Array): Float32Array {
+  const snapshot = segments.slice();
+  if (stockBezierSegments.has(segments)) stockBezierSegments.add(snapshot);
+  if (turnedPolylineStrokes.has(segments)) turnedPolylineStrokes.add(snapshot);
+  return snapshot;
+}
+
+/** The scene owns its shaft independently of the geometry available to connection subclasses. */
 function snapshotShaft(primitives: TScenePrimitive[]): TScenePrimitive[] {
   const shaft = primitives[0];
   if (shaft?.kind === "path" && shaft.part === "line") {
-    const segments = shaft.segments.slice();
-    if (stockBezierSegments.has(shaft.segments)) stockBezierSegments.add(segments);
-    if (turnedPolylineStrokes.has(shaft.segments)) turnedPolylineStrokes.add(segments);
-    primitives[0] = { ...shaft, segments };
+    primitives[0] = { ...shaft, segments: snapshotSegments(shaft.segments) };
   }
   return primitives;
 }
@@ -138,7 +156,7 @@ export class BlockConnection<T extends TConnection = TConnection>
   /** The line's appearance and optional Canvas drawing hooks. The graph scene picks its renderer. */
   public static line: TConnectionLineClass = SceneLine;
 
-  /** Pure shape: cubic segments and the arrow, with optional label positions along the route. */
+  /** Computes cubic segments and the arrow, with optional label positions along the route. */
   public static geometry: TConnectionGeometryFn = blockGeometry;
 
   public declare readonly __styleParts?: TStyleParts<"line" | "arrow" | "labelBackground" | "label">;
@@ -523,6 +541,7 @@ export class BlockConnection<T extends TConnection = TConnection>
 
   /**
    * The geometry of the last recomputation; undefined without endpoints or when the geometry function returns none.
+   * Treat its contents as read-only.
    */
   public getGeometry(): TConnectionGeometry | undefined {
     return this.shape;
@@ -692,7 +711,9 @@ export class BlockConnection<T extends TConnection = TConnection>
   private computeGeometry(props: TConnectionProps): TConnectionGeometry | undefined {
     if (!this.connectionPoints) return undefined;
     const connection = this.connectedState.$state.value;
-    return (this.constructor as typeof BlockConnection).geometry({
+    const ConnectionClass = this.constructor as typeof BlockConnection;
+    const geometry = ConnectionClass.geometry;
+    const shape = geometry.call(ConnectionClass, {
       source: this.connectionPoints[0],
       target: this.connectionPoints[1],
       points: (connection as Partial<TMultipointConnection>).points ?? NO_POINTS,
@@ -702,6 +723,15 @@ export class BlockConnection<T extends TConnection = TConnection>
       sourceDelegated: this.connectedState.$sourcePortState.value.isDelegated,
       targetDelegated: this.connectedState.$targetPortState.value.isDelegated,
     });
+    if (!shape || STOCK_GEOMETRIES.has(geometry)) return shape;
+    // Custom geometries can reuse their output on the next invocation, including for another connection.
+    const { segments, arrow, labels } = shape;
+    return {
+      ...shape,
+      segments: snapshotSegments(segments),
+      arrow: arrow && { ...arrow, points: arrow.points.slice() },
+      labels: labels?.map((label) => ({ ...label })),
+    };
   }
 
   private updateCullingBounds(props: TConnectionProps = this.props): void {

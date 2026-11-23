@@ -292,18 +292,21 @@ type TConnectionGeometry = {
   segments: Float32Array;
   /** Open: stroked like the line (a chevron). Closed: filled and stroked (a triangle). */
   arrow?: { points: Float32Array; closed: boolean };
+  /** Labels placed in order of priority along the route. */
+  labels?: readonly Readonly<{ id: string; text: string; at: number }>[];
 };
 
 type TConnectionGeometryFn = (input: TConnectionGeometryInput) => TConnectionGeometry | undefined;
 ```
 
 - The component runs the geometry when its input changes: a moved port, changed props (the Bézier settings) or any
-  change of the connection's data in the store. It keeps the result until then; a geometry must be pure.
+  change of the connection's data in the store. A custom geometry can reuse its output buffers and label descriptors
+  across calls. The connection snapshots the result for drawing, bounds and hit testing until it recomputes.
 - `undefined` means no geometry: the connection is neither drawn nor hit. A connection whose ports are not resolved
   has no endpoints and so no geometry.
 - `arrow.points` are x, y pairs in world units. The arrow is optional: without it, none is drawn. The points of a
   closed arrow must form a convex polygon: WebGL fills it as a triangle fan.
-- `connection.getGeometry()` returns the current result.
+- `connection.getGeometry()` returns the current geometry for inspection. Treat its contents as read-only.
 
 Library geometries:
 
@@ -410,7 +413,8 @@ to select the connection, including in a gap between dashes. To vary color along
 
 ### Labels along a route
 
-Return `labels` from the connection's geometry to draw one or more captions on its shaft in Canvas and WebGL.
+Return `labels` from a retained connection's geometry to draw one or more captions on its shaft in the Canvas and
+WebGL scene renderers.
 Give each label a stable `id` that is unique within the connection. Each `at` is a fraction of the route length
 between 0 and 1. The connection measures and rotates the text, cuts the shaft under it, and uses the same bounds
 for hit testing. The first descriptor has priority if labels overlap.
@@ -447,6 +451,10 @@ style all captions on the connection together. `connection.hitTestRouteLabel(poi
 at a world point. Clicking a caption selects its connection.
 If `geometry` omits `labels`, the connection uses its usual data `label`. An empty array draws
 no geometry labels and suppresses the data label.
+
+The [Canvas compatibility batch](batch-rendering.md) uses the connection's data `label`, including on classes with
+custom `afterRender()`, `renderLabel()` or `renderLabelText()` hooks. Its default Canvas paths still come from the geometry.
+Route captions, their shaft gaps and `hitTestRouteLabel()` require a connection drawn by the scene.
 
 ## Effects
 

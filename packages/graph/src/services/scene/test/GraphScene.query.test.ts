@@ -67,6 +67,25 @@ describe("graph.scene.query options and revisionOf", () => {
     expect(Object.isFrozen(copy)).toBe(true);
   });
 
+  it("finds a screen-space border when zooming below the default minimum", () => {
+    const rect = { x: 0, y: 0, width: 10_000, height: 10_000 };
+    graph.scene.store.add(
+      input("border", "block", {
+        x: -30_000,
+        bounds: { minX: -4000, minY: -4000, maxX: 4010, maxY: 4010 },
+        primitives: [{ ...square, border: { color: "#000", width: { px: 40 }, align: "outside" } }],
+      })
+    );
+
+    expect(graph.scene.query(rect)).toHaveLength(0);
+    graph.cameraService.set({ scaleMin: 0.001 });
+    expect(graph.scene.query(rect)).toHaveLength(0);
+    graph.cameraService.set({ scale: 0.001 });
+    expect(graph.scene.query(rect).map((row) => row.id)).toEqual(["border"]);
+    graph.cameraService.set({ scale: 0.5 });
+    expect(graph.scene.query(rect)).toHaveLength(0);
+  });
+
   it("does not expose live rows through public query options", () => {
     const element = graph.scene.store.add(input("b", "block"));
     const options = { level: "minimalistic", live: true } as const;

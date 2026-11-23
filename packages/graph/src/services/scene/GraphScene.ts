@@ -759,6 +759,7 @@ export class GraphScene implements IGraphScene {
   }
 
   public query(rect: TRect, options: TSceneQueryOptions = {}): readonly TSceneElementView<HTMLCanvasElement>[] {
+    this.store.setPaintScale(this.graph.$camera.peek().scale);
     const snapshot = createPrimitiveSnapshot();
     return this.queryLive(rect, options).map((element) =>
       Object.freeze({

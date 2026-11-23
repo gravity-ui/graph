@@ -11,8 +11,8 @@ import { MITER_LIMIT } from "../paths/closedStroke";
 export const MIN_CAMERA_SCALE = 0.01;
 
 /** The lowest camera scale a primitive is shown at: `MIN_CAMERA_SCALE`, or its `minScale` when that is higher. */
-export function lowestShownScale(minScale?: number): number {
-  return minScale !== undefined && Number.isFinite(minScale) ? Math.max(MIN_CAMERA_SCALE, minScale) : MIN_CAMERA_SCALE;
+export function lowestShownScale(minScale?: number, cameraMinimum = MIN_CAMERA_SCALE): number {
+  return minScale !== undefined && Number.isFinite(minScale) ? Math.max(cameraMinimum, minScale) : cameraMinimum;
 }
 
 /**
@@ -36,16 +36,6 @@ function strokeReach(stroke: TSceneStroke | undefined, scale: number): number {
     default:
       return width / 2;
   }
-}
-
-/**
- * How far a circle's border reaches outside its radius in what either renderer paints, at its largest extent: WebGL
- * places it by its alignment (`strokeReach`); Canvas 2D strokes it centred on the radius whatever the alignment, so it
- * reaches half its width at least.
- */
-function paintedCircleReach(stroke: TSceneStroke | undefined, scale: number): number {
-  if (stroke?.width === undefined) return 0;
-  return Math.max(strokeReach(stroke, scale), resolveSceneSize(stroke.width, scale) / 2);
 }
 
 /**
@@ -169,8 +159,7 @@ export class CachedGeometryBounds {
 
 /**
  * `geometryBounds` with each stroke at the larger of its reach in either renderer:
- * - Canvas 2D strokes circles centred on their radius whatever their alignment (`paintedCircleReach`), and an `inside`
- *   rect border wider than the rect paints past it (`paintedRectReach`);
+ * - A Canvas 2D `inside` rect border wider than the rect paints past it (`paintedRectReach`);
  * - it joins the pieces of paths and the sides of polygons with miters, which reach up to 5 widths from a vertex at
  *   its default miter limit (`paintedJoinReach`).
  *
@@ -178,18 +167,22 @@ export class CachedGeometryBounds {
  * drawn at the viewport's edge. `geometryBounds`, and so an element's own bounds, keep the alignment's reach and the
  * width's pad.
  */
-export function paintedGeometryBounds(primitives: readonly TScenePrimitive[]): TTileRect | undefined {
-  return boundsOf(primitives, true);
+export function paintedGeometryBounds(
+  primitives: readonly TScenePrimitive[],
+  cameraMinimum?: number
+): TTileRect | undefined {
+  return boundsOf(primitives, true, undefined, cameraMinimum);
 }
 
 function boundsOf(
   primitives: readonly TScenePrimitive[],
   painted: boolean,
-  frameScale?: number
+  frameScale?: number,
+  cameraMinimum?: number
 ): TTileRect | undefined {
   const box: TTileRect = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   for (const primitive of primitives) {
-    const scale = frameScale ?? lowestShownScale(primitive.minScale);
+    const scale = frameScale ?? lowestShownScale(primitive.minScale, cameraMinimum);
     switch (primitive.kind) {
       case "sprite": {
         const { x, y, width, height } = primitive;
@@ -204,8 +197,7 @@ function boundsOf(
       }
       case "circle": {
         const { cx, cy, r, border } = primitive;
-        const pad = painted ? paintedCircleReach(border, scale) : strokeReach(border, scale);
-        joinBox(box, cx - r, cy - r, cx + r, cy + r, pad);
+        joinBox(box, cx - r, cy - r, cx + r, cy + r, strokeReach(border, scale));
         break;
       }
       case "path":

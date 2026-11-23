@@ -38,7 +38,7 @@ void main() {
     return;
   }
   float scale = scene_camera.z;
-  float width = sceneSize(rect_borderSize, scale);
+  float width = sceneStrokeWidth(rect_borderSize, scale);
   float outer = rect_extra.x < 0.5 ? 0.0 : (rect_extra.x < 1.5 ? width * 0.5 : width);
   // One CSS pixel past the border's outer edge: room for the anti-aliased edge.
   float pad = outer + 1.0 / scale;

@@ -10,6 +10,10 @@ Return `labels` from `static geometry` to place several labels on the same conne
 `id` unique within that connection and an `at` position along the route by length. A position of `0.25`
 is a quarter of the way from source to target.
 
+Route labels and their shaft gaps use the retained scene in both Canvas and WebGL. If your connection has
+Canvas drawing hooks such as `afterRender()` or `renderLabelText()`, the Canvas compatibility batch draws
+the connection using its data `label`.
+
 ## Try it
 
 Hover the line or either label to highlight both labels in blue. Click to select the connection and
