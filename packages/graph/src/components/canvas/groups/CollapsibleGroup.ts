@@ -554,6 +554,9 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   private releaseMembers(ids?: readonly TBlockId[]): void {
     const members = this.collapseMembers;
     if (!members || members.size === 0) return;
+    const { graph } = this.context;
+    const { groupsList } = graph.rootStore;
+    const pending: TCollapseMember[] = [];
     this.invalidatePortDelegationCountsCache();
     batch(() => {
       for (const id of ids ?? Array.from(members.keys())) {
@@ -561,24 +564,47 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
         if (!member) continue;
         members.delete(id);
         member.stopViewWatch?.();
-        member.ports.forEach((port) => {
-          if (port.isDelegated) port.undelegate();
-        });
-        if (!member.state.isAttached()) continue;
         const groupId = member.state.$state.peek().group;
         const destination =
-          groupId === undefined || groupId === this.props.id
+          groupId === undefined || groupId === this.props.id || !member.state.isAttached()
             ? undefined
-            : this.context.graph.rootStore.groupsList.getGroupState(groupId)?.getViewComponent();
-        if (destination instanceof CollapsibleGroup && destination.isCollapsed()) {
-          const transferred = destination.hideMembers([member.state]).get(id);
-          if (transferred) destination.delegateMemberPorts(transferred);
-          destination.performRender();
+            : groupsList.getGroupState<TCollapsibleGroup>(groupId);
+        const view = destination?.getViewComponent();
+        if (!view && destination?.$state.peek().collapsed) {
+          // A newly configured group mounts after GraphLayer updates. Keep the last drawn route until it can take over.
+          pending.push(member);
         } else {
-          member.state.requestHidden(false);
+          this.releaseMember(member, view);
         }
       }
     });
+    if (pending.length) {
+      const stop = graph.scene.onFrameEnd(() => {
+        stop();
+        this.invalidatePortDelegationCountsCache();
+        batch(() => {
+          for (const member of pending) {
+            const groupId = member.state.$state.peek().group;
+            const view = groupId === undefined ? undefined : groupsList.getGroupState(groupId)?.getViewComponent();
+            this.releaseMember(member, view);
+          }
+        });
+      });
+    }
+  }
+
+  private releaseMember(member: TCollapseMember, destination: Group | undefined): void {
+    member.ports.forEach((port) => {
+      if (port.isDelegated) port.undelegate();
+    });
+    if (!member.state.isAttached()) return;
+    if (destination instanceof CollapsibleGroup && destination.isCollapsed()) {
+      const transferred = destination.hideMembers([member.state]).get(member.state.id);
+      if (transferred) destination.delegateMemberPorts(transferred);
+      destination.performRender();
+    } else {
+      member.state.requestHidden(false);
+    }
   }
 
   /** Match the collapse records to the current members even when the group's own data has not changed. */

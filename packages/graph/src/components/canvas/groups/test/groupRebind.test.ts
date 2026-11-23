@@ -498,6 +498,47 @@ describe("a kept group rebinds to the new group state of a group added back in t
       expect(outputPort("o")?.isDelegated).toBe(true);
     });
 
+    it("keeps the old visual delegation until a new collapsed group can take it over", () => {
+      start(collapsible(true));
+      const old = outputPort("a")?.$point.peek();
+      expect(old).toBeDefined();
+      const connection = graph.connections.getConnectionState("c");
+      const drawnStart = () => {
+        const element = connection?.getViewComponent()?.getSceneElementView();
+        const shaft = element?.primitives[0];
+        return element && shaft?.kind === "path"
+          ? { x: element.x + shaft.segments[0], y: element.y + shaft.segments[1] }
+          : undefined;
+      };
+      const destination: TCollapsibleGroup = {
+        id: "h",
+        component: CollapsibleGroup,
+        collapsed: true,
+        rect: { x: 480, y: 350, width: 160, height: 100 },
+      };
+      groups.setGroups([collapsible(true), destination]);
+      graph.updateEntities({ blocks: [block("a", 100, "h")] });
+      expect(blockState("a").$hidden.peek()).toBe(true);
+      expect(outputPort("a")?.$point.peek()).toEqual(old);
+
+      frames(1);
+      expect(blockView("a")?.getSceneElementView()?.hidden).toBe(true);
+      expect(drawnStart()).toEqual(old);
+      frames();
+      expect(connection?.$geometry.peek()?.[0]).toEqual(outputPort("a")?.$point.peek());
+      expect(connection?.$geometry.peek()?.[0]).not.toEqual(old);
+      expect(drawnStart()).toEqual(connection?.$geometry.peek()?.[0]);
+      expect(outputPort("a")?.isDelegated).toBe(true);
+
+      graph.setEntities({
+        blocks: [block("a", 100), block("b", 300, "g"), block("o", 700)],
+        connections: [{ id: "c", sourceBlockId: "a", targetBlockId: "o" }],
+      });
+      frames();
+      expect(blockView("a")?.getSceneElementView()?.hidden).toBe(false);
+      expect(connection?.$geometry.peek()?.[0]).toEqual({ x: 200, y: 125 });
+    });
+
     describe("a block that leaves the collapsed group is shown, hit and owns its ports again", () => {
       /** a is shown and hit at its body, and the line c starts at a's own output port, not at the group's edge. */
       const expectLeft = (): void => {

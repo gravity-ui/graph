@@ -136,6 +136,8 @@ endpoint, including its anchor when the connection uses one.
 A collapsed group created with `setGroups()` also accepts blocks that join it later. Change the block's `group`
 with `api.updateBlock()` to hide it and move its connections to the group's edge. This works from an ungrouped
 block and from either an expanded or a collapsed group. Expanding the destination restores the block's own ports.
+If the destination group is created in the same update, a block that was already hidden keeps its previous
+delegation until the destination is ready.
 
 **Do this:**
 
