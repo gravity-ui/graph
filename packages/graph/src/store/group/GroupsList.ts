@@ -1,10 +1,10 @@
 import { computed, signal } from "@preact/signals-core";
-import groupBy from "lodash/groupBy";
 
 import { Group } from "../../components/canvas/groups";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
+import { track } from "../../utils/functions/track";
 import type { BlockState } from "../block/Block";
 import { RootStore } from "../index";
 
@@ -24,7 +24,16 @@ export class GroupsListStore {
   });
 
   public $blockGroups = computed<Record<string, BlockState[]>>(() => {
-    return groupBy(this.rootStore.blocksList.$blocks.value, (item) => item.$state.value.group);
+    const blocks = this.rootStore.blocksList;
+    // A move or status update of a block in the same group does not change membership.
+    track(blocks.$viewRevision);
+    track(blocks.$groupRevision);
+    const members: Record<string, BlockState[]> = Object.create(null);
+    for (const block of blocks.$blocks.peek()) {
+      const group = block.$state.peek().group;
+      if (group !== undefined) (members[group] ??= []).push(block);
+    }
+    return members;
   });
 
   /**

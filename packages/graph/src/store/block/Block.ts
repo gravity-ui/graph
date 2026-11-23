@@ -1,5 +1,5 @@
 import type { Signal } from "@preact/signals-core";
-import { computed, signal } from "@preact/signals-core";
+import { batch, computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
 import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
@@ -264,8 +264,16 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   private applyBlock(next: T): void {
-    if (next.is !== this.$rawState.value.is) this.store.noteViewClassChange();
-    this.$rawState.value = next;
+    const previous = this.$rawState.peek();
+    if (next.is !== previous.is) this.store.noteViewClassChange();
+    if (next.group !== previous.group && this.isAttached()) {
+      batch(() => {
+        this.$rawState.value = next;
+        this.store.noteGroupChange();
+      });
+    } else {
+      this.$rawState.value = next;
+    }
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 

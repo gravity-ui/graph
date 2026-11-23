@@ -82,6 +82,9 @@ export class BlockListStore {
   /** @internal A publication that needs to reconcile block views. */
   public readonly $viewRevision = signal(0);
 
+  /** @internal Group membership changed without replacing a block state. */
+  public readonly $groupRevision = signal(0);
+
   private viewClassChanged = false;
 
   private batchedGeometryPending = new Map<BlockState["id"], { state: BlockState; geometry: TBlockGeometrySnapshot }>();
@@ -301,6 +304,11 @@ export class BlockListStore {
   /** @internal A class changed in block data. Reconcile it on the next list publication. */
   public noteViewClassChange(): void {
     this.viewClassChanged = true;
+  }
+
+  /** @internal A retained block changed its group. */
+  public noteGroupChange(): void {
+    this.$groupRevision.value = this.$groupRevision.peek() + 1;
   }
 
   protected updateBlocksMap(
