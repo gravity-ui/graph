@@ -6,7 +6,8 @@ import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ChildDescriptor } from "../../lib/CoreComponent";
 import { getXY, isMetaKeyEvent } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
-import { dragListener } from "../../utils/functions/dragListener";
+import { dragListener, stopDragListening } from "../../utils/functions/dragListener";
+import type { DragEmitter } from "../../utils/functions/dragListener";
 import { EWheelIntent, isPinchZoomGesture } from "../../utils/functions/wheelIntent";
 import { EVENTS } from "../../utils/types/events";
 import { schedule } from "../../utils/utils/schedule";
@@ -25,6 +26,8 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   private ownerDocument: Document;
 
   private lastDragEvent?: MouseEvent;
+
+  private dragEmitter?: DragEmitter;
 
   private removeAutoPanScheduler?: () => void;
 
@@ -78,6 +81,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   }
 
   protected unmount() {
+    if (this.dragEmitter) stopDragListening(this.dragEmitter);
     super.unmount();
 
     this.stopAutoPanning();
@@ -210,10 +214,19 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     event.preventDefault();
 
     // Camera drag doesn't need graph sync since it IS the camera
-    dragListener(this.ownerDocument, { graph: this.context.graph, autopanning: false, dragCursor: "grabbing" })
+    if (this.dragEmitter) stopDragListening(this.dragEmitter);
+    this.dragEmitter = dragListener(this.ownerDocument, {
+      graph: this.context.graph,
+      autopanning: false,
+      dragCursor: "grabbing",
+      onSessionEnd: () => {
+        this.dragEmitter = undefined;
+      },
+    })
       .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
       .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
-      .on(EVENTS.DRAG_END, () => this.onDragEnd());
+      .on(EVENTS.DRAG_END, () => this.onDragEnd())
+      .on(EVENTS.DRAG_CANCEL, () => this.onDragEnd());
   }
 
   /**

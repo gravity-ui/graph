@@ -49,6 +49,28 @@ test.describe("Drag and Drop", () => {
     });
   });
 
+  test("startDrag holds the captured target without repeating hover events", async () => {
+    await graphPO.evaluate((graph) => {
+      graph.on("mousedown", (event) => {
+        const component = graph.blocks.getBlockState("block-2")?.getViewComponent();
+        if (!component) throw new Error("Missing capture target");
+        event.preventDefault();
+        graph.dragService.startDrag({}, { component, autopanning: false });
+      });
+    });
+    const entered = await graphPO.events.listen<{ target?: { props?: { id?: string } } }>("mouseenter");
+    const from = await graphPO.block("block-1").getCenter();
+    const to = await graphPO.block("block-3").getCenter();
+
+    await graphPO.drag(from, to, { steps: 140 });
+
+    const ids = await entered.analyze((events) => events.map((event) => event.detail?.target?.props?.id));
+    expect(ids.filter((id) => id === "block-2")).toHaveLength(1);
+    await graphPO.block("block-3").hover();
+    await graphPO.waitForFrames(2);
+    expect(await entered.analyze((events) => events.at(-1)?.detail?.target?.props?.id)).toBe("block-3");
+  });
+
   test("should drag block to new position", async () => {
     // Get block COM
     const block1 = graphPO.block("block-1");

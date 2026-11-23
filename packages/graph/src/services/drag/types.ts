@@ -2,13 +2,14 @@ import type { GraphComponent } from "../../components/canvas/GraphComponent";
 import type { CursorLayerCursorTypes } from "../../components/canvas/layers/cursorLayer/CursorLayer";
 
 /**
- * Options for creating a custom drag operation via DragService.startOperation()
+ * Options for creating a custom drag operation via DragService.startDrag()
  */
 export type DragOperationOptions = {
   /** Document to attach listeners to. Defaults to graph canvas document if not provided */
   document?: Document;
   /** Cursor to show during drag */
   cursor?: CursorLayerCursorTypes;
+  /** Capture graph pointer events for this component while the drag is active. */
   component?: GraphComponent;
   /** Enable autopanning when dragging near edges */
   autopanning?: boolean;
@@ -41,6 +42,11 @@ export type DragOperationCallbacks = {
   onUpdate?: (event: MouseEvent, coords: [number, number]) => void;
   /** Called when drag ends (mouseup) */
   onEnd?: (event: MouseEvent, coords: [number, number]) => void;
+  /**
+   * Called with the last mouse event and coordinates on cancellation. Service and browser
+   * cancellation fall back to onEnd when this is omitted. The drag handle calls only onCancel.
+   */
+  onCancel?: (event: MouseEvent, coords: [number, number]) => void;
 };
 
 /**

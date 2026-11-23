@@ -29,7 +29,7 @@ test("cancelling a drag removes pending and active DOM listeners", () => {
   expect(end).not.toHaveBeenCalled();
 });
 
-test("a second mousedown cancels active graph drag resources before removing listeners", () => {
+test.each(["mousedown", "blur", "visibilitychange"])("%s cancels an active drag and releases its resources", (type) => {
   const graph = new Graph({});
   const disable = jest.spyOn(graph.cameraService, "disableAutoPanning");
   const unlock = jest.spyOn(graph, "unlockCursor");
@@ -44,38 +44,136 @@ test("a second mousedown cancels active graph drag resources before removing lis
     suppressTextSelection: false,
   });
   const end = jest.fn();
-  emitter.on(EVENTS.DRAG_END, end);
-  document.dispatchEvent(new MouseEvent("mousemove"));
-  document.dispatchEvent(new MouseEvent("mousedown"));
+  const cancel = jest.fn();
+  emitter.on(EVENTS.DRAG_END, end).on(EVENTS.DRAG_CANCEL, cancel);
+  const move = new MouseEvent("mousemove", { clientX: 10 });
+  document.dispatchEvent(move);
+  if (type === "visibilitychange") {
+    const visibility = jest.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    document.dispatchEvent(new Event(type));
+    visibility.mockRestore();
+  } else if (type === "blur") {
+    window.dispatchEvent(new Event(type));
+  } else {
+    document.dispatchEvent(new MouseEvent(type));
+  }
   expect(disable).toHaveBeenCalledTimes(1);
   expect(unlock).toHaveBeenCalledTimes(1);
   expect(release).toHaveBeenCalledTimes(1);
   document.dispatchEvent(new MouseEvent("mouseup"));
-  expect(end).toHaveBeenCalledTimes(1);
+  expect(end).not.toHaveBeenCalled();
+  expect(cancel).toHaveBeenCalledTimes(1);
+  expect(cancel.mock.calls[0][0]).toBe(move);
   graph.unmount();
   Component.unmount(component);
   Component.unmount(parent);
 });
 
-test("a second mousedown finishes the active service operation and permits another drag", () => {
+test("startDrag captures its component and cancel stops active and pending operations", () => {
+  const graph = new Graph({
+    blocks: [{ id: "block", is: "Block", name: "Block", x: 0, y: 0, width: 100, height: 100 }],
+  });
+  const layer = graph.getGraphLayer();
+  const block = new Block({ id: "block" }, layer);
+  const capture = jest.spyOn(layer, "captureEvents");
+  const release = jest.spyOn(layer, "releaseCapture");
+  const onCancel = jest.fn();
+  const onEnd = jest.fn();
+  graph.dragService.startDrag(
+    { onCancel, onEnd },
+    {
+      component: block,
+      threshold: 0,
+    }
+  );
+  document.dispatchEvent(new MouseEvent("mousemove", { clientX: 10 }));
+
+  const pending = jest.fn();
+  graph.dragService.startDrag({ onStart: pending }, { threshold: 0 });
+  graph.dragService.cancel();
+  document.dispatchEvent(new MouseEvent("mousemove", { clientX: 20 }));
+  document.dispatchEvent(new MouseEvent("mouseup"));
+
+  expect(capture).toHaveBeenCalledWith(block);
+  expect(release).toHaveBeenCalledTimes(1);
+  expect(onCancel).toHaveBeenCalledTimes(1);
+  expect(onEnd).not.toHaveBeenCalled();
+  expect(pending).not.toHaveBeenCalled();
+  Component.unmount(block);
+  graph.unmount();
+});
+
+test("cancelling overlapping operations restores the previous text selection style", () => {
+  const graph = new Graph({});
+  const root = graph.getGraphCanvas();
+  root.style.userSelect = "text";
+  const first = graph.dragService.startDrag({}, { threshold: 0 });
+  graph.dragService.startDrag({}, { threshold: 0 });
+  document.dispatchEvent(new MouseEvent("mousemove", { clientX: 10 }));
+
+  first.emit("cancel");
+  expect(root.style.userSelect).toBe("none");
+  graph.dragService.cancel();
+  expect(root.style.userSelect).toBe("text");
+  graph.unmount();
+});
+
+test("unmount stops an active custom operation without calling its drop callback", () => {
+  const graph = new Graph({});
+  const onEnd = jest.fn();
+  graph.dragService.startDrag({ onEnd }, { threshold: 0 });
+  document.dispatchEvent(new MouseEvent("mousemove", { clientX: 10 }));
+
+  graph.unmount();
+  document.dispatchEvent(new MouseEvent("mouseup"));
+
+  expect(onEnd).not.toHaveBeenCalled();
+});
+
+test("a second mousedown cancels the active component drag and permits another drag", () => {
   const graph = new Graph({
     settings: { dragThreshold: 0, canDrag: ECanDrag.ALL },
     blocks: [{ id: "block", is: "Block", name: "Block", x: 0, y: 0, width: 100, height: 100 }],
   });
   const block = new Block({ id: "block" }, graph.getGraphLayer());
   const end = jest.spyOn(block, "handleDragEnd");
+  const cancel = jest.spyOn(block, "handleDragCancel").mockImplementation(() => {});
   graph.emit("mousedown", { target: block, sourceEvent: new MouseEvent("mousedown") });
   document.dispatchEvent(new MouseEvent("mousemove", { clientX: 10 }));
   expect(graph.dragService.$state.value.isDragging).toBe(true);
   document.dispatchEvent(new MouseEvent("mousedown"));
   expect(graph.dragService.$state.value.isDragging).toBe(false);
-  expect(end).toHaveBeenCalledTimes(1);
+  expect(cancel).toHaveBeenCalledTimes(1);
+  expect(end).not.toHaveBeenCalled();
   graph.emit("mousedown", { target: block, sourceEvent: new MouseEvent("mousedown") });
   document.dispatchEvent(new MouseEvent("mousemove", { clientX: 20 }));
   expect(graph.dragService.$state.value.isDragging).toBe(true);
   document.dispatchEvent(new MouseEvent("mouseup"));
   expect(graph.dragService.$state.value.isDragging).toBe(false);
-  expect(end).toHaveBeenCalledTimes(2);
+  expect(end).toHaveBeenCalledTimes(1);
+  Component.unmount(block);
+  graph.unmount();
+});
+
+test("a drag state subscriber can cancel an update before moving the block", () => {
+  const graph = new Graph({
+    settings: { dragThreshold: 0, canDrag: ECanDrag.ALL },
+    blocks: [{ id: "block", is: "Block", name: "Block", x: 0, y: 0, width: 100, height: 100 }],
+  });
+  const block = new Block({ id: "block" }, graph.getGraphLayer());
+  const move = jest.spyOn(block, "handleDrag");
+  const unsubscribe = graph.dragService.$state.subscribe((state) => {
+    if (state.currentEvent?.clientX === 20) graph.dragService.cancel();
+  });
+  graph.emit("mousedown", { target: block, sourceEvent: new MouseEvent("mousedown") });
+  document.dispatchEvent(new MouseEvent("mousemove", { clientX: 10 }));
+  move.mockClear();
+
+  document.dispatchEvent(new MouseEvent("mousemove", { clientX: 20 }));
+
+  expect(move).not.toHaveBeenCalled();
+  expect(graph.dragService.$state.value.isDragging).toBe(false);
+  unsubscribe();
   Component.unmount(block);
   graph.unmount();
 });

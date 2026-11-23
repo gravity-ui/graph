@@ -9,7 +9,8 @@ export type DragEvents = {
   [EVENTS.DRAG_START]: (event: MouseEvent) => void;
   [EVENTS.DRAG_UPDATE]: (event: MouseEvent) => void;
   [EVENTS.DRAG_END]: (event: MouseEvent) => void;
-  cancel: () => void;
+  [EVENTS.DRAG_CANCEL]: (event: MouseEvent, fallbackToEnd: boolean) => void;
+  cancel: (fallbackToEnd?: boolean) => void;
 };
 export type DragEmitter = Emitter<DragEvents>;
 
@@ -30,14 +31,15 @@ export type DragListenerOptions = {
    * @default true
    */
   suppressTextSelection?: boolean;
+  /** Runs after listeners and drag resources are released, including for a press below the threshold. */
+  onSessionEnd?: () => void;
 };
 
 function getDragListenerDocument(node: Document | HTMLDivElement | HTMLCanvasElement): Document {
-  if (node instanceof Document) {
-    return node;
-  }
-  return node.ownerDocument;
+  return "defaultView" in node ? node : node.ownerDocument;
 }
+
+const textSelectionLocks = new WeakMap<HTMLElement, { count: number; previous: string }>();
 
 /** Prevents browser text selection for the duration of a drag gesture. */
 function installTextSelectionSuppression(doc: Document, graph?: Graph): () => void {
@@ -49,12 +51,20 @@ function installTextSelectionSuppression(doc: Document, graph?: Graph): () => vo
   };
   doc.addEventListener("selectstart", onSelectStart, { capture: true });
 
-  const prevUserSelect = root.style.userSelect;
-  root.style.userSelect = "none";
+  let lock = textSelectionLocks.get(root);
+  if (!lock) {
+    lock = { count: 0, previous: root.style.userSelect };
+    textSelectionLocks.set(root, lock);
+    root.style.userSelect = "none";
+  }
+  lock.count++;
 
   return (): void => {
     doc.removeEventListener("selectstart", onSelectStart, { capture: true });
-    root.style.userSelect = prevUserSelect;
+    if (--lock.count === 0) {
+      root.style.userSelect = lock.previous;
+      textSelectionLocks.delete(root);
+    }
   };
 }
 
@@ -108,10 +118,10 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   let lastMouseEvent: MouseEvent | undefined;
   const emitter = new Emitter<DragEvents>();
   const mousemoveBinded = (event: MouseEvent) => {
+    if (finished) return;
     lastMouseEvent = event;
-    mousemove(emitter, event);
+    emitter.emit(EVENTS.DRAG_UPDATE, event);
   };
-  const mouseupBinded = mouseup.bind(null, emitter);
 
   // Re-emit drag update when committed camera state changes during auto-panning
   const handleCameraChange = (): void => {
@@ -148,6 +158,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   const startDrag = (event: MouseEvent): void => {
     started = true;
     thresholdExceeded = true;
+    lastMouseEvent = event;
     if (suppressTextSelection) {
       ensureTextSelectionSuppressed();
       event.preventDefault();
@@ -186,17 +197,6 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     }
   };
 
-  const cleanup = (): void => {
-    controller.abort();
-    cleanupTextSelection();
-    unsubscribeCamera?.();
-    off("mousemove", mousemoveBinded);
-    // Also remove threshold listener if it was added
-    if (threshold > 0) {
-      off("mousemove", handleThresholdMove, { capture: true });
-    }
-  };
-
   const cleanupDragState = () => {
     if (graph) {
       if (autopanning) {
@@ -211,19 +211,27 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     }
   };
 
+  const finish = (event?: MouseEvent, fallbackToEnd = true): void => {
+    if (finished) return;
+    finished = true;
+    try {
+      if (started && event) emitter.emit(EVENTS.DRAG_END, event);
+      else if (started && lastMouseEvent) emitter.emit(EVENTS.DRAG_CANCEL, lastMouseEvent, fallbackToEnd);
+    } finally {
+      try {
+        if (started) cleanupDragState();
+      } finally {
+        controller.abort();
+        cleanupTextSelection();
+        unsubscribeCamera?.();
+        emitter.destroy();
+        options?.onSessionEnd?.();
+      }
+    }
+  };
+
   if (stopOnMouseLeave) {
-    on(
-      "mouseleave",
-      (event) => {
-        finished = true;
-        if (started) {
-          mouseupBinded(event);
-          cleanupDragState();
-        }
-        cleanup();
-      },
-      { once: true, capture: true }
-    );
+    on("mouseleave", finish, { once: true, capture: true });
   }
 
   // If threshold > 0, we need to accumulate movement before starting drag
@@ -243,52 +251,22 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     );
   }
 
-  on(
-    "mouseup",
-    (event) => {
-      finished = true;
-      if (started) {
-        mouseupBinded(event);
-        cleanupDragState();
-      }
-      cleanup();
+  on("mouseup", finish, { once: true, capture: true });
+  // The release may have happened outside the page.
+  on("mousedown", () => finish(), { once: true, capture: true });
+  dragDocument.defaultView?.addEventListener("blur", () => finish(), { signal: controller.signal });
+  dragDocument.addEventListener(
+    "visibilitychange",
+    () => {
+      if (dragDocument.visibilityState === "hidden") finish();
     },
-    { once: true, capture: true }
+    { signal: controller.signal }
   );
-
-  on(
-    "mousedown",
-    (event) => {
-      finished = true;
-      if (started) {
-        mouseupBinded(event);
-        cleanupDragState();
-      }
-      cleanup();
-    },
-    { once: true, capture: true }
-  );
-
-  emitter.on("cancel", () => {
-    finished = true;
-    if (started) {
-      cleanupDragState();
-    }
-    cleanup();
-  });
+  emitter.on("cancel", (fallbackToEnd = false) => finish(undefined, fallbackToEnd));
 
   return emitter;
 }
 
-export function stopDragListening(emitter: DragEmitter) {
-  emitter.emit("cancel");
-}
-
-function mousemove(emitter: DragEmitter, event: MouseEvent) {
-  emitter.emit(EVENTS.DRAG_UPDATE, event);
-}
-
-function mouseup(emitter: DragEmitter, event: MouseEvent) {
-  emitter.emit(EVENTS.DRAG_END, event);
-  emitter.destroy();
+export function stopDragListening(emitter: DragEmitter, fallbackToEnd = true) {
+  emitter.emit("cancel", fallbackToEnd);
 }

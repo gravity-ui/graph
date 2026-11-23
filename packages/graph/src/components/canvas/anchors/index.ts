@@ -325,6 +325,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     this.connectedState.block.getViewComponent()?.handleDragEnd(context);
   }
 
+  public override handleDragCancel(context: DragContext): void {
+    this.connectedState.block.getViewComponent()?.handleDragCancel(context);
+  }
+
   protected unmount() {
     // A constructor that found no anchor state threw before binding: the reconcile unmounts the half-built anchor
     // (`discardChild`), which owns no port and holds no view-component binding.

@@ -113,6 +113,7 @@ export class SelectionLayer extends Layer<
         onStart: this.startSelectionRender,
         onUpdate: this.updateSelectionRender,
         onEnd: this.endSelectionRender,
+        onCancel: this.resetSelectionRender,
       });
     }
   };
@@ -133,9 +134,7 @@ export class SelectionLayer extends Layer<
     }
 
     if (!this.hasActiveSelection()) {
-      this.selectionStartWorld = null;
-      this.selectionEndWorld = null;
-      this.performRender();
+      this.resetSelectionRender();
       return;
     }
 
@@ -149,7 +148,10 @@ export class SelectionLayer extends Layer<
 
     this.applySelectedArea(worldRect[0], worldRect[1], worldRect[2], worldRect[3], event.shiftKey);
 
-    // Clear selection
+    this.resetSelectionRender();
+  };
+
+  private resetSelectionRender = (): void => {
     this.selectionStartWorld = null;
     this.selectionEndWorld = null;
     this.performRender();
