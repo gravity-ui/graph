@@ -1,6 +1,6 @@
 import React, { memo, startTransition, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { BlockState, CanvasBlock, Graph, GraphState, TBlock } from "@gravity-ui/graph";
+import { BlockState, CanvasBlock, Graph, GraphState, TBlock, entityKey } from "@gravity-ui/graph";
 
 import { useSignal } from "./hooks";
 import { useSceneChange } from "./hooks/useSceneChange";
@@ -141,7 +141,12 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
       {graphState === GraphState.READY &&
         blockStates.map((blockState) => {
           return (
-            <Block key={blockState.id} renderBlock={renderBlock} graphObject={graphObject} blockState={blockState} />
+            <Block
+              key={entityKey("block", blockState.id)}
+              renderBlock={renderBlock}
+              graphObject={graphObject}
+              blockState={blockState}
+            />
           );
         })}
     </div>

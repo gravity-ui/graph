@@ -96,6 +96,84 @@ describe("graph.scene", () => {
     expect(graph.scene.$level.value).toBe("minimalistic");
   });
 
+  it("keeps a Canvas request made by the initial WebGL loading subscriber", async () => {
+    const gpu = createFakeGpu();
+    graph = new Graph({ settings: { renderer: "webgl", webglBackend: async () => gpu.module } });
+    const states: TSceneRendererState[] = [];
+    const unsubscribe = graph.scene.$renderer.subscribe((state) => {
+      states.push(state);
+      if (state === "loading") graph.scene.setRenderer("canvas");
+    });
+    try {
+      graph.attach(document.createElement("div"));
+      graph.start();
+      // Let the backend import and creation finish if cancellation failed.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(states).toEqual(["canvas", "loading", "canvas"]);
+      expect(graph.scene.$renderer.value).toBe("canvas");
+      expect(gpu.created).toBe(0);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("does not transfer the selection when a replacement uses the string form of a numeric block ID", () => {
+    const root = document.createElement("div");
+    Object.defineProperties(root, { clientWidth: { value: 320 }, clientHeight: { value: 200 } });
+    const block = { is: "Block", name: "A", x: 10, y: 20, width: 40, height: 30 };
+    graph = new Graph({ blocks: [{ ...block, id: 7 }] }, root);
+    graph.start();
+    graph.scheduler.performUpdate();
+    graph.api.selectBlocks([7], true);
+    expect(graph.scene.explain("block", 7).tags).toContainEqual({ name: selectedTag.name, value: true });
+
+    graph.setEntities({ blocks: [{ ...block, id: "7", x: 100 }] });
+    graph.scheduler.performUpdate();
+
+    expect(graph.scene.explain("block", "7").tags).not.toContainEqual({ name: selectedTag.name, value: true });
+    const view = { x: 0, y: 0, width: 320, height: 200 };
+    expect(graph.scene.query(view, { entityTypes: ["block"] })).toEqual([
+      expect.objectContaining({ id: entityKey("block", "7"), x: 100 }),
+    ]);
+    graph.api.deleteSelected();
+    expect(graph.api.getBlockById("7")).toBeDefined();
+  });
+
+  it("keeps separate scene views for numeric and string IDs in one snapshot", () => {
+    const root = document.createElement("div");
+    Object.defineProperties(root, { clientWidth: { value: 320 }, clientHeight: { value: 200 } });
+    const block = { is: "Block", name: "A", y: 20, width: 40, height: 30 };
+    const edge = { sourceBlockId: "7", targetBlockId: "target" };
+    graph = new Graph(
+      {
+        blocks: [
+          { ...block, id: 7, x: 10 },
+          { ...block, id: "7", x: 100 },
+          { ...block, id: "target", x: 180 },
+        ],
+        connections: [
+          { ...edge, id: 8 },
+          { ...edge, id: "8" },
+        ],
+      },
+      root
+    );
+    graph.start();
+    graph.scheduler.performUpdate();
+
+    const view = { x: 0, y: 0, width: 320, height: 200 };
+    const ids = graph.scene.query(view).map(({ id }) => id);
+    const sameSpelling = [
+      entityKey("block", 7),
+      entityKey("block", "7"),
+      entityKey("connection", 8),
+      entityKey("connection", "8"),
+    ];
+    expect(new Set(sameSpelling).size).toBe(4);
+    expect(ids).toEqual(expect.arrayContaining(sameSpelling));
+  });
+
   describe("scene-state-change", () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());

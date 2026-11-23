@@ -4,6 +4,7 @@ import { Component } from "../../../lib/Component";
 import { CoreComponent } from "../../../lib/CoreComponent";
 import { isOnLevel, unionLevelMasks } from "../../../lib/scene/levels";
 import type { TSceneExportRequest, TSceneLevel } from "../../../services/scene/types";
+import { entityKey } from "../../../services/tags/TagStore";
 import { BlockState } from "../../../store/block/Block";
 import { TGraphSettingsConfig } from "../../../store/settings";
 import { HAS_NODE_ENV } from "../../../utils/development";
@@ -297,7 +298,7 @@ export class Blocks extends Component {
           font: this.font,
         },
         {
-          key: block.id,
+          key: entityKey("block", block.id),
         }
       );
     });

@@ -90,8 +90,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     }
     if (!this.attached) return;
     if (this.rendererState.value === "canvas" || this.rendererState.value === "webgl-fallback") {
-      this.rendererState.value = "loading";
-      this.loadBackend().catch(() => undefined);
+      this.loadBackend("loading").catch(() => undefined);
     }
   }
 
@@ -162,9 +161,8 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
       return;
     }
     this.disposeBackend();
-    this.rendererState.value = "restoring";
+    this.loadBackend("restoring").catch(() => undefined);
     this.performRender();
-    this.loadBackend().catch(() => undefined);
   };
 
   /** The text policy of the graph (the `cameraAwareText` setting). */
@@ -262,16 +260,18 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
         this.activateCanvas();
         return;
       }
-      this.rendererState.value = "restoring";
       this.disposeBackend();
+      this.loadBackend("restoring").catch(() => undefined);
       this.performRender();
-      this.loadBackend().catch(() => undefined);
     },
   });
 
-  private async loadBackend(): Promise<void> {
+  private async loadBackend(state: "loading" | "restoring"): Promise<void> {
     const token = ++this.loadToken;
     this.pendingContext = undefined;
+    // A subscriber can replace this attempt as soon as the state is published.
+    this.rendererState.value = state;
+    if (token !== this.loadToken) return;
     let created: ISceneBackend | undefined;
     try {
       const module = await (this.props.loadBackend ?? defaultLoadBackend)();
@@ -288,8 +288,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
       }
       if (this.pendingContext === "restored") {
         created.dispose();
-        this.rendererState.value = "restoring";
-        await this.loadBackend();
+        await this.loadBackend("restoring");
         return;
       }
       if (this.pendingContext === "lost") {

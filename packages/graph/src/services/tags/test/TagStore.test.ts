@@ -1,7 +1,7 @@
 import { computed, effect, signal } from "@preact/signals-core";
 
 import { Graph } from "../../../graph";
-import { TagStore } from "../TagStore";
+import { TagStore, entityKey } from "../TagStore";
 import { defineTag } from "../defineTag";
 
 describe("TagStore", () => {
@@ -66,7 +66,7 @@ describe("TagStore", () => {
     tags.set(presence, { block: new Map([[1, first]]) });
     const original = tags.membersOf(presence);
     const initialTags = one.peek();
-    tags.add(presence, { block: new Map([["1", equal]]) });
+    tags.add(presence, { block: new Map([[1, equal]]) });
     expect(tags.membersOf(presence)).toBe(original);
     tags.add(presence, {
       block: new Map([
@@ -75,11 +75,11 @@ describe("TagStore", () => {
       ]),
     });
     const mixed = tags.membersOf(presence);
-    expect(mixed.get("block\u00001")).toBe(equal);
-    expect(mixed.get("block\u00002")).toBe(changed);
+    expect(mixed.get(entityKey("block", 1))).toBe(equal);
+    expect(mixed.get(entityKey("block", 2))).toBe(changed);
     expect(one.peek()).toBe(initialTags);
     expect(one.peek().get(presence)).toBe(first);
-    expect(original.get("block\u00001")).toBe(first);
+    expect(original.get(entityKey("block", 1))).toBe(first);
     expect(original.size).toBe(1);
     tags.delete(presence, { block: [1, "1", 9] });
     expect(mixed.size).toBe(2);
@@ -88,6 +88,16 @@ describe("TagStore", () => {
     expect(tags.membersOf(presence)).toBe(remaining);
     tags.clear(presence);
     expect(remaining.size).toBe(1);
+  });
+
+  it("adds and removes tags independently for numeric and string IDs", () => {
+    const tags = new TagStore();
+    tags.add(running, { block: [7, "7"] });
+    expect(tags.membersOf(running).size).toBe(2);
+
+    tags.delete(running, { block: [7] });
+    expect(tags.peekOf("block", 7).has(running)).toBe(false);
+    expect(tags.peekOf("block", "7").has(running)).toBe(true);
   });
 
   it("keeps membership and signals unchanged when reading removal IDs fails", () => {

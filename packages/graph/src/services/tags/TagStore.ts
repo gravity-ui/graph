@@ -13,8 +13,11 @@ type TMembership = {
   snapshot?: Map<string, unknown>;
 };
 
+/** An opaque key that preserves the type of the entity ID. */
 export function entityKey(type: TEntityType, id: TEntityId): string {
-  return `${type}\u0000${String(id)}`;
+  if (typeof id === "string" && type !== "" && !type.includes("\u0000")) return `${type}\u0000${id}`;
+  // A leading separator puts these keys outside the ordinary string ID namespace.
+  return `\u0000${JSON.stringify([type, typeof id, String(id)])}`;
 }
 
 function sameValue(a: unknown, b: unknown): boolean {

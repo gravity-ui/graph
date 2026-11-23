@@ -81,6 +81,9 @@ address. Anchor ids are unique only within their block, so an anchor's id is blo
 `anchorEntityId(blockId, anchorId)` (see [Anchor entity IDs](../components/anchors.md#anchor-entity-ids)), as in
 `graph.scene.tags.add(runningTag, { anchor: [anchorEntityId("a", "out")] })`.
 
+Numeric and string IDs address different entities. Use the same ID type that the graph data uses. If you need a
+string key for an address, use `entityKey(type, id)` and treat its result as opaque.
+
 ```ts
 import { defineTag } from "@gravity-ui/graph";
 

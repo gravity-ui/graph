@@ -15,7 +15,7 @@ export function warnIgnoredCameraAware(element: TSceneElement, style: TSceneStyl
   if (!style) return;
   for (const primitive of element.primitives) {
     if (!ignoresCameraAware(primitive, style)) continue;
-    const type = element.id.split("\u0000")[0];
+    const type = element.entityType ?? element.id.split("\u0000")[0];
     const key = `${type}\u0000${primitive.part}`;
     if (ignoredCameraAware.has(key)) continue;
     ignoredCameraAware.add(key);

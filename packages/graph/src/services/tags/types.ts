@@ -1,6 +1,6 @@
 /** The kind of a tagged entity: "block", "connection", "anchor", "group" or a type a layer registers. */
 export type TEntityType = string;
-/** Ids are compared as strings: 1 and "1" are the same entity. */
+/** Numeric and string IDs are distinct: 1 and "1" name different entities. */
 export type TEntityId = string | number;
 
 export type TEntityAddress = { readonly type: TEntityType; readonly id: TEntityId };

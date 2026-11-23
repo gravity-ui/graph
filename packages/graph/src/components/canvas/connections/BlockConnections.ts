@@ -4,6 +4,7 @@ import { Component, TComponentState } from "../../../lib/Component";
 import { CoreComponentProps } from "../../../lib/CoreComponent";
 import { ESchedulerPriority } from "../../../lib/Scheduler";
 import type { TTileRect } from "../../../lib/culling/TileIndex";
+import { entityKey } from "../../../services/tags/TagStore";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
 import { getFontSize } from "../../../utils/functions/text";
 import { track } from "../../../utils/functions/track";
@@ -28,8 +29,8 @@ export type TGraphConnectionsContext = TGraphLayerContext & {
   isLabelFontSizeFromCamera?: () => boolean;
 };
 
-/** Starts every replacement key, and escapes the ids that start with it (`BlockConnections.keyOf`). */
-const KEY_ESCAPE = "\u0000";
+/** Replacement keys cannot match an entity key. */
+const REPLACEMENT_PREFIX = "\u0000r";
 
 /** Owns connection views and the Canvas batch for imperative connection extensions. */
 export class BlockConnections extends Component<CoreComponentProps, TComponentState, TGraphConnectionsContext> {
@@ -169,16 +170,8 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
       });
   }
 
-  /**
-   * The component key of a connection state. Two namespaces that cannot meet: a replacement's key (`keyReplacements`)
-   * is the escape character, `r` and a counter; an id is its own key, and an id that starts with the escape character
-   * gets one more in front. So no id, however it is spelled, takes a replacement's key or another id's.
-   */
   private keyOf(connection: ConnectionState): string {
-    const replacement = this.replacementKeys.get(connection);
-    if (replacement !== undefined) return replacement;
-    const id = String(connection.id);
-    return id.startsWith(KEY_ESCAPE) ? `${KEY_ESCAPE}${id}` : id;
+    return this.replacementKeys.get(connection) ?? entityKey("connection", connection.id);
   }
 
   /**
@@ -199,7 +192,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
       // state of that id, which the registered one replaced.
       const registered = store.getConnectionState(child.props.id);
       if (!registered || registered.getViewComponent() !== undefined || this.replacementKeys.has(registered)) continue;
-      this.replacementKeys.set(registered, `${KEY_ESCAPE}r${++this.replacementCount}`);
+      this.replacementKeys.set(registered, `${REPLACEMENT_PREFIX}${++this.replacementCount}`);
     }
   }
 
