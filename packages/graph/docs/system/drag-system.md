@@ -500,21 +500,24 @@ type DragDiff = {
 | `handleDragStart()` | `(context: DragContext) => void` | Called when drag starts |
 | `handleDrag()` | `(diff: DragDiff, context: DragContext) => void` | Called on each drag frame |
 | `handleDragEnd()` | `(context: DragContext) => void` | Called when drag ends |
+| `handleDragCancel()` | `(context: DragContext) => void` | Called on cancellation. Defaults to `handleDragEnd()` with the last coordinates. |
 
 ### DragService.startDrag()
 
-For custom drag operations (like creating connections or duplicating blocks), use `startOperation`:
+For custom drag operations such as creating connections or duplicating blocks, use `startDrag`.
 
 ```typescript
 type DragOperationCallbacks = {
   onStart?: (event: MouseEvent, coords: [number, number]) => void;
   onUpdate?: (event: MouseEvent, coords: [number, number]) => void;
   onEnd?: (event: MouseEvent, coords: [number, number]) => void;
+  onCancel?: (event: MouseEvent, coords: [number, number]) => void;
 };
 
 type DragOperationOptions = {
   document?: Document;               // Defaults to graph canvas document
   cursor?: CursorLayerCursorTypes;   // Cursor during drag
+  component?: GraphComponent;       // Captures graph pointer events during the drag
   autopanning?: boolean;             // Enable edge autopanning (default: true)
   stopOnMouseLeave?: boolean;        // Stop drag on mouse leave
 };
@@ -522,3 +525,9 @@ type DragOperationOptions = {
 // Usage
 graph.dragService.startDrag(callbacks, options);
 ```
+
+Window blur, a hidden page, or a new press after a lost release cancels the gesture. You can also
+call `graph.dragService.cancel()` to cancel component drags and custom operations, including presses
+that have yet to cross the drag threshold. Started custom operations use `onCancel` or fall back to
+`onEnd` with the last drag position. The handle returned by `startDrag()` can cancel that operation
+with `handle.emit("cancel")`, which calls `onCancel` only when supplied.

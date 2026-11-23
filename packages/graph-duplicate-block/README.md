@@ -30,6 +30,6 @@ return <GraphCanvas graph={graph} renderBlock={renderBlock} />;
 
 `@gravity-ui/graph` is a required peer dependency. The package has no stylesheet and does not require React.
 
-Props, methods, the `blocks-duplicate-start` / `blocks-duplicate` events and the rules for copying connections are described in the [full documentation](https://github.com/gravity-ui/graph/blob/v2/packages/graph/docs/plugins/duplicate-block.md).
+Props, methods, duplication events and the rules for copying connections are described in the [full documentation](https://github.com/gravity-ui/graph/blob/v2/packages/graph/docs/plugins/duplicate-block.md).
 
 For v2, replace `NewBlockLayer` from `@gravity-ui/graph` with `DuplicateBlockLayer` from this package.

@@ -421,13 +421,13 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.lastMouseCanvasX = point.canvas.x;
     this.lastMouseCanvasY = point.canvas.y;
 
+    this.prevTargetComponent = this.targetComponent;
     if (this.capturedTargetComponent) {
       this.targetComponent = this.capturedTargetComponent;
       this.publishHovered();
       return;
     }
 
-    this.prevTargetComponent = this.targetComponent;
     this.targetComponent = this.context.graph.getElementOverPoint(point) || this.$.camera;
     this.publishHovered();
   }
@@ -529,6 +529,8 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.lostTargetOwner = undefined;
     const next = this.targetComponent;
     const prev = this.prevTargetComponent ?? (lost === next ? undefined : lost);
+    // Tiny moves skip hit testing but still dispatch hover. Consume the capture's transition once.
+    if (this.capturedTargetComponent) this.prevTargetComponent = next;
     const camera = this.$.camera;
     const other = (component: EventedComponent | undefined): EventedComponent | undefined =>
       component === camera ? undefined : component;

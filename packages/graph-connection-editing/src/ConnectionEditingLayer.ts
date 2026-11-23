@@ -152,21 +152,9 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
       this.isSnappingTreeOutdated = true;
     });
 
-    this.context.graph.keyboardService.onPress(
-      "Escape",
-      () => {
-        if (this.isCreating()) {
-          this.cancelNewConnection();
-        } else {
-          // The mouse is pressed but the drag threshold is not reached yet: drop the pending drag silently.
-          this.currentListener?.emit("cancel");
-          this.currentListener = null;
-        }
-      },
-      {
-        signal: this.eventAbortController.signal,
-      }
-    );
+    this.context.graph.keyboardService.onPress("Escape", () => this.cancelNewConnection(), {
+      signal: this.eventAbortController.signal,
+    });
 
     super.afterInit();
   }
@@ -190,7 +178,13 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
 
   public disable = (): void => {
     this.setProps({ enabled: false });
+    this.cancelNewConnection();
   };
+
+  protected override propsChanged(nextProps: TConnectionEditingLayerProps): void {
+    super.propsChanged(nextProps);
+    if (nextProps.enabled === false) this.cancelNewConnection();
+  }
 
   private get searchRadius(): number {
     return this.props.searchRadius || PORT_SEARCH_RADIUS;
@@ -265,6 +259,7 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
         onStart: (_event, coords) => this.onStartConnection(port, kind, { x: coords[0], y: coords[1] }),
         onUpdate: (_event, coords) => this.onMoveNewConnection({ x: coords[0], y: coords[1] }),
         onEnd: (_event, coords) => this.onEndNewConnection({ x: coords[0], y: coords[1] }),
+        onCancel: () => this.onCancelNewConnection(),
       },
       { cursor: "crosshair", initialEvent: initEvent }
     );
@@ -385,7 +380,7 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
         sourcePort: port,
       },
       () => {
-        this.selectPort(port, true);
+        if (this.sourcePort === port) this.selectPort(port, true);
       }
     );
 
@@ -507,16 +502,20 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
   }
 
   protected cancelNewConnection(): void {
-    if (this.currentListener) {
-      // The drag handle stops listening and releases the cursor and auto-panning.
-      this.currentListener.emit("cancel");
-    }
+    const listener = this.currentListener;
     this.currentListener = null;
-    this.selectPort(this.sourcePort, false);
-    this.selectPort(this.targetPort, false);
+    if (listener) listener.emit("cancel");
+    else this.onCancelNewConnection();
+  }
+
+  private onCancelNewConnection(): void {
+    this.currentListener = null;
+    if (!this.isCreating()) return;
     const sourcePort = this.sourcePort;
     const targetPort = this.targetPort;
     this.resetState();
+    this.selectPort(sourcePort, false);
+    this.selectPort(targetPort, false);
     this.context.graph.emit("connection-create-cancel", { sourcePort, targetPort });
   }
 
@@ -817,11 +816,19 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     return this.getBlockEndpoint(port, role) ?? {};
   }
 
+  protected override unmountLayer(): void {
+    try {
+      this.cancelNewConnection();
+    } finally {
+      super.unmountLayer();
+    }
+  }
+
   public override unmount(): void {
-    if (this.isCreating()) this.cancelNewConnection();
-    else this.currentListener?.emit("cancel");
-    this.currentListener = null;
-    this.snappingPortsTree = null;
-    super.unmount();
+    try {
+      super.unmount();
+    } finally {
+      this.snappingPortsTree = null;
+    }
   }
 }

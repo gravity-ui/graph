@@ -257,6 +257,22 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
   });
 
+  test("disabling the layer cancels an active drag and clears the highlights", async () => {
+    const from = await layerPO.getAnchorPoint("block-a", "out-a");
+    const to = await layerPO.getAnchorPoint("block-b", "in-b");
+
+    await layerPO.pressAndMove(from, to);
+    await layerPO.setEnabled(false);
+    await layerPO.release();
+
+    const types = await layerPO.getEventTypes();
+    expect(types.filter((type) => type === "connection-create-cancel")).toHaveLength(1);
+    expect(types).not.toContain("connection-create-drop");
+    expect(await graphPO.getConnections()).toEqual([]);
+    expect(await isAnchorSelected("block-a", "out-a")).toBe(false);
+    expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+  });
+
   test("preventDefault on connection-create-start skips the source highlight", async () => {
     await layerPO.preventDefault("connection-create-start");
     const from = await layerPO.getAnchorPoint("block-a", "out-a");

@@ -68,6 +68,11 @@ graph.on("blocks-duplicate-start", (event) => {
 });
 ```
 
+### blocks-duplicate-cancel
+
+Fired when a started duplication drag is cancelled. The event carries the source `blocks`
+and the preview is cleared.
+
 ### blocks-duplicate
 
 Fired on release. `event.detail.items` contains each source block with the coordinates of its copy, and `event.detail.delta` contains the offset between the sources and the copies.

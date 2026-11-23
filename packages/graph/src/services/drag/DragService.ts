@@ -6,11 +6,24 @@ import { isGraphEvent } from "../../graphEvents";
 import type { GraphMouseEvent } from "../../graphEvents";
 import { ECanDrag } from "../../store/settings";
 import { getXY } from "../../utils/functions";
-import { DragEmitter, dragListener } from "../../utils/functions/dragListener";
+import { DragEmitter, dragListener, stopDragListening } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
 
 import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOptions, DragState } from "./types";
 import { findDragTarget } from "./utils/findDragTarget";
+
+/** Complete every cleanup even if a drag callback throws. */
+function runEach<T>(items: Iterable<T>, action: (item: T) => void): void {
+  let failure: { error: unknown } | undefined;
+  for (const item of items) {
+    try {
+      action(item);
+    } catch (error) {
+      failure ??= { error };
+    }
+  }
+  if (failure) throw failure.error;
+}
 
 /**
  * DragService manages drag operations for all draggable GraphComponents.
@@ -34,8 +47,8 @@ export class DragService {
   /** Current drag listener emitter (null when not dragging) */
   private currentDragEmitter: DragEmitter | null = null;
 
-  /** Unsubscribe function for graph mousedown event */
-  private unsubscribeMouseDown: (() => void) | null = null;
+  /** Custom operations, including presses that have not crossed the threshold. */
+  private readonly operationEmitters = new Set<DragEmitter>();
 
   /**
    * Reactive signal with current drag state.
@@ -92,7 +105,21 @@ export class DragService {
    * Cleanup when service is destroyed
    */
   public destroy(): void {
-    this.cleanup();
+    this.cancelDrags(false);
+  }
+
+  /**
+   * Cancels the component drag and custom operations that are running or awaiting movement.
+   * Started drags receive their cancellation callbacks with the last mouse position.
+   */
+  public cancel(): void {
+    this.cancelDrags(true);
+  }
+
+  private cancelDrags(fallbackToEnd: boolean): void {
+    const emitters = [...this.operationEmitters];
+    if (this.currentDragEmitter) emitters.unshift(this.currentDragEmitter);
+    runEach(emitters, (emitter) => stopDragListening(emitter, fallbackToEnd));
   }
 
   /**
@@ -126,9 +153,9 @@ export class DragService {
     }
 
     // Collect all draggable components that should participate
-    this.dragComponents = this.collectDragComponents(target, canDrag);
+    const dragComponents = this.collectDragComponents(target, canDrag);
 
-    if (this.dragComponents.length === 0) {
+    if (dragComponents.length === 0) {
       return;
     }
 
@@ -136,8 +163,9 @@ export class DragService {
       event.stopGraphEventPropagation();
     }
 
-    // Reset stale emitter from previous mousedown that didn't result in drag
-    this.currentDragEmitter = null;
+    // A synthetic graph press may replace a pending gesture without a native mousedown.
+    if (this.currentDragEmitter) stopDragListening(this.currentDragEmitter);
+    this.dragComponents = dragComponents;
 
     // Use dragListener for consistent drag behavior
     const doc = this.graph.getGraphCanvas().ownerDocument;
@@ -145,10 +173,12 @@ export class DragService {
       graph: this.graph,
       dragCursor: "grabbing",
       autopanning: true,
+      onSessionEnd: () => this.cleanup(),
     })
       .on(EVENTS.DRAG_START, this.handleDragStart)
       .on(EVENTS.DRAG_UPDATE, this.handleDragUpdate)
-      .on(EVENTS.DRAG_END, this.handleDragEnd);
+      .on(EVENTS.DRAG_END, (event) => this.finishComponentDrag(event, false))
+      .on(EVENTS.DRAG_CANCEL, (event) => this.finishComponentDrag(event, true));
   };
 
   /**
@@ -185,6 +215,7 @@ export class DragService {
    * Handle drag start from dragListener
    */
   private handleDragStart = (event: MouseEvent): void => {
+    const emitter = this.currentDragEmitter;
     // Calculate starting coordinates in world space
     const coords = this.getWorldCoords(event);
     this.startCoords = coords;
@@ -192,6 +223,7 @@ export class DragService {
 
     // Update reactive state with event and coordinates
     this.$state.value = this.createDragState(event, this.dragComponents, coords);
+    if (this.currentDragEmitter !== emitter) return;
 
     // Create context for drag start
     const context: DragContext = {
@@ -205,9 +237,10 @@ export class DragService {
     // Notify all components about drag start
     // One raise of all the participants, in their scene order (decision 6).
     this.graph.scene.batchRaises(() => {
-      this.dragComponents.forEach((component) => {
+      for (const component of this.dragComponents) {
+        if (this.currentDragEmitter !== emitter) break;
         if (component.isEntityAvailable()) component.handleDragStart(context);
-      });
+      }
     });
   };
 
@@ -219,6 +252,7 @@ export class DragService {
       return;
     }
 
+    const emitter = this.currentDragEmitter;
     const currentCoords = this.getWorldCoords(event);
 
     // Update reactive state with current event and coordinates
@@ -227,6 +261,7 @@ export class DragService {
       currentEvent: event,
       currentCoords,
     };
+    if (this.currentDragEmitter !== emitter) return;
 
     const diff: DragDiff = {
       startCoords: this.startCoords,
@@ -246,37 +281,36 @@ export class DragService {
       components: this.dragComponents,
     };
 
-    this.dragComponents.forEach((component) => {
-      if (component.isEntityAvailable()) component.handleDrag(diff, context);
-    });
-
     this.prevCoords = currentCoords;
+    for (const component of this.dragComponents) {
+      if (this.currentDragEmitter !== emitter) break;
+      if (component.isEntityAvailable()) component.handleDrag(diff, context);
+    }
   };
 
   /**
-   * Handle drag end from dragListener
+   * Complete the component gesture and flush the final batched block positions.
    */
-  private handleDragEnd = (event: MouseEvent): void => {
-    if (this.startCoords && this.prevCoords) {
-      const currentCoords = this.getWorldCoords(event);
+  private finishComponentDrag(event: MouseEvent, cancelled: boolean): void {
+    if (!this.startCoords || !this.prevCoords) return;
 
-      const context: DragContext = {
-        sourceEvent: event,
-        startCoords: this.startCoords,
-        prevCoords: this.prevCoords,
-        currentCoords,
-        components: this.dragComponents,
-      };
+    const context: DragContext = {
+      sourceEvent: event,
+      startCoords: this.startCoords,
+      prevCoords: this.prevCoords,
+      currentCoords: cancelled ? this.prevCoords : this.getWorldCoords(event),
+      components: this.dragComponents,
+    };
 
-      // Notify all components about drag end
-      this.dragComponents.forEach((component) => {
-        if (component.isEntityAvailable()) component.handleDragEnd(context);
+    try {
+      const hook = cancelled ? "handleDragCancel" : "handleDragEnd";
+      runEach(this.dragComponents, (component) => {
+        if (component.isEntityAvailable()) component[hook](context);
       });
+    } finally {
+      this.graph.rootStore.blocksList.flushBatchedBlocksGeometryEmit();
     }
-
-    this.graph.rootStore.blocksList.flushBatchedBlocksGeometryEmit();
-    this.cleanup();
-  };
+  }
 
   /**
    * Convert screen coordinates to world coordinates
@@ -296,24 +330,19 @@ export class DragService {
     this.dragComponents = [];
     this.startCoords = null;
     this.prevCoords = null;
-    if (this.unsubscribeMouseDown) {
-      this.unsubscribeMouseDown();
-      this.unsubscribeMouseDown = null;
-    }
-
     // Update reactive state
-    this.$state.value = this.createIdleState();
+    if (this.$state.peek().isDragging) this.$state.value = this.createIdleState();
   }
 
   /**
    * Start a custom drag operation for specialized use cases like creating connections or new blocks.
    * This provides a unified API for drag operations without exposing dragListener directly.
    *
-   * @param callbacks - Lifecycle callbacks (onStart, onUpdate, onEnd)
+   * @param callbacks - Lifecycle callbacks (onStart, onUpdate, onEnd, onCancel)
    * @param options - Drag options (document, cursor, autopanning, etc.)
    *
-   * @returns The drag handle. Call `handle.emit("cancel")` to stop the operation without `onEnd`:
-   * it removes the listeners and releases the cursor and auto-panning.
+   * @returns The drag handle. Call `handle.emit("cancel")` to stop only this operation and call
+   * its optional `onCancel` callback. Use `cancel()` to stop all operations.
    *
    * @example
    * ```typescript
@@ -334,24 +363,30 @@ export class DragService {
     const {
       document: doc,
       cursor,
+      component,
       autopanning = true,
       stopOnMouseLeave,
       threshold,
       initialEvent,
       suppressTextSelection,
     } = options;
-    const { onStart, onUpdate, onEnd } = callbacks;
+    const { onStart, onUpdate, onEnd, onCancel } = callbacks;
 
     const targetDocument = doc ?? this.graph.getGraphCanvas().ownerDocument;
 
-    return dragListener(targetDocument, {
+    const emitter = dragListener(targetDocument, {
       graph: this.graph,
       dragCursor: cursor,
+      component,
       autopanning,
       stopOnMouseLeave,
       threshold,
       suppressTextSelection,
-    })
+      onSessionEnd: () => this.operationEmitters.delete(emitter),
+    });
+    this.operationEmitters.add(emitter);
+
+    return emitter
       .on(EVENTS.DRAG_START, (event: MouseEvent) => {
         onStart?.(event, initialEvent ? this.getWorldCoords(initialEvent) : this.getWorldCoords(event));
       })
@@ -362,6 +397,10 @@ export class DragService {
       .on(EVENTS.DRAG_END, (event: MouseEvent) => {
         const coords = this.getWorldCoords(event);
         onEnd?.(event, coords);
+      })
+      .on(EVENTS.DRAG_CANCEL, (event, fallbackToEnd) => {
+        const callback = onCancel ?? (fallbackToEnd ? onEnd : undefined);
+        return callback?.(event, this.getWorldCoords(event));
       });
   }
 }

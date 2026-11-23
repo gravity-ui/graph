@@ -1,9 +1,10 @@
 export const MOUSE_ENTER_DELAY_IN_FRAMES = 24;
 
 export const EVENTS = {
-  DRAG_START: "drag-start",
-  DRAG_UPDATE: "drag-update",
-  DRAG_END: "drag-end",
+  DRAG_START: "drag-start" as const,
+  DRAG_UPDATE: "drag-update" as const,
+  DRAG_END: "drag-end" as const,
+  DRAG_CANCEL: "drag-cancel" as const,
   RESIZE_START: "resize-start",
   RESIZE_UPDATE: "resize-update",
   RESIZE_END: "resize-end",

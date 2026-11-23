@@ -108,6 +108,22 @@ test.describe("DuplicateBlockLayer", () => {
     expect(await getCopyIds()).toHaveLength(1);
   });
 
+  test("cancellation clears the preview and adds no copies", async () => {
+    await duplicatePO.addLayer();
+    const cancelled = await graphPO.events.listen("blocks-duplicate-cancel");
+    const center = await graphPO.block("block-1").getCenter();
+    const target = { x: center.x + SHIFT.x, y: center.y + SHIFT.y };
+    await duplicatePO.startAltDrag(center, target);
+    expect(await duplicatePO.getPreviewAlphaAt(target)).toBe(255);
+
+    await graphPO.evaluate((graph) => graph.dragService.cancel());
+    await duplicatePO.finishAltDrag();
+
+    expect(await getCopyIds()).toEqual([]);
+    expect(await duplicatePO.getPreviewAlphaAt(target)).toBe(0);
+    expect(await cancelled.analyze((events) => events.length)).toBe(1);
+  });
+
   test("emits start and end events with the source blocks and the offset", async () => {
     await duplicatePO.addLayer();
     const start = await graphPO.events.listen("blocks-duplicate-start");

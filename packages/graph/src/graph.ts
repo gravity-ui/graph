@@ -628,22 +628,25 @@ export class Graph {
   }
 
   public unmount() {
-    this.detach();
-    this.layers.off("update-size", this.onUpdateSize);
-    this.setGraphState(GraphState.INIT);
-    // Before the layers are unmounted: pending ready waiters must not fire on a graph that is
-    // being torn down, and removing the layers' hit boxes must not queue hit-test work.
-    this.hitTest.destroy();
-    // The scene first: it releases its style bindings before the built-in tags are cleared, so clearing them does not
-    // re-run every bound element's style effect.
-    this.unbindSceneRaises();
-    this.scene.dispose();
-    this.unbindBuiltinTags();
-    this.layers.unmount();
-    clearTextCache();
-    clearColorCache();
-    this.rootStore.reset();
-    this.dragService.destroy();
+    try {
+      this.dragService.destroy();
+    } finally {
+      this.detach();
+      this.layers.off("update-size", this.onUpdateSize);
+      this.setGraphState(GraphState.INIT);
+      // Before the layers are unmounted: pending ready waiters must not fire on a graph that is
+      // being torn down, and removing the layers' hit boxes must not queue hit-test work.
+      this.hitTest.destroy();
+      // The scene first: it releases its style bindings before the built-in tags are cleared, so clearing them does not
+      // re-run every bound element's style effect.
+      this.unbindSceneRaises();
+      this.scene.dispose();
+      this.unbindBuiltinTags();
+      this.layers.unmount();
+      clearTextCache();
+      clearColorCache();
+      this.rootStore.reset();
+    }
   }
 
   /**

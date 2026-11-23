@@ -1,5 +1,5 @@
 import { CanvasBlock, ESelectionStrategy, Layer } from "@gravity-ui/graph";
-import type { BlockState, LayerContext, LayerProps, TPoint, UnwrapGraphEvents } from "@gravity-ui/graph";
+import type { BlockState, Graph, LayerContext, LayerProps, TPoint, UnwrapGraphEvents } from "@gravity-ui/graph";
 
 import { createDuplicateBlockId, createDuplicateConnectionId, createDuplicates } from "./createDuplicates";
 
@@ -21,6 +21,9 @@ declare module "@gravity-ui/graph" {
      * Fired when block duplication starts. Preventing it hides the preview.
      */
     "blocks-duplicate-start": (event: CustomEvent<TBlocksDuplicateStartDetail>) => void;
+
+    /** Fired if a started duplication drag is cancelled before it adds any blocks. */
+    "blocks-duplicate-cancel": (event: CustomEvent<TBlocksDuplicateStartDetail>) => void;
 
     /**
      * Fired when block duplication completes. Preventing it cancels adding the duplicates.
@@ -60,6 +63,7 @@ export class DuplicateBlockLayer extends Layer<
   /** Preview rectangles in world coordinates, so they stay where the copies will be added. */
   private ghosts: TGhost[] = [];
   private enabled = true;
+  private dragHandle?: ReturnType<Graph["dragService"]["startDrag"]>;
 
   constructor(props: TDuplicateBlockLayerProps) {
     super({
@@ -102,11 +106,15 @@ export class DuplicateBlockLayer extends Layer<
     graphEvent.preventDefault();
     event.preventDefault();
 
-    this.context.graph.dragService.startDrag(
+    this.dragHandle = this.context.graph.dragService.startDrag(
       {
         onStart: (_event, coords) => this.onStartDuplicate(target, { x: coords[0], y: coords[1] }),
         onUpdate: (_event, coords) => this.onMoveDuplicate({ x: coords[0], y: coords[1] }),
-        onEnd: (_event, coords) => this.onEndDuplicate({ x: coords[0], y: coords[1] }),
+        onEnd: (_event, coords) => {
+          this.dragHandle = undefined;
+          this.onEndDuplicate({ x: coords[0], y: coords[1] });
+        },
+        onCancel: () => this.onCancelDuplicate(),
       },
       // Anchors the drag at the press point rather than at the first move past the drag threshold.
       { cursor: "copy", initialEvent: event }
@@ -166,7 +174,7 @@ export class DuplicateBlockLayer extends Layer<
     this.initialPoint = point;
 
     const startEvent = this.context.graph.emit("blocks-duplicate-start", { blocks });
-    if (startEvent.defaultPrevented) {
+    if (startEvent.defaultPrevented || this.copyBlocks !== blockStates) {
       return;
     }
 
@@ -232,12 +240,41 @@ export class DuplicateBlockLayer extends Layer<
     );
   }
 
+  private onCancelDuplicate(): void {
+    this.dragHandle = undefined;
+    if (!this.copyBlocks.length) return;
+    const blocks = this.copyBlocks.flatMap((state) => {
+      const view = state.getViewComponent();
+      return view ? [view] : [];
+    });
+    this.copyBlocks = [];
+    this.initialPoint = null;
+    this.ghosts = [];
+    this.performRender();
+    this.context.graph.emit("blocks-duplicate-cancel", { blocks });
+  }
+
+  private cancelDrag(): void {
+    const handle = this.dragHandle;
+    this.dragHandle = undefined;
+    handle?.emit("cancel");
+  }
+
+  protected override unmountLayer(): void {
+    try {
+      this.cancelDrag();
+    } finally {
+      super.unmountLayer();
+    }
+  }
+
   public enable(): void {
     this.enabled = true;
   }
 
   public disable(): void {
     this.enabled = false;
+    this.cancelDrag();
   }
 
   public isEnabled(): boolean {

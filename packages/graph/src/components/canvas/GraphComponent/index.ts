@@ -123,6 +123,11 @@ export class GraphComponent<
     // Default implementation does nothing
   }
 
+  /** Finalizes a cancelled drag at its last position. Override to revert the drag. */
+  public handleDragCancel(context: DragContext): void {
+    this.handleDragEnd(context);
+  }
+
   public get affectsUsableRect() {
     return this.props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
   }
@@ -231,6 +236,7 @@ export class GraphComponent<
     onDragStart,
     onDragUpdate,
     onDrop,
+    onDragCancel = onDrop,
     isDraggable,
     autopanning,
     dragCursor,
@@ -249,6 +255,8 @@ export class GraphComponent<
       _event: MouseEvent
     ) => void;
     onDrop?: (_event: MouseEvent) => void;
+    /** Called on cancellation with the last drag event. Defaults to onDrop. */
+    onDragCancel?: (_event: MouseEvent) => void;
     isDraggable?: (event: MouseEvent) => boolean;
     autopanning?: boolean;
     dragCursor?: CursorLayerCursorTypes;
@@ -291,6 +299,11 @@ export class GraphComponent<
             startCoords = undefined;
             prevCoords = undefined;
             onDrop?.(event);
+          },
+          onCancel: (event: MouseEvent) => {
+            startCoords = undefined;
+            prevCoords = undefined;
+            onDragCancel?.(event);
           },
         },
         {
