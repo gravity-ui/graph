@@ -1,7 +1,7 @@
 import type { Graph } from "../../../../graph";
 import { LEVEL_BIT, unionLevelMasks } from "../../../../lib/scene/levels";
 import { Anchor } from "../index";
-import type { TAnchorClass } from "../index";
+import type { TAnchor, TAnchorClass, TAnchorId } from "../index";
 
 export type TAnchorLook = {
   readonly levels: number;
@@ -9,7 +9,10 @@ export type TAnchorLook = {
   readonly hasCustomClass: boolean;
 };
 
-export type TResolvedAnchorClasses = TAnchorLook & { readonly list: readonly TAnchorClass[] };
+export type TResolvedAnchorClasses = TAnchorLook & {
+  readonly list: readonly TAnchorClass[];
+  readonly byId: ReadonlyMap<TAnchorId, TAnchorClass>;
+};
 
 export const STOCK_ANCHORS: TAnchorLook = {
   levels: LEVEL_BIT.schematic + LEVEL_BIT.detailed,
@@ -21,8 +24,12 @@ export const STOCK_ANCHORS: TAnchorLook = {
 };
 
 /** Cache which classes the block selected. Their public LOOK_EXTENT can change between camera or export queries. */
-export function describeAnchorClasses(list: readonly TAnchorClass[]): TResolvedAnchorClasses {
+export function describeAnchorClasses(
+  anchors: readonly TAnchor[],
+  list: readonly TAnchorClass[]
+): TResolvedAnchorClasses {
   const classes = new Set(list);
+  let byId: ReadonlyMap<TAnchorId, TAnchorClass> | undefined;
   let levels = 0;
   let hasCustomClass = false;
   for (const klass of classes) {
@@ -31,6 +38,9 @@ export function describeAnchorClasses(list: readonly TAnchorClass[]): TResolvedA
   }
   return {
     list,
+    get byId() {
+      return (byId ??= new Map(anchors.map(({ id }, i) => [id, list[i]])));
+    },
     levels,
     hasCustomClass,
     get reach() {

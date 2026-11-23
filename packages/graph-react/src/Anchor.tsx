@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useMemo } from "react";
 
 import { Anchor, AnchorState, Graph, TAnchor, anchorEntityId } from "@gravity-ui/graph";
+import type { TAnchorClass } from "@gravity-ui/graph";
 
 import { useComputedSignal, useSignal } from "./hooks";
 import { useBlockAnchorPosition, useBlockAnchorState } from "./hooks/useBlockAnchorState";
@@ -25,10 +26,15 @@ export function GraphBlockAnchor({
   const anchorContainerRef = React.useRef<HTMLDivElement>(null);
   const anchorState = useBlockAnchorState(graph, anchor);
   const selected = useSignal(anchorState?.$selected);
-  const viewComponent = useComputedSignal(
-    () => (anchorState?.$viewComponentReady.value ? anchorState.getViewComponent() : undefined),
-    [anchorState]
+  const viewOrClass = useComputedSignal(
+    () =>
+      anchorState?.getViewComponent() ??
+      anchorState?.block.getViewComponent()?.getResolvedAnchorClass(anchor.id) ??
+      Anchor,
+    [anchorState, anchor.id]
   );
+  const viewComponent = typeof viewOrClass === "function" ? undefined : viewOrClass;
+  const target = typeof viewOrClass === "function" ? viewOrClass : (viewOrClass.constructor as TAnchorClass);
   const [raised, setRaised] = React.useState(false);
 
   useBlockAnchorPosition(anchorState, anchorContainerRef);
@@ -38,7 +44,12 @@ export function GraphBlockAnchor({
     () => ({ type: "anchor", id: anchorEntityId(anchor.blockId, anchor.id) }),
     [anchor.blockId, anchor.id]
   );
-  const target = viewComponent ? (viewComponent.constructor as typeof Anchor) : Anchor;
+  // An HTML anchor can be the only consumer of its class's scene rules.
+  useLayoutEffect(() => {
+    const { styles } = graph.scene;
+    styles.retainClass(target);
+    return () => styles.releaseClass(target);
+  }, [graph, target]);
   const entityStyle = useEntityStyle(graph, entity, target, "graph-block-anchor");
 
   const classNames = useMemo(() => {
