@@ -12,7 +12,6 @@ const TWO_BLOCKS = [
     height: 100,
     name: "Block 1",
     anchors: [],
-    selected: false,
   },
   {
     id: "block-2",
@@ -23,7 +22,6 @@ const TWO_BLOCKS = [
     height: 100,
     name: "Block 2",
     anchors: [],
-    selected: false,
   },
 ];
 
@@ -144,7 +142,6 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
         height: 100,
         name: "Block 1",
         anchors: [],
-        selected: false,
         group: "group-1",
       },
       {
@@ -156,7 +153,6 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
         height: 100,
         name: "Block 2",
         anchors: [],
-        selected: false,
         group: "group-1",
       },
     ];

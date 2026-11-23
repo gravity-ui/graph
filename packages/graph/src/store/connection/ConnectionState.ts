@@ -9,8 +9,9 @@ import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/Gr
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
 import { generateRandomId } from "../../utils/functions/generateRandomId";
+import { track } from "../../utils/functions/track";
 import { TPoint } from "../../utils/types/shapes";
-import { TBlockId } from "../block/Block";
+import type { BlockState, TBlockId } from "../block/Block";
 
 import { ConnectionsStore } from "./ConnectionList";
 import { PortState, TPortId } from "./port/Port";
@@ -40,11 +41,32 @@ export type TConnection = {
     dashes?: number[];
   };
   dashed?: boolean;
-  selected?: boolean;
 } & (TConnectionBlockPoint | TConnectionPortPoint);
 
 function hasId<T>(id: T | null | undefined): id is T {
   return id !== undefined && id !== null;
+}
+
+/**
+ * The block state behind a connection endpoint: the state that the block or anchor component owning its port is
+ * bound to. Inside a computed it depends on that binding, not only on the port: a block removed and added back with
+ * its id before a frame keeps its component (and the anchors theirs), which binds to the new state in the frame and
+ * moves its view from the old state to the new one (`BlockState.$viewComponent`, `AnchorState.$viewComponentReady`).
+ * Reading the bound state's view makes the computed read the binding again then.
+ */
+function endpointBlockState(port: PortState): BlockState | undefined {
+  const component = port.component;
+  if (component instanceof Block) {
+    const state = component.connectedState;
+    track(state.$viewComponent);
+    return state;
+  }
+  if (component instanceof Anchor) {
+    const state = component.connectedState;
+    track(state.$viewComponentReady);
+    return state.block;
+  }
+  return undefined;
 }
 
 export class ConnectionState<T extends TConnection = TConnection> {
@@ -63,11 +85,10 @@ export class ConnectionState<T extends TConnection = TConnection> {
 
   /**
    * Connection state signal.
-   * Derives `selected` from the selection bucket, consistent with BlockState pattern.
+   * Selection is not part of the data: read it through `$selected`.
    */
   public $state = computed(() => ({
     ...this.$rawState.value,
-    selected: this.$selected.value,
   }));
 
   private $destroyed = signal(false);
@@ -141,58 +162,25 @@ export class ConnectionState<T extends TConnection = TConnection> {
   });
 
   /* @deprecated use $sourcePortState instead */
-  public readonly $sourceBlock = computed(() => {
-    const component = this.$sourcePortState.value.component;
-
-    if (!component) {
-      return undefined;
-    }
-
-    if (component instanceof Block) {
-      return component.connectedState;
-    }
-    if (component instanceof Anchor) {
-      return component.connectedState.block;
-    }
-    return undefined;
-  });
+  public readonly $sourceBlock = computed(() => endpointBlockState(this.$sourcePortState.value));
 
   /* @deprecated use $targetPortState instead */
-  public readonly $targetBlock = computed(() => {
-    const component = this.$targetPortState.value.component;
-    if (!component) {
-      return undefined;
-    }
-
-    if (component instanceof Block) {
-      return component.connectedState;
-    }
-    if (component instanceof Anchor) {
-      return component.connectedState.block;
-    }
-    return undefined;
-  });
+  public readonly $targetBlock = computed(() => endpointBlockState(this.$targetPortState.value));
 
   /**
    * True when both source and target blocks are hidden (e.g. both inside a
    * collapsed group). When true the connection should not be rendered.
    */
   public readonly $hidden = computed(() => {
-    const getBlockHidden = (component: Block | Anchor | undefined): boolean => {
-      if (component instanceof Block) return component.connectedState.$hidden.value;
-      if (component instanceof Anchor) return component.connectedState.block.$hidden.value;
-      return false;
-    };
-    return (
-      getBlockHidden(this.$sourcePortState.value.component as Block | Anchor | undefined) &&
-      getBlockHidden(this.$targetPortState.value.component as Block | Anchor | undefined)
-    );
+    // The target is read only while the source is hidden: a visible source keeps the line shown.
+    if (!endpointBlockState(this.$sourcePortState.value)?.$hidden.value) return false;
+    return endpointBlockState(this.$targetPortState.value)?.$hidden.value ?? false;
   });
 
   public $geometry = computed((): [TPoint, TPoint] | undefined => {
     const sourcePort = this.$sourcePortState.value;
     const targetPort = this.$targetPortState.value;
-    if (!sourcePort.lookup && !targetPort.lookup) {
+    if (!sourcePort.lookup && !targetPort.lookup && !sourcePort.effectiveLookup && !targetPort.effectiveLookup) {
       return [sourcePort.$point.value, targetPort.$point.value];
     }
     return undefined;
@@ -267,7 +255,6 @@ export class ConnectionState<T extends TConnection = TConnection> {
   public asTConnection(): T & { id: TConnectionId } {
     return cloneDeep({
       ...this.$rawState.toJSON(),
-      selected: this.$selected.value,
     });
   }
 
@@ -278,7 +265,6 @@ export class ConnectionState<T extends TConnection = TConnection> {
   public toJSON(): T & { id: TConnectionId } {
     return cloneDeep({
       ...this.$rawState.toJSON(),
-      selected: this.$selected.value,
     });
   }
 
@@ -289,13 +275,28 @@ export class ConnectionState<T extends TConnection = TConnection> {
    */
   public updateConnection(connection: Partial<T>): void {
     if (this.$destroyed.value) return;
-    const { styles, id: _id, ...newProps } = connection;
+    const current = this.$rawState.value;
+    this.writeConnection({
+      ...current,
+      ...connection,
+      styles: { ...current.styles, ...connection.styles },
+      id: current.id,
+    });
+  }
 
-    const newStyles = Object.assign({}, this.$rawState.value.styles, styles);
+  /** @internal Set the full authored row while retaining the connection's identity and view. */
+  public replaceConnection(connection: T): void {
+    if (this.$destroyed.value) return;
+    const previous = this.$rawState.value;
+    const next = { ...connection, id: previous.id };
+    this.getViewComponent()?.clearRemovedData(previous, next);
+    this.writeConnection(next);
+  }
 
+  private writeConnection(next: T & { id: TConnectionId }): void {
     const sourceId = this.$sourcePortId.value;
     const targetId = this.$targetPortId.value;
-    this.$rawState.value = Object.assign({}, this.$rawState.value, newProps, { styles: newStyles });
+    this.$rawState.value = next;
     // Shared endpoints must retain observation until neither side uses the old ID.
     const nextIds = new Set([this.$sourcePortId.value, this.$targetPortId.value]);
     for (const id of new Set([sourceId, targetId])) {

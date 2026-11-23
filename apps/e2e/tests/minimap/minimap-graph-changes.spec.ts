@@ -12,7 +12,6 @@ const INITIAL_BLOCKS = [
     height: 100,
     name: "Block 1",
     anchors: [],
-    selected: false,
   },
   {
     id: "block-2",
@@ -23,7 +22,6 @@ const INITIAL_BLOCKS = [
     height: 100,
     name: "Block 2",
     anchors: [],
-    selected: false,
   },
 ];
 
@@ -42,7 +40,6 @@ const FAR_BLOCK = {
   height: 100,
   name: "Far Block",
   anchors: [],
-  selected: false,
 };
 
 test.describe("MiniMap – graph changes reflection", () => {
@@ -70,7 +67,7 @@ test.describe("MiniMap – graph changes reflection", () => {
       blocks: [...INITIAL_BLOCKS, FAR_BLOCK],
       connections: [],
     });
-    await graphPO.waitForFrames(5);
+    await minimapPO.waitForPicture();
 
     // Click at the same relative position on the now-rescaled minimap
     await minimapPO.clickAt(0.5, 0.5);
@@ -87,7 +84,7 @@ test.describe("MiniMap – graph changes reflection", () => {
 
     // Remove all blocks
     await graphPO.setEntities({ blocks: [], connections: [] });
-    await graphPO.waitForFrames(5);
+    await minimapPO.waitForPicture();
 
     // Minimap element must still be in the DOM
     expect(await minimapPO.exists()).toBe(true);
@@ -152,7 +149,7 @@ test.describe("MiniMap – graph changes reflection", () => {
       blocks: [INITIAL_BLOCKS[0], { ...INITIAL_BLOCKS[1], x: 4000, y: 4000 }],
       connections: [],
     });
-    await graphPO.waitForFrames(5);
+    await minimapPO.waitForPicture();
 
     // Click minimap center again – scale changed, so camera ends up elsewhere
     await minimapPO.clickAt(0.5, 0.5);

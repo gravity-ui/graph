@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo } from "react";
 
-import { AnchorState, Graph, TAnchor } from "@gravity-ui/graph";
+import { Anchor, AnchorState, Graph, TAnchor, anchorEntityId } from "@gravity-ui/graph";
 
 import { useComputedSignal, useSignal } from "./hooks";
 import { useBlockAnchorPosition, useBlockAnchorState } from "./hooks/useBlockAnchorState";
+import { useEntityStyle } from "./hooks/useEntityStyle";
 import { cn } from "./utils/cn";
 
 import "./Anchor.css";
@@ -32,6 +33,14 @@ export function GraphBlockAnchor({
 
   useBlockAnchorPosition(anchorState, anchorContainerRef);
 
+  // Anchor ids are unique only within their block: tags address anchors by block-qualified ids.
+  const entity = useMemo(
+    () => ({ type: "anchor", id: anchorEntityId(anchor.blockId, anchor.id) }),
+    [anchor.blockId, anchor.id]
+  );
+  const target = viewComponent ? (viewComponent.constructor as typeof Anchor) : Anchor;
+  const entityStyle = useEntityStyle(graph, entity, target, "graph-block-anchor");
+
   const classNames = useMemo(() => {
     return cn(
       "graph-block-anchor",
@@ -41,9 +50,10 @@ export function GraphBlockAnchor({
         "graph-block-anchor-raised": raised,
         "graph-block-anchor-selected": selected,
       },
+      entityStyle.className,
       className
     );
-  }, [anchor?.type, position, className, selected, raised]);
+  }, [anchor?.type, position, className, selected, raised, entityStyle.className]);
 
   useEffect(() => {
     setRaised(viewComponent?.state.raised ?? false);
@@ -66,7 +76,7 @@ export function GraphBlockAnchor({
   const layout = typeof children === "function" ? children(anchorState) : children;
 
   return (
-    <div ref={anchorContainerRef} className={classNames}>
+    <div ref={anchorContainerRef} className={classNames} style={entityStyle.style}>
       {layout}
     </div>
   );

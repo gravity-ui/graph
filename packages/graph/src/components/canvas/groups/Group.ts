@@ -1,3 +1,6 @@
+import { batch } from "@preact/signals-core";
+import type { ReadonlySignal } from "@preact/signals-core";
+
 import { TComponentState } from "../../../lib/Component";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { ESelectionStrategy } from "../../../services/selection/types";
@@ -7,6 +10,7 @@ import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { layoutText } from "../../../utils/renderers/text";
 import { TRect } from "../../../utils/types/shapes";
+import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
 import { GraphComponent } from "../GraphComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -56,6 +60,9 @@ const defaultGeometry: TGroupGeometry = {
 };
 
 export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps, TGroupState<T>, TGraphLayerContext> {
+  /** The entity type of the selection bucket and of tag addresses. */
+  public static entityType = "group";
+
   public static define(config: { style?: Partial<TGroupStyle>; geometry?: Partial<TGroupGeometry> }): typeof Group {
     return class SpecificGroup<T extends TGroup = TGroup> extends Group<T> {
       constructor(props: TGroupProps, parent: BlockGroups) {
@@ -85,8 +92,15 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
   public declare context: TGraphLayerContext;
   protected blocks: BlockState[] = [];
+  /**
+   * The group state this component is bound to: the one the store registers for its id. A group removed and added back
+   * with the same id in one frame keeps this component, which then binds to the new state (`propsChanged`).
+   */
   protected groupState!: GroupState<T>;
   public cursor = "pointer";
+
+  /** Ends the subscriptions to the bound group state (`subscribeGroupSignal`): a rebind and unmount call them. */
+  private groupStateUnsubscribers: (() => void)[] = [];
 
   protected style: TGroupStyle;
   protected geometry: TGroupGeometry;
@@ -173,6 +187,14 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
    */
   public isHighlighted(): boolean {
     return this.highlighted;
+  }
+
+  /** Hovered (`hoveredTag`) while it is the pointer's target (D5): the group writes its own tag. */
+  protected override onDispatchedEvent(event: Event): void {
+    super.onDispatchedEvent(event);
+    if (event.type === "mouseenter" || event.type === "mouseleave") {
+      this.setHoveredTag(pointerTargetAfter(event) === this);
+    }
   }
 
   public getEntityId() {
@@ -279,18 +301,75 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     return super.isEntityAvailable() && this.groupState.isAttached();
   }
 
-  protected subscribeToGroup() {
+  protected override propsChanged(nextProps: TGroupProps): void {
+    // Its layer reconciles it with every change of the group list, a re-add of the group included.
+    const registered = this.context.graph.rootStore.groupsList.getGroupState<T>(nextProps.id);
+    if (registered && registered !== this.groupState) this.rebindGroupState(registered);
+    super.propsChanged(nextProps);
+  }
+
+  /**
+   * Binds this component to the new state of its group. The group was removed and added back with its id before a
+   * frame: its layer keeps this component (keyed by id), but the store made a new state, and the old one rejects
+   * selection writes and drags (`isAttached`). What the old state applied outside this component is undone first
+   * (`leaveGroupState`), then the new state binds through the constructor's path (`subscribeToGroup`), with its own
+   * data: nothing of the old state's data stays in the component's state. The hit box follows the new rect, which asks
+   * for a retarget only when it moved.
+   */
+  private rebindGroupState(next: GroupState<T>): void {
+    // One batch: a group that comes back collapsed shows and hides its blocks again, and what reads their hidden flags
+    // and ports (connections) sees only the result.
+    batch(() => {
+      this.leaveGroupState();
+      this.releaseGroupState();
+      // The new state's data replaces the old one's, pending changes included, as for a new component.
+      this.__data.nextState = undefined;
+      this.state = Object.assign({} as TGroupState<T>, next.$state.peek(), { selected: next.$selected.peek() });
+      this.subscribeToGroup();
+    });
+  }
+
+  /**
+   * Called when this component stops being bound to its state, while it still is: on a rebind to a new state and on
+   * unmount. It undoes what the component applied outside itself for that state. `CollapsibleGroup` ends its collapse
+   * here. On a rebind, the new state applies its own in `subscribeToGroup`.
+   */
+  protected leaveGroupState(): void {
+    // Nothing outside the component by default.
+  }
+
+  /** Ends the subscriptions to the bound state, and the state no longer names this component. */
+  private releaseGroupState(): void {
+    this.groupStateUnsubscribers.forEach((unsubscribe) => unsubscribe());
+    this.groupStateUnsubscribers = [];
+    if (this.groupState.getViewComponent() === this) this.groupState.setViewComponent(undefined);
+  }
+
+  /**
+   * Subscribes to a signal of the bound group state for as long as this component is bound to it: a rebind to a new
+   * state and unmount end the subscription. `subscribeToGroup` and its overrides subscribe through it, so that a rebind
+   * leaves nothing listening to the old state.
+   */
+  protected subscribeGroupSignal<V>(source: ReadonlySignal<V>, callback: (value: V) => void): void {
+    this.groupStateUnsubscribers.push(source.subscribe(callback));
+  }
+
+  /**
+   * Binds this component to the group state the store registers for its id: the constructor and a rebind take this one
+   * path. Overrides subscribe through `subscribeGroupSignal`.
+   */
+  protected subscribeToGroup(): void {
     const state = this.context.graph.rootStore.groupsList.getGroupState<T>(this.props.id);
     if (!state) throw new Error(`Cannot bind Group to missing group ${this.props.id}`);
     // Custom group authors declare the stored data shape.
     this.groupState = state;
-    this.subscribeSignal(this.groupState.$selected, (selected) => {
+    this.subscribeGroupSignal(this.groupState.$selected, (selected) => {
       this.setState({
         selected,
       });
     });
     this.groupState.setViewComponent(this);
-    return this.subscribeSignal(this.groupState.$state, (group) => {
+    this.subscribeGroupSignal(this.groupState.$state, (group) => {
       if (!group) {
         return;
       }
@@ -317,7 +396,8 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   }
 
   protected unmount(): void {
-    this.groupState.setViewComponent(undefined);
+    this.leaveGroupState();
+    this.releaseGroupState();
     super.unmount();
   }
 

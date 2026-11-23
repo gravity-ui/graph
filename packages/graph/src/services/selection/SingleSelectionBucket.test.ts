@@ -35,18 +35,9 @@ describe("SingleSelectionBucket", () => {
     expect(bucket.$selected.value).toBe(prev); // ссылка не меняется
   });
 
-  it("toggle acts as REPLACE for single selection", () => {
+  it.each([ESelectionStrategy.APPEND, ESelectionStrategy.TOGGLE])("%s replaces the single selection", (strategy) => {
     bucket.updateSelection(["a"], true, ESelectionStrategy.REPLACE);
-    bucket.updateSelection(["b"], true, ESelectionStrategy.TOGGLE);
-    expect(lastPayload).toEqual({
-      list: ["b"],
-      changes: { add: ["b"], removed: ["a"] },
-    });
-  });
-
-  it("APPEND acts as REPLACE for single selection", () => {
-    bucket.updateSelection(["a"], true, ESelectionStrategy.REPLACE);
-    bucket.updateSelection(["b"], true, ESelectionStrategy.APPEND);
+    bucket.updateSelection(["b"], true, strategy);
     expect(lastPayload).toEqual({
       list: ["b"],
       changes: { add: ["b"], removed: ["a"] },
@@ -100,17 +91,15 @@ describe("SingleSelectionBucket", () => {
     expect(lastPayload).toBeNull();
   });
 
-  it("select=false with APPEND/REPLACE/TOGGLE clears selection if id is selected", () => {
-    bucket.updateSelection(["a"], true, ESelectionStrategy.REPLACE);
-    bucket.updateSelection(["a"], false, ESelectionStrategy.APPEND);
-    expect(bucket.$selected.value.size).toBe(0);
-    bucket.updateSelection(["a"], true, ESelectionStrategy.REPLACE);
-    bucket.updateSelection(["a"], false, ESelectionStrategy.REPLACE);
-    expect(bucket.$selected.value.size).toBe(0);
-    bucket.updateSelection(["a"], true, ESelectionStrategy.REPLACE);
-    bucket.updateSelection(["a"], false, ESelectionStrategy.TOGGLE);
-    expect(bucket.$selected.value.size).toBe(0);
-  });
+  it.each([ESelectionStrategy.APPEND, ESelectionStrategy.REPLACE, ESelectionStrategy.TOGGLE])(
+    "select=false with %s clears the selected id",
+    (strategy) => {
+      bucket.updateSelection(["a"], true, ESelectionStrategy.REPLACE);
+      bucket.updateSelection(["a"], false, strategy);
+      expect(bucket.$selected.value.size).toBe(0);
+      expect(lastPayload).toEqual({ list: [], changes: { add: [], removed: ["a"] } });
+    }
+  );
 
   it("does not update selection if onSelectionChange returns false", () => {
     const bucket2 = new SingleSelectionBucket<string>("block", () => false);

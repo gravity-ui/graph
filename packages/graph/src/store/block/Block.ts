@@ -2,7 +2,7 @@ import type { Signal } from "@preact/signals-core";
 import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
-import { TAnchor } from "../../components/canvas/anchors";
+import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
 import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
 import { AnchorState } from "../anchor/Anchor";
@@ -27,7 +27,6 @@ export class BlockState<T extends TBlock = TBlock> {
    */
   public $state = computed(() => ({
     ...this.$rawState.value,
-    selected: this.$selected.value,
   }));
 
   /**
@@ -126,16 +125,13 @@ export class BlockState<T extends TBlock = TBlock> {
   });
 
   /**
-   * Block selected anchors signal
+   * The selected anchors of this block (the anchor selection bucket holds block-qualified ids, see `anchorEntityId`)
    *
-   * @returns {TAnchor[]} Block selected anchors
+   * @returns {AnchorState[]} Block selected anchors
    */
   public $selectedAnchors = computed(() => {
-    return (
-      this.$anchorStates.value?.filter((anchorState) =>
-        this.store.anchorSelectionBucket.$selected.value.has(anchorState.id)
-      ) || []
-    );
+    const selected = this.store.anchorSelectionBucket.$selected.value;
+    return this.$anchorStates.value?.filter((anchorState) => selected.has(anchorState.entityId)) || [];
   });
 
   public readonly $viewComponent = signal<Block | undefined>(undefined);
@@ -194,6 +190,14 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   /**
+   * The block's component no longer shows this state: the block was removed and added back with its id before a
+   * frame, and its kept component bound to the new state. This state then names no component.
+   */
+  public unsetViewComponent(): void {
+    this.$viewComponent.value = undefined;
+  }
+
+  /**
    * Request to hide or show this block's canvas component.
    * Safe to call before the canvas component is mounted — the request is
    * deferred and applied automatically in setViewComponent().
@@ -247,15 +251,26 @@ export class BlockState<T extends TBlock = TBlock> {
    */
   public updateBlock(block: Partial<T>): void {
     // Update anchors first to ensure they have correct state when geometry changes
-    if (block.anchors) {
-      this.updateAnchors(block.anchors);
-    }
+    if (block.anchors) this.updateAnchors(block.anchors);
+    const previous = this.$rawState.value;
+    this.applyBlock(Object.assign({}, previous, block, { id: previous.id }));
+  }
 
-    this.$rawState.value = Object.assign({}, this.$rawState.value, block, { id: this.id });
+  /** @internal Replaces the data of a retained block when applying a complete snapshot. */
+  public replaceBlock(block: T): void {
+    this.getViewComponent()?.clearRemovedData(this.$state.peek(), block);
+    if (block.anchors || this.$anchorStates.peek().length) this.updateAnchors(block.anchors ?? []);
+    this.applyBlock({ ...block, id: this.$rawState.value.id });
+  }
+
+  private applyBlock(next: T): void {
+    if (next.is !== this.$rawState.value.is) this.store.noteViewClassChange();
+    this.$rawState.value = next;
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 
-  public getAnchorById(anchorId: string): AnchorState | undefined {
+  /** The anchor state of an anchor id; data read from JSON can carry number anchor ids (`TAnchorId`). */
+  public getAnchorById(anchorId: TAnchorId): AnchorState | undefined {
     return this.$anchorStates.value.find((anchor) => anchor.id === anchorId);
   }
 
@@ -267,7 +282,6 @@ export class BlockState<T extends TBlock = TBlock> {
   public asTBlock(): T {
     return cloneDeep({
       ...this.$rawState.toJSON(),
-      selected: this.$selected.value,
     });
   }
 
@@ -278,7 +292,6 @@ export class BlockState<T extends TBlock = TBlock> {
   public asTBlockShallow(): Readonly<T> {
     return {
       ...this.$rawState.value,
-      selected: this.$selected.value,
     };
   }
 }

@@ -7,6 +7,7 @@ import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/cursorLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
+import { SceneComponent } from "./components/canvas/scene/SceneComponent";
 import {
   GraphComponentConstructor,
   TGraphColorsPatch,
@@ -25,6 +26,9 @@ import type { CameraPoint } from "./services/camera/CameraPoint";
 import { CameraService, getInitCameraState } from "./services/camera/CameraService";
 import type { TCameraState } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
+import { GraphScene } from "./services/scene/GraphScene";
+import { bindSceneRaises } from "./services/scene/sceneRaises";
+import { bindBuiltinTags } from "./services/tags/systems";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
@@ -124,7 +128,21 @@ export class Graph {
   protected startRequested = false;
 
   /** Updates this graph's layers on each frame while the graph is started. */
-  private readonly frameTask = { performUpdate: (): void => this.layers.update() };
+  private readonly frameTask = {
+    performUpdate: (): void => {
+      if (this.scene.pendingPresentation) return;
+      const contentRevision = this.scene.contentRevision;
+      this.layers.update();
+      this.scene.update(contentRevision);
+    },
+  };
+
+  /** Scene runtime: element store, renderer (Canvas2D or WebGL), level and clock. */
+  public readonly scene: GraphScene;
+
+  private readonly unbindBuiltinTags: () => void;
+
+  private readonly unbindSceneRaises: () => void;
 
   private removeFrameTask: (() => void) | undefined;
 
@@ -148,11 +166,15 @@ export class Graph {
   ) {
     this.belowLayer = this.addLayer(BelowLayer, {});
     this.graphLayer = this.addLayer(GraphLayer, {});
+    // Right after GraphLayer: the scene canvas follows the GraphLayer canvas in the DOM.
+    this.scene = new GraphScene(this);
     this.selectionLayer = this.addLayer(SelectionLayer, {});
     this.cursorLayer = this.addLayer(CursorLayer, {});
 
     // Initialize DragService for managing drag operations on GraphComponents
     this.dragService = new DragService(this);
+    this.unbindBuiltinTags = bindBuiltinTags(this);
+    this.unbindSceneRaises = bindSceneRaises(this);
     this.keyboardService = new KeyboardService(this);
 
     this.selectionLayer.hide();
@@ -256,12 +278,19 @@ export class Graph {
     return items as InstanceType<T>[];
   }
 
-  /** Returns the topmost element at a world-space point. */
+  /**
+   * Returns the topmost element at a world-space point that pointer events reach: components transparent to events
+   * (`GraphComponent.transparentToEvents`) are skipped. GraphLayer targets the pointer with it.
+   */
   public getElementOverPoint<T extends GraphComponentConstructor>(
     point: TPoint | CameraPoint,
     filter?: T[]
   ): InstanceType<T> | undefined {
-    return this.getElementsOverPoint(point, filter)?.[0] as InstanceType<T> | undefined;
+    for (const item of this.getElementsOverPoint(point, filter)) {
+      const component: unknown = item;
+      if (!(component instanceof GraphComponent) || !component.isTransparentToEvents()) return item;
+    }
+    return undefined;
   }
 
   /**
@@ -285,17 +314,37 @@ export class Graph {
     return this.getElementsOverRect(viewportRect, filter);
   }
 
+  /**
+   * Returns the elements whose hit boxes meet a world rect, without the scene components the current level does not
+   * hit (`SceneComponent.isHitOnLevel`: a stock anchor at the minimalistic level, or at the detailed level without an
+   * HTML view), as points leave them out.
+   */
   public getElementsOverRect<T extends GraphComponentConstructor>(rect: TRect, filter?: T[]): InstanceType<T>[] {
-    const items = this.hitTest.testBox({
+    const level = this.scene.$level.peek();
+    return this.getComponentsOverRect(rect, filter).filter(
+      (item) => !(item instanceof SceneComponent) || item.isHitOnLevel(level)
+    ) as InstanceType<T>[];
+  }
+
+  /**
+   * @internal The components whose hit boxes meet the viewport, whether or not the current level hits them: what is in
+   * view, not what the pointer can target (`getElementsInViewport` leaves out what the level does not hit). React's
+   * `BlocksList` picks the blocks it renders as HTML with it, so a block class whose `hitLevels` exclude the detailed
+   * level keeps its HTML view.
+   */
+  public getComponentsInViewport<T extends GraphComponentConstructor>(filter?: T[]): InstanceType<T>[] {
+    return this.getComponentsOverRect(this.getViewportRect(), filter) as InstanceType<T>[];
+  }
+
+  /** The components of the filter's classes whose hit boxes meet a world rect, hit levels aside. */
+  private getComponentsOverRect(rect: TRect, filter?: GraphComponentConstructor[]): ReturnType<HitTest["testBox"]> {
+    const found = this.hitTest.testBox({
       minX: rect.x,
       minY: rect.y,
       maxX: rect.x + rect.width,
       maxY: rect.y + rect.height,
     });
-    if (filter && items.length > 0) {
-      return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
-    }
-    return items as InstanceType<T>[];
+    return filter ? found.filter((item) => filter.some((Component) => item instanceof Component)) : found;
   }
 
   /** Returns exact world and canvas-relative CSS coordinates of a mouse event. */
@@ -321,6 +370,7 @@ export class Graph {
     });
   }
 
+  /** Replaces the block and connection data, including rows with existing IDs. An omitted collection is emptied. */
   public setEntities({
     blocks,
     connections,
@@ -330,6 +380,7 @@ export class Graph {
   }>) {
     // Mark hitTest as pending so waitUsableRectUpdate (used by zoomToViewPort)
     // waits for block components to settle without clearing usableRectTracker.
+    this.scene.entitiesReplacing();
     this.hitTest.markPendingUpdate();
     batch(() => {
       this.rootStore.blocksList.setBlocks(blocks || []);
@@ -363,7 +414,7 @@ export class Graph {
     const event = new GraphEvent(eventName, {
       detail,
       bubbles: false,
-      cancelable: true,
+      cancelable: eventName !== "scene-state-change",
     });
     this.eventEmitter.dispatchEvent(event);
 
@@ -499,6 +550,7 @@ export class Graph {
     this.cameraService.set({ width: rootWidth, height: rootHeight });
 
     this.setGraphState(GraphState.ATTACHED);
+    this.scene.followVisibility();
 
     if (this.startRequested) {
       this.startRequested = false;
@@ -522,6 +574,7 @@ export class Graph {
     this.layers.start();
     // One frame task per started graph, however start() is reached.
     this.removeFrameTask ??= this.scheduler.addScheduler(this.frameTask);
+    this.scene.start();
 
     this.setGraphState(GraphState.READY);
     this.runAfterGraphReady(() => {
@@ -553,6 +606,7 @@ export class Graph {
     this.startRequested = false;
     this.removeFrameTask?.();
     this.removeFrameTask = undefined;
+    this.scene.stop();
     this.setGraphState(this.layers.$root ? GraphState.ATTACHED : GraphState.INIT);
   }
 
@@ -580,6 +634,11 @@ export class Graph {
     // Before the layers are unmounted: pending ready waiters must not fire on a graph that is
     // being torn down, and removing the layers' hit boxes must not queue hit-test work.
     this.hitTest.destroy();
+    // The scene first: it releases its style bindings before the built-in tags are cleared, so clearing them does not
+    // re-run every bound element's style effect.
+    this.unbindSceneRaises();
+    this.scene.dispose();
+    this.unbindBuiltinTags();
     this.layers.unmount();
     clearTextCache();
     clearColorCache();

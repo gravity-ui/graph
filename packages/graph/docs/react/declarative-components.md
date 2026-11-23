@@ -1,6 +1,6 @@
 # Declarative Components
 
-The `@gravity-ui/graph` library provides declarative React components that simplify working with graph layers and HTML overlays.
+The `@gravity-ui/graph-react` package provides declarative React components that simplify working with graph layers and HTML overlays.
 
 ## Overview
 
@@ -49,7 +49,7 @@ function MyGraph() {
 | Prop | Type | Description |
 |------|------|-------------|
 | `layer` | `Constructor<Layer>` | Layer class constructor |
-| `...layerProps` | `LayerProps` | Any properties supported by the layer class |
+| `props` | Layer-specific props | Options for the layer constructor and later updates |
 
 ### Accessing Layer Instance
 
@@ -61,7 +61,8 @@ function MyGraph() {
 
   const toggleLayer = () => {
     if (layerRef.current) {
-      layerRef.current.setVisible(!layerRef.current.isVisible());
+      if (layerRef.current.isHidden()) layerRef.current.show();
+      else layerRef.current.hide();
     }
   };
 
@@ -144,7 +145,7 @@ For advanced usage, you can use the render prop pattern to access the layer inst
         Hide Layer
       </button>
       <div>
-        Graph has {graph.api.getBlocks().length} blocks
+        Graph has {graph.blocks.$blocks.value.length} blocks
       </div>
       <button onClick={() => graph.zoomTo('center', { padding: 200 })}>
         Center Graph

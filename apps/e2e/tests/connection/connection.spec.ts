@@ -28,7 +28,6 @@ const BLOCKS = [
     height: 100,
     name: "Block 1",
     anchors: [],
-    selected: false,
   },
   {
     id: "block-2",
@@ -39,7 +38,6 @@ const BLOCKS = [
     height: 100,
     name: "Block 2",
     anchors: [],
-    selected: false,
   },
   {
     id: "block-3",
@@ -50,7 +48,6 @@ const BLOCKS = [
     height: 100,
     name: "Block 3",
     anchors: [],
-    selected: false,
   },
 ];
 
@@ -175,7 +172,6 @@ test.describe("Connections", () => {
         height: 100,
         name: "New 1",
         anchors: [],
-        selected: false,
       },
       {
         id: "new-2",
@@ -186,7 +182,6 @@ test.describe("Connections", () => {
         height: 100,
         name: "New 2",
         anchors: [],
-        selected: false,
       },
     ];
     const newConnections = [{ id: "new-conn", sourceBlockId: "new-1", targetBlockId: "new-2" }];

@@ -14,7 +14,6 @@ export const CustomLayerConfig: TGraphConfig = {
       height: 160,
       id: "Lonely block without anchors",
       is: "Block",
-      selected: false,
       name: "one block",
       anchors: [],
     },

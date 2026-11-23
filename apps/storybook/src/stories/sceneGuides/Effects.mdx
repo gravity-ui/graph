@@ -1,0 +1,89 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Scene/Guides/Effects" />
+
+# Scene effects
+
+Use a WebGL effect to colour or animate a path. A path can be a connection shaft or a contour
+your component draws.
+
+## Run an effect while a tag is present
+
+Override `getSceneStyles()` on a `BlockConnection` subclass and register it in `settings.connection`. The graph
+loads the class rules when it applies the configuration. Call `setRunning()` as your application's job status changes.
+
+```ts
+import { BlockConnection, Graph, dashFlow, defineTag } from "@gravity-ui/graph";
+import type { TSceneStyles } from "@gravity-ui/graph";
+
+const runningTag = defineTag("running-job");
+const flow = dashFlow.use({ pattern: [12, 8], speed: 40 }, { minScale: 0.4 });
+
+class JobConnection extends BlockConnection {
+  public static override getSceneStyles(): TSceneStyles<typeof this> {
+    return [{ tags: [runningTag], style: { parts: { line: { color: "#087e67", effect: flow } } } }];
+  }
+}
+
+const graph = new Graph({ settings: { renderer: "webgl", connection: JobConnection } });
+
+export function setRunning(id: string, running: boolean) {
+  const members = { connection: [id] };
+  if (running) graph.scene.tags.add(runningTag, members);
+  else graph.scene.tags.delete(runningTag, members);
+}
+```
+
+`dashFlow` moves dashes along the path. Use `pathGradient.use({ from: "#2f7cf6", to: "#f28e2b", speed: 0.6 })`
+in the same rule to move a fully coloured gradient along the route. The speed is in cycles per second. Use zero
+for a static fill or a negative value to reverse the motion.
+The tagged stroke keeps its teal colour in Canvas 2D or below the effect's `minScale`. An effect's optional
+`maxScale` is exclusive. Removing the tag stops this rule from supplying the effect. Set `effect: null` in a
+matching rule when you need to override an effect supplied by the path or another rule.
+
+Use `graph.scene.styles.add()` with `target: BlockConnection` to style the stock class in one graph.
+
+## Define a path effect
+
+`defineSceneEffect()` pairs typed input with a GLSL function. This example uses `f.time` (seconds) and `f.along`
+(distance along the path in world units) to move a highlight along the stroke.
+
+```ts
+import { defineSceneEffect } from "@gravity-ui/graph";
+
+const highlight = defineSceneEffect({
+  kind: "path",
+  animated: true,
+  encode: (strength: number) => [strength],
+  fragment: `
+    vec4 effect(PathFragment f, vec4 color) {
+      float wave = 0.5 + 0.5 * sin(f.time * 3.0 - f.along / 20.0);
+      return vec4(mix(color.rgb, vec3(1.0), wave * f.params0.x), color.a);
+    }
+  `,
+});
+
+export const highlightUse = highlight.use(0.4);
+```
+
+Use `highlightUse` in place of `flow` in the rule above. The shader reads the first number returned by `encode`
+as `f.params0.x`. `f.params0` holds slots 0–3 and `f.params1` holds slots 4–7. Missing slots are zero.
+An effect with `animated: true` requests frames while an affected path is visible and inside its scale range.
+Rectangles and text keep their own paint. Textured sprites have a separate shader input.
+
+## Try it
+
+<ul>
+  <li>
+    <a href="./?path=/story/canvas-webglconnections--running-dash" target="_top">
+      Running dash
+    </a>{" "}
+    lets you compare the same stroke in WebGL and Canvas 2D.
+  </li>
+  <li>
+    <a href="./?path=/story/canvas-webglconnections--etl-pipeline" target="_top">
+      ETL pipeline
+    </a>{" "}
+    shows how step status changes the incoming and outgoing flows. Select Gradient to adjust its speed in Controls.
+  </li>
+</ul>

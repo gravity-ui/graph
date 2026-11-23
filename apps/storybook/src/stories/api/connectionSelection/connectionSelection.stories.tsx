@@ -19,7 +19,6 @@ const blocks: TBlock[] = [
     height: 100,
     id: "block-A",
     is: "Block",
-    selected: false,
     name: "Block A",
     anchors: [],
   },
@@ -30,7 +29,6 @@ const blocks: TBlock[] = [
     height: 100,
     id: "block-B",
     is: "Block",
-    selected: false,
     name: "Block B",
     anchors: [],
   },
@@ -41,7 +39,6 @@ const blocks: TBlock[] = [
     height: 100,
     id: "block-C",
     is: "Block",
-    selected: false,
     name: "Block C",
     anchors: [],
   },
@@ -52,7 +49,6 @@ const blocks: TBlock[] = [
     height: 100,
     id: "block-D",
     is: "Block",
-    selected: false,
     name: "Block D",
     anchors: [],
   },
@@ -73,8 +69,7 @@ const graphSettings: TGraphConfig["settings"] = {
 /**
  * Demonstrates connection selection controlled via the selection bucket API.
  * When a block is selected, its adjacent connections get highlighted.
- * When the block is deselected, connections deselect properly without needing
- * to pass `selected: false` explicitly in the connection data.
+ * When the block is deselected, the connections are deselected through the same API.
  */
 const ConnectionSelectionDemo = () => {
   const { graph, setEntities, start } = useGraph({

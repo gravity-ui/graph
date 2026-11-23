@@ -26,7 +26,6 @@ const createConfig = () => {
       y: 50,
       width: 150,
       height: 80,
-      selected: false,
       anchors: [],
     },
     {
@@ -37,7 +36,6 @@ const createConfig = () => {
       y: 150,
       width: 150,
       height: 80,
-      selected: false,
       anchors: [],
     },
     {
@@ -48,7 +46,6 @@ const createConfig = () => {
       y: 250,
       width: 150,
       height: 80,
-      selected: false,
       anchors: [],
     },
     // Group B blocks (green group)
@@ -60,7 +57,6 @@ const createConfig = () => {
       y: 50,
       width: 150,
       height: 80,
-      selected: false,
       anchors: [],
     },
     {
@@ -71,7 +67,6 @@ const createConfig = () => {
       y: 150,
       width: 150,
       height: 80,
-      selected: false,
       anchors: [],
     },
     // Group C blocks (purple group)
@@ -83,7 +78,6 @@ const createConfig = () => {
       y: 50,
       width: 150,
       height: 80,
-      selected: false,
       anchors: [],
     },
     // Blocks without group
@@ -95,7 +89,6 @@ const createConfig = () => {
       y: 400,
       width: 150,
       height: 80,
-      selected: false,
       anchors: [],
     },
     {
@@ -106,7 +99,6 @@ const createConfig = () => {
       y: 400,
       width: 150,
       height: 80,
-      selected: false,
       anchors: [],
     },
   ];

@@ -21,7 +21,6 @@ function createBlocks(withAnchors = false): TBlock[] {
     y: 0,
     width: 200,
     height: 100,
-    selected: false,
     anchors: withAnchors
       ? [
           { id: "in", blockId: id, type: "IN" },

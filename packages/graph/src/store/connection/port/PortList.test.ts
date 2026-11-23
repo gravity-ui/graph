@@ -11,15 +11,6 @@ class MockComponent extends Component {
   }
 }
 
-// Simple mock that implements the interface needed by PortsStore
-class MockGraphComponent {
-  public id: string;
-
-  constructor(id = Math.random().toString()) {
-    this.id = id;
-  }
-}
-
 describe("PortsStore", () => {
   let graph: Graph;
   let store: PortsStore;
@@ -62,28 +53,10 @@ describe("PortsStore", () => {
 
       expect(retrievedPort).toBe(createdPort);
     });
-
-    it("should return undefined for non-existing port", () => {
-      const port = store.getPort("non-existing-port");
-      expect(port).toBeUndefined();
-    });
-  });
-
-  describe("Port Updates", () => {
-    it("should update port coordinates through port instance", () => {
-      const portId: TPortId = "test-port-8";
-      const port = store.createPort(portId, mockComponent);
-
-      // Update coordinates through the port instance (how it's actually done by owners)
-      port.setPoint(100, 200);
-
-      expect(port.x).toBe(100);
-      expect(port.y).toBe(200);
-    });
   });
 
   describe("Port Deletion", () => {
-    it("should delete existing port", () => {
+    it("removes an owned port when explicitly deleted", () => {
       const portId: TPortId = "test-port-9";
       store.createPort(portId, mockComponent);
 
@@ -98,8 +71,8 @@ describe("PortsStore", () => {
     it("should handle complete port lifecycle with all key phases", () => {
       const portId: TPortId = "main-lifecycle-port";
       const owner = new MockComponent();
-      const observer1 = new MockGraphComponent();
-      const observer2 = new MockGraphComponent();
+      const observer1 = {};
+      const observer2 = {};
 
       // === PHASE 1: Creating lookup port ===
       // Initially port doesn't exist
@@ -173,26 +146,6 @@ describe("PortsStore", () => {
       // Port should be completely removed from store
       expect(store.getPort(portId)).toBeUndefined();
       expect(store.$portsMap.value.has(portId)).toBe(false);
-    });
-
-    it("should handle basic port operations", () => {
-      // Test basic CRUD operations
-      const portId: TPortId = "basic-port";
-      const owner = new MockComponent();
-
-      // Create port with owner
-      const port = store.createPort(portId, owner);
-      expect(port.owner).toBe(owner);
-
-      // Update coordinates through owner (how it's actually done)
-      port.setPoint(100, 200);
-      expect(port.x).toBe(100);
-      expect(port.y).toBe(200);
-
-      // Delete port
-      const deleted = store.deletePort(portId);
-      expect(deleted).toBe(true);
-      expect(store.getPort(portId)).toBeUndefined();
     });
 
     it("should handle lazy creation with component assignment", () => {

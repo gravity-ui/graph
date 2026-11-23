@@ -1,4 +1,4 @@
-import { ReadonlySignal, Signal, computed } from "@preact/signals-core";
+import { ReadonlySignal, Signal, batch, computed } from "@preact/signals-core";
 
 import { TBlock } from "../../..";
 import { Graph } from "../../../graph";
@@ -63,7 +63,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
             return Object.entries(groupedBlocks).map(([key, blocks]) =>
               mapToGroups(key, {
                 blocks,
-                rect: getBlocksRect(blocks.map((block) => block.asTBlock())),
+                rect: getBlocksRect(blocks.map((block) => block.$state.value)),
               })
             );
           }),
@@ -117,7 +117,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
 
             return groups.map((group) => {
               const blocks = groupsBlocksMap[group.id] || [];
-              const rect = getBlocksRect(blocks.map((block) => block.asTBlock()));
+              const rect = getBlocksRect(blocks.map((block) => block.$state.value));
 
               return {
                 ...group,
@@ -197,8 +197,11 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
     if (this.props.updateBlocksOnDrag) {
       const blocks = this.$groupsBlocksMap.value[groupId];
       if (blocks?.length) {
-        blocks.forEach((block) => {
-          block.updateXY(block.x + deltaX, block.y + deltaY, true);
+        // Settle derived group bounds once while retaining each member's cancellable update.
+        batch(() => {
+          blocks.forEach((block) => {
+            block.updateXY(block.x + deltaX, block.y + deltaY, true);
+          });
         });
       }
     }

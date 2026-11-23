@@ -15,7 +15,6 @@ test.describe("Port Delegation", () => {
       height: 100,
       name: "Block A",
       anchors: [],
-      selected: false,
     },
     {
       id: "block-b",
@@ -26,7 +25,6 @@ test.describe("Port Delegation", () => {
       height: 100,
       name: "Block B",
       anchors: [],
-      selected: false,
     },
     {
       id: "block-c",
@@ -37,7 +35,6 @@ test.describe("Port Delegation", () => {
       height: 100,
       name: "Block C",
       anchors: [],
-      selected: false,
     },
   ];
 

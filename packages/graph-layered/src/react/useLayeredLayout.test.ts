@@ -90,33 +90,6 @@ describe("useLayeredLayout", () => {
     mockedLayeredConverter.mockReturnValue(convertedResult);
   });
 
-  it("returns converted layout result after successful calculation", async () => {
-    const deferred = createDeferred<TLayoutResult>();
-    mockedLayoutGraph.mockReturnValueOnce(deferred.promise);
-
-    const { result } = renderHook(() =>
-      useLayeredLayout({
-        blocks: baseBlocks,
-        connections: baseConnections,
-      })
-    );
-
-    expect(result.current.isLoading).toBe(true);
-    expect(result.current.result).toBeNull();
-
-    await act(async () => {
-      deferred.resolve(baseLayoutResult);
-      await deferred.promise;
-    });
-
-    await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
-
-    expect(result.current.result).toEqual(convertedResult);
-    expect(mockedLayeredConverter).toHaveBeenCalledTimes(1);
-  });
-
   it("sets isLoading back to true when inputs change", async () => {
     const firstDeferred = createDeferred<TLayoutResult>();
     const secondDeferred = createDeferred<TLayoutResult>();
@@ -134,6 +107,9 @@ describe("useLayeredLayout", () => {
       }
     );
 
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.result).toBeNull();
+
     await act(async () => {
       firstDeferred.resolve(baseLayoutResult);
       await firstDeferred.promise;
@@ -142,6 +118,9 @@ describe("useLayeredLayout", () => {
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
+
+    expect(result.current.result).toEqual(convertedResult);
+    expect(mockedLayeredConverter).toHaveBeenCalledTimes(1);
 
     act(() => {
       rerender({

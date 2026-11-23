@@ -23,7 +23,6 @@ const BLOCKS: TBlock[] = [
     width: 200,
     height: 100,
     name: "Block A",
-    selected: false,
     anchors: [{ id: "out-a", blockId: "block-a", type: "OUT" }],
   },
   {
@@ -34,7 +33,6 @@ const BLOCKS: TBlock[] = [
     width: 200,
     height: 100,
     name: "Block B",
-    selected: false,
     anchors: [{ id: "in-b", blockId: "block-b", type: "IN" }],
   },
 ];
@@ -133,6 +131,8 @@ async function setup(page: Page): Promise<void> {
   await graphPO.initialize({ blocks: BLOCKS, settings: { useBlocksAnchors: true, canDrag: "all" } });
   // Canvas anchors are interactive below the detailed (React) zoom level.
   await graphPO.camera().zoomToScale(0.5);
+  // Keep the drag outside the edge auto-pan zone so both anchors stay under the recorded pointer path.
+  await graphPO.camera().panBy(0, 100);
 }
 
 async function dragAnchors(): Promise<void> {

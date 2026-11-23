@@ -1,6 +1,7 @@
 import { effect } from "@preact/signals-core";
 
 import type { DragState } from "../../../services/drag/types";
+import { dropTargetTag } from "../../../services/tags/builtinTags";
 import { Point } from "../../../utils/types/shapes";
 import { Block, TBlock } from "../blocks/Block";
 
@@ -415,6 +416,11 @@ export class BlockGroupsTransferLayer<
   protected setGroupHighlight(groupId: string, highlighted: boolean): void {
     const groupComponent = this.getGroupById(groupId);
     groupComponent?.setHighlighted(highlighted);
+    if (highlighted) {
+      this.props.graph.scene.tags.set(dropTargetTag, { group: [groupId] });
+    } else {
+      this.props.graph.scene.tags.clear(dropTargetTag);
+    }
   }
 
   /**

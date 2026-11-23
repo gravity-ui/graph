@@ -19,7 +19,6 @@ test.describe("Drag and Drop", () => {
           height: 100,
           name: "Block 1",
           anchors: [],
-          selected: false,
         },
         {
           id: "block-2",
@@ -30,7 +29,6 @@ test.describe("Drag and Drop", () => {
           height: 100,
           name: "Block 2",
           anchors: [],
-          selected: false,
         },
         {
           id: "block-3",
@@ -41,7 +39,6 @@ test.describe("Drag and Drop", () => {
           height: 100,
           name: "Block 3",
           anchors: [],
-          selected: false,
         },
       ],
       connections: [],

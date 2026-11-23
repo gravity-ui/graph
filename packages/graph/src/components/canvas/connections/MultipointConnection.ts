@@ -1,69 +1,26 @@
 import intersects from "intersects";
 
+import type { TScenePrimitive } from "../../../lib/scene/types";
 import { HitBoxData } from "../../../services/HitTest";
-import { curvePolyline } from "../../../utils/shapes/curvePolyline";
-import { getTriangleArrowPoints } from "../../../utils/shapes/triangle";
-import { TPoint, TRect } from "../../../utils/types/shapes";
+import type { TPoint } from "../../../utils/types/shapes";
 
-import { Path2DRenderStyleResult } from "./BatchPath2D";
-import { BlockConnection, TConnectionProps } from "./BlockConnection";
-import { isPointInStroke } from "./bezierHelpers";
+import type { TBaseConnectionState } from "./BaseConnection";
+import type { TPathBounds } from "./BatchPath2D";
+import { BlockConnection } from "./BlockConnection";
+import type { TConnectionProps } from "./BlockConnection";
+import { multipointGeometry } from "./geometry";
+import type { TConnectionGeometryFn } from "./geometry";
 import type { TMultipointConnection } from "./types";
 
 const DEFAULT_FONT_SIZE = 14;
 
+/** A polyline through the connection's `points` with a closed arrow at the end, and its `labels` drawn after it. */
 export class MultipointConnection extends BlockConnection<TMultipointConnection> {
+  public static override geometry: TConnectionGeometryFn = multipointGeometry;
+
   private labelsGeometry: { x: number; y: number; width: number; height: number; text: string }[] = [];
 
-  protected override hasGeometry(): boolean {
-    const count = this.getPoints().length;
-    return count === 0 ? super.hasGeometry() : count >= 2;
-  }
-
-  protected override collectBBoxPoints(props: TConnectionProps = this.props) {
-    const points = [...this.getPoints(), ...super.collectBBoxPoints(props)];
-    const [top, right, bottom, left] = this.context.constants.connection.LABEL.INNER_PADDINGS;
-    for (const label of this.labelsGeometry) {
-      points.push(
-        { x: label.x - left, y: label.y - top },
-        { x: label.x + label.width + right, y: label.y + label.height + bottom }
-      );
-    }
-    return points;
-  }
-
-  public createPath() {
-    const points = this.getPoints();
-    if (points.length === 0) return super.createPath();
-    if (points.length === 1) return new Path2D();
-    return curvePolyline(points, 10);
-  }
-
-  public createArrowPath(): Path2D {
-    const path = super.createArrowPath();
-    if (this.getPoints().length >= 2) path.closePath();
-    return path;
-  }
-
-  protected override getArrowPoints(props: TConnectionProps = this.props): TPoint[] {
-    const points = this.getPoints();
-    if (points.length === 0) return super.getArrowPoints(props);
-    if (points.length === 1) return [];
-
-    const [start, end] = points.slice(points.length - 2);
-    return getTriangleArrowPoints(start, end, 16, 10);
-  }
-
-  public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
-    ctx.fillStyle = this.state.selected
-      ? this.context.colors.connection.selectedBackground
-      : this.context.colors.connection.background;
-    ctx.strokeStyle = ctx.fillStyle;
-    ctx.lineWidth = this.state.selected || this.state.hovered ? -1 : 1;
-    return { type: "both" };
-  }
-
-  public getPoints() {
+  public getPoints(): TPoint[] {
     return this.connectedState.$state.value.points || [];
   }
 
@@ -71,31 +28,63 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
     this.renderLabelsText(ctx);
   }
 
-  public updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props): void {
-    super.updatePoints(additionalPoints, props);
-    return;
+  protected override hasCanvasDecorations(): boolean {
+    return super.hasCanvasDecorations(MultipointConnection.prototype.afterRender);
   }
 
-  public getBBox() {
-    return super.getBBox();
+  protected override appendSceneLabels(primitives: TScenePrimitive[], state: TBaseConnectionState): void {
+    super.appendSceneLabels(primitives, state);
+    const [top, right, bottom, left] = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    const colors = this.getLabelColors(state);
+    for (const { x, y, width, height, text } of this.labelsGeometry) {
+      primitives.push(
+        {
+          kind: "rect",
+          part: "labelBackground",
+          x: x - left,
+          y: y - top,
+          width: width + left + right,
+          height: height + top + bottom,
+          fill: colors.background,
+        },
+        {
+          kind: "text",
+          part: "label",
+          text,
+          x,
+          y: y - DEFAULT_FONT_SIZE,
+          family: "sans-serif",
+          size: DEFAULT_FONT_SIZE,
+          lineHeight: DEFAULT_FONT_SIZE,
+          width,
+          color: colors.text,
+          wrap: false,
+        }
+      );
+    }
   }
 
-  protected override getHitBoxRect(): TRect {
-    const [minX, minY, maxX, maxY] = this.getBBox();
-    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  /** The labels with their paddings: what `afterRender()` draws. */
+  protected override getAfterRenderBounds(): TPathBounds | undefined {
+    if (!this.labelsGeometry.length) return undefined;
+    const [top, right, bottom, left] = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const label of this.labelsGeometry) {
+      minX = Math.min(minX, label.x - left);
+      minY = Math.min(minY, label.y - top);
+      maxX = Math.max(maxX, label.x + label.width + right);
+      maxY = Math.max(maxY, label.y + label.height + bottom);
+    }
+    return [minX, minY, maxX, maxY];
   }
 
-  public onHitBox(shape: HitBoxData): boolean {
+  protected override hitTestLabel(shape: HitBoxData): boolean {
+    if (super.hitTestLabel(shape)) return true;
+
     const THRESHOLD_LINE_HIT = this.context.constants.connection.THRESHOLD_LINE_HIT;
-
-    if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, THRESHOLD_LINE_HIT * 2)) {
-      return true;
-    }
-
-    if (!this.labelsGeometry.length) {
-      return false;
-    }
-
     const x = (shape.minX + shape.maxX) / 2;
     const y = (shape.minY + shape.maxY) / 2;
     const relativeThreshold = THRESHOLD_LINE_HIT / this.context.camera.getCameraScale();
@@ -143,7 +132,8 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
     return;
   }
 
-  protected override updateLabelGeometry(): void {
+  protected override updateLabelGeometry(props: TConnectionProps): void {
+    super.updateLabelGeometry(props);
     this.labelsGeometry = (this.connectedState.$state.value.labels ?? []).flatMap(({ x, y, text, width, height }) =>
       x === undefined || y === undefined || text === undefined || width === undefined || height === undefined
         ? []

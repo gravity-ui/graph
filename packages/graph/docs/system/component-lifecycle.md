@@ -121,17 +121,43 @@ Components use several boolean flags to control their behavior:
 | `shouldUpdateChildren` | Controls children updates | `true` |
 | `shouldRenderChildren` | Explicitly allows or suppresses traversal of descendants | `true` |
 
-### 6. Detached Components
+### 6. Retained Components
 
-A class that declares `static detached = true` is not walked by the frame. It is created, updated and unmounted by
+A class that declares `static override readonly mode = "retained"` is not walked by the frame. It is created, updated and unmounted by
 its parent and receives context, but never `iterate()`, `render()`, `willRender()`, `didRender()`, `willNotRender()`,
 `didIterate()` or `viewportChanged()`. `performRender()` (and so `setState()` / `setProps()`) queues it; the tree
 applies the queue before painting, running `checkData()`, `willIterate()` (`willMount()` first) and the children
 lifecycle: a culled tree after preparing its walked components, a tree without culling before the walk and again
-right after a parent reconciles detached children. A component applies once per frame, and once more after each
+right after a parent reconciles retained children. A component applies once per frame, and once more after each
 reconciliation by its parent in that frame, so props from a reconciliation are not a frame late; what it requests
-during its own update applies in the next frame. Children of a detached component must be detached; a root cannot
-be. In development builds a detached class with per-frame hooks logs a warning. Connection components (`BlockConnection`) are detached. `EventedComponent` evented areas are registered while painting, so a detached component should not use them: they would never be cleared.
+during its own update applies in the next frame. Children of a retained component must be retained; a root cannot
+be. In development builds a retained class with per-frame hooks logs a warning. Connection components
+(`BlockConnection`) are retained. Retained components draw clickable regions as child components (see
+[Block component](../components/block-component.md#child-components)).
+
+### 7. Scene Components
+
+A `SceneComponent` draws one element in [the scene](scene.md). Its level methods can read
+`this.props`, `this.state` and `this.context` directly. Calling `setState()` or `setProps()` queues an update.
+The component lifecycle applies pending props and state together before the level methods run. A call to
+`setContext()` propagates its context immediately and schedules the component's update with the tree.
+
+- **Choosing when to rebuild.** A plain scene component rebuilds its primitives on component data changes.
+  Override `shouldUpdateScene(nextProps, nextState, nextContext)` to compare the upcoming inputs with the current
+  values on `this`. A context change uses the currently applied props and state. Keep the comparison free of side
+  effects. Returning `false` reuses the primitives for this data change. The component still receives its new data,
+  reconciles its children as needed, and synchronizes position, order, visibility and hit boxes. The first draw always runs.
+- **External inputs.** Subscribe to an external source in `willMount()` and use `setState()` when the component
+  owns the resulting value. If a level method reads an external resource directly, its change handler can call
+  `invalidate()` to rebuild the primitives. Dispose the subscription on unmount. For a signal read in
+  `getSceneOrigin()` or `getSceneZIndex()` the scene tracks placement automatically. `performRender()` schedules
+  an update. Camera navigation draws the prepared levels.
+
+- **Children and export.** The parent writes its scene element before its children. A parent's reconciliation can
+  apply a retained child again in the same frame. Export can apply its pending update synchronously.
+
+Call `super.willMount()` when overriding `willMount()`. A component with `static override readonly mode = "immediate"`
+(such as `LegacyCanvasBlock`) also participates in the frame walk.
 
 ## Examples
 

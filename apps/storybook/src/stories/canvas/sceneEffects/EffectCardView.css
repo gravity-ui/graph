@@ -1,0 +1,95 @@
+/*
+ * A gallery card is 320 × 180 world units: CSS pixels at scale 1. Its effect (htmlEffects.css) sits inside it; only
+ * the glow's halo reaches outside.
+ */
+.scene-fx-card {
+  position: relative;
+  border-radius: 14px;
+}
+
+.scene-fx-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 100%;
+  padding: 15px 19px;
+  overflow: hidden;
+  border-radius: 13px;
+}
+
+.scene-fx-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scene-fx-card__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #1f2329;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 26px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scene-fx-card__badge {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #e8f0fe;
+  color: #2f7cf6;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.scene-fx-card__api,
+.scene-fx-card__css {
+  display: -webkit-box;
+  overflow: hidden;
+  font-family: Menlo, Consolas, "Courier New", monospace;
+  -webkit-box-orient: vertical;
+}
+
+.scene-fx-card__api {
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 16px;
+  -webkit-line-clamp: 3;
+}
+
+.scene-fx-card__css {
+  color: #8b8d98;
+  font-size: 11px;
+  line-height: 14px;
+  -webkit-line-clamp: 2;
+}
+
+.scene-fx-card__rows {
+  color: #2f7cf6;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+/*
+ * An effect shows while its card holds the effect's tag, as the scene's tag rule shows the effect part: GraphBlock puts
+ * `graph-tag-fx-<effect>` on the wrapper. A hidden effect does not animate.
+ */
+.scene-fx-card > .scene-fx-card__effect {
+  display: none;
+}
+
+.scene-fx-card.graph-tag-fx-march > .scene-fx-card__effect,
+.scene-fx-card.graph-tag-fx-comet > .scene-fx-card__effect,
+.scene-fx-card.graph-tag-fx-pulse > .scene-fx-card__effect,
+.scene-fx-card.graph-tag-fx-particles > .scene-fx-card__effect,
+.scene-fx-card.graph-tag-fx-spinner > .scene-fx-card__effect,
+.scene-fx-card.graph-tag-fx-glow > .scene-fx-card__effect,
+.scene-fx-card.graph-tag-fx-gradient > .scene-fx-card__effect,
+.scene-fx-card.graph-tag-fx-spark > .scene-fx-card__effect {
+  display: block;
+}

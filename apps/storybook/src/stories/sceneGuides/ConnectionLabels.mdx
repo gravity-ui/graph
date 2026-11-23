@@ -1,0 +1,49 @@
+import { Canvas, Controls, Meta, Source } from "@storybook/addon-docs/blocks";
+
+import * as ConnectionStories from "../canvas/webglConnections/webglConnections.stories";
+
+<Meta title="Scene/Guides/Connection labels" />
+
+# Connection labels
+
+Return `labels` from `static geometry` to place several labels on the same connection. Each label has an
+`id` unique within that connection and an `at` position along the route by length. A position of `0.25`
+is a quarter of the way from source to target.
+
+## Try it
+
+Hover the line or either label to highlight both labels in blue. Click to select the connection and
+turn both labels orange.
+
+<Canvas
+  of={ConnectionStories.RenderingShowcase}
+  meta={ConnectionStories}
+  layout="fullscreen"
+  story={{ inline: true }}
+  sourceState="none"
+/>
+
+Use **Label position** and **Second label position** to move the labels, or switch **Renderer** to compare
+Canvas and WebGL. Drag a block closer to the other one to shorten the route. The first label in the array
+gets priority when labels overlap. A label that cannot fit leaves the stroke intact.
+
+<Controls of={ConnectionStories.RenderingShowcase} />
+
+<a href="./?path=/story/canvas-webglconnections--rendering-showcase" target="_top">
+  Open Rendering showcase
+</a>
+
+## Add labels to your connection
+
+The code uses the current arrow and label settings on a straight connection. Register the class in
+`settings.connection` and enable `showConnectionLabels` to draw its labels. Pass a container with a width and
+height to `mountGraph`.
+
+<Source of={ConnectionStories.RenderingShowcase} />
+
+`getSceneStyles()` uses `hoveredTag` and `selectedTag` to style the shared `label` part in Canvas and WebGL.
+The hover rule excludes selected connections so the selection color persists on hover. For a single graph,
+you can register the same rules with `graph.scene.styles.add()` and target `BlockConnection`. A tag rule can
+also set `parts.line.effect` for a WebGL effect on the connection's stroke.
+
+Use `connection.hitTestRouteLabel(point)` with a point in graph coordinates to find the local ID.

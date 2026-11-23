@@ -1,40 +1,52 @@
-import { CanvasBlock, TGraphConfig } from "@gravity-ui/graph";
+import { CanvasBlock, TGraphConfig, TScenePrimitive, TStyleRule, selectedTag } from "@gravity-ui/graph";
 
 import { storiesSettings } from "./definitions";
 
+const RADIUS = [0, 30, 50, 60];
+
 class SpecificBlockView extends CanvasBlock {
-  protected renderStroke(color: string) {
-    this.context.ctx.lineWidth = Math.round(3 / this.context.camera.getCameraScale());
-    this.context.ctx.strokeStyle = color;
-    this.context.ctx.roundRect(this.state.x, this.state.y, this.state.width, this.state.height, [0, 30, 50, 60]);
-    this.context.ctx.stroke();
-  }
-
-  public override renderSchematicView() {
-    this.context.ctx.lineWidth = 2;
-    this.context.ctx.fillStyle = "#C4EFC2";
-    this.context.ctx.strokeStyle = "rgba(0, 0, 0, 0.30)";
-    this.context.ctx.beginPath();
-    this.context.ctx.roundRect(this.state.x, this.state.y, this.state.width, this.state.height, [0, 30, 50, 60]);
-    this.context.ctx.fill();
-    this.context.ctx.beginPath();
-    this.context.ctx.roundRect(this.state.x, this.state.y, this.state.width, this.state.height, [0, 30, 50, 60]);
-    this.context.ctx.stroke();
-
-    if (this.shouldRenderText) {
-      this.context.ctx.fillStyle = this.context.colors.block.text;
-      this.context.ctx.textAlign = "center";
-      this.renderText(this.state.name);
-    }
-    if (this.state.selected) {
-      this.renderStroke(this.context.colors.block.selectedBorder);
-    }
-
-    this.context.ctx.restore();
-
-    this.context.ctx.globalAlpha = 1;
+  protected override schematic(): TScenePrimitive[] {
+    const { width, height, name } = this.state;
+    const look = this.blockLook;
+    return [
+      { kind: "rect", part: "body", x: 0, y: 0, width, height, radius: RADIUS, fill: "#C4EFC2" },
+      {
+        kind: "rect",
+        part: "border",
+        x: 0,
+        y: 0,
+        width,
+        height,
+        radius: RADIUS,
+        border: { color: "rgba(0, 0, 0, 0.30)", width: 2 },
+      },
+      {
+        kind: "text",
+        part: "title",
+        text: name,
+        family: "sans-serif",
+        weight: "bold",
+        size: look.fontSize,
+        lineHeight: look.fontSize,
+        x: look.padding,
+        y: look.padding,
+        width: width - 2 * look.padding,
+        height: height - 2 * look.padding,
+        align: "center",
+        minScale: look.textMinScale,
+      },
+    ];
   }
 }
+
+/** The selected block's border: 3 screen pixels, 2 to 20 world units (it was Math.round(3 / scale)). */
+export const customBlockRules: TStyleRule<typeof SpecificBlockView>[] = [
+  {
+    target: SpecificBlockView,
+    tags: [selectedTag],
+    style: { parts: { border: { width: { px: 3, minWorld: 2, maxWorld: 20 } } } },
+  },
+];
 
 const SpecificBlockIs = "some-specific-view";
 export const customSchematicViewConfig: TGraphConfig = {
@@ -47,7 +59,6 @@ export const customSchematicViewConfig: TGraphConfig = {
       width: 200,
       height: 160,
       id: "Lonely block without anchors",
-      selected: false,
       name: "one block",
       anchors: [],
     },

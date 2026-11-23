@@ -24,6 +24,10 @@ export default {
   mustNotResolve: ["react", "react-dom", "@gravity-ui/graph-react", "elkjs"],
   probes: [
     {
+      label: "Checking diagnostics in development and production consumers",
+      source: 'await import("./packages/graph/contract/test/development.mjs");',
+    },
+    {
       label: "Importing the root entrypoint with Node ESM",
       source: `
         const graph = await import("@gravity-ui/graph");

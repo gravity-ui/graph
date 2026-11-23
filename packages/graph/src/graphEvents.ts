@@ -2,10 +2,13 @@ import { EventedComponent } from "./components/canvas/EventedComponent/EventedCo
 import { GraphState } from "./graph";
 import { TGraphColors, TGraphConstants } from "./graphConfig";
 import { TCameraState } from "./services/camera/CameraService";
+import type { TSceneState } from "./services/scene/types";
 import { TSelectionDiff, TSelectionEntityId } from "./services/selection/types";
 
 export type GraphMouseEvent<E extends Event = Event> = CustomEvent<{
   target?: EventedComponent;
+  /** On `mouseenter` and `mouseleave`: the other side of the target change; none for the camera or outside. */
+  relatedTarget?: EventedComponent;
   sourceEvent: E;
   pointerPressed?: boolean;
 }>;
@@ -36,6 +39,7 @@ export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
   "constants-changed": (event: CustomEvent<{ constants: TGraphConstants }>) => void;
   "colors-changed": (event: CustomEvent<{ colors: TGraphColors }>) => void;
   "state-change": (event: CustomEvent<{ state: GraphState }>) => void;
+  "scene-state-change": (event: CustomEvent<{ state: TSceneState }>) => void;
 }
 const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave"];
 

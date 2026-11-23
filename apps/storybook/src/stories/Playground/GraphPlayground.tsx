@@ -17,7 +17,7 @@ import { random } from "../../storyUtils";
 import { useFn } from "../../useFn";
 import { EAnchorType } from "../configurations/definitions";
 
-import { ActionBlock } from "./ActionBlock";
+import { ActionBlock, actionBlockRules } from "./ActionBlock";
 import { ConfigEditor, ConfigEditorController } from "./Editor";
 import { GraphSettings } from "./Settings";
 import { TextBlock } from "./TextBlock";
@@ -169,17 +169,6 @@ export function GraphPLayground() {
     editorRef?.current?.scrollTo(geometryBatch[0].id);
   });
 
-  useGraphEvent(graph, "blocks-selection-change", ({ changes }) => {
-    const withSelection = (id: TBlock["id"], selected: boolean): TBlock[] => {
-      const block = graph.blocks.getBlock(id);
-      return block ? [{ ...block, selected }] : [];
-    };
-    editorRef.current?.updateBlocks([
-      ...changes.add.flatMap((id) => withSelection(id, true)),
-      ...changes.removed.flatMap((id) => withSelection(id, false)),
-    ]);
-  });
-
   useGraphEvent(graph, "connection-create-drop", ({ sourceBlockId, sourceAnchorId, targetPort, point }) => {
     if (targetPort) {
       // The default action of connection-created has already added the connection.
@@ -217,9 +206,11 @@ export function GraphPLayground() {
   });
 
   useLayoutEffect(() => {
+    const removeRules = graph.scene.styles.add(actionBlockRules);
     setEntities({ blocks: [...textBlocks, ...generated.blocks], connections: generated.connections });
     updateVisibleConfig();
-  }, [setEntities]);
+    return removeRules;
+  }, [graph, setEntities]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {

@@ -1,23 +1,11 @@
-// Importing the function
+import { pathCommands } from "../../../test/utils/pathCommands";
+
 import { trangleArrowForVector } from "./triangle";
 
-describe("trangleArrowForVector", () => {
-  it("should return a Path2D instance representing an arrow from start to end", () => {
-    const start = { x: 0, y: 0 };
-    const end = { x: 10, y: 10 };
-    const height = 5;
-
-    const trianglePath = trangleArrowForVector(start, end, height);
-
-    expect(trianglePath).toMatchSnapshot();
-  });
-
-  it("should handle a default height if not provided", () => {
-    const start = { x: 0, y: 0 };
-    const end = { x: 10, y: 10 };
-
-    const trianglePath = trangleArrowForVector(start, end);
-
-    expect(trianglePath).toMatchSnapshot();
-  });
+it.each([
+  { height: 5, left: "lineTo 1 5.5", right: "lineTo 5 2.5" },
+  { height: undefined, left: "lineTo -2 1.5", right: "lineTo 2 -1.5" },
+])("draws a closed arrow with height $height", ({ height, left, right }) => {
+  const path = trangleArrowForVector({ x: 0, y: 0 }, { x: 6, y: 8 }, height);
+  expect(pathCommands(path)).toEqual(["moveTo 6 8", left, right, "closePath"]);
 });

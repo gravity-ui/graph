@@ -1,9 +1,12 @@
 import { computed, signal } from "@preact/signals-core";
+import type { ReadonlySignal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
 import type { Block, TBlock } from "../components/canvas/blocks/Block";
 import { BlockConnection } from "../components/canvas/connections/BlockConnection";
 import { Component } from "../lib";
+import type { ISceneBackendModule } from "../lib/scene/renderer/backendTypes";
+import type { TSceneRenderer } from "../lib/scene/types";
 import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import type { TGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import { mergeDefined } from "../utils/functions/mergeDefined";
@@ -13,6 +16,15 @@ import { createWheelIntentResolver } from "../utils/functions/wheelIntent";
 import { TConnection } from "./connection/ConnectionState";
 
 import { RootStore } from "./index";
+
+/** Whether two records hold the same keys with identical values. */
+function sameEntries(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && a[key] === b[key])
+  );
+}
 
 export enum ECanDrag {
   /** Any component can be dragged. If component is in selection, all selected draggable components move together */
@@ -81,6 +93,25 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    * Always set at runtime; `setupSettings` falls back to the exported `defaultGetCameraBlockScaleLevel` when omitted.
    */
   getCameraBlockScaleLevel: TGetCameraBlockScaleLevel;
+  /**
+   * Scene renderer: `"canvas"` draws through Canvas 2D, `"webgl"` draws the scene through the WebGL backend.
+   * @default "canvas"
+   */
+  renderer: TSceneRenderer;
+  /** Give loading UI a paint before the first scene frame, a full replacement or a renderer switch. */
+  yieldBeforeSceneLoad?: boolean;
+  /**
+   * Whether scene texts may follow the camera (`cameraAware` texts keep a fixed screen size and re-fit their box as
+   * the camera zooms). `false` makes every scene text world-sized, whatever its primitive and the styles say: the
+   * switch for weak devices, which an app may hand to its users. A change redraws; no block rebuilds its look.
+   * @default true
+   */
+  cameraAwareText: boolean;
+  /**
+   * Loader of the WebGL backend module. Used when `renderer` is `"webgl"`.
+   * When omitted, the built-in dynamic import is used.
+   */
+  webglBackend?: () => Promise<ISceneBackendModule>;
 };
 
 /** Partial public settings input. Undefined never resets or clears a value. */
@@ -111,6 +142,9 @@ export const DefaultSettings: TGraphSettingsConfig = {
   background: undefined,
   resolveWheelIntent: createWheelIntentResolver(),
   getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
+  renderer: "canvas",
+  yieldBeforeSceneLoad: false,
+  cameraAwareText: true,
 };
 
 export class GraphEditorSettings {
@@ -118,8 +152,18 @@ export class GraphEditorSettings {
 
   public $settings = signal(cloneDeep(DefaultSettings));
 
-  public $blockComponents = computed(() => {
-    return this.$settings.value.blockComponents;
+  private lastBlockComponents?: TGraphSettingsConfig["blockComponents"];
+
+  /**
+   * The block classes by type. Every settings update copies the record, so it keeps the last one while the classes
+   * are the same: a settings change that registers no block class does not reconcile every block.
+   */
+  public $blockComponents = computed((): TGraphSettingsConfig["blockComponents"] => {
+    const next = this.$settings.value.blockComponents;
+    const last = this.lastBlockComponents;
+    if (last && sameEntries(last, next)) return last;
+    this.lastBlockComponents = next;
+    return next;
   });
 
   public $background = computed(() => {
@@ -175,6 +219,17 @@ export class GraphEditorSettings {
   });
 
   public $canDrag = computed(() => this.$settings.value.canDrag);
+
+  public $useBlocksAnchors = computed(() => this.$settings.value.useBlocksAnchors);
+
+  public $renderer: ReadonlySignal<"canvas" | "webgl"> = computed(() => this.$settings.value.renderer);
+
+  /** The `cameraAwareText` setting. */
+  public $cameraAwareText: ReadonlySignal<boolean> = computed(() => this.$settings.value.cameraAwareText);
+
+  public $webglBackend: ReadonlySignal<(() => Promise<ISceneBackendModule>) | undefined> = computed(
+    () => this.$settings.value.webglBackend
+  );
 
   public $dragThreshold = computed(() => this.$settings.value.dragThreshold);
 

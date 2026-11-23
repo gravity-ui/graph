@@ -1,6 +1,6 @@
 import { batch, computed, signal } from "@preact/signals-core";
 
-import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
+import { TAnchor } from "../../components/canvas/anchors";
 import { Block, TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
@@ -8,6 +8,7 @@ import { SingleSelectionBucket } from "../../services/selection/SingleSelectionB
 import { ESelectionStrategy } from "../../services/selection/types";
 import { generateRandomId } from "../../utils/functions/generateRandomId";
 import { AnchorState } from "../anchor/Anchor";
+import { parseAnchorEntityId } from "../anchor/anchorEntityId";
 import { RootStore } from "../index";
 
 import { BlockState, TBlockId } from "./Block";
@@ -78,6 +79,11 @@ export class BlockListStore {
 
   public $blocks = signal<BlockState[]>([]);
 
+  /** @internal A publication that needs to reconcile block views. */
+  public readonly $viewRevision = signal(0);
+
+  private viewClassChanged = false;
+
   private batchedGeometryPending = new Map<BlockState["id"], { state: BlockState; geometry: TBlockGeometrySnapshot }>();
 
   private batchedGeometryRaf: number | null = null;
@@ -108,7 +114,11 @@ export class BlockListStore {
     return this.blockSelectionBucket.$selectedComponents.value as Block[];
   });
 
-  public readonly anchorSelectionBucket: SingleSelectionBucket<TAnchorId, AnchorState>;
+  /**
+   * Bucket for anchor selection. Anchor ids are unique only within their block, so it holds block-qualified ids:
+   * `anchorEntityId(blockId, anchorId)` (read one back with `parseAnchorEntityId`).
+   */
+  public readonly anchorSelectionBucket: SingleSelectionBucket<string, AnchorState>;
 
   /**
    * @deprecated Use blockSelectionBucket.$selectedEntities instead
@@ -140,14 +150,11 @@ export class BlockListStore {
       (ids) => ids.map((id) => this.getBlockState(id)).filter((block): block is BlockState => block !== undefined)
     );
 
-    this.anchorSelectionBucket = new SingleSelectionBucket<TAnchorId, AnchorState>(
+    this.anchorSelectionBucket = new SingleSelectionBucket<string, AnchorState>(
       "anchor",
       (diff, defaultAction) => {
         if (diff.changes.add.length > 0) {
-          const anchorId = diff.changes.add[0];
-          const anchor = this.$blocks.value
-            .flatMap((block) => block.$anchorStates.value)
-            .find((a) => a.id === anchorId);
+          const anchor = this.getAnchorStateByEntityId(diff.changes.add[0]);
           if (anchor) {
             return this.graph.executеDefaultEventAction(
               "block-anchor-selection-change",
@@ -157,10 +164,7 @@ export class BlockListStore {
           }
         }
         if (diff.changes.removed.length > 0) {
-          const anchorId = diff.changes.removed[0];
-          const anchor = this.$blocks.value
-            .flatMap((block) => block.$anchorStates.value)
-            .find((a) => a.id === anchorId);
+          const anchor = this.getAnchorStateByEntityId(diff.changes.removed[0]);
           if (anchor) {
             return this.graph.executеDefaultEventAction(
               "block-anchor-selection-change",
@@ -174,15 +178,9 @@ export class BlockListStore {
       undefined,
       (ids) => {
         if (!this.rootStore.settings.getConfigFlag("useBlocksAnchors")) return [];
-        const result: AnchorState[] = [];
-        for (const block of this.$blocks.value) {
-          for (const anchor of block.$anchorStates.value) {
-            if (ids.includes(anchor.id)) {
-              result.push(anchor);
-            }
-          }
-        }
-        return result;
+        return ids
+          .map((id) => this.getAnchorStateByEntityId(id))
+          .filter((anchor): anchor is AnchorState => anchor !== undefined);
       }
     );
 
@@ -209,10 +207,16 @@ export class BlockListStore {
     }
 
     if (selected) {
-      this.anchorSelectionBucket.select([anchorId], ESelectionStrategy.REPLACE);
+      this.anchorSelectionBucket.select([anchor.entityId], ESelectionStrategy.REPLACE);
     } else {
-      this.anchorSelectionBucket.deselect([anchorId]);
+      this.anchorSelectionBucket.deselect([anchor.entityId]);
     }
+  }
+
+  /** The anchor state an anchor entity id names (see `anchorEntityId`); undefined for a missing block or anchor. */
+  private getAnchorStateByEntityId(entityId: string): AnchorState | undefined {
+    const address = parseAnchorEntityId(entityId);
+    return address ? this.getBlockState(address.blockId)?.getAnchorById(address.anchorId) : undefined;
   }
 
   /**
@@ -294,9 +298,20 @@ export class BlockListStore {
     this.batchedGeometryPending.clear();
   }
 
-  protected updateBlocksMap(blocks: Map<BlockState["id"], BlockState> | [BlockState["id"], BlockState][]) {
+  /** @internal A class changed in block data. Reconcile it on the next list publication. */
+  public noteViewClassChange(): void {
+    this.viewClassChanged = true;
+  }
+
+  protected updateBlocksMap(
+    blocks: Map<BlockState["id"], BlockState> | [BlockState["id"], BlockState][],
+    reconcileViews = true
+  ) {
+    const updateViews = reconcileViews || this.viewClassChanged;
+    this.viewClassChanged = false;
     this.$blocksMap.value = new Map(blocks);
     this.$blocks.value = Array.from(this.$blocksMap.value.values());
+    if (updateViews) this.$viewRevision.value = this.$viewRevision.peek() + 1;
   }
 
   /**
@@ -353,13 +368,19 @@ export class BlockListStore {
    * @returns void
    */
   public updateBlocks(blocks: TBlock[]) {
-    this.updateBlocksMap(
-      blocks.reduce((acc, block) => {
-        const state = this.getOrCraeateBlockState(block);
-        acc.set(block.id, state);
-        return acc;
-      }, this.$blocksMap.value)
-    );
+    const map = this.$blocksMap.value;
+    let reconcileViews = blocks.length === 0;
+    blocks.forEach((block) => {
+      const state = this.getOrCraeateBlockState(block);
+      const id = block.id;
+      if (map.get(id) !== state) {
+        map.set(id, state);
+        reconcileViews = true;
+      }
+      // A failed constructor can mount again once its row is corrected.
+      reconcileViews ||= !state.getViewComponent()?.isMounted();
+    });
+    this.updateBlocksMap(map, reconcileViews);
   }
 
   /**
@@ -369,14 +390,22 @@ export class BlockListStore {
    * @returns void
    */
   public setBlocks(blocks: TBlock[]) {
-    const blockStates = blocks.map((block) => this.getOrCraeateBlockState(block));
+    const blockStates = blocks.map((block) => this.getOrCraeateBlockState(block, "replace"));
     this.applyBlocksState(blockStates);
+    // A snapshot can supersede a drag before its coalesced geometry event runs.
+    for (const [id, { state, geometry }] of this.batchedGeometryPending) {
+      const { x, y, width, height } = state.$geometry.peek();
+      if (x !== geometry.x || y !== geometry.y || width !== geometry.width || height !== geometry.height) {
+        this.batchedGeometryPending.delete(id);
+      }
+    }
   }
 
-  protected getOrCraeateBlockState(block: TBlock) {
+  protected getOrCraeateBlockState(block: TBlock, mode: "update" | "replace" = "update") {
     const blockState = this.$blocksMap.value.get(block.id);
     if (blockState) {
-      blockState.updateBlock(block);
+      if (mode === "replace") blockState.replaceBlock(block);
+      else blockState.updateBlock(block);
       return blockState;
     }
     return BlockState.fromTBlock(this, block);
@@ -441,6 +470,7 @@ export class BlockListStore {
    */
   public deleteSelectedBlocks() {
     const selectedBlocks = this.$selectedBlocks.value;
+    if (!selectedBlocks.length) return;
     selectedBlocks.forEach((block) => {
       this.deleteAllBlockConnections(block.id);
     });

@@ -29,7 +29,8 @@ This document describes all available React hooks for working with @gravity-ui/g
 - [useScheduledTask](#usescheduledtask) - Schedules task for frame-based execution
 
 ### Scene Hooks
-- [useSceneChange](#usescenechange) - Reacts to scene updates (camera changes, viewport updates)
+- [useSceneChange](#usescenechange) - Reacts to camera, scene level and hit-test changes
+- [useEntityStyle](#useentitystyle) - Exposes entity tag classes and part colors to React
 
 ### Usage Patterns
 - [Combining Hooks](#combining-hooks) - Examples of using multiple hooks together
@@ -53,6 +54,7 @@ import {
   useSchedulerThrottle,
   useScheduledTask,
   useSceneChange,
+  useEntityStyle,
 } from "@gravity-ui/graph-react";
 ```
 
@@ -125,8 +127,8 @@ function MyGraph(): JSX.Element {
 | `api` | `PublicGraphApi` | Public API for graph manipulation |
 | `setSettings` | `(settings: TGraphSettingsPatch) => void` | Update graph settings |
 | `setViewConfiguration` | `(config: NonNullable<HookGraphParams["viewConfiguration"]>) => void` | Update view configuration |
-| `setEntities` | `<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void` | Replace all entities |
-| `updateEntities` | `<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void` | Merge with existing entities |
+| `setEntities` | `<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void` | Replace both collections. Each row supplies the complete data for its ID. Omitting a collection clears it. |
+| `updateEntities` | `<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void` | Merge the supplied rows. Existing entities keep fields omitted from an update. |
 | `addLayer` | `<T extends Constructor<Layer>>(layerCtor: T, props: LayerPublicProps<T>) => InstanceType<T>` | Add a new layer |
 | `zoomTo` | `(target: TGraphZoomTarget, config?: ZoomConfig) => boolean` | Zoom to target |
 | `start` | `() => void` | Start the graph |
@@ -353,7 +355,7 @@ function BlockInfo({ graph, blockId }: Props): JSX.Element | null {
     <div>
       <p>Position: {geometry.x}, {geometry.y}</p>
       <p>Size: {geometry.width} x {geometry.height}</p>
-      <p>Selected: {blockState.selected ? "Yes" : "No"}</p>
+      <p>Selected: {blockState.$selected.value ? "Yes" : "No"}</p>
     </div>
   );
 }
@@ -377,7 +379,7 @@ Hook to get the view component of a block. Useful for accessing rendering-specif
 ```typescript
 import { useBlockViewState } from "@gravity-ui/graph-react";
 import type { Graph, TBlockId } from "@gravity-ui/graph";
-import type { Block } from "@gravity-ui/graph";
+import type { CanvasBlock } from "@gravity-ui/graph";
 
 interface Props {
   graph: Graph;
@@ -385,15 +387,15 @@ interface Props {
 }
 
 function BlockView({ graph, blockId }: Props): JSX.Element | null {
-  // Returns: Block | undefined (the view component)
-  const viewComponent: Block | undefined = useBlockViewState(graph, blockId);
+  // Returns: CanvasBlock | undefined (the view component)
+  const viewComponent: CanvasBlock | undefined = useBlockViewState(graph, blockId);
 
   if (!viewComponent) return null;
 
-  // Access view-specific methods
-  const anchors = viewComponent.getAnchors();
-  
-  return <div>Block has {anchors.length} anchors</div>;
+  // The block's data (anchors included) lives in its BlockState; the view component draws it.
+  const anchors = graph.rootStore.blocksList.getBlockState(blockId)?.$anchors.value ?? [];
+
+  return <div>Block has {anchors.length} anchors, view at x = {viewComponent.connectedState.x}</div>;
 }
 ```
 
@@ -406,7 +408,7 @@ function BlockView({ graph, blockId }: Props): JSX.Element | null {
 
 #### Returns
 
-Returns the block's view component (`Block`) or `undefined`.
+Returns the block's view component (`CanvasBlock`) or `undefined`.
 
 ### useBlockAnchorState
 
@@ -429,7 +431,7 @@ function AnchorInfo({ graph, anchor }: Props): JSX.Element | null {
   if (!anchorState) return null;
 
   return (
-    <div className={anchorState.selected ? "selected" : ""}>
+    <div className={anchorState.$selected.value ? "selected" : ""}>
       Anchor: {anchor.id}
     </div>
   );
@@ -457,17 +459,14 @@ Hook to subscribe to a signal and get the current value. Re-renders component wh
 
 ```typescript
 import { useSignal } from "@gravity-ui/graph-react";
-import type { Signal } from "@preact/signals-core";
-import type { BlockState, TBlockGeometry } from "@gravity-ui/graph";
+import type { BlockState } from "@gravity-ui/graph";
 
 interface Props {
   blockState: BlockState;
 }
 
 function BlockGeometry({ blockState }: Props): JSX.Element {
-  // blockState.$geometry is Signal<TBlockGeometry>
-  // useSignal returns: TBlockGeometry
-  const geometry: TBlockGeometry = useSignal(blockState.$geometry);
+  const geometry = useSignal(blockState.$geometry);
 
   return (
     <div>
@@ -852,9 +851,17 @@ function BlockMetrics({ graph, blockId }: { graph: Graph; blockId: TBlockId }): 
 
 ## Scene Hooks
 
+### useEntityStyle
+
+`useEntityStyle(graph, { type, id }, target, prefix)` returns `{ className, style }` for a custom HTML view.
+The class names follow the entity's tags. The inline style contains `--<prefix>-<part>-color` variables for
+the colors resolved by the scene's style rules. `GraphBlock` and `GraphBlockAnchor` already apply these to their
+wrappers. See [tags and styles](../system/tags-and-styles.md).
+
 ### useSceneChange
 
-Hook to react to scene updates. The scene is considered updated when the camera changes or when components change their position in the viewport.
+Schedules a callback on mount and when the camera, scene level or hit-test geometry changes. This covers level
+changes caused by new graph constants or a new level strategy while the camera stays still.
 
 This hook is useful for updating UI elements that depend on the visible area of the graph, such as:
 - Minimaps showing the current viewport
@@ -862,8 +869,8 @@ This hook is useful for updating UI elements that depend on the visible area of 
 - Custom overlays that need to update when the view changes
 
 The hook automatically:
-- Subscribes to camera changes
-- Subscribes to hitTest updates (when blocks enter/leave viewport)
+- Subscribes to camera and scene level changes
+- Subscribes to hit-test geometry updates
 - Handles initial state on mount
 - Cleans up subscriptions on unmount
 
@@ -964,10 +971,11 @@ This means:
 
 The hook subscribes to:
 
-1. **`graph.$camera` signal** (via `useSignalLayoutEffect`) — committed camera state after a non-prevented change
-2. **HitTest `update` event** — fires when blocks enter or leave the viewport
+1. `graph.$camera` publishes committed camera changes.
+2. `graph.scene.$level` publishes changes between minimalistic, schematic and detailed.
+3. `graph.hitTest` emits `update` after processing queued changes to hit boxes.
 
-Both paths call the debounced callback on mount and on subsequent updates.
+All three feed the same debounced callback.
 
 #### Use Cases
 
@@ -986,47 +994,16 @@ Both paths call the debounced callback on mount and on subsequent updates.
 
 ### Combining Hooks
 
-```typescript
-import { 
-  useGraph, 
-  useGraphEvent, 
-  useBlockState, 
-  useSignal,
-  GraphCanvas,
-} from "@gravity-ui/graph-react";
-import type { TBlockId, TBlockGeometry, BlockState } from "@gravity-ui/graph";
+```tsx
+import type { Graph } from "@gravity-ui/graph";
+import { useSignal } from "@gravity-ui/graph-react";
 
-function MyGraph(): JSX.Element {
-  const { graph, setEntities, start } = useGraph({
-    settings: { canDragBlocks: true },
-  });
+function SelectedBlockPosition({ graph }: { graph: Graph }) {
+  const [block] = useSignal(graph.rootStore.blocksList.blockSelectionBucket.$selectedEntities);
+  const geometry = useSignal(block?.$geometry);
+  if (!block || !geometry) return null;
 
-  // Track selected block
-  const [selectedBlockId, setSelectedBlockId] = useState<TBlockId | null>(null);
-  
-  useGraphEvent(graph, "blocks-selection-change", ({ changes }) => {
-    if (changes.add.length > 0) {
-      setSelectedBlockId(changes.add[0]);
-    }
-  });
-
-  // Get selected block state
-  const selectedBlock = useBlockState(graph, selectedBlockId);
-  
-  // Subscribe to geometry changes (conditional hook usage - be careful!)
-  const geometry: TBlockGeometry | null = useSignal(selectedBlock.$geometry) 
-
-  return (
-    <div>
-      <GraphCanvas graph={graph} />
-      {geometry && (
-        <div className="info-panel">
-          Selected: {selectedBlockId}
-          Position: ({geometry.x}, {geometry.y})
-        </div>
-      )}
-    </div>
-  );
+  return <div>Selected: {block.id} at ({geometry.x}, {geometry.y})</div>;
 }
 ```
 

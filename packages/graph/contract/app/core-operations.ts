@@ -29,13 +29,18 @@ export function coreOperations(graph: Graph, connection: ConnectionState, anchor
   graph.api.setAnchorSelection("gone", "gone", true);
   graph.cameraService.resize({ width: 100 });
   graph.dragService.startDrag({});
-  const bucket = new MultipleSelectionBucket<string>("custom");
+  const bucket = new MultipleSelectionBucket("custom", undefined, undefined, (ids: string[]) =>
+    ids.map((id) => ({ id, width: 100 }))
+  );
+  const width: number = bucket.$selectedEntities.value[0].width;
+  // @ts-expect-error The resolver returns entities without a height.
+  void bucket.$selectedEntities.value[0].height;
   const manager = graph.selectionService;
   manager.registerBucket(bucket);
   const port: TPort<string> = { id: 0, x: 0, y: 0, meta: "metadata" };
   // @ts-expect-error connection creation events are declared by @gravity-ui/graph-connection-editing
   graph.on("connection-created", () => undefined);
-  void [id, snapshotId, endpoints, view, anchorView, port];
+  void [id, snapshotId, endpoints, view, anchorView, port, width];
 }
 
 type Meta = { label: string; count: number };

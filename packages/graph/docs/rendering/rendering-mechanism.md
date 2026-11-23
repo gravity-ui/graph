@@ -144,16 +144,17 @@ For more details on this process, see [Component Lifecycle](../system/component-
 
 ## Z-Index Management
 
-The z-index system uses a **two-tier stacking model** that separates component *type* priority from visual *stacking order* within the same type.
+The component tree orders immediate drawing by `zIndex` and then by `renderOrder`. Retained scene elements
+have their own [scene order](../system/scene.md#compareorder).
 
 ### Tier 1: zIndex — Component Type Priority
 
 `zIndex` encodes the architectural importance of a component class. Different component types are assigned different base values:
 - Blocks have a higher `DEFAULT_Z_INDEX` than connections
 - Connections render above group backgrounds
-- When two components of different types overlap, the one with the higher `zIndex` always wins, regardless of render order
+- Within a tree, a component in a higher zIndex tier draws after a component in a lower tier
 
-This value is set per component class in `graphConfig.ts` and changed via `updateZIndex()` (e.g., when a block is selected or dragged, its zIndex is incremented to rise above its unselected peers).
+This value is set per component class in `graphConfig.ts` and changed via `updateZIndex()` (e.g., a `LegacyCanvasBlock` that is selected or dragged increments its zIndex to rise above its unselected peers; scene blocks rise in the scene instead, see below).
 
 ### Tier 2: renderOrder — Visual Stacking Within a Type
 
@@ -165,13 +166,24 @@ re-inserts it at the end of its current group. Group insertion order determines 
 
 This means drag-and-drop and selection automatically bring the interacted block to the front of its z-group without any extra bookkeeping.
 
+### Scene components
+
+The scene orders built-in connections and blocks by their effective bucket (base z-index plus the style's
+`raise`), then by the owner's order. By default, a connection is in bucket 100 and a block is in bucket 200.
+The theme raises a hovered or selected connection by one and raises a selected or dragged block by one.
+The connection's shaft, arrow and labels draw together in that order. Anchors and scene children draw
+within their block's position in the scene. A style can raise a connection above a block.
+
 ### Hit Testing
 
-`HitTest.testHitBox()` sorts candidates by both criteria (descending — highest = topmost):
-1. First by `zIndex` (type priority)
-2. Then by `renderOrder` (within-type visual stacking)
+`HitTest.testHitBox()` sorts candidates topmost first with `graph.scene.compareOrder()`:
+1. Components with a scene key (including built-in connections, blocks, anchors and scene children) by scene order;
+2. Other components by `zIndex` (type priority), then by `renderOrder` (within-type visual stacking);
+3. A component without a scene key against a scene component by its `zIndex` and the element's bucket. The
+   component without a key wins an equal-bucket hit.
 
-The first element of the returned array is the component the user most likely intended to interact with.
+The first element of the returned array is the component the user most likely intended to interact with. A layer
+component that must be hit above blocks needs a `zIndex` of at least 201.
 
 ### Summary
 

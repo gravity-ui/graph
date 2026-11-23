@@ -85,7 +85,6 @@ const GraphApp = () => {
           width: source.width,
           height: source.height,
           is: "block",
-          selected: false,
           anchors: [],
         });
         graph.api.addConnection({

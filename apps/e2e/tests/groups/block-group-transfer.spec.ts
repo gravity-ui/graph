@@ -30,9 +30,9 @@ import { requireValue } from "../../page-objects/requireValue";
 const GROUP_PAD = 20;
 
 const BLOCKS = [
-  { id: "group-block-1", is: "Block", x: 100, y: 100, width: 200, height: 80, name: "Group Block 1", anchors: [], selected: false },
-  { id: "group-block-2", is: "Block", x: 100, y: 250, width: 200, height: 80, name: "Group Block 2", anchors: [], selected: false },
-  { id: "collapsed-block", is: "Block", x: 400, y: 100, width: 160, height: 80, name: "Collapsed Block", anchors: [], selected: false },
+  { id: "group-block-1", is: "Block", x: 100, y: 100, width: 200, height: 80, name: "Group Block 1", anchors: [] },
+  { id: "group-block-2", is: "Block", x: 100, y: 250, width: 200, height: 80, name: "Group Block 2", anchors: [] },
+  { id: "collapsed-block", is: "Block", x: 400, y: 100, width: 160, height: 80, name: "Collapsed Block", anchors: [] },
 ];
 
 const EXPANDED_GROUP_RECT  = { x: 100 - GROUP_PAD, y: 100 - GROUP_PAD, width: 200 + GROUP_PAD * 2, height: 230 };
