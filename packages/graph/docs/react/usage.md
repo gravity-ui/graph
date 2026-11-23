@@ -163,6 +163,8 @@ Render each anchor in the HTML block view to keep it visible after the scene han
 With `position="absolute"`, the component centers itself on the anchor's graph position relative to the block.
 The position follows the anchor's port when its scene component is absent. With `position="fixed"`, the anchor
 participates in the HTML layout and the application controls its placement.
+The HTML anchor uses the styles of the anchor class selected by its block, including when `useBlocksAnchors`
+is off and the block has no Canvas anchor components.
 
 ```tsx
 <GraphBlock graph={graph} block={block}>

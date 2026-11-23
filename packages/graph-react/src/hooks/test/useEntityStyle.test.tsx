@@ -55,11 +55,11 @@ describe("React wrappers", () => {
 
   class CustomBlock extends Block {
     protected override getAnchorClass(): TAnchorClass {
-      return CustomAnchor;
+      return this.state.name === "plain" ? Anchor : CustomAnchor;
     }
   }
 
-  function setup(): { graph: Graph; container: HTMLElement; cleanup: () => void } {
+  function setup(useBlocksAnchors = true): { graph: Graph; container: HTMLElement; cleanup: () => void } {
     const graph = new Graph({
       blocks: [
         {
@@ -84,7 +84,7 @@ describe("React wrappers", () => {
           anchors: [{ id: "a1", blockId: "p1", type: "IN" }],
         },
       ],
-      settings: { blockComponents: { custom: CustomBlock } },
+      settings: { blockComponents: { custom: CustomBlock }, useBlocksAnchors },
     });
     const root = document.createElement("div");
     document.body.appendChild(root);
@@ -181,6 +181,40 @@ describe("React wrappers", () => {
     act(() => graph.api.setAnchorSelection("p1", "a1", true));
     expect(container.querySelector<HTMLElement>(".n-p1-a1")?.style.getPropertyValue(color)).not.toBe("#13579b");
     cleanup();
+  });
+
+  it("uses the block's chosen anchor styles even when Canvas anchor views are disabled", () => {
+    const { graph, container, cleanup } = setup(false);
+    try {
+      const anchor = graph.rootStore.blocksList.getBlockState("c1")?.getAnchorById("a1");
+      const color = () =>
+        container.querySelector<HTMLElement>(".n-c1-a1")?.style.getPropertyValue("--graph-block-anchor-anchor-color");
+      expect(anchor?.getViewComponent()).toBeUndefined();
+      act(() => graph.api.setAnchorSelection("c1", "a1", true));
+      expect(color()).toBe("#13579b");
+
+      act(() => {
+        graph.updateSettings({ useBlocksAnchors: true });
+        graph.scheduler.performUpdate();
+      });
+      expect(anchor?.getViewComponent()).toBeInstanceOf(CustomAnchor);
+      expect(color()).toBe("#13579b");
+
+      act(() => {
+        graph.updateSettings({ useBlocksAnchors: false });
+        graph.scheduler.performUpdate();
+      });
+      expect(anchor?.getViewComponent()).toBeUndefined();
+      expect(color()).toBe("#13579b");
+
+      act(() => {
+        graph.api.updateBlock({ id: "c1", name: "plain" });
+        graph.scheduler.performUpdate();
+      });
+      expect(color()).toBe("#4a4a4a");
+    } finally {
+      cleanup();
+    }
   });
 
   it("re-renders on a rule added after mount, with no tag change", () => {

@@ -1,5 +1,5 @@
-import { computed } from "@preact/signals-core";
-import type { ReadonlySignal } from "@preact/signals-core";
+import { computed, signal } from "@preact/signals-core";
+import type { ReadonlySignal, Signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 import isObject from "lodash/isObject";
 
@@ -26,7 +26,7 @@ import { isWithinComponent, pointerTargetAfter } from "../EventedComponent/Event
 import type { EventedComponent } from "../EventedComponent/EventedComponent";
 import { TGraphComponentProps } from "../GraphComponent";
 import { Anchor } from "../anchors";
-import type { TAnchor, TAnchorClass } from "../anchors";
+import type { TAnchor, TAnchorClass, TAnchorId } from "../anchors";
 import { STOCK_ANCHORS, anchorLimitsOf, describeAnchorClasses } from "../anchors/utils/anchorLayout";
 import type { TAnchorLook, TResolvedAnchorClasses } from "../anchors/utils/anchorLayout";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -248,6 +248,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   /** Latest successful selection, in anchor order. Stock blocks use the shared STOCK_ANCHORS. */
   private resolvedAnchorClasses?: TResolvedAnchorClasses;
+
+  private resolvedAnchorClassesSignal?: Signal<TResolvedAnchorClasses | undefined>;
 
   /** Whether block data `getAnchorClass` may read changed since the classes were read. */
   private anchorClassesDirty = true;
@@ -668,9 +670,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     if (!this.anchorClassesDirty) return;
     this.anchorClassesDirty = false;
     if (!this.picksAnchorClasses()) return;
+    const anchors = this.connectedState.$anchors.peek();
     let list: TAnchorClass[];
     try {
-      list = this.connectedState.$anchors.peek().map((anchor) => this.getAnchorClass(anchor));
+      list = anchors.map((anchor) => this.getAnchorClass(anchor));
     } catch (error) {
       if (!this.anchorClassErrorReported) {
         this.anchorClassErrorReported = true;
@@ -686,7 +689,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     }
     this.anchorClassErrorReported = false;
     const previous = this.resolvedAnchorClasses?.list;
-    const next = describeAnchorClasses(list);
+    const next = describeAnchorClasses(anchors, list);
     this.resolvedAnchorClasses = next;
     const limits = anchorLimitsOf(this.context.graph);
     limits.reach = Math.max(limits.reach, next.reach);
@@ -698,6 +701,14 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     ) {
       this.shouldUpdateChildren = true;
     }
+    if (this.resolvedAnchorClassesSignal) this.resolvedAnchorClassesSignal.value = next;
+  }
+
+  /** @internal Reads the class chosen in the block's last update, even before its Canvas anchor exists. */
+  public getResolvedAnchorClass(id: TAnchorId): TAnchorClass {
+    if (!this.picksAnchorClasses()) return Anchor;
+    this.resolvedAnchorClassesSignal ??= signal(this.resolvedAnchorClasses);
+    return this.resolvedAnchorClassesSignal.value?.byId.get(id) ?? Anchor;
   }
 
   /** @internal The creation levels last read from this block, used when rebuilding the graph's limits. */
