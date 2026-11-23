@@ -132,7 +132,7 @@ export type TSceneSpriteEffect = {
  * read-only (strokes and sizes too), and development builds freeze the text primitives the store receives (with their
  * `cameraAware` objects), so a text changed in place throws there.
  */
-export type TScenePrimitive = Readonly<
+export type TScenePrimitive<TSpriteImage = HTMLImageElement> = Readonly<
   TSceneVisibility &
     (
       | {
@@ -205,7 +205,7 @@ export type TScenePrimitive = Readonly<
           y: number;
           width: number;
           height: number;
-          image: HTMLImageElement;
+          image: TSpriteImage;
           /** Defines vec4 spriteColor(sampler2D atlas, vec2 uv, float time, vec4 params). */
           effect?: TSceneSpriteEffect;
           /** Per-sprite parameters, zero by default. */
@@ -237,7 +237,7 @@ export type TScenePrimitive = Readonly<
 >;
 
 /** One drawn entity of the scene: a block with its anchors, a group, a connection. */
-export type TSceneElement = {
+export type TSceneElement<TSpriteImage = HTMLImageElement> = {
   readonly id: string;
   /**
    * The owner this element belongs to (a child element, spec §5.2): it draws right above its owner and under the next
@@ -266,7 +266,7 @@ export type TSceneElement = {
   y: number;
   /** Bounds of every primitive relative to the origin, strokes included. */
   bounds: TTileRect;
-  primitives: readonly TScenePrimitive[];
+  primitives: readonly TScenePrimitive<TSpriteImage>[];
   hidden: boolean;
   /** Index into the store's styles; 0 means no overrides. */
   styleId: number;

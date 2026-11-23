@@ -31,9 +31,9 @@ export type TSceneLevel = "minimalistic" | "schematic" | "detailed";
  * in its owner's raised bucket at its owner's order. `entityType` is the `static entityType` of the component that
  * wrote the element.
  */
-export type TSceneElementView = Readonly<
+export type TSceneElementView<TSpriteImage = HTMLImageElement | HTMLCanvasElement> = Readonly<
   Pick<
-    TSceneElement,
+    TSceneElement<TSpriteImage>,
     | "id"
     | "entityType"
     | "parent"
@@ -62,13 +62,6 @@ export type TSceneQueryOptions = {
   readonly includeHidden?: boolean;
   /** Only elements of these entity types: the `static entityType` of the component that wrote the element. */
   readonly entityTypes?: readonly string[];
-  /**
-   * @internal The store's live elements instead of frozen copies (the minimap's redraw). Read them at once; never keep
-   * or change them. Their `hidden` is the element's own flag, not the drawn state: with `includeHidden`, a child of a
-   * hidden owner says `hidden: false`. A caller that combines the two and needs the drawn state reads
-   * `graph.scene.store.isDrawnHidden(element)`; an owner's own flag is its drawn state.
-   */
-  readonly live?: boolean;
 };
 
 /** A component whose level methods measured text (SceneComponent.measureText). */
@@ -134,15 +127,16 @@ export interface IGraphScene {
    * Elements whose bounds meet a world rectangle, in draw order (bottom first): visible ones by default; options
    * filter by level and entity type and add hidden ones. The bounds are grown where an element's style scales its
    * circles or widens its strokes past them (a hover scale), as the Canvas 2D renderer culls; the views' `bounds` are
-   * the element's own. Views are frozen snapshots; `bounds` stays relative to each element's origin.
+   * the element's own. Views own their primitive data, including buffers. `bounds` stays relative to each
+   * element's origin. Sprite images are detached canvases containing a copy of the decoded pixels.
    */
-  query(rect: TRect, options?: TSceneQueryOptions): readonly TSceneElementView[];
+  query(rect: TRect, options?: TSceneQueryOptions): readonly TSceneElementView<HTMLCanvasElement>[];
   /**
    * Steps once at the end of a graph frame in which elements of this entity type changed (added, moved, restyled,
    * hidden, reordered, removed; an element nested in one that was hidden, raised, moved to another bucket or reordered
    * included), or style rows were rewritten (a rule, level or root-tag change) or the dim colour changed. A row change
    * to a row that looks the same steps nothing, whatever the order of the rows' properties and parts. A layer that
-   * draws from `query()` (the minimap, with `"block"`) redraws on it, one frame after the change. The same signal for
+   * draws scene elements (the minimap, with `"block"`) redraws on it, one frame after the change. The same signal for
    * every call with one type; a counter first asked for during a frame steps at its end for that frame's changes.
    */
   revisionOf(entityType: string): ReadonlySignal<number>;

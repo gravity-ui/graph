@@ -296,7 +296,7 @@ export abstract class SceneComponent<
   }
 
   /** @internal The written element as a read-only view; undefined before. */
-  public getSceneElementView(): TSceneElementView | undefined {
+  public getSceneElementView(): TSceneElementView<HTMLImageElement> | undefined {
     return this.writer?.isCurrent() ? this.writer.element : undefined;
   }
 

@@ -443,7 +443,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
 
   /**
    * The blocks in the list order (`$blocks`), as v1: runs of scene blocks through the interpreter, from the scene's
-   * elements in the minimap's view (`query()`) of the entity types the blocks use, each with its own metadata, and
+   * elements in the minimap's view of the entity types the blocks use, each with its own metadata, and
    * `LegacyCanvasBlock`s with their own minimalistic method in between. The list decides what is drawn, so a block
    * subclass with an `entityType` of its own stays on the minimap. The minimap's own rules: the minimalistic level
    * whatever the main view's, no text, blocks handed to HTML and in collapsed groups included, no anchors or other
@@ -459,8 +459,8 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     };
     const entityTypes = Array.from(this.followedTypes.keys());
     const byId = new Map<string, TSceneElementView>();
-    const query = { level: "minimalistic", includeHidden: true, entityTypes, live: true } as const;
-    for (const element of graph.scene.query(rect, query)) byId.set(element.id, element);
+    const query = { level: "minimalistic", includeHidden: true, entityTypes } as const;
+    for (const element of graph.scene.queryLive(rect, query)) byId.set(element.id, element);
     let run: TSceneElementView[] = [];
     let legacy = false;
     // The types of the block views on the list: each is followed while such a view is there.

@@ -41,7 +41,10 @@ export class PathEffect<U extends TUniformTypes = TUniformTypes, P = readonly nu
 
   public readonly uniforms: { [K in keyof U]: Signal<TUniformValue<U[K]>> };
 
-  constructor(private readonly definition: TSceneEffectDefinition<U, P>) {
+  constructor(
+    private readonly definition: TSceneEffectDefinition<U, P>,
+    trackObject = true
+  ) {
     const { fragment, animated = false, extraWidth = 0 } = definition;
     if (!Number.isFinite(extraWidth) || extraWidth < 0) {
       throw new Error(`[@gravity-ui/graph] extraWidth must be a finite number >= 0, got ${extraWidth}.`);
@@ -70,7 +73,7 @@ export class PathEffect<U extends TUniformTypes = TUniformTypes, P = readonly nu
       .map((name) => `uniform ${types[name]} u_${name};\n`)
       .join("");
     this.programKey = this.uniformDeclarations + fragment;
-    if (HAS_NODE_ENV && process.env.NODE_ENV !== "production") countEffectObject(this, fragment);
+    if (trackObject && HAS_NODE_ENV && process.env.NODE_ENV !== "production") countEffectObject(this, fragment);
   }
 
   public use(input: P, scaleRange?: TSceneEffectScaleRange): TSceneEffectUse {
@@ -89,6 +92,20 @@ export class PathEffect<U extends TUniformTypes = TUniformTypes, P = readonly nu
 
   public clone(): PathEffect<U, P> {
     return new PathEffect(this.definition);
+  }
+
+  /** @internal A query owns the current uniform values and does not create an effect for the live renderer. */
+  public snapshot(): PathEffect<U, P> {
+    const uniforms = Object.fromEntries(
+      Object.entries(this.uniforms).map(([name, uniform]) => {
+        const value = uniform.peek();
+        return [name, { type: this.uniformTypes[name], value: typeof value === "number" ? value : [...value] }];
+      })
+    ) as TSceneEffectDefinition<U, P>["uniforms"];
+    return new PathEffect(
+      { ...this.definition, fragment: this.fragment, animated: this.animated, extraWidth: this.extraWidth, uniforms },
+      false
+    );
   }
 
   /** Resolves the plain stroke for a line drawn by the compatibility Canvas batch. */

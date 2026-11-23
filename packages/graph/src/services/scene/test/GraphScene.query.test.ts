@@ -1,4 +1,5 @@
 import { Graph } from "../../../graph";
+import { defineSceneEffect } from "../../../lib/scene/effects/defineSceneEffect";
 import type { TSceneElementInput } from "../../../lib/scene/store/SceneStore";
 import { styleEncodeKey } from "../../../lib/scene/styles/style";
 import type { TScenePrimitive } from "../../../lib/scene/types";
@@ -57,13 +58,114 @@ describe("graph.scene.query options and revisionOf", () => {
     expect(graph.scene.query(ALL, { entityTypes: ["block"] })[0]?.entityType).toBe("block");
   });
 
-  it("returns the store's elements with the internal live option, frozen copies otherwise", () => {
+  it("lets the internal drawing path borrow rows without copying them", () => {
     graph.scene.store.add(input("b", "block"));
-    const [live] = graph.scene.query(ALL, { live: true });
+    const [live] = graph.scene.queryLive(ALL);
     expect(live).toBe(graph.scene.store.get("b"));
     const [copy] = graph.scene.query(ALL);
     expect(copy === live).toBe(false);
     expect(Object.isFrozen(copy)).toBe(true);
+  });
+
+  it("does not expose live rows through public query options", () => {
+    const element = graph.scene.store.add(input("b", "block"));
+    const options = { level: "minimalistic", live: true } as const;
+    const [view] = graph.scene.query(ALL, options);
+    Reflect.set(view, "x", 250);
+    expect(element.x).toBe(0);
+  });
+
+  it("keeps bounds, paths and nested paint data independent of query results", () => {
+    const primitives: readonly TScenePrimitive[] = [
+      {
+        kind: "path",
+        segments: new Float32Array([0, 0, 0, 0, 10, 10, 10, 10]),
+        stroke: { color: "#000", width: { px: 2 }, dash: [2, 1] },
+        gaps: [[3, 4]],
+        interaction: { hovered: false, selected: false, selectionColor: "#fff" },
+      },
+      { kind: "polygon", points: new Float32Array([0, 0, 10, 0, 10, 10]), fill: "#000" },
+      { ...square, radius: [1, 2, 3, 4], border: { width: { world: 1 } } },
+    ];
+    graph.scene.store.add(input("b", "block", { primitives }));
+    const [view] = graph.scene.query(ALL);
+    const [path, polygon, rect] = view.primitives;
+    if (
+      path.kind !== "path" ||
+      !path.stroke.dash ||
+      !path.gaps ||
+      !path.interaction ||
+      polygon.kind !== "polygon" ||
+      rect.kind !== "rect" ||
+      !rect.border
+    ) {
+      throw new Error("Expected a path, polygon and rectangle with their paint attributes");
+    }
+    Reflect.set(view.bounds, "maxX", 500);
+    path.segments[0] = 250;
+    polygon.points[0] = 250;
+    Reflect.set(path.stroke.width as object, "px", 100);
+    Reflect.set(path.stroke.dash, 0, 100);
+    Reflect.set(path.gaps[0], 0, 100);
+    Reflect.set(path.interaction, "hovered", true);
+    Reflect.set(rect.radius as readonly number[], 0, 100);
+    Reflect.set(rect.border.width as object, "world", 100);
+
+    const [again] = graph.scene.query(ALL);
+    expect(again.bounds.maxX).toBe(10);
+    expect(again.primitives).toEqual([
+      {
+        kind: "path",
+        segments: new Float32Array([0, 0, 0, 0, 10, 10, 10, 10]),
+        stroke: { color: "#000", width: { px: 2 }, dash: [2, 1] },
+        gaps: [[3, 4]],
+        interaction: { hovered: false, selected: false, selectionColor: "#fff" },
+      },
+      { kind: "polygon", points: new Float32Array([0, 0, 10, 0, 10, 10]), fill: "#000" },
+      { ...square, radius: [1, 2, 3, 4], border: { width: { world: 1 } } },
+    ]);
+  });
+
+  it("detaches icons, sprites and path effect uniforms from the scene", () => {
+    const icon = new Path2D("M0 0H10V10H0Z");
+    const image = document.createElement("img");
+    image.width = 40;
+    const effect = defineSceneEffect({
+      kind: "path",
+      fragment: "vec4 effect(PathFragment f, vec4 color) { return color; }",
+      uniforms: { offset: { type: "vec2", value: [1, 2] } },
+    });
+    effect.uniforms.offset.value = [3, 4];
+    const primitives: readonly TScenePrimitive[] = [
+      { kind: "icon", path: icon, x: 0, y: 0, size: 10, viewBox: 10 },
+      { kind: "sprite", image, x: 0, y: 0, width: 10, height: 10, params: [1, 2, 3, 4] },
+      { kind: "path", segments: new Float32Array(8), stroke: { color: "#000", width: 1 }, effect: effect.use([7]) },
+    ];
+    graph.scene.store.add(input("b", "block", { primitives }));
+    const [view] = graph.scene.query(ALL);
+    const [iconView, spriteView, pathView] = view.primitives;
+    if (
+      iconView.kind !== "icon" ||
+      spriteView.kind !== "sprite" ||
+      !spriteView.params ||
+      pathView.kind !== "path" ||
+      !pathView.effect?.params
+    ) {
+      throw new Error("Expected an icon, sprite and path effect");
+    }
+    expect(iconView.path).not.toBe(icon);
+    spriteView.image.width = 50;
+    Reflect.set(spriteView.params, 0, 50);
+    Reflect.set(pathView.effect.params, 0, 50);
+    const offset = pathView.effect.effect.uniforms.offset;
+    expect(offset.peek()).toEqual([3, 4]);
+    Reflect.set(offset.peek() as readonly number[], 0, 50);
+    offset.value = [5, 6];
+
+    expect(image.width).toBe(40);
+    expect(primitives[1]).toMatchObject({ params: [1, 2, 3, 4] });
+    expect(primitives[2]).toMatchObject({ effect: { params: [7] } });
+    expect(effect.uniforms.offset.peek()).toEqual([3, 4]);
   });
 
   it("names a child's scene parent in its view", () => {

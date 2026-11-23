@@ -14,7 +14,11 @@ const block = (id: string, x: number, y: number, anchors = false) => ({
   anchors: anchors ? [{ id: "out", blockId: id, type: "OUT" }] : [],
 });
 
-type TMinimapWindow = { minimapDraws: string[][]; minimapX: Record<string, number>[] };
+type TMinimapWindow = {
+  minimapDraws: string[][];
+  minimapX: Record<string, number>[];
+  minimapBorrowsRows: boolean;
+};
 
 /** The element ids of every `drawInterpreted` call so far: only the minimap calls it on these pages. */
 const draws = (page: Page): Promise<string[][]> =>
@@ -64,9 +68,11 @@ test.describe("MiniMap – scene elements", () => {
       const w = window as unknown as TMinimapWindow;
       w.minimapDraws = [];
       w.minimapX = [];
+      w.minimapBorrowsRows = true;
       const scene = window.graph.scene;
       const draw = scene.drawInterpreted.bind(scene);
       scene.drawInterpreted = (ctx, elements, scale, options): void => {
+        w.minimapBorrowsRows &&= elements.every((element) => scene.store.get(element.id) === element);
         w.minimapDraws.push(elements.map((element) => element.id));
         w.minimapX.push(Object.fromEntries(elements.map((element) => [element.id, element.x])));
         draw(ctx, elements, scale, options);
@@ -80,6 +86,7 @@ test.describe("MiniMap – scene elements", () => {
     expect(last.length).toBeGreaterThan(0);
     expect(last.every((id) => id.startsWith("block\u0000"))).toBe(true);
     expect(last).toEqual(["block\u0000block-1", "block\u0000block-2", "block\u0000over"]);
+    expect(await page.evaluate(() => (window as unknown as TMinimapWindow).minimapBorrowsRows)).toBe(true);
   });
 
   test("keeps the list order where blocks overlap, and shows a style rule, without a camera move", async ({ page }) => {
