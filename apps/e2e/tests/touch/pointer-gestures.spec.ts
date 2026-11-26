@@ -11,7 +11,7 @@ function touch(cdp: CDPSession, type: "touchStart" | "touchMove" | "touchEnd", i
   return cdp.send("Input.dispatchTouchEvent", { type, touchPoints: [{ id, ...point }] });
 }
 
-async function editor(page: Page, touchPolicy: "editor" | "page" | "default" = "editor") {
+async function editor(page: Page, touchPolicy: "editor" | "page" | "default" = "default") {
   const graph = new GraphPageObject(page);
   await graph.initialize({
     blocks: [
@@ -279,7 +279,7 @@ for (const policy of ["default", "page", "editor"] as const) {
     const initial = await graph.camera().getState();
     // Start on a port in the embedded graph to verify that page scrolling cannot start a connection.
     const from =
-      policy !== "editor"
+      policy === "page"
         ? await layer.toViewport(await layer.getAnchorPoint("source", "out"))
         : { x: 50, y: source.y };
     await touch(cdp, "touchStart", 1, from);
@@ -287,7 +287,7 @@ for (const policy of ["default", "page", "editor"] as const) {
       await touch(cdp, "touchMove", 1, { x: from.x, y: from.y - offset });
     }
     await touch(cdp, "touchEnd", 1, { x: from.x, y: from.y - 120 });
-    if (policy !== "editor") {
+    if (policy === "page") {
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(40);
       expect(await graph.camera().getState()).toEqual(initial);
     } else {
@@ -298,7 +298,7 @@ for (const policy of ["default", "page", "editor"] as const) {
   });
 }
 
-for (const policy of ["default", "editor"] as const) {
+for (const policy of ["default", "page", "editor"] as const) {
   test(`a minimap swipe follows the ${policy} touch policy and a tap navigates`, async ({ page }) => {
     const { graph, cdp } = await editor(page, policy);
     await page.addStyleTag({ content: "body { overflow: auto; min-height: 220vh; } #root { height: 70vh; }" });
@@ -318,7 +318,7 @@ for (const policy of ["default", "editor"] as const) {
     }
     await touch(cdp, "touchEnd", 1, { x: from.x, y: from.y - 120 });
     const afterSwipe = await graph.camera().getState();
-    if (policy === "default") {
+    if (policy === "page") {
       await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(40);
       expect(afterDown).toEqual(initial);
       expect(afterSwipe).toEqual(initial);

@@ -46,10 +46,8 @@ const drawLine = (start: TPoint, end: TPoint) => {
   };
 };
 
-const editorSettings = { canDrag: ECanDrag.ALL, touchPolicy: "editor" } as const;
-
 const GraphApp = () => {
-  const { graph, setEntities, start, zoomTo } = useGraph({ settings: editorSettings });
+  const { graph, setEntities, start, zoomTo } = useGraph({ settings: { canDrag: ECanDrag.ALL } });
 
   useEffect(() => {
     setEntities(generatePrettyBlocks({ layersCount: 3, connectionsPerLayer: 5, dashedLine: false }));

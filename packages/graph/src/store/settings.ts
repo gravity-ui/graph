@@ -55,7 +55,7 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   doubleClickDistance: number;
   /** Time a stationary touch or pen must be held before longpress, in milliseconds. */
   longPressDuration: number;
-  /** Defaults to "page" for host scrolling. Editors opt into one-finger dragging and two-finger navigation. */
+  /** Defaults to "editor" for touch dragging and pinch. Use "page" to let the host handle scrolling and zoom. */
   touchPolicy: "page" | "editor";
   scaleFontSize: number;
   showConnectionArrows: boolean;
@@ -139,7 +139,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   doubleClickInterval: 350,
   doubleClickDistance: 12,
   longPressDuration: 500,
-  touchPolicy: "page",
+  touchPolicy: "editor",
   retargetHoverOnCameraChange: false,
   showConnectionArrows: true,
   scaleFontSize: 1,

@@ -273,6 +273,8 @@ describe("pointer activation", () => {
   });
 
   it("borrows the host touch-action only while editor navigation is enabled", () => {
+    expect(root.style.touchAction).toBe("none");
+    graph.updateSettings({ touchPolicy: "page" });
     root.style.touchAction = "pan-y";
     graph.updateSettings({ clickTolerance: 7 });
     expect(root.style.touchAction).toBe("pan-y");

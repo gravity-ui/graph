@@ -21,7 +21,7 @@ graph.addLayer(MiniMapLayer, {
 graph.start();
 ```
 
-A tap on the minimap centers the graph camera. With the default `touchPolicy: "page"`, a swipe scrolls the host page. Set the graph’s `touchPolicy` to `"editor"` to drag the viewport with a finger. Detaching the minimap cancels its pending or active drag.
+A tap on the minimap centers the graph camera. With the default `touchPolicy: "editor"`, dragging the viewport with a finger moves the camera. Set the graph’s `touchPolicy` to `"page"` to let a swipe scroll the host page. Detaching the minimap cancels its pending or active drag.
 
 ## What it draws
 

@@ -82,7 +82,7 @@ The function returned by `claim` withdraws the offer or cancels the running oper
 
 `release` carries the native releasing PointerEvent. `click` identifies a primary activation within `clickTolerance` CSS pixels on the same target. A recognised drag suppresses activation. By default, two activations on the same target within `doubleClickInterval` milliseconds and `doubleClickDistance` CSS pixels emit `dblclick` after the second `click`. The defaults are 3 CSS pixels, 350 ms and 12 CSS pixels respectively. Set `settings.clickPolicy` to `"exclusive"` to receive either a confirmed single `click` or one `dblclick` for a pair. [Activation and default selection](./event-model.md#activation)
 
-Touch and pen holds emit `longpress` (500 ms by default). Enable `settings.touchPolicy: "editor"` for touch dragging and `pinch`. Its phases are `start`, `update`, `end` and `cancel`. The event exposes both pointers, their midpoint and their distance in CSS pixels. See [Event model](./event-model.md#two-finger-navigation).
+Touch and pen holds emit `longpress` (500 ms by default). The default touch policy enables touch dragging and `pinch`. Set `settings.touchPolicy` to `"page"` to let the browser handle touch scrolling and zoom. A `pinch` reports `start`, `update`, `end` or `cancel`, both pointers, their midpoint and their distance in CSS pixels. See [Event model](./event-model.md#two-finger-navigation).
 
 ### Pointer hover
 

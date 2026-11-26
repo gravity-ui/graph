@@ -64,7 +64,10 @@ const BlockEffectsApp = ({
   view,
   embedded = false,
 }: Args & { embedded?: boolean }): React.JSX.Element => {
-  const { graph, setEntities, start, zoomTo } = useGraph({ viewConfiguration });
+  const { graph, setEntities, start, zoomTo } = useGraph({
+    viewConfiguration,
+    settings: { touchPolicy: embedded ? "page" : "editor" },
+  });
   const rendererState = useSignal(graph.scene.$renderer);
   const level = useSignal(graph.scene.$level);
 

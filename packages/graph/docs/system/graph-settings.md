@@ -72,7 +72,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `clickPolicy` | `"immediate" \| "exclusive"` | `"immediate"` | Deliver each click at release, or distinguish singles from doubles before dispatch and selection. [Activation](./event-model.md#activation) |
 | `doubleClickInterval` | number | `350` | Maximum interval between activations in milliseconds |
 | `doubleClickDistance` | number | `12` | Maximum distance between two activation points in CSS pixels |
-| `touchPolicy` | string | `"page"` | The host page controls native touch scrolling. Choose `"editor"` before contact for one-finger dragging and two-finger camera navigation. |
+| `touchPolicy` | `"editor"` \| `"page"` | `"editor"` | Enables one-finger dragging and two-finger camera navigation. Choose `"page"` before contact for native scrolling and zoom in an embedded graph. |
 | `longPressDuration` | number | `500` | Hold duration in milliseconds for touch and pen |
 | `retargetHoverOnCameraChange` | boolean | `false` | Recheck the hover target after the camera moves beneath a stationary mouse or pen. A target change emits hover events with `cause: "scene"`. |
 | `canDragCamera` | boolean | `true` | Controls whether the camera can be dragged (panned) |

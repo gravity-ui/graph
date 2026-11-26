@@ -1366,7 +1366,7 @@ If two tools share a modifier, assign them different start targets. For example,
 
 **Camera.** Use `graph.on("camera-change", ({ scale, preventDefault }) => …)` to intercept a proposed change. Subscribe to `graph.$camera` to update UI from the committed position and scale. React uses the synchronous `useGraphEvent` hook for both input and model events.
 
-**Touch.** The default `touchPolicy: "page"` leaves native scrolling and zoom to the host page. Set `settings: { touchPolicy: "editor" }` before contact in a surface that supports touch dragging and two-finger camera navigation. Both policies support taps and holds. Double-click and double-tap share the configurable `doubleClickInterval` (350 ms) and `doubleClickDistance` (12 CSS pixels). Touch and pen holds use `longPressDuration` (500 ms). [Full event model](../system/event-model.md)
+**Touch.** The default `touchPolicy: "editor"` enables touch dragging and two-finger camera navigation. Set `settings: { touchPolicy: "page" }` before contact in an embedded graph that should let the host page scroll and zoom. Both policies support taps and holds. Double-click and double-tap share the configurable `doubleClickInterval` (350 ms) and `doubleClickDistance` (12 CSS pixels). Touch and pen holds use `longPressDuration` (500 ms). [Full event model](../system/event-model.md)
 
 **Single versus double click.** The default `clickPolicy: "immediate"` preserves immediate selection. Use `"exclusive"` for editors where a double-click must run on the original selection. The graph delays single-click handlers and selection together, and delivers a qualifying pair as a single `dblclick`. [Activation](../system/event-model.md#activation)
 

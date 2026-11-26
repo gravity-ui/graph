@@ -47,7 +47,7 @@ The graph stylesheet suppresses native text selection on the scene surface. Text
 
 ### Two-finger navigation
 
-Set `settings.touchPolicy` before contact. With the default `"page"`, the host's CSS controls native scrolling and zoom. The graph can receive taps and holds. With `"editor"`, the graph reserves the surface for one-finger editing and two-finger navigation.
+The default `settings.touchPolicy` is `"editor"`. A swipe on the background pans the camera, a draggable component can claim a one-finger drag, and two fingers can pan and zoom. For an embedded graph that should let the host page scroll and zoom, set `settings.touchPolicy` to `"page"` before contact. Both policies support taps and holds.
 
 ```ts
 block.on("pinch", ({ phase, point, distance, preventDefault }) => {
