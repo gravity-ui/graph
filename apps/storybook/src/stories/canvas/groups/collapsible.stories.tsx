@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 
-import { BlockGroups, CollapsibleGroup, ECanDrag, Graph, GraphState, TBlock, TConnection } from "@gravity-ui/graph";
+import { BlockGroups, CollapsibleGroup, Graph, GraphState, TBlock, TConnection } from "@gravity-ui/graph";
 import type { BlockGroupsProps, BlockState, TCollapsibleGroup } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -179,7 +179,6 @@ const CollapsibleBlockGroups = BlockGroups.withBlockGrouping<BlockGroupsProps, B
 const CollapsibleGroupsApp = () => {
   const { graph, setEntities, start } = useGraph({
     settings: {
-      canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
       clickPolicy: "exclusive",
     },
   });

@@ -338,7 +338,7 @@ test.describe("DuplicateBlockLayer", () => {
 
   // https://github.com/gravity-ui/graph/issues/405: with non-draggable blocks the camera must not pan
   // before the layer claims the duplication drag.
-  test("duplicates with the default canDrag setting", async () => {
+  test("duplicates when component dragging is disabled", async () => {
     await graphPO.evaluate((graph) => graph.updateSettings({ canDrag: window.GraphModule.ECanDrag.NONE }));
     await duplicatePO.addLayer();
     const cameraBefore = await graphPO.camera().getState();

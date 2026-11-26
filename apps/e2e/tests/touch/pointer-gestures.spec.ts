@@ -42,8 +42,6 @@ async function editor(page: Page, touchPolicy: "editor" | "page" | "default" = "
     settings: {
       ...(touchPolicy === "default" ? {} : { touchPolicy }),
       useBlocksAnchors: true,
-      dragThreshold: 5,
-      canDrag: { default: "all", touch: "onlySelected" },
     },
   });
   await graph.evaluate((g) => g.cameraService.set({ x: 150, y: 280, scale: 0.5 }));
@@ -128,6 +126,45 @@ test("touch pans over an unselected block and drags it after a tap while a mouse
   await page.mouse.up();
   expect(await graph.evaluate((g) => g.blocks.getBlock("target"))).toMatchObject({ x: 540, y: 20 });
   expect(await graph.camera().getState()).toEqual(panned);
+});
+
+test("a pen drags an unselected block at the default threshold", async ({ page }) => {
+  const { graph, layer, cdp } = await editor(page);
+  const block = graph.block("source");
+  const from = await layer.toViewport(await block.getCenter());
+  const camera = await graph.camera().getState();
+  expect(await block.isSelected()).toBe(false);
+
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    ...from,
+    pointerType: "pen",
+    button: "left",
+    buttons: 1,
+    clickCount: 1,
+  });
+  const movePen = (dx: number) =>
+    cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: from.x + dx,
+      y: from.y,
+      pointerType: "pen",
+      buttons: 1,
+    });
+  await movePen(4);
+  expect(await block.getGeometry()).toMatchObject({ x: 0, y: 0 });
+  await movePen(5);
+  expect(await block.getGeometry()).toMatchObject({ x: 10, y: 0 });
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: from.x + 5,
+    y: from.y,
+    pointerType: "pen",
+    button: "left",
+    clickCount: 1,
+  });
+  expect(await block.getGeometry()).toMatchObject({ x: 10, y: 0 });
+  expect(await graph.camera().getState()).toEqual(camera);
 });
 
 for (const liftFirst of [1, 2]) {

@@ -10,6 +10,7 @@ export const GraphApp = ({
   config,
   constants,
   rules,
+  canDrag,
   ...settings
 }: {
   config: TGraphConfig;
@@ -20,6 +21,15 @@ export const GraphApp = ({
   const graphRef = useRef<Graph | undefined>(undefined);
 
   useEffect(() => graphRef.current?.scene.styles.add(rules ?? []), [rules]);
+
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (canDrag !== undefined && graph) {
+      graph.updateSettings({ canDrag });
+      return () => graph.resetSettings(["canDrag"]);
+    }
+    return undefined;
+  }, [canDrag]);
 
   useEffect(() => {
     if (graphRef.current) {
@@ -51,7 +61,7 @@ export const graphEditorMeta: Meta<typeof GraphApp> = {
     canDrag: {
       control: "select",
       options: [ECanDrag.ALL, ECanDrag.ONLY_SELECTED, ECanDrag.NONE],
-      description: "allow drag blocks",
+      description: "Override the pointer-specific drag rules for all pointers",
     },
     showConnectionArrows: {
       control: "boolean",
@@ -75,7 +85,6 @@ export const graphEditorMeta: Meta<typeof GraphApp> = {
     showConnectionLabels: false,
     canDragCamera: true,
     canZoomCamera: true,
-    canDrag: ECanDrag.ALL,
     scaleFontSize: 1,
     showConnectionArrows: true,
     viewportCulling: true,

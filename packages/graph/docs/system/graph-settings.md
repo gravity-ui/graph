@@ -77,7 +77,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `retargetHoverOnCameraChange` | boolean | `false` | Recheck the hover target after the camera moves beneath a stationary mouse or pen. A target change emits hover events with `cause: "scene"`. |
 | `canDragCamera` | boolean | `true` | Controls whether the camera can be dragged (panned) |
 | `canZoomCamera` | boolean | `true` | Controls whether the camera can be zoomed in/out |
-| `canDrag` | `ECanDrag` or an object with pointer overrides | `ECanDrag.NONE` | Controls built-in component dragging. An object requires `default` and accepts optional `mouse`, `pen` and `touch` rules. |
+| `canDrag` | `ECanDrag` or an object with pointer overrides | `{ default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED }` | Controls built-in component dragging. An object requires `default` and accepts optional `mouse`, `pen` and `touch` rules. |
 | `scaleFontSize` | number | `1` | Scale factor for font sizes throughout the graph |
 | `showConnectionArrows` | boolean | `true` | Controls visibility of arrows at the end of connections |
 | `useBezierConnections` | boolean | `true` | Use bezier curves for connections instead of straight lines |
@@ -96,17 +96,11 @@ These settings control the interactive behaviors and visual styles of the graph.
 
 ### Dragging selected blocks on touch
 
-To pan across unselected blocks with a finger and drag blocks directly with a mouse or pen, configure the editor as follows.
-
-```ts
-graph.updateSettings({
-  canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
-});
-```
+By default a mouse or pen can start dragging an unselected block once it has moved 5 CSS pixels from the press. A finger can drag a block that was selected when the touch began.
 
 In editor touch mode, swiping the body of an unselected block pans the camera when `canDragCamera` is enabled. Tap the block to select it, then drag it with the next touch. The graph checks which components were selected when that touch began. With `clickPolicy: "exclusive"`, wait for selection to appear before starting the drag. A layer can still claim a drag on a port to create a connection.
 
-A single `ECanDrag` value applies to every pointer. In the object form, omitted and unrecognized pointer types use `default`.
+Set `canDrag: ECanDrag.NONE` to keep blocks fixed for all pointers, or `ECanDrag.ALL` to allow direct dragging for all pointers. In the object form, omitted and unrecognized pointer types use `default`.
 
 ## Graph Colors
 
@@ -240,7 +234,6 @@ graph.updateSettings({
 graph.updateSettings({
   canDragCamera: true,
   canZoomCamera: true,
-  canDrag: ECanDrag.ALL,
   showConnectionArrows: true,
   showConnectionLabels: true,
   useBlocksAnchors: true,

@@ -144,7 +144,7 @@ The default action of `blocks-duplicate` changed in three ways:
   of a duplicated block; v1 skipped them. Connections whose end uses a custom port are not copied. v1 copied them when
   they also had block IDs and re-attached the copy to the block.
 
-Unlike `NewBlockLayer`, the layer also works when blocks are not draggable (`canDrag: ECanDrag.NONE`, the default): the
+Unlike `NewBlockLayer`, the layer also works when blocks are not draggable (`canDrag: ECanDrag.NONE`): the
 camera no longer pans with the cursor during the gesture ([#405](https://github.com/gravity-ui/graph/issues/405)).
 
 The deprecated `canDuplicateBlocks` setting is removed; it had no effect. Add the layer to enable duplication, and
@@ -489,7 +489,10 @@ graph.resetSettings(["dragThreshold"]); // 10, rather than the library default o
 Resetting selected settings preserves every other setting and publishes one update.
 Pass an empty array to leave settings unchanged. `resetSettings()` affects
 settings only; it does not reset colors, constants or graph entities. The
-`dragThreshold` default is 5 pixels, `canDrag` defaults to `ECanDrag.NONE`, and
+`dragThreshold` default is 5 CSS pixels. By default a mouse or pen can drag any draggable block, and
+a finger can drag a previously selected block. Set `canDrag: ECanDrag.NONE` to keep blocks fixed
+for every pointer. See [drag settings](../system/graph-settings.md#dragging-selected-blocks-on-touch).
+
 `retargetHoverOnCameraChange` defaults to false. Migrate the v1 setting
 `emulateMouseEventsOnCameraChange` to this name to refresh hover after the camera moves beneath a stationary pointer.
 

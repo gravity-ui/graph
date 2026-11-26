@@ -132,7 +132,7 @@ export type TGraphSettingsPatch<B extends TBlock = TBlock, C extends TConnection
 export const DefaultSettings: TGraphSettingsConfig = {
   canDragCamera: true,
   canZoomCamera: true,
-  canDrag: ECanDrag.NONE,
+  canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
   dragThreshold: 5,
   clickTolerance: 3,
   clickPolicy: "immediate",

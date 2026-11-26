@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { ECanDrag, Graph, GraphState, TBlock, TGraphConfig, TPoint } from "@gravity-ui/graph";
+import { Graph, GraphState, TBlock, TGraphConfig, TPoint } from "@gravity-ui/graph";
 import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import {
@@ -78,7 +78,6 @@ const config: HookGraphParams = {
   settings: {
     canDragCamera: true,
     canZoomCamera: true,
-    canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
     showConnectionArrows: false,
     scaleFontSize: 1,
     useBezierConnections: true,
