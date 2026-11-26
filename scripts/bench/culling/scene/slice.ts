@@ -135,10 +135,10 @@ class SliceButton extends SceneComponent<TGraphComponentProps & { id: string; wi
 
   protected override willMount(): void {
     super.willMount();
-    // It tags itself while it is the target (D5: no library default does it).
-    const follow = (event: Event): void => this.setHoveredTag(pointerTargetAfter(event) === this);
-    this.addEventListener("mouseenter", follow);
-    this.addEventListener("mouseleave", follow);
+    // It tags itself while it is the target.
+    this.listenEvents(["pointerenter", "pointerleave"], (event) => {
+      this.setHoveredTag(pointerTargetAfter(event) === this);
+    });
   }
 
   public override getEntityId(): string {
@@ -3713,8 +3713,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
 
   // C32: child scene components. Block CH (x 0..200, y 2000..2100) has a button child at world (150..200,
   // 2070..2100) and its OUT anchor at (200, 2088), a later child. At scale 0.5 (schematic): the button draws over CH's
-  // body and under the anchor, as Canvas2D draws them; the button's own hover event (as GraphLayer dispatches it to a
-  // target) makes it tag itself, and a `hoveredTag` rule recolours its part, with no re-encode.
+  // body and under the anchor, as Canvas2D draws them; the button's hover handler tags the hit component, and a `hoveredTag` rule recolours its part, with no re-encode.
   await check("C32", async () => {
     const stats = layer.getBackend()?.stats;
     if (!stats) throw new Error("no backend in C32");
@@ -3752,7 +3751,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
       const buttonBefore = pixelAt(165, 2075);
       const anchorOverButton = pixelAt(196, 2088);
       const encodes = stats.encodes;
-      child.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: child, relatedTarget: view } }));
+      child.dispatchEvent(graph.emit("pointerenter", { target: child, relatedTarget: view, pointerPressed: false, cause: "scene" }));
       for (let i = 0; i < 3; i++) graph.scheduler.performUpdate();
       const buttonHovered = pixelAt(165, 2075);
       const hoverEncodes = stats.encodes - encodes;
@@ -4127,8 +4126,8 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
       lookFrom(213);
       settle();
       const before = pixelAt(215, 5088);
-      // The anchor's own hover event, as GraphLayer sends it to a target: the anchor tags itself (D5).
-      view.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: view } }));
+      // The anchor's own hover event, from the input service tags the anchor.
+      view.dispatchEvent(graph.emit("pointerenter", { target: view, relatedTarget: undefined, pointerPressed: false, cause: "scene" }));
       settle();
       const grown = pixelAt(215, 5088);
       const past = pixelAt(218, 5088);
@@ -4141,7 +4140,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
           `${show(grown)} (want #ff00ff), past the grown radius (218, 5088) ${show(past)} (want not #ff00ff)`
       );
     } finally {
-      view?.dispatchEvent(new CustomEvent("mouseleave", { detail: { target: view, relatedTarget: undefined } }));
+      view?.dispatchEvent(graph.emit("pointerleave", { target: view, relatedTarget: undefined, pointerPressed: false, cause: "scene" }));
       graph.setEntities({ blocks: [], connections: [] });
       graph.setColors({ anchor: { background: initGraphColors.anchor.background } });
       graph.updateSettings({ renderer: "webgl" });

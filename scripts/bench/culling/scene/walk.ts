@@ -57,7 +57,7 @@ export type TColumn = {
    * anchor point, so a run that would miss the anchors fails.
    */
   setHoverPath?(stops?: readonly THoverStop[]): THoverStop[];
-  /** Blocks columns: the graph's `mouseenter` events since setup, one per target change. */
+  /** Blocks columns: the graph's `pointerenter` events since setup, one per target change. */
   hoverEnters?: { count: number };
   /** Blocks columns: `graph.scene.drawInterpreted` calls since setup (the minimap's redraws). */
   minimapDraws?: { count: number };

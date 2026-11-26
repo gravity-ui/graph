@@ -1,4 +1,7 @@
 import { Component } from "../../../../lib/Component";
+import { createGraphEvent } from "../../../../lib/graphEventDispatch";
+import { hoverEvent } from "../../../../test/pointer";
+import type { ComponentDispatchEvent } from "../EventedComponent";
 import { EventedComponent } from "../EventedComponent";
 
 class TestComponent extends EventedComponent {
@@ -6,7 +9,7 @@ class TestComponent extends EventedComponent {
     this.props.interactive = undefined;
   }
   public readonly handled = jest.fn();
-  protected handleEvent(event: Event) {
+  protected handleEvent(event: ComponentDispatchEvent) {
     this.handled(event);
   }
 }
@@ -17,19 +20,19 @@ test("component listeners preserve identity, bubbling, objects and cleanup", () 
   const child = new TestComponent({}, parent);
   const listener = jest.fn();
   const object = { handleEvent: jest.fn() };
-  const remove = child.addEventListener("click", listener);
-  child.addEventListener("click", listener);
-  child.addEventListener("click", object);
-  parent.addEventListener("click", parent);
-  const event = new MouseEvent("click", { clientX: 12 });
+  const remove = child.addEventListener("graph-component-change", listener);
+  child.addEventListener("graph-component-change", listener);
+  child.addEventListener("graph-component-change", object);
+  parent.addEventListener("graph-component-change", parent);
+  const event = createGraphEvent("graph-component-change", child, {}, false);
   child.dispatchEvent(event);
   expect(listener).toHaveBeenCalledTimes(1);
   expect(object.handleEvent).toHaveBeenCalledWith(event);
   expect(parent.handled).toHaveBeenCalledWith(event);
   remove();
-  child.removeEventListener("click", object);
-  parent.removeEventListener("click", parent);
-  child.dispatchEvent(new MouseEvent("click"));
+  child.removeEventListener("graph-component-change", object);
+  parent.removeEventListener("graph-component-change", parent);
+  child.dispatchEvent(createGraphEvent("graph-component-change", child, {}, false));
   expect(listener).toHaveBeenCalledTimes(1);
   expect(object.handleEvent).toHaveBeenCalledTimes(1);
   Component.unmount(child);
@@ -41,8 +44,8 @@ test("a graph hover event reaches its listener, and none after unmount", () => {
   const parent = new Component({});
   const child = new TestComponent({}, parent);
   const listener = jest.fn();
-  child.addEventListener("mouseenter", listener);
-  const event = new CustomEvent("mouseenter", { detail: { sourceEvent: new MouseEvent("mousemove") } });
+  child.on("pointerenter", listener);
+  const event = hoverEvent("pointerenter", child, new PointerEvent("pointermove"));
   child.dispatchEvent(event);
   expect(listener).toHaveBeenCalledWith(event);
   Component.unmount(child);
@@ -56,7 +59,7 @@ test("events walk the parent chain; onDispatchedEvent sees them before listeners
   class Hooked extends TestComponent {
     public name = "";
 
-    protected override onDispatchedEvent(event: Event): void {
+    protected override onDispatchedEvent(event: ComponentDispatchEvent): void {
       seen.push(`${this.name}:hook:${event.type}`);
     }
   }
@@ -65,15 +68,15 @@ test("events walk the parent chain; onDispatchedEvent sees them before listeners
   const child = new Hooked({}, parent);
   parent.name = "parent";
   child.name = "child";
-  parent.addEventListener("mouseenter", () => seen.push("parent:listener:mouseenter"));
-  child.addEventListener("mouseleave", (event: Event) => event.stopPropagation());
-  child.dispatchEvent(new CustomEvent("mouseenter", { bubbles: false }));
-  child.dispatchEvent(new CustomEvent("mouseleave", { bubbles: false }));
+  parent.addEventListener("pointerenter", () => seen.push("parent:listener:pointerenter"));
+  child.addEventListener("pointerleave", (event: ComponentDispatchEvent) => event.stopPropagation());
+  child.dispatchEvent(hoverEvent("pointerenter", child));
+  child.dispatchEvent(hoverEvent("pointerleave", child));
   expect(seen).toEqual([
-    "child:hook:mouseenter",
-    "parent:hook:mouseenter",
-    "parent:listener:mouseenter",
-    "child:hook:mouseleave",
+    "child:hook:pointerenter",
+    "parent:hook:pointerenter",
+    "parent:listener:pointerenter",
+    "child:hook:pointerleave",
   ]);
   Component.unmount(child);
   Component.unmount(parent);
@@ -87,4 +90,15 @@ test("interactive defaults to true when omitted or cleared, while false stays fa
   component.clearInteractive();
   expect(component.isInteractive()).toBe(true);
   expect(new TestComponent({ interactive: false }, parent).isInteractive()).toBe(false);
+});
+
+test.each([true, { capture: true }] as const)("rejects graph-only capture on a component (%p)", (options) => {
+  const root = new Component({});
+  const component = new TestComponent({}, root);
+  expect(() => {
+    // @ts-expect-error JavaScript callers receive the same restriction at registration.
+    component.on("pointerenter", () => {}, options);
+  }).toThrow("capture");
+  Component.unmount(component);
+  Component.unmount(root);
 });

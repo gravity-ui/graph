@@ -9,7 +9,7 @@ This document describes all available React hooks for working with @gravity-ui/g
 - [useLayer](#uselayer) - Adds and manages graph layers with automatic cleanup
 
 ### Event Hooks
-- [useGraphEvent](#usegraphevent) - Subscribes to a single graph event with optional debouncing
+- [useGraphEvent](#usegraphevent) - Subscribes to one graph event during dispatch
 - [useGraphEvents](#usegraphevents) - Subscribes to multiple graph events at once
 
 ### State Hooks
@@ -34,7 +34,7 @@ This document describes all available React hooks for working with @gravity-ui/g
 
 ### Usage Patterns
 - [Combining Hooks](#combining-hooks) - Examples of using multiple hooks together
-- [Performance Optimization](#performance-optimization-with-debounced-events) - Debouncing frequent events
+- [Showing the Current Camera State](#showing-the-current-camera-state) - Rendering the committed camera position
 
 ## Import
 
@@ -223,108 +223,56 @@ Returns `InstanceType<T> | null` - the layer instance or `null` before layer att
 
 ### useGraphEvent
 
-Hook for subscribing to a single graph event with optional debouncing.
+`useGraphEvent(graph, name, callback, options?)` subscribes to the same event as `graph.on(name, callback, options)`.
+The callback receives one object, typed as `GraphEventMap[typeof name]`. It runs during dispatch, when it can cancel a default action, stop propagation or claim a drag on `dragstart`. While a React transition is suspended, events still go to the handler for the visible UI. A null graph skips subscription. The hook follows graph replacement and removes its listener on unmount. Cleaning up a `dragstart` subscription also cancels its active drag claim, including a claim made by a `once` listener.
 
-```typescript
+```tsx
+import type { Graph } from "@gravity-ui/graph";
 import { useGraphEvent } from "@gravity-ui/graph-react";
-import type { Graph, ESchedulerPriority } from "@gravity-ui/graph";
-import type { UnwrapGraphEventsDetail, UnwrapGraphEvents } from "@gravity-ui/graph";
 
-interface Props {
-  graph: Graph;
-}
+function GraphInteractions({ graph }: { graph: Graph }) {
+  useGraphEvent(graph, "click", (event) => {
+    console.log(event.target, event.point.world);
+  }, { capture: true });
 
-function MyComponent({ graph }: Props): JSX.Element | null {
-  // Basic usage - callback receives (detail, event)
-  useGraphEvent(
-    graph, 
-    "block-change", 
-    (detail: UnwrapGraphEventsDetail<"block-change">, event: UnwrapGraphEvents<"block-change">) => {
-      console.log("Block changed:", detail.block);
-    }
-  );
-
-  // Intercept proposed camera state before commit
-  useGraphEvent(
-    graph,
-    "camera-change",
-    (detail: UnwrapGraphEventsDetail<"camera-change">, event: UnwrapGraphEvents<"camera-change">) => {
-      if (detail.scale < 0.1) {
-        event.preventDefault();
-      }
-    },
-  );
-
-  // Prevent default behavior
-  useGraphEvent(
-    graph, 
-    "connection-created", 
-    (detail: UnwrapGraphEventsDetail<"connection-created">, event: UnwrapGraphEvents<"connection-created">) => {
-      event.preventDefault();
-      // Custom connection logic
-    }
-  );
+  useGraphEvent(graph, "camera-change", (event) => {
+    if (event.scale < 0.1) event.preventDefault();
+  });
 
   return null;
 }
 ```
 
-#### Parameters
+| Subscription option | Effect |
+|---|---|
+| `capture` | Receive the event in the capture phase. |
+| `once` | Remove the listener after its first delivery. |
+| `signal` | Remove the listener when the signal aborts. |
+| `inScale` | Deliver at the listed scene zoom levels. |
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `graph` | `Graph \| null` | Graph instance |
-| `event` | `Event extends keyof GraphEventsDefinitions` | Event name to subscribe to |
-| `callback` | `(data: UnwrapGraphEventsDetail<Event>, event: UnwrapGraphEvents<Event>) => void` | Event handler |
-| `debounceParams` | `{ priority?: ESchedulerPriority; frameInterval?: number; frameTimeout?: number }` | Optional debounce configuration |
-
-#### Debounce Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `priority` | `ESchedulerPriority` | `MEDIUM` | Scheduler priority |
-| `frameInterval` | `number` | `1` | Frames to wait before execution |
-| `frameTimeout` | `number` | `0` | Minimum time in ms to wait |
+Plugins can extend the event map. For example, with `ConnectionEditingLayer` attached, subscribe to `"connection-created"` by name. To schedule an update to a sidebar or another view, pass the values it needs to a separate [scheduler callback](#useschedulerdebounce).
 
 ### useGraphEvents
 
-Hook for subscribing to multiple graph events at once using callback props style.
+`useGraphEvents(graph, callbacks)` accepts the same named callbacks as `GraphCanvas`. Each callback receives the corresponding core event. Removing `onDragStart` cancels a drag it currently owns. For example, these props log the scene target of a press and the scale proposed by a camera change.
 
-```typescript
-import { useGraphEvents } from "@gravity-ui/graph-react";
+```tsx
 import type { Graph } from "@gravity-ui/graph";
-import type { TGraphEventCallbacks } from "@gravity-ui/graph-react";
+import { useGraphEvents, type TGraphEventCallbacks } from "@gravity-ui/graph-react";
 
-interface Props {
-  graph: Graph;
-}
+function GraphInspector({ graph }: { graph: Graph }) {
+  const callbacks = {
+    onPress: (event) => console.log(event.target),
+    onCameraChange: (event) => console.log(event.scale),
+    onBlocksSelectionChange: ({ list }) => console.log(list),
+  } satisfies Partial<TGraphEventCallbacks>;
 
-function MyComponent({ graph }: Props): JSX.Element | null {
-  const eventHandlers: Partial<TGraphEventCallbacks> = {
-    onBlockChange: ({ block }) => {
-      console.log("Block changed:", block);
-    },
-    onConnectionCreated: (detail, event) => {
-      console.log("Connection created:", detail);
-    },
-    onBlocksSelectionChange: ({ changes }) => {
-      console.log("Selection added:", changes.add);
-      console.log("Selection removed:", changes.removed);
-    },
-  };
-
-  useGraphEvents(graph, eventHandlers);
-
+  useGraphEvents(graph, callbacks);
   return null;
 }
 ```
 
-#### Parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `graph` | `Graph \| null` | Graph instance |
-| `events` | `Partial<TGraphEventCallbacks>` | Object with event callbacks |
+Use `useGraphEvent` to supply subscription options or to subscribe to events introduced by a plugin.
 
 ## State Hooks
 
@@ -656,7 +604,7 @@ The function will only execute when BOTH conditions are satisfied:
 
 ```typescript
 import { useSchedulerDebounce, useGraphEvent } from "@gravity-ui/graph-react";
-import type { ESchedulerPriority, Graph, TBlock } from "@gravity-ui/graph";
+import { ESchedulerPriority, type Graph } from "@gravity-ui/graph";
 
 interface DebouncedFn<T extends (...args: unknown[]) => void> {
   (...args: Parameters<T>): void;
@@ -1007,7 +955,7 @@ function SelectedBlockPosition({ graph }: { graph: Graph }) {
 }
 ```
 
-### Performance Optimization with Debounced Events
+### Showing the Current Camera State
 
 ```typescript
 import { useSignal } from "@gravity-ui/graph-react";

@@ -5,6 +5,7 @@ import { entityKey } from "../../../../services/tags/TagStore";
 import { hoveredTag, selectedTag } from "../../../../services/tags/builtinTags";
 import { defineTag } from "../../../../services/tags/defineTag";
 import type { TConnection } from "../../../../store/connection/ConnectionState";
+import { pointer } from "../../../../test/pointer";
 import { SceneComponent } from "../../scene/SceneComponent";
 import { BaseConnection } from "../BaseConnection";
 import type { TBaseConnectionState } from "../BaseConnection";
@@ -186,11 +187,13 @@ describe("connection drawing ownership", () => {
     expect(shaft()).toMatchObject({ gaps: [expect.any(Array), expect.any(Array)] });
   });
 
+  afterEach(() => jest.useRealTimers());
+
   it("styles all route labels through connection tags and keeps their local hit ids", () => {
+    jest.useFakeTimers();
     const graph = mount(RouteLabelsConnection);
     const view = graph.connections.getConnectionState("edge")?.getViewComponent();
     if (!(view instanceof RouteLabelsConnection)) throw new Error("Expected an annotated connection");
-    const layer = graph.getGraphLayer();
     const colors = () => {
       const element = view.getSceneElementView();
       if (!element) throw new Error("Expected the connection in the scene");
@@ -202,7 +205,8 @@ describe("connection drawing ownership", () => {
       });
     };
     const move = (clientX: number) => {
-      layer.handleEvent(new MouseEvent("mousemove", { clientX, clientY: 100 }));
+      pointer(graph, "pointermove", { clientX, clientY: 100 });
+      jest.advanceTimersByTime(80);
       frames();
     };
     graph.scene.styles.add([
@@ -226,7 +230,7 @@ describe("connection drawing ownership", () => {
     frames();
     expect(colors()).toEqual(["#a74513", "#a74513"]);
 
-    layer.handleEvent(new MouseEvent("mouseleave"));
+    pointer(graph, "pointerleave");
     frames();
     expect(colors()).toEqual(["#a74513", "#a74513"]);
     graph.api.selectConnections(["edge"], false);

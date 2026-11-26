@@ -5,18 +5,18 @@ import type { ChildDescriptor } from "../../../../lib/CoreComponent";
 import { globalScheduler } from "../../../../lib/Scheduler";
 import type { TTileRect } from "../../../../lib/culling/TileIndex";
 import type { TScenePrimitive } from "../../../../lib/scene/types";
-import { Camera } from "../../../../services/camera/Camera";
 import { ECameraScaleLevel } from "../../../../services/camera/cameraScaleEnums";
-import type { DragOperationCallbacks } from "../../../../services/drag";
 import type { TSceneLevel } from "../../../../services/scene/types";
 import { hoveredTag } from "../../../../services/tags/builtinTags";
 import { anchorEntityId } from "../../../../store/anchor/anchorEntityId";
+import { pointer, pointerRoot } from "../../../../test/pointer";
 import type { TRect } from "../../../../utils/types/shapes";
 import type { TGraphComponentProps } from "../../GraphComponent";
 import { Anchor } from "../../anchors";
 import type { TAnchorClass } from "../../anchors";
 import { Block } from "../../blocks/Block";
 import type { TBlock } from "../../blocks/Block";
+import { selectionDrag } from "../../layers/selectionLayer/test/selectionDrag";
 import { SceneComponent } from "../SceneComponent";
 import type { TSceneParent } from "../SceneComponent";
 
@@ -178,7 +178,7 @@ describe("hit levels of scene components", () => {
 
   function mount(descriptor: ChildDescriptor, Owner: typeof PinnedBox = PinnedBox): void {
     pin = descriptor;
-    graph = new Graph({}, document.createElement("div"));
+    graph = new Graph({}, pointerRoot());
     graph.start();
     graph.cameraService.set({ x: 0, y: 0, scale: 0.5 });
     graph.addLayer(TestLayer, {
@@ -281,16 +281,16 @@ describe("hit levels of scene components", () => {
         }
       )
     );
-    const layer = graph.getGraphLayer();
     // Scale 0.5 at the origin: the pins at world (100, 10) are at client (50, 5).
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 5 }));
-    expect(layer.$hoveredComponent.value).toBe(pins.deep);
+    pointer(graph, "pointermove", { clientX: 50, clientY: 5 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(pins.deep);
     mid?.hide();
     frames(3);
     // The middle child's own box is out, and what is nested in it is drawn hidden: the box under them is hit.
     expect(hitAt(0.5)).toBe(box);
     expect(graph.getElementsOverRect({ x: 95, y: 5, width: 10, height: 10 }).includes(pins.deep)).toBe(false);
-    expect(layer.$hoveredComponent.value).toBe(box);
+    expect(graph.input.$hoveredComponent.value).toBe(box);
     mid?.show();
     frames(3);
     expect(hitAt(0.5)).toBe(pins.deep);
@@ -298,17 +298,17 @@ describe("hit levels of scene components", () => {
 
   it("does not hit a sub-component of a hidden owner, and a still pointer leaves both", () => {
     mount(Pin.create({ id: "pin" }, { ref: keep("pin") }));
-    const layer = graph.getGraphLayer();
     const left: string[] = [];
-    pins.pin.addEventListener("mouseleave", () => left.push("pin"));
-    box?.addEventListener("mouseleave", () => left.push("box"));
+    pins.pin.addEventListener("pointerleave", () => left.push("pin"));
+    box?.addEventListener("pointerleave", () => left.push("box"));
     // Scale 0.5 at the origin: the pin at world (100, 10) is at client (50, 5).
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 5 }));
-    expect(layer.$hoveredComponent.value).toBe(pins.pin);
+    pointer(graph, "pointermove", { clientX: 50, clientY: 5 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(pins.pin);
     box?.hide();
     frames(3);
     expect(hitAt(0.5)).toBeUndefined();
-    expect(layer.$hoveredComponent.value).toBeUndefined();
+    expect(graph.input.$hoveredComponent.value).toBeUndefined();
     expect(left).toEqual(["pin", "box"]);
   });
 
@@ -339,16 +339,16 @@ describe("hit levels of scene components", () => {
       return graph.getElementsOverPoint({ x: 100, y: 10 });
     };
     const inRect = (): unknown[] => graph.getElementsOverRect({ x: 95, y: 5, width: 10, height: 10 });
-    const layer = graph.getGraphLayer();
     // Scale 0.5 at the origin: the pins at world (100, 10) are at client (50, 5).
     graph.cameraService.set({ scale: 0.5 });
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 5 }));
-    const target = layer.$hoveredComponent.value;
+    pointer(graph, "pointermove", { clientX: 50, clientY: 5 });
+    graph.scheduler.performUpdate();
+    const target = graph.input.$hoveredComponent.value;
     expect(target === pins.declared || target === pins.deep).toBe(true);
     mid?.hide();
     frames(3);
     // The target leaves the grandchild at the frame's end: the box, shown outside the scene, keeps its hit box.
-    expect(layer.$hoveredComponent.value === box).toBe(true);
+    expect(graph.input.$hoveredComponent.value === box).toBe(true);
     for (const scale of [0.5, 1]) {
       const found = hits(scale);
       expect(found.includes(pins.deep) || found.includes(pins.declared)).toBe(false);
@@ -375,15 +375,15 @@ describe("hit levels of scene components", () => {
         }
       )
     );
-    const layer = graph.getGraphLayer();
     // Scale 0.5 at the origin: the pins at world (100, 10) are at client (50, 5).
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 5 }));
-    expect(layer.$hoveredComponent.value === pins.deep).toBe(true);
+    pointer(graph, "pointermove", { clientX: 50, clientY: 5 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value === pins.deep).toBe(true);
     mid?.conceal();
     frames(3);
     // A hit barrier now: its subtree takes no hits, and the written hidden flag asks for the retarget.
     expect(graph.getElementsOverPoint({ x: 100, y: 10 }).includes(pins.deep)).toBe(false);
-    expect(layer.$hoveredComponent.value === box).toBe(true);
+    expect(graph.input.$hoveredComponent.value === box).toBe(true);
   });
 
   it("finds the target again when a middle child is delegated, under a still pointer", () => {
@@ -400,17 +400,17 @@ describe("hit levels of scene components", () => {
     );
     // Detailed, where the schematic-only pins are not shown: the pointer is on the box.
     graph.cameraService.set({ scale: 1 });
-    const layer = graph.getGraphLayer();
     // Scale 1 at the origin: world = client.
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 100, clientY: 10 }));
+    pointer(graph, "pointermove", { clientX: 100, clientY: 10 });
+    graph.scheduler.performUpdate();
     // The level change's own retarget runs here, so it cannot stand in for the delegation's below.
     frames(3);
-    expect(layer.$hoveredComponent.value === box).toBe(true);
+    expect(graph.input.$hoveredComponent.value === box).toBe(true);
     // Shown outside the scene now: "deep" is hit on every level, and the delegation itself asks for the retarget.
     mid?.setRenderDelegated(true);
     frames(3);
     expect(graph.getElementOverPoint({ x: 100, y: 10 }) === pins.deep).toBe(true);
-    expect(layer.$hoveredComponent.value === pins.deep).toBe(true);
+    expect(graph.input.$hoveredComponent.value === pins.deep).toBe(true);
   });
 
   it("hides the subtree of a delegated middle child that an input of its own hides, as in the DOM", () => {
@@ -434,10 +434,10 @@ describe("hit levels of scene components", () => {
     );
     mid?.setRenderDelegated(true);
     frames(2);
-    const layer = graph.getGraphLayer();
     // Scale 0.5 at the origin: the pins at world (100, 10) are at client (50, 5).
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 5 }));
-    const target = layer.$hoveredComponent.value;
+    pointer(graph, "pointermove", { clientX: 50, clientY: 5 });
+    graph.scheduler.performUpdate();
+    const target = graph.input.$hoveredComponent.value;
     expect(target === pins.declared || target === pins.deep).toBe(true);
     mid?.conceal();
     frames(3);
@@ -446,7 +446,7 @@ describe("hit levels of scene components", () => {
     for (const grandchild of [pins.deep, pins.declared]) {
       expect(found.includes(grandchild) || inRect.includes(grandchild)).toBe(false);
     }
-    expect(layer.$hoveredComponent.value === box).toBe(true);
+    expect(graph.input.$hoveredComponent.value === box).toBe(true);
   });
 
   it("keeps a hidden component hidden through a delegation and its end", () => {
@@ -529,16 +529,16 @@ describe("hit levels of scene components", () => {
         }
       )
     );
-    const layer = graph.getGraphLayer();
     // Scale 0.5 at the origin: the dot at world (100, 10) is at client (50, 5).
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 5 }));
-    expect(layer.$hoveredComponent.value === moving).toBe(true);
+    pointer(graph, "pointermove", { clientX: 50, clientY: 5 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value === moving).toBe(true);
     const hitBox = moving?.getHitBox();
     dotLevel.value = "detailed";
     frames(3);
     // The same bounds, so its hit box asks for nothing; the change of its hit levels does.
     expect(moving?.getHitBox()).toEqual(hitBox);
-    expect(layer.$hoveredComponent.value === box).toBe(true);
+    expect(graph.input.$hoveredComponent.value === box).toBe(true);
   });
 
   it("hits an element owner on the levels it declares", () => {
@@ -583,13 +583,13 @@ describe("hit levels of scene components", () => {
 
   it("finds the target again under a stationary pointer when the level changes without a camera move", () => {
     mount(Pin.create({ id: "pin" }, { ref: keep("pin") }));
-    const layer = graph.getGraphLayer();
     // Scale 0.5 at the origin: the pin at world (100, 10) is at client (50, 5).
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 5 }));
-    expect(layer.$hoveredComponent.value).toBe(pins.pin);
+    pointer(graph, "pointermove", { clientX: 50, clientY: 5 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(pins.pin);
     graph.updateSettings({ getCameraBlockScaleLevel: () => ECameraScaleLevel.Detailed });
     frames(3);
-    expect(layer.$hoveredComponent.value).toBe(box);
+    expect(graph.input.$hoveredComponent.value).toBe(box);
   });
 });
 
@@ -656,7 +656,7 @@ describe("hit levels of anchors", () => {
   const out = (id: string): Anchor | undefined => state(id)?.getAnchorById("out")?.getViewComponent();
 
   beforeEach(() => {
-    const root = document.createElement("div");
+    const root = pointerRoot();
     Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
     graph = new Graph(
       {
@@ -700,28 +700,28 @@ describe("hit levels of anchors", () => {
   it("gives an unshown detailed anchor's pointer gestures, hover and rect queries to the block", () => {
     graph.cameraService.set({ scale: 1, x: 0, y: 0 });
     frame();
-    const layer = graph.getGraphLayer();
     const anchor = out("plain");
     const block = state("plain")?.getViewComponent();
     const entered: string[] = [];
-    anchor?.addEventListener("mouseenter", () => entered.push("anchor"));
+    anchor?.addEventListener("pointerenter", () => entered.push("anchor"));
     const targets: unknown[] = [];
-    graph.on("mousedown", (event) => {
-      targets.push(event.detail.target);
+    graph.on("press", (event) => {
+      targets.push(event.target);
     });
     graph.on("click", (event) => {
-      targets.push(event.detail.target);
+      targets.push(event.target);
     });
     const busEntered: unknown[] = [];
-    graph.on("mouseenter", (event) => {
-      busEntered.push(event.detail.target);
+    graph.on("pointerenter", (event) => {
+      busEntered.push(event.target);
     });
     // Scale 1 at the origin: world = client.
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 300, clientY: 188 }));
-    for (const type of ["mousedown", "mouseup", "click"]) {
-      layer.handleEvent(new MouseEvent(type, { clientX: 300, clientY: 188 }));
+    pointer(graph, "pointermove", { clientX: 300, clientY: 188 });
+    graph.scheduler.performUpdate();
+    for (const type of ["pointerdown", "pointerup"]) {
+      pointer(graph, type, { clientX: 300, clientY: 188 });
     }
-    expect(layer.$hoveredComponent.value).toBe(block);
+    expect(graph.input.$hoveredComponent.value).toBe(block);
     expect(entered).toEqual([]);
     // The graph bus names the block as the entered target, as the component events do.
     expect(busEntered.length === 1 && busEntered[0] === block).toBe(true);
@@ -774,23 +774,16 @@ describe("hit levels of anchors", () => {
 
   it("leaves an unshown detailed anchor out of a rect selection that includes anchors", () => {
     graph.api.updateGraphConstants({ selectionLayer: { SELECTABLE_ENTITY_TYPES: [Block, Anchor] } });
-    let callbacks: DragOperationCallbacks | undefined;
-    jest.spyOn(graph.dragService, "startDrag").mockImplementation((dragCallbacks) => {
-      callbacks = dragCallbacks;
-      return undefined as unknown as ReturnType<Graph["dragService"]["startDrag"]>;
-    });
     // Inspect candidates before selection filters them: the stock anchor bucket defines no isRelatedElement.
     const related = jest.spyOn(graph.rootStore.selectionService, "selectRelatedElements");
     const given = (call: number): unknown[] => related.mock.calls[call]?.[0] ?? [];
     /** A meta-key rect selection from empty space (the camera) over the plain block's OUT anchor at (300, 188). */
     const selectAroundOut = (): void => {
-      // SelectionLayer starts a selection only when the press lands on the camera (empty space).
-      const target = Object.create(Camera.prototype) as Camera;
-      graph.emit("mousedown", { sourceEvent: new MouseEvent("mousedown", { metaKey: true }), target });
-      const event = new MouseEvent("mouseup");
-      callbacks?.onStart?.(event, [290, 178]);
-      callbacks?.onUpdate?.(event, [310, 198]);
-      callbacks?.onEnd?.(event, [310, 198]);
+      const callbacks = selectionDrag(graph);
+      const event = new PointerEvent("pointerup");
+      callbacks.start?.(event, [290, 178]);
+      callbacks.move?.(event, [310, 198], "pointer");
+      callbacks.end?.(event, [310, 198]);
     };
     graph.cameraService.set({ scale: 1, x: 0, y: 0 });
     frame();
@@ -806,29 +799,30 @@ describe("hit levels of anchors", () => {
   });
 
   it("keeps the target when a pan at one level creates anchors under a still pointer, until the next move", () => {
-    // `emulateMouseEventsOnCameraChange` is off (the default): a camera move finds no new target, and the first hit
+    // `retargetHoverOnCameraChange` is off (the default): a camera move finds no new target, and the first hit
     // mask of a lazily created anchor asks for no retarget either (Step 3).
     graph.setEntities({ blocks: [anchored("plain", 100), anchored("far", 3000)], connections: [] });
     frame();
-    const layer = graph.getGraphLayer();
     const entered: unknown[] = [];
-    graph.on("mouseenter", (event) => {
-      entered.push(event.detail.target);
+    graph.on("pointerenter", (event) => {
+      entered.push(event.target);
     });
     // Client (600, 94) is world (1200, 188) at scale 0.5 from the origin: empty space. The far block lies past the
     // camera's anchor search, so its anchors do not exist yet.
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 600, clientY: 94 }));
+    pointer(graph, "pointermove", { clientX: 600, clientY: 94 });
+    graph.scheduler.performUpdate();
     expect(out("far")).toBeUndefined();
-    expect(layer.$hoveredComponent.value).toBeUndefined();
+    expect(graph.input.$hoveredComponent.value).toBeUndefined();
     entered.splice(0);
     // A pan at the same scale puts the far block's OUT anchor point (3200, 188) under the pointer (600 - 3200 * 0.5).
     graph.cameraService.set({ x: -1000 });
     frame();
     expect(out("far") instanceof Anchor).toBe(true);
-    expect(layer.$hoveredComponent.value).toBeUndefined();
+    expect(graph.input.$hoveredComponent.value).toBeUndefined();
     expect(entered).toEqual([]);
-    // The next pointer move, 4 px on (past the 3 px threshold), finds the anchor: world (3208, 188).
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 604, clientY: 94 }));
-    expect(layer.$hoveredComponent.value).toBe(out("far"));
+    // The next pointer move, 4 px on, finds the anchor: world (3208, 188).
+    pointer(graph, "pointermove", { clientX: 604, clientY: 94 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(out("far"));
   });
 });

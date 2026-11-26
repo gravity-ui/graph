@@ -20,14 +20,12 @@ import { Group, TGroupGeometry, TGroupProps, TGroupStyle } from "./Group";
 
 declare module "../../../graphEvents" {
   interface GraphEventsDefinitions {
-    "group-collapse-change": (
-      event: CustomEvent<{
-        groupId: TGroupId;
-        collapsed: boolean;
-        currentRect: TRect;
-        nextRect: TRect;
-      }>
-    ) => void;
+    "group-collapse-change": {
+      groupId: TGroupId;
+      collapsed: boolean;
+      currentRect: TRect;
+      nextRect: TRect;
+    };
   }
 }
 

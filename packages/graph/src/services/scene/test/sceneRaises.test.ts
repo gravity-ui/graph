@@ -4,6 +4,7 @@ import { Box, BoxDot, TestLayer, boxSource, frames } from "../../../components/c
 import type { TBoxDotProps } from "../../../components/canvas/scene/test/utils/sceneTestKit";
 import { Graph } from "../../../graph";
 import type { ChildDescriptor } from "../../../lib/CoreComponent";
+import { pointer, pointerRoot } from "../../../test/pointer";
 import { entityKey } from "../../tags/TagStore";
 
 /** A dot with a hit box, so it takes part in hit-testing. */
@@ -89,7 +90,7 @@ describe("scene order in hit-testing and pointer state", () => {
   let graph: Graph;
 
   beforeEach(() => {
-    graph = new Graph({}, document.createElement("div"));
+    graph = new Graph({}, pointerRoot());
     graph.start();
     graph.cameraService.set({ x: 0, y: 0, scale: 1 });
   });
@@ -119,7 +120,7 @@ describe("scene order in hit-testing and pointer state", () => {
     expect(graph.getElementOverPoint({ x: 99, y: 10 })).toBe(refs.plain);
   });
 
-  it("clears all four pointer fields of an unmounted component", () => {
+  it("drops a removed press target and its capture before the pointer is released", () => {
     let box: Box | undefined;
     const layer = graph.addLayer(TestLayer, {
       children: [
@@ -135,13 +136,27 @@ describe("scene order in hit-testing and pointer state", () => {
       ],
     });
     frames(5);
-    const pointer = graph.getGraphLayer() as unknown as Record<string, object | undefined>;
-    const fields = ["targetComponent", "prevTargetComponent", "pointerStartTarget", "capturedTargetComponent"];
-    fields.forEach((field) => {
-      pointer[field] = box;
-    });
+    if (!box) throw new Error("The box must be mounted");
+    const release = jest.fn();
+    const click = jest.fn();
+    graph.on("release", release);
+    graph.on("click", click);
+    const position = { clientX: 50, clientY: 25 };
+    pointer(graph, "pointermove", position);
+    graph.scheduler.performUpdate();
+    pointer(graph, "pointerdown", position);
+    graph.input.hover.captureEvents(box);
+    expect(graph.input.$hoveredComponent.peek()).toBe(box);
     layer.setProps({ children: [] });
     frames();
-    fields.forEach((field) => expect(pointer[field]).toBeUndefined());
+    pointer(graph, "pointerup", position);
+    expect(graph.input.$hoveredComponent.peek()).toBeUndefined();
+    expect(release).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled();
+
+    pointer(graph, "pointerdown", position);
+    pointer(graph, "pointerup", position);
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(click.mock.calls[0][0].target === graph).toBe(true);
   });
 });

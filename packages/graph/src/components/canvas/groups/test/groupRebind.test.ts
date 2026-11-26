@@ -7,6 +7,7 @@ import type { PortState } from "../../../../store/connection/port/Port";
 import { createBlockPointPortId } from "../../../../store/connection/port/utils";
 import type { GroupState, TGroup } from "../../../../store/group/Group";
 import { ECanDrag } from "../../../../store/settings";
+import { pointer, pointerRoot } from "../../../../test/pointer";
 import { Block } from "../../blocks/Block";
 import type { TBlock } from "../../blocks/Block";
 import { BlockGroups } from "../BlockGroups";
@@ -61,7 +62,7 @@ describe("a kept group rebinds to the new group state of a group added back in t
 
   /** Blocks a and b in group g, block o outside it (700..800), connection c from a to o. */
   function start(group: TGroup | TCollapsibleGroup): void {
-    const root = document.createElement("div");
+    const root = pointerRoot();
     Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
     graph = new Graph({ settings: { useBezierConnections: false, dragThreshold: 0, canDrag: ECanDrag.ALL } }, root);
     graph.setEntities({
@@ -101,13 +102,12 @@ describe("a kept group rebinds to the new group state of a group added back in t
     graph.rootStore.groupsList.addGroup(group);
   };
   const click = (x: number, y: number): void => {
-    const layer = graph.getGraphLayer();
     const at = { clientX: x, clientY: y };
-    layer.handleEvent(new MouseEvent("mousemove", at));
-    layer.handleEvent(new MouseEvent("mousedown", at));
-    layer.handleEvent(new MouseEvent("mouseup", at));
-    document.dispatchEvent(new MouseEvent("mouseup", at));
-    layer.handleEvent(new MouseEvent("click", at));
+    pointer(graph, "pointermove", at);
+    graph.scheduler.performUpdate();
+    pointer(graph, "pointerdown", at);
+    pointer(graph, "pointerup", at);
+
     frames();
   };
 
@@ -167,16 +167,16 @@ describe("a kept group rebinds to the new group state of a group added back in t
       const component = viewOf();
       readd({ id: "g", rect: RECT });
       frames();
-      const layer = graph.getGraphLayer();
-      layer.handleEvent(new MouseEvent("mousemove", { clientX: 250, clientY: 100 }));
-      expect(layer.$hoveredComponent.value === component).toBe(true);
-      layer.handleEvent(new MouseEvent("mousedown", { clientX: 250, clientY: 100 }));
-      document.dispatchEvent(new MouseEvent("mousemove", { clientX: 250, clientY: 100 }));
-      document.dispatchEvent(new MouseEvent("mousemove", { clientX: 270, clientY: 100 }));
+      pointer(graph, "pointermove", { clientX: 250, clientY: 100 });
+      graph.scheduler.performUpdate();
+      expect(graph.input.$hoveredComponent.value === component).toBe(true);
+      pointer(graph, "pointerdown", { clientX: 250, clientY: 100 });
+      pointer(document, "pointermove", { clientX: 250, clientY: 100, buttons: 1 });
+      pointer(document, "pointermove", { clientX: 270, clientY: 100, buttons: 1 });
       const drag = graph.dragService.$state.value;
       expect(drag.isDragging).toBe(true);
       expect(drag.components.includes(component)).toBe(true);
-      document.dispatchEvent(new MouseEvent("mouseup", { clientX: 270, clientY: 100 }));
+      pointer(document, "pointerup", { clientX: 270, clientY: 100 });
       frames();
     });
 
@@ -330,7 +330,7 @@ describe("a kept group rebinds to the new group state of a group added back in t
       // The layer sets its groups again on every block change, so the collapsed group hides the new state again. Its
       // component binds in the frame (kept, or new after a frame), and the collapse delegates its ports then.
       it("stays hidden, and its ports stay delegated to the group's edge", () => {
-        const root = document.createElement("div");
+        const root = pointerRoot();
         Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
         graph = new Graph({ settings: { useBezierConnections: false } }, root);
         graph.setEntities({
@@ -363,7 +363,7 @@ describe("a kept group rebinds to the new group state of a group added back in t
        * their membership in one batch, under the grouping layer, and their components bind in the next frames.
        */
       const bulkBindCalls = (count: number): number => {
-        const root = document.createElement("div");
+        const root = pointerRoot();
         Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
         graph = new Graph({ settings: { useBezierConnections: false } }, root);
         const members = Array.from({ length: count }, (_, i) => block(`m${i}`, i * 120, "g"));

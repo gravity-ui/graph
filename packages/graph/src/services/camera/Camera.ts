@@ -1,17 +1,15 @@
 import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
-import { GraphMouseEvent } from "../../graphEvents";
 import { Component, ESchedulerPriority } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ChildDescriptor } from "../../lib/CoreComponent";
-import { getXY, isMetaKeyEvent } from "../../utils/functions";
+import { getXY } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
-import { dragListener, stopDragListening } from "../../utils/functions/dragListener";
-import type { DragEmitter } from "../../utils/functions/dragListener";
 import { EWheelIntent, isPinchZoomGesture } from "../../utils/functions/wheelIntent";
 import { EVENTS } from "../../utils/types/events";
 import { schedule } from "../../utils/utils/schedule";
-import { findDragTarget } from "../drag/utils/findDragTarget";
+import type { DragEmitter } from "../input/dragSession";
+import { createDragSession, stopDragListening } from "../input/dragSession";
 
 import { ICamera, TCameraState } from "./CameraService";
 
@@ -25,13 +23,11 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
   private ownerDocument: Document;
 
-  private lastDragEvent?: MouseEvent;
+  private autoPanPointer?: PointerEvent;
 
   private dragEmitter?: DragEmitter;
 
   private removeAutoPanScheduler?: () => void;
-
-  private lastMouseEvent?: MouseEvent;
 
   private unsubscribeCamera?: () => void;
 
@@ -42,7 +38,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.ownerDocument = this.context.ownerDocument;
 
     this.addWheelListener();
-    this.addEventListener("click", this.handleClick);
 
     this.unsubscribeCamera = this.context.graph.$camera.subscribe(this.handleCameraStateChange);
   }
@@ -57,9 +52,10 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     }
   };
 
-  protected handleClick = () => {
+  /** @internal Default action of activation on the canvas background. */
+  public handleBackgroundClick(): void {
     this.context.graph.api.unsetSelection();
-  };
+  }
 
   protected setRoot() {
     this.setContext({
@@ -94,9 +90,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       return; // Already running
     }
 
-    // Add mousemove listener to track cursor position
-    this.props.root?.addEventListener("mousemove", this.handleMouseMoveForAutoPan);
-
     // Start scheduler to check and perform auto-panning at ~60fps
     this.removeAutoPanScheduler = schedule(
       () => {
@@ -110,27 +103,27 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   }
 
   private stopAutoPanning(): void {
+    this.autoPanPointer = undefined;
     if (this.removeAutoPanScheduler) {
       this.removeAutoPanScheduler();
       this.removeAutoPanScheduler = undefined;
     }
-
-    this.props.root?.removeEventListener("mousemove", this.handleMouseMoveForAutoPan);
-    this.lastMouseEvent = undefined;
   }
 
-  private handleMouseMoveForAutoPan = (event: MouseEvent): void => {
-    this.lastMouseEvent = event;
-  };
+  /** @internal Auto-pan follows the pointer that owns the drag, including touch and out-of-root moves. */
+  public setAutoPanPointer(event: PointerEvent): void {
+    this.autoPanPointer = event;
+  }
 
   private performAutoPan(): void {
-    if (!this.lastMouseEvent || !this.props.root) {
+    const pointer = this.autoPanPointer ?? this.context.graph.input.hover.pointerPosition;
+    if (!pointer || !this.props.root) {
       return;
     }
 
     const rect = this.props.root.getBoundingClientRect();
-    const mouseX = this.lastMouseEvent.clientX - rect.left;
-    const mouseY = this.lastMouseEvent.clientY - rect.top;
+    const pointerX = pointer.clientX - rect.left;
+    const pointerY = pointer.clientY - rect.top;
 
     const cameraState = this.camera.getCameraState();
     const insets = cameraState.viewportInsets;
@@ -149,24 +142,24 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     let deltaY = 0;
 
     // Check left edge - move camera right to show more content on the left
-    if (mouseX < viewportLeft + AUTO_PAN_THRESHOLD && mouseX >= viewportLeft) {
-      const ratio = 1 - (mouseX - viewportLeft) / AUTO_PAN_THRESHOLD;
+    if (pointerX < viewportLeft + AUTO_PAN_THRESHOLD && pointerX >= viewportLeft) {
+      const ratio = 1 - (pointerX - viewportLeft) / AUTO_PAN_THRESHOLD;
       deltaX = AUTO_PAN_SPEED * ratio;
     }
     // Check right edge - move camera left to show more content on the right
-    else if (mouseX > viewportRight - AUTO_PAN_THRESHOLD && mouseX <= viewportRight) {
-      const ratio = 1 - (viewportRight - mouseX) / AUTO_PAN_THRESHOLD;
+    else if (pointerX > viewportRight - AUTO_PAN_THRESHOLD && pointerX <= viewportRight) {
+      const ratio = 1 - (viewportRight - pointerX) / AUTO_PAN_THRESHOLD;
       deltaX = -AUTO_PAN_SPEED * ratio;
     }
 
     // Check top edge - move camera down to show more content on the top
-    if (mouseY < viewportTop + AUTO_PAN_THRESHOLD && mouseY >= viewportTop) {
-      const ratio = 1 - (mouseY - viewportTop) / AUTO_PAN_THRESHOLD;
+    if (pointerY < viewportTop + AUTO_PAN_THRESHOLD && pointerY >= viewportTop) {
+      const ratio = 1 - (pointerY - viewportTop) / AUTO_PAN_THRESHOLD;
       deltaY = AUTO_PAN_SPEED * ratio;
     }
     // Check bottom edge - move camera up to show more content on the bottom
-    else if (mouseY > viewportBottom - AUTO_PAN_THRESHOLD && mouseY <= viewportBottom) {
-      const ratio = 1 - (viewportBottom - mouseY) / AUTO_PAN_THRESHOLD;
+    else if (pointerY > viewportBottom - AUTO_PAN_THRESHOLD && pointerY <= viewportBottom) {
+      const ratio = 1 - (viewportBottom - pointerY) / AUTO_PAN_THRESHOLD;
       deltaY = -AUTO_PAN_SPEED * ratio;
     }
 
@@ -176,92 +169,33 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     }
   }
 
-  /**
-   * Default action of the graph "mousedown": starts the camera pan.
-   *
-   * Called by {@link Graph.emit} after the event has been dispatched to all listeners and only when none of
-   * them prevented it, so a layer can take over the press regardless of when it subscribed.
-   * Not a graph listener: a plain `EventTarget` calls listeners in registration order, so the camera,
-   * created with the graph, would start panning before any layer could prevent the event.
-   *
-   * A press pans only when nothing in the pressed component's chain is draggable (D8, as in the DOM): a press on a
-   * child of a draggable block is the block's drag, which DragService starts. The middle button pans whatever it
-   * presses.
-   *
-   * @internal
-   */
-  public handleGraphMouseDown(event: GraphMouseEvent): void {
-    const nativeEvent = event.detail.sourceEvent;
-    if (!(nativeEvent instanceof MouseEvent)) {
-      return;
-    }
-    if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera")) {
-      return;
-    }
-    if (isMetaKeyEvent(nativeEvent)) {
-      return;
-    }
-
-    if (nativeEvent.button === 1) {
-      // Middle button: preventDefault stops DragService, which Graph.emit runs after the camera,
-      // and suppresses the browser's native middle-click autoscroll.
-      event.preventDefault();
-    } else if (event.detail.target !== this && this.isTargetDraggable(event.detail.target)) {
-      return;
-    }
-
-    // Left button on empty canvas — suppress native text selection before pan drag.
-    event.preventDefault();
-
-    // Camera drag doesn't need graph sync since it IS the camera
+  /** @internal Pan by the pointer displacement in CSS pixels, including the threshold-crossing move. */
+  public startPan(
+    hit: EventedComponent | undefined,
+    down: PointerEvent,
+    move: PointerEvent,
+    signal: AbortSignal
+  ): void {
     if (this.dragEmitter) stopDragListening(this.dragEmitter);
-    this.dragEmitter = dragListener(this.ownerDocument, {
+    let previous = down;
+    const session = createDragSession(this.ownerDocument, {
       graph: this.context.graph,
+      initialEvent: down,
+      component: hit ?? this,
       autopanning: false,
-      dragCursor: "grabbing",
+      cursor: "grabbing",
+      signals: [signal],
       onSessionEnd: () => {
         this.dragEmitter = undefined;
       },
-    })
-      .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
-      .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
-      .on(EVENTS.DRAG_END, () => this.onDragEnd())
-      .on(EVENTS.DRAG_CANCEL, () => this.onDragEnd());
+    });
+    this.dragEmitter = session.on(EVENTS.DRAG_UPDATE, (event) => {
+      this.camera.move(event.clientX - previous.clientX, event.clientY - previous.clientY);
+      previous = event;
+    });
+    session.start(move);
   }
 
-  /**
-   * Whether the press has a drag target (`findDragTarget`, D8): the target itself when it is draggable, else its
-   * nearest draggable ancestor. DragService handles that drag, so the camera pan is deferred then.
-   */
-  private isTargetDraggable(target: EventedComponent | undefined): boolean {
-    return findDragTarget(target) !== undefined;
-  }
-
-  private onDragStart(event: MouseEvent) {
-    this.lastDragEvent = event;
-  }
-
-  private onDragUpdate(event: MouseEvent) {
-    if (!this.lastDragEvent) {
-      return;
-    }
-    // No PAN_SPEED multiplier here: pointer drag tracks the cursor 1:1, otherwise
-    // the canvas slides out from under the pointer. PAN_SPEED only scales
-    // wheel-delta-driven pan gestures (see handlePan).
-    this.camera.move(event.pageX - this.lastDragEvent.pageX, event.pageY - this.lastDragEvent.pageY);
-    this.lastDragEvent = event;
-  }
-
-  private onDragEnd() {
-    this.lastDragEvent = undefined;
-  }
-
-  /**
-   * Applies a pan delta from wheel input.
-   *
-   * Transitional: invoked directly from {@link handleWheelEvent}. Will become a handler
-   * for a semantic `camera:pan` graph event once the input event bus replaces raw DOM subscriptions.
-   */
   private handlePan(event: WheelEvent): void {
     const hasWrongHorizontalScroll = event.shiftKey && Math.abs(event.deltaY) > 0.001;
     const panSpeed = this.context.constants.camera.PAN_SPEED;
@@ -272,12 +206,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     );
   }
 
-  /**
-   * Applies a zoom delta from wheel input.
-   *
-   * Transitional: invoked directly from {@link handleWheelEvent}. Will become a handler
-   * for a semantic `camera:zoom` graph event once the input event bus replaces raw DOM subscriptions.
-   */
   private handleZoom(event: WheelEvent, acceleration = 1): void {
     if (!event.deltaY) {
       return;
@@ -305,10 +233,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   }
 
   /**
-   * Transitional wheel entry point: resolves pan vs zoom intent, then dispatches to
-   * {@link handlePan} / {@link handleZoom}. Intent classification lives in
-   * {@link GraphEditorSettings.wheelIntentFromEvent} today; later an input layer will
-   * emit semantic graph events (`camera:pan`, `camera:zoom`, …) and Camera will subscribe.
+   * Routes a native wheel sample using the graph's resolveWheelIntent setting.
    */
   private handleWheelEvent = (event: WheelEvent) => {
     if (!this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera")) {

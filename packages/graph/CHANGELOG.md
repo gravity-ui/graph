@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased (v2)
+
+- Set `settings.clickPolicy` to `"exclusive"` when single and double clicks trigger separate actions. The default remains `"immediate"`. [Activation](./docs/system/event-model.md#activation)
+- Graph input requires native Pointer Events. Subscribe to `press` and `release` for button transitions and `click` or `dblclick` for activation. Hover events use `pointerenter`, `pointerleave`, `pointerover` and `pointerout`.
+- A tool claims `dragstart`, commits its drop in `end` and discards its preview in `cancel`. The camera applies its default action after event handlers. Observe `graph.$camera` for committed changes.
+- Touch leaves scrolling to the host page by default. Editors opt into touch dragging and pinch with `settings.touchPolicy: "editor"`. [Pointer input migration](./docs/migration-guides/v1-to-v2.md#migrating-pointer-input)
+
 ## [1.11.3](https://github.com/gravity-ui/graph/compare/v1.11.2...v1.11.3) (2026-07-15)
 
 

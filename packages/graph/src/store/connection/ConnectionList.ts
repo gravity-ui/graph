@@ -5,6 +5,7 @@ import { Graph } from "../../graph";
 import { Component } from "../../lib";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
+import type { TSelectionDiff } from "../../services/selection/types";
 import { RootStore } from "../index";
 
 import { ConnectionState, TConnection, TConnectionId } from "./ConnectionState";
@@ -13,7 +14,7 @@ import { PortsStore } from "./port/PortList";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
-    "connection-selection-change": (event: SelectionEvent<TConnectionId>) => void;
+    "connection-selection-change": TSelectionDiff<TConnectionId>;
   }
 }
 

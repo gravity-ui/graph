@@ -1,26 +1,32 @@
-import { GraphMouseEvent } from "../../../graphEvents";
+import type { Graph } from "../../../graph";
+import type { GraphEventContext, GraphEventMap, GraphEventOptions, GraphHoverEvents } from "../../../graphEvents";
 import { Component, TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { CoreComponent } from "../../../lib/CoreComponent";
-import { TypedEventListener, toDOMListener } from "../../../utils/eventListener";
+import {
+  clearGraphListeners,
+  deliverGraphEvent,
+  hasGraphListener,
+  listenGraphEvent,
+  removeGraphEvent,
+  withGraphEventTarget,
+} from "../../../lib/graphEventDispatch";
+import type { EventObserver } from "../../../lib/graphEventDispatch";
+import type { GestureName, GraphClickEvent } from "../../../services/input/press";
 
-/** The detail of the hover events GraphLayer dispatches (`mouseenter`, `mouseleave`, `mouseover`, `mouseout`; D5). */
+/** Fields shared by physical and scene-driven hover transitions. */
 export type TGraphHoverDetail = {
-  /** The hit target: the old one on `mouseleave`/`mouseout`, the new one on `mouseenter`/`mouseover`. */
-  target: EventedComponent | undefined;
-  /** The other side of the target change: none for the camera or outside the graph. */
+  target: EventedComponent;
   relatedTarget: EventedComponent | undefined;
-  sourceEvent: MouseEvent;
+  cause: "pointer" | "scene";
+  sourceEvent?: PointerEvent;
   pointerPressed: boolean;
 };
 
-/**
- * The pointer's target after a hover event: the target of a `mouseenter`/`mouseover`, the related target of a
- * `mouseleave`/`mouseout` (none for the camera or outside the graph).
- */
-export function pointerTargetAfter(event: Event): EventedComponent | undefined {
-  const detail = (event as CustomEvent<Partial<TGraphHoverDetail> | undefined>).detail;
-  if (typeof detail !== "object" || detail === null) return undefined;
-  return event.type === "mouseenter" || event.type === "mouseover" ? detail.target : detail.relatedTarget;
+type HoverEvent = GraphHoverEvents[keyof GraphHoverEvents];
+
+/** The component under the pointer after this transition, or undefined outside the graph. */
+export function pointerTargetAfter(event: HoverEvent): EventedComponent | undefined {
+  return event.type === "pointerenter" || event.type === "pointerover" ? event.target : event.relatedTarget;
 }
 
 /** Whether `target` is `ancestor` or one of its descendants (the CSS-like hover of `Block`). */
@@ -31,22 +37,13 @@ export function isWithinComponent(ancestor: CoreComponent, target: CoreComponent
   return false;
 }
 
-export interface EventedComponentEvents
-  extends Omit<HTMLElementEventMap, "mouseenter" | "mouseleave" | "mouseover" | "mouseout"> {
-  mouseenter: MouseEvent | GraphMouseEvent;
-  mouseleave: MouseEvent | GraphMouseEvent;
-  mouseover: MouseEvent | GraphMouseEvent;
-  mouseout: MouseEvent | GraphMouseEvent;
-  "graph-component-change": Event;
-  "graph-component-unmounted": Event;
-}
-
-type ComponentEvent<K extends string> = K extends keyof EventedComponentEvents ? EventedComponentEvents[K] : Event;
-type TEventedComponentListener<K extends string> = EventedComponent | TypedEventListener<ComponentEvent<K>, undefined>;
-type StoredListener = EventedComponent | EventListenerOrEventListenerObject;
-const listeners = new WeakMap<object, Map<string, Set<StoredListener>>>();
-// Lifecycle notifications must reach their listeners even when pointer interaction is disabled.
-const INTERACTIVITY_INDEPENDENT_EVENTS: ReadonlySet<string> = new Set(["graph-component-unmounted"]);
+type LifecycleName = "graph-component-change" | "graph-component-unmounted";
+type LifecycleEvents = { [K in LifecycleName]: GraphEventContext<K, EventedComponent> };
+export interface EventedComponentEvents extends GraphHoverEvents, Pick<GraphEventMap, GestureName>, LifecycleEvents {}
+type DispatchName = keyof GraphHoverEvents | LifecycleName;
+/** Events passed through the component's overridable dispatch and hover hooks. */
+export type ComponentDispatchEvent = EventedComponentEvents[DispatchName];
+type ComponentListener<K extends keyof EventedComponentEvents> = EventObserver<EventedComponentEvents[K]>;
 
 export type TEventedComponentProps = TComponentProps & { interactive?: boolean };
 
@@ -58,6 +55,8 @@ export class EventedComponent<
   public readonly evented: boolean = true;
 
   public cursor?: string;
+
+  private boundListener?: (event: ComponentDispatchEvent) => void;
 
   constructor(props: Props, parent: Component) {
     super(
@@ -77,41 +76,42 @@ export class EventedComponent<
     this.setProps({ interactive });
   }
 
-  private get events() {
-    let events = listeners.get(this);
-    if (!events) {
-      events = new Map();
-      listeners.set(this, events);
-    }
-    return events;
-  }
-
   protected unmount() {
-    listeners.delete(this);
+    clearGraphListeners(this);
     super.unmount();
   }
 
-  protected handleEvent(_: Event) {
-    // noop
+  protected handleEvent(_event: ComponentDispatchEvent) {
+    // A component can listen to its own or another component's notifications.
   }
 
-  /**
-   * Called for each event that walks through this component (its own and its descendants' bubbling up), before its
-   * listeners and whatever its interactivity, unless an earlier component stopped the event. A class overrides it to
-   * follow events without listeners of its own per instance (`Block`'s hover, D5). It does nothing here.
-   */
-  protected onDispatchedEvent(_event: Event): void {
+  public on<K extends keyof EventedComponentEvents>(
+    type: K,
+    listener: ComponentListener<NoInfer<K>>,
+    options?: GraphEventOptions & { capture?: false }
+  ): () => void {
+    if (typeof options === "boolean" ? options : options?.capture)
+      throw new TypeError("Only graph.on supports capture");
+    return listenGraphEvent(this, type, listener, options);
+  }
+
+  /** Handles the first applicable component default after click listeners have run. */
+  public applyClickDefault(_event: GraphClickEvent): boolean {
+    return false;
+  }
+
+  /** Called before this component's listeners, even when its pointer interaction is disabled. */
+  protected onDispatchedEvent(_event: ComponentDispatchEvent): void {
     // A hook for subclasses.
   }
 
   /** @internal A listener here, or a listener or dispatch hook on the path above this component. */
-  protected hasDispatchObserver(type: string): boolean {
-    if (listeners.get(this)?.get(type)?.size) return true;
+  protected hasDispatchObserver(type: DispatchName): boolean {
+    if (hasGraphListener(this, type)) return true;
     for (let parent = this.getParent(); parent; parent = parent.getParent()) {
       if (
         parent instanceof EventedComponent &&
-        (parent.onDispatchedEvent !== EventedComponent.prototype.onDispatchedEvent ||
-          listeners.get(parent)?.get(type)?.size)
+        (parent.onDispatchedEvent !== EventedComponent.prototype.onDispatchedEvent || hasGraphListener(parent, type))
       ) {
         return true;
       }
@@ -119,106 +119,69 @@ export class EventedComponent<
     return false;
   }
 
-  public listenEvents<K extends string>(
+  private get receiver() {
+    return (this.boundListener ??= this.handleEvent.bind(this));
+  }
+
+  public listenEvents<K extends DispatchName>(events: K[], listener: ComponentListener<NoInfer<K>>): Array<() => void>;
+  public listenEvents(events: DispatchName[], listener?: EventedComponent): Array<() => void>;
+  public listenEvents<K extends DispatchName>(
     events: K[],
-    listener: TypedEventListener<ComponentEvent<NoInfer<K>>, undefined>
-  ): Array<() => void>;
-  public listenEvents(events: string[], listener?: EventedComponent): Array<() => void>;
-  public listenEvents<K extends string>(events: K[], listener: TEventedComponentListener<NoInfer<K>> = this) {
-    const stored = eraseListener(listener);
-    return events.map((type) => this.addStoredListener(type, stored));
+    listener: ComponentListener<NoInfer<K>> | EventedComponent = this
+  ): Array<() => void> {
+    const observer = listener instanceof EventedComponent ? listener.receiver : listener;
+    return events.map((type) => this.on(type, observer));
   }
 
-  private addStoredListener(type: string, listener: StoredListener): () => void {
-    const cbs = this.events.get(type) || new Set<StoredListener>();
-    cbs.add(listener);
-    this.events.set(type, cbs);
-    return () => {
-      listeners.get(this)?.get(type)?.delete(listener);
-    };
-  }
-
-  public addEventListener<K extends string>(
+  public addEventListener<K extends DispatchName>(type: K, listener: ComponentListener<NoInfer<K>>): () => void;
+  public addEventListener(type: DispatchName, listener: EventedComponent): () => void;
+  public addEventListener<K extends DispatchName>(
     type: K,
-    cbOrObject: TypedEventListener<ComponentEvent<NoInfer<K>>, undefined>
-  ): () => void;
-  public addEventListener(type: string, cbOrObject: EventedComponent): () => void;
-  public addEventListener<K extends string>(type: K, cbOrObject: TEventedComponentListener<NoInfer<K>>) {
-    return this.addStoredListener(type, eraseListener(cbOrObject));
+    listener: ComponentListener<NoInfer<K>> | EventedComponent
+  ): () => void {
+    return this.on(type, listener instanceof EventedComponent ? listener.receiver : listener);
   }
 
-  public removeEventListener<K extends string>(
+  public removeEventListener<K extends DispatchName>(type: K, listener: ComponentListener<NoInfer<K>>): void;
+  public removeEventListener(type: DispatchName, listener: EventedComponent): void;
+  public removeEventListener<K extends DispatchName>(
     type: K,
-    cbOrObject: TypedEventListener<ComponentEvent<NoInfer<K>>, undefined>
-  ): void;
-  public removeEventListener(type: string, cbOrObject: EventedComponent): void;
-  public removeEventListener<K extends string>(type: K, cbOrObject: TEventedComponentListener<NoInfer<K>>) {
-    const cbs = this.events.get(type);
-    if (cbs) {
-      cbs.delete(eraseListener(cbOrObject));
-    }
+    listener: ComponentListener<NoInfer<K>> | EventedComponent
+  ) {
+    removeGraphEvent(this, type, listener instanceof EventedComponent ? listener.receiver : listener);
   }
 
-  protected _fireEvent(cmp: object, event: Event) {
-    if (this._isMutedByInteractivity(cmp, event.type)) {
-      return;
-    }
-    const handlers = listeners.get(cmp)?.get?.(event.type);
-
-    handlers?.forEach((cb) => {
-      if (typeof cb === "function") {
-        return cb(event);
-      } else if (cb instanceof EventedComponent) {
-        return cb.handleEvent(event);
-      }
-      return cb.handleEvent(event);
-    });
+  protected _fireEvent(component: EventedComponent, event: ComponentDispatchEvent) {
+    if (this._isMutedByInteractivity(component, event.type)) return;
+    const graph = component.context.graph as Graph | undefined;
+    const lifecycle = event.type === "graph-component-change" || event.type === "graph-component-unmounted";
+    deliverGraphEvent(component, event, false, graph?.scene?.$level?.peek(), { rethrow: lifecycle });
   }
 
-  /**
-   * Dispatches `event` at this component: it walks the parent chain from here (D5), `bubbles: false` or not, through
-   * each component's `onDispatchedEvent` and listeners, until a listener calls `stopPropagation()`. Returns false when
-   * the walk was stopped.
-   *
-   * GraphLayer dispatches the pointer events it passes on to components at their hit target, as the native events,
-   * unchanged (an emulated click is a copy of the browser's). Hover events (`mouseenter`, `mouseleave`, `mouseover`,
-   * `mouseout`) carry `detail.target` and `detail.relatedTarget` (`TGraphHoverDetail`); every pointer event's hit
-   * target is `getEventTarget(event)`, the same in each handler of the walk, so a parent can tell an event on itself
-   * from one that bubbled up from a child.
-   */
-  public dispatchEvent(event: Event): boolean {
+  /** Walks the component's parent chain until a hook or listener stops propagation. */
+  public dispatchEvent(event: ComponentDispatchEvent): boolean {
     return this._dipping(this, event);
   }
 
-  protected _dipping(startParent: { getParent(): CoreComponent | undefined }, event: Event) {
-    let stopPropagation = false;
-    let parent: { getParent(): CoreComponent | undefined } | undefined = startParent;
-    event.stopPropagation = () => {
-      stopPropagation = true;
-    };
-
-    while (parent) {
-      if (parent instanceof EventedComponent) parent.onDispatchedEvent(event);
-      if (stopPropagation) return false;
-      if (!this._isMutedByInteractivity(parent, event.type) && this._hasListener(parent, event.type)) {
-        this._fireEvent(parent, event);
-        if (stopPropagation) return false;
+  protected _dipping(startParent: Pick<CoreComponent, "getParent">, event: ComponentDispatchEvent) {
+    for (let parent: typeof startParent | undefined = startParent; parent; parent = parent.getParent()) {
+      if (!(parent instanceof EventedComponent)) continue;
+      if (parent.onDispatchedEvent !== EventedComponent.prototype.onDispatchedEvent) {
+        const component = parent;
+        withGraphEventTarget(event, component, () => component.onDispatchedEvent(event));
+        if (event.propagationStopped) return false;
       }
-      parent = parent.getParent();
+      if (this._hasListener(parent, event.type)) this._fireEvent(parent, event);
+      if (event.propagationStopped) return false;
     }
-
     return true;
   }
 
-  protected _isMutedByInteractivity(cmp: object, type: string): boolean {
-    return cmp instanceof EventedComponent && !cmp.isInteractive?.() && !INTERACTIVITY_INDEPENDENT_EVENTS.has(type);
+  protected _isMutedByInteractivity(component: EventedComponent, type: string): boolean {
+    return !component.isInteractive() && type !== "graph-component-unmounted";
   }
 
-  protected _hasListener(comp: object, type: string): boolean {
-    return listeners.get(comp)?.has?.(type) ?? false;
+  protected _hasListener(component: EventedComponent, type: DispatchName): boolean {
+    return hasGraphListener(component, type);
   }
-}
-
-function eraseListener<K extends string>(listener: TEventedComponentListener<K>): StoredListener {
-  return listener instanceof EventedComponent ? listener : toDOMListener(listener);
 }

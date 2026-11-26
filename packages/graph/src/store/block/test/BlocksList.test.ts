@@ -125,7 +125,7 @@ describe("BlocksList", () => {
       { ...b, x: 10, y: 20 },
     ]);
     store.flushBatchedBlocksGeometryEmit();
-    expect(changed.mock.calls.map(([event]) => event.detail.blocks)).toEqual([
+    expect(changed.mock.calls.map(([event]) => event.blocks)).toEqual([
       [{ id: b.id, x: 10, y: 20, width: b.width, height: b.height }],
     ]);
   });
@@ -201,8 +201,8 @@ describe("Blocks selection", () => {
     expect(handler).toHaveBeenCalledTimes(1);
     const eventArg = handler.mock.calls[0][0];
     // Проверяем, что в eventArg есть нужные id
-    expect(eventArg.detail.changes.add).toEqual([block1.id]);
-    expect(eventArg.detail.changes.removed).toEqual([]);
+    expect(eventArg.changes.add).toEqual([block1.id]);
+    expect(eventArg.changes.removed).toEqual([]);
   });
 
   it("Should prevent selection change if preventDefault called", () => {
@@ -260,8 +260,8 @@ describe("Anchors selection", () => {
 
     expect(handler).toHaveBeenCalledTimes(1);
     const eventArg = handler.mock.calls[0][0];
-    expect(eventArg.detail.anchor.id).toBe(anchorId);
-    expect(eventArg.detail.selected).toBe(true);
+    expect(eventArg.anchor.id).toBe(anchorId);
+    expect(eventArg.selected).toBe(true);
   });
 
   it("Should prevent anchor selection if preventDefault called", () => {
@@ -394,7 +394,7 @@ describe("Block-qualified anchor selection", () => {
     expect(store.$selectedAnchor.value).toBe(state);
     expect(store.anchorSelectionBucket.$selectedEntities.value).toEqual([state]);
     state?.setSelection(false);
-    expect(handler.mock.calls.map(([event]) => event.detail)).toEqual([
+    expect(handler.mock.calls.map(([{ anchor, selected }]) => ({ anchor, selected }))).toEqual([
       { anchor: { id: 7, blockId: "N", type: EAnchorType.OUT, index: 0 }, selected: true },
       { anchor: { id: 7, blockId: "N", type: EAnchorType.OUT, index: 0 }, selected: false },
     ]);
@@ -405,7 +405,7 @@ describe("Block-qualified anchor selection", () => {
     graph.on("block-anchor-selection-change", handler);
     store.setAnchorSelection("B", "out", true);
     store.setAnchorSelection("B", "out", false);
-    expect(handler.mock.calls.map(([event]) => event.detail)).toEqual([
+    expect(handler.mock.calls.map(([{ anchor, selected }]) => ({ anchor, selected }))).toEqual([
       { anchor: { id: "out", blockId: "B", type: EAnchorType.OUT, index: 0 }, selected: true },
       { anchor: { id: "out", blockId: "B", type: EAnchorType.OUT, index: 0 }, selected: false },
     ]);

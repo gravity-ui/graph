@@ -170,7 +170,8 @@ export class BlockGroupsTransferLayer<
     // Drag ended
     if (!dragState.isDragging) {
       if (this.transferState.isTransferring) {
-        this.endTransfer();
+        if (dragState.cancelled) this.cancelTransfer();
+        else this.endTransfer();
       }
       return;
     }
@@ -336,7 +337,7 @@ export class BlockGroupsTransferLayer<
   }
 
   /**
-   * End transfer on drag end (mouseup) - apply transfer if in transfer mode
+   * End transfer on drag end - apply transfer if in transfer mode
    */
   protected endTransfer(): void {
     const { highlightedGroupId, targetGroupId, blocks } = this.transferState;

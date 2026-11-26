@@ -40,7 +40,7 @@ export interface IPortConnectionMeta {
 export type TConnectionStartContext = {
   sourcePort: PortState;
   sourceComponent: GraphComponent;
-  event: MouseEvent;
+  event: PointerEvent;
 };
 
 export type TConnectionAllowedContext = {
@@ -93,29 +93,29 @@ declare module "@gravity-ui/graph" {
      * Fired when a user starts creating a connection from a port, an anchor or a block (Shift + drag).
      * Preventing this event prevents the selection of the source component.
      */
-    "connection-create-start": (event: CustomEvent<TConnectionCreateStartDetail>) => void;
+    "connection-create-start": TConnectionCreateStartDetail;
 
     /**
      * Fired when the dragged endpoint enters or leaves a potential target.
      * Preventing this event prevents the selection of the target component.
      */
-    "connection-create-hover": (event: CustomEvent<TConnectionCreateHoverDetail>) => void;
+    "connection-create-hover": TConnectionCreateHoverDetail;
 
     /**
      * Fired when a connection is created between two ports.
      * By default, this adds the connection to the connectionsList in the store.
      * Preventing this event prevents the connection from being added to the store.
      */
-    "connection-created": (event: CustomEvent<TConnectionCreatedDetail>) => void;
+    "connection-created": TConnectionCreatedDetail;
 
     /**
      * Fired when the user releases the mouse button, whether or not a connection was created.
      */
-    "connection-create-drop": (event: CustomEvent<TConnectionCreateDropDetail>) => void;
+    "connection-create-drop": TConnectionCreateDropDetail;
 
     /**
      * Fired when creation is cancelled: Escape, the source disappears, or the layer is detached mid-drag.
      */
-    "connection-create-cancel": (event: CustomEvent<TConnectionCreateCancelDetail>) => void;
+    "connection-create-cancel": TConnectionCreateCancelDetail;
   }
 }

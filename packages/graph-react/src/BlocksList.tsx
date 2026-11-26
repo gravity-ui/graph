@@ -35,7 +35,7 @@ export const Block: React.FC<TBlockProps> = memo((props: TBlockProps) => {
  * Note: lodash.isEqual is more memory-efficient for large lists, but we expect no more than 100 blocks
  * in detailed view, where Set-based comparison significantly outperforms map.sort + lodash.isEqual
  */
-/** BlocksList's hold of the pointer's retarget (`GraphLayer.holdRetarget`) while the detailed level's views mount. */
+/** BlocksList's hold of the pointer's retarget (`graph.input.hover.holdRetarget`) while the detailed level's views mount. */
 type TRetargetHold = {
   /** Whether a list was asked for under it: it waits for that list's commit. */
   waitsForList: boolean;
@@ -69,7 +69,7 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
   // The views of the detailed level mount after React commits them, a frame or more after the level changed; their
   // blocks take their holds then (`GraphBlock`, `delegateRender`). Until then a still pointer's target waits, so an
   // anchor it is on is not dropped and taken back. The hold ends when the list it waits for commits, a newer list
-  // replaces that one, the level leaves detailed, this list unmounts, or after a few graph frames (GraphLayer's bound):
+  // replaces that one, the level leaves detailed, this list unmounts, or after a few graph frames (the input service's bound):
   // a commit that never comes (a suspended transition) delays the pointer's target no longer than that.
   useLayoutEffect(() => {
     const unsubscribe = graphObject.scene.$level.subscribe((level) => {
@@ -80,7 +80,7 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
       if (retargetHold.current) return;
       const hold: TRetargetHold = {
         waitsForList: false,
-        release: graphObject.getGraphLayer().holdRetarget(() => {
+        release: graphObject.input.hover.holdRetarget(() => {
           // Its bound released it: the list it waited for is given up on.
           if (retargetHold.current === hold) retargetHold.current = undefined;
         }),
@@ -132,7 +132,7 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
     setGraphState(graphObject.state);
 
     return graphObject.on("state-change", (event) => {
-      setGraphState(event.detail.state);
+      setGraphState(event.state);
     });
   }, [graphObject, setGraphState]);
 

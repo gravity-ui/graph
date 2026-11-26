@@ -13,18 +13,18 @@ export type DragOperationOptions = {
   component?: GraphComponent;
   /** Enable autopanning when dragging near edges */
   autopanning?: boolean;
-  /** Stop drag when mouse leaves the document */
-  stopOnMouseLeave?: boolean;
+  /** Stop drag when the pointer leaves the document */
+  stopOnPointerLeave?: boolean;
   /**
-   * Minimum distance in pixels the mouse must move before drag starts.
+   * Minimum distance in CSS pixels the pointer must move before drag starts.
    * If not set, uses graph's dragThreshold setting.
    */
   threshold?: number;
   /**
    * Initial event to use for threshold calculation.
-   * If not set, uses the first mousemove event.
+   * If not set, uses the first movement as the origin.
    */
-  initialEvent?: MouseEvent;
+  initialEvent?: PointerEvent;
   /**
    * Blocks browser text selection for the drag session.
    * @default true
@@ -36,17 +36,17 @@ export type DragOperationOptions = {
  * Callbacks for custom drag operation lifecycle
  */
 export type DragOperationCallbacks = {
-  /** Called when drag starts (first mousemove after mousedown) */
-  onStart?: (event: MouseEvent, coords: [number, number]) => void;
-  /** Called on each mousemove during drag */
-  onUpdate?: (event: MouseEvent, coords: [number, number]) => void;
-  /** Called when drag ends (mouseup) */
-  onEnd?: (event: MouseEvent, coords: [number, number]) => void;
+  /** Called when movement reaches the threshold */
+  onStart?: (event: PointerEvent, coords: [number, number]) => void;
+  /** Called on movement and when autopanning moves the camera */
+  onUpdate?: (event: PointerEvent, coords: [number, number], cause: "pointer" | "scene") => void;
+  /** Called when the initiating button is released */
+  onEnd?: (event: PointerEvent, coords: [number, number]) => void;
   /**
-   * Called with the last mouse event and coordinates on cancellation. Service and browser
-   * cancellation fall back to onEnd when this is omitted. The drag handle calls only onCancel.
+   * Called with the last pointer event and coordinates on cancellation. Calling DragService.cancel()
+   * falls back to onEnd when this is omitted. Pointer cancellation discards the operation.
    */
-  onCancel?: (event: MouseEvent, coords: [number, number]) => void;
+  onCancel?: (event: PointerEvent, coords: [number, number]) => void;
 };
 
 /**
@@ -55,10 +55,12 @@ export type DragOperationCallbacks = {
 export type DragState = {
   /** Whether a drag operation is currently in progress */
   isDragging: boolean;
-  /** The initial mouse event that started the drag operation (for checking modifiers like shiftKey) */
-  initialEvent: MouseEvent | null;
-  /** The current mouse event (updated on each drag move) */
-  currentEvent: MouseEvent | null;
+  /** True on the idle state published after the component drag was cancelled. */
+  cancelled: boolean;
+  /** The initial pointer event that started the drag operation (for checking modifiers like shiftKey) */
+  initialEvent: PointerEvent | null;
+  /** The current pointer event (updated on each drag move) */
+  currentEvent: PointerEvent | null;
   /** Components participating in the current drag operation */
   components: GraphComponent[];
   /** Set of component type names (constructor names) participating in drag */
@@ -77,8 +79,8 @@ export type DragState = {
  * Context passed to drag lifecycle methods
  */
 export type DragContext = {
-  /** The native mouse event */
-  sourceEvent: MouseEvent;
+  /** The native pointer event */
+  sourceEvent: PointerEvent;
   /** Starting coordinates in world space when drag began */
   startCoords: [number, number];
   /** Previous coordinates in world space from last frame */

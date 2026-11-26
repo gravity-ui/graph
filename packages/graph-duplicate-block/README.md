@@ -13,7 +13,7 @@ graph.addLayer(DuplicateBlockLayer, {
   isDuplicateAllowed: (block) => block.connectedState.$state.value.is !== "restricted-block",
 });
 graph.on("blocks-duplicate", (event) => {
-  console.log("Copied", event.detail.items.length, "blocks by", event.detail.delta);
+  console.log("Copied", event.items.length, "blocks by", event.delta);
 });
 graph.start();
 ```

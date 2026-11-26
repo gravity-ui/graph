@@ -5,6 +5,7 @@ import type { AnchorState } from "../../../../store/anchor/Anchor";
 import { anchorEntityId } from "../../../../store/anchor/anchorEntityId";
 import { createAnchorPortId } from "../../../../store/connection/port/utils";
 import { ECanDrag } from "../../../../store/settings";
+import { pointer, pointerRoot } from "../../../../test/pointer";
 import type { TBlock } from "../../blocks/Block";
 import { Anchor } from "../index";
 import type { TAnchor, TAnchorProps } from "../index";
@@ -43,7 +44,7 @@ describe("a retained anchor rebinds to the new anchor state of a block added bac
 
   /** Blocks a (x 100..300, anchors in at (100, 188) and out at (300, 188)) and b (x 600..800, out at (800, 188)). */
   function start(scale = NEAR): void {
-    const root = document.createElement("div");
+    const root = pointerRoot();
     Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
     graph = new Graph({ settings: { useBlocksAnchors: true, dragThreshold: 0, canDrag: ECanDrag.ALL } }, root);
     graph.setEntities({
@@ -71,7 +72,7 @@ describe("a retained anchor rebinds to the new anchor state of a block added bac
     graph.rootStore.blocksList.addBlock(block("a", 100, anchors));
   };
   /** The client point of a world point (camera at the origin, scale 0.5). */
-  const client = (x: number, y: number): MouseEventInit => ({ clientX: x * NEAR, clientY: y * NEAR });
+  const client = (x: number, y: number): PointerEventInit => ({ clientX: x * NEAR, clientY: y * NEAR });
 
   afterEach(() => {
     graph.unmount();
@@ -180,15 +181,14 @@ describe("a retained anchor rebinds to the new anchor state of a block added bac
     const component = viewOf("a", "out");
     readd([IN, OUT]);
     frames();
-    const layer = graph.getGraphLayer();
     const at = client(300, 188);
-    layer.handleEvent(new MouseEvent("mousemove", at));
-    expect(layer.$hoveredComponent.value === component).toBe(true);
+    pointer(graph, "pointermove", at);
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value === component).toBe(true);
     const click = (): void => {
-      layer.handleEvent(new MouseEvent("mousedown", at));
-      layer.handleEvent(new MouseEvent("mouseup", at));
-      document.dispatchEvent(new MouseEvent("mouseup", at));
-      layer.handleEvent(new MouseEvent("click", at));
+      pointer(graph, "pointerdown", at);
+      pointer(graph, "pointerup", at);
+
       frames();
     };
     click();
@@ -203,17 +203,17 @@ describe("a retained anchor rebinds to the new anchor state of a block added bac
     const component = viewOf("a", "out");
     readd([IN, OUT]);
     frames();
-    const layer = graph.getGraphLayer();
-    layer.handleEvent(new MouseEvent("mousemove", client(300, 188)));
-    expect(layer.$hoveredComponent.value === component).toBe(true);
-    layer.handleEvent(new MouseEvent("mousedown", client(300, 188)));
-    // The first move starts the drag (threshold 0), the next one moves it.
-    document.dispatchEvent(new MouseEvent("mousemove", client(300, 188)));
-    document.dispatchEvent(new MouseEvent("mousemove", client(320, 188)));
+    pointer(graph, "pointermove", client(300, 188));
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value === component).toBe(true);
+    pointer(graph, "pointerdown", client(300, 188));
+    // A stationary sample does nothing; displacement starts the drag and moves the block.
+    pointer(document, "pointermove", { ...client(300, 188), buttons: 1 });
+    pointer(document, "pointermove", { ...client(320, 188), buttons: 1 });
     const drag = graph.dragService.$state.value;
     expect(drag.isDragging).toBe(true);
     expect(drag.components.includes(component)).toBe(true);
-    document.dispatchEvent(new MouseEvent("mouseup", client(320, 188)));
+    pointer(document, "pointerup", client(320, 188));
     frames();
     expect(graph.rootStore.blocksList.getBlockState("a")?.x).toBe(120);
   });
@@ -276,9 +276,9 @@ describe("a retained anchor rebinds to the new anchor state of a block added bac
   it("keeps the hover tag on the anchor's entity and asks for no retarget of its own", () => {
     start();
     const component = viewOf("a", "out");
-    const layer = graph.getGraphLayer();
-    layer.handleEvent(new MouseEvent("mousemove", client(300, 188)));
-    expect(layer.$hoveredComponent.value === component).toBe(true);
+    pointer(graph, "pointermove", client(300, 188));
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value === component).toBe(true);
     const tagged = (): boolean => graph.scene.tags.peekOf("anchor", anchorEntityId("a", "out")).has(hoveredTag);
     expect(tagged()).toBe(true);
     const queries = jest.spyOn(graph, "getElementOverPoint");
@@ -286,10 +286,11 @@ describe("a retained anchor rebinds to the new anchor state of a block added bac
     frames();
     // Same place, same component: the target and its tag stay, and nothing finds the target again.
     expect(queries).not.toHaveBeenCalled();
-    expect(layer.$hoveredComponent.value === component).toBe(true);
+    expect(graph.input.$hoveredComponent.value === component).toBe(true);
     expect(tagged()).toBe(true);
     // The pointer leaves: the tag goes from the same entity.
-    layer.handleEvent(new MouseEvent("mousemove", client(500, 500)));
+    pointer(graph, "pointermove", client(500, 500));
+    graph.scheduler.performUpdate();
     expect(tagged()).toBe(false);
   });
 });

@@ -1,27 +1,34 @@
-import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "@gravity-ui/graph";
+import type { GraphEventListener, GraphEventName } from "@gravity-ui/graph";
 
 export const GraphCallbacksMap = {
-  click: "click",
-  dblclick: "dblclick",
+  onPress: "press",
+  onRelease: "release",
+  onClick: "click",
+  onDoubleClick: "dblclick",
+  onDragStart: "dragstart",
+  onLongPress: "longpress",
+  onPinch: "pinch",
+  onPointerEnter: "pointerenter",
+  onPointerLeave: "pointerleave",
+  onPointerOver: "pointerover",
+  onPointerOut: "pointerout",
   onCameraChange: "camera-change",
+  onConstantsChanged: "constants-changed",
+  onColorsChanged: "colors-changed",
+  onStateChange: "state-change",
+  onSceneStateChange: "scene-state-change",
   onBlockDragStart: "block-drag-start",
   onBlockDrag: "block-drag",
   onBlockDragEnd: "block-drag-end",
-  onBlockSelectionChange: "blocks-selection-change",
+  onBlocksSelectionChange: "blocks-selection-change",
   onBlockAnchorSelectionChange: "block-anchor-selection-change",
   onBlockChange: "block-change",
   onBlocksGeometryChange: "blocks-geometry-change",
   onConnectionSelectionChange: "connection-selection-change",
-  onStateChanged: "state-change",
-  onSceneStateChanged: "scene-state-change",
-} as const satisfies Record<string, keyof GraphEventsDefinitions>;
+  onGroupsSelectionChange: "groups-selection-change",
+  onGroupCollapseChange: "group-collapse-change",
+} as const satisfies Record<string, GraphEventName>;
 
 export type TGraphEventCallbacks = {
-  [K in keyof typeof GraphCallbacksMap]: (
-    data: UnwrapGraphEventsDetail<(typeof GraphCallbacksMap)[K]>,
-    event: UnwrapGraphEvents<(typeof GraphCallbacksMap)[K]>
-  ) => void;
+  [K in keyof typeof GraphCallbacksMap]: GraphEventListener<(typeof GraphCallbacksMap)[K]>;
 };
-
-export type GraphEventDetail<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[0];
-export type GraphEvent<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[1];

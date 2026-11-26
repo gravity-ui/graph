@@ -190,7 +190,7 @@ describe("graph.scene", () => {
       const changes: TSceneState[] = [];
       graph.on("scene-state-change", (event) => {
         expect(event.cancelable).toBe(false);
-        changes.push(event.detail.state);
+        changes.push(event.state);
       });
       expect(graph.scene.state).toBe("init");
       graph.start();

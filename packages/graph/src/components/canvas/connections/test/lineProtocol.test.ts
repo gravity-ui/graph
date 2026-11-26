@@ -4,6 +4,7 @@ import { defineSceneEffect } from "../../../../lib/scene/effects/defineSceneEffe
 import type { TScenePrimitive } from "../../../../lib/scene/types";
 import type { HitBoxData } from "../../../../services/HitTest";
 import type { TConnection } from "../../../../store/connection/ConnectionState";
+import { pointer } from "../../../../test/pointer";
 import type { TBaseConnectionState } from "../BaseConnection";
 import { BlockConnection } from "../BlockConnection";
 import type { BlockConnections } from "../BlockConnections";
@@ -301,8 +302,10 @@ describe("BlockConnection line protocol", () => {
     const connection = view(graph, "a");
     const other = view(graph, "b");
 
-    graph.getGraphLayer().handleEvent(new MouseEvent("mousemove", { clientX: 180, clientY: 100 }));
-    expect(graph.getGraphLayer().$hoveredComponent.value).toBe(connection);
+    pointer(graph, "pointermove", { clientX: 180, clientY: 100 });
+
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(connection);
     frames(8);
 
     expect(pathsOf(graph, "a").map(({ stroke }) => stroke.width)).toEqual([4, 4]);

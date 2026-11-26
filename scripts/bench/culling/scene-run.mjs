@@ -396,7 +396,7 @@ for (const scene of scenes) {
           if (result.sceneMs !== null) results[mode].scene.push(result.sceneMs);
           results[mode].minimapDraws.push(result.minimapDraws);
           if (mode === "hover") {
-            // Every move of the path changes the target (body, anchor, body, the next body): fewer `mouseenter`
+            // Every move of the path changes the target (body, anchor, body, the next body): fewer `pointerenter`
             // events than moves mean the run did not take the path it reports. `10` is the run's warmup.
             const moves = 10 + steps;
             if (result.hoverEnters < moves) fail(`hover: ${result.hoverEnters} target changes in ${moves} moves`);

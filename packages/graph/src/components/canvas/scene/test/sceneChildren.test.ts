@@ -8,7 +8,9 @@ import type { TSceneLevel } from "../../../../services/scene/types";
 import { entityKey } from "../../../../services/tags/TagStore";
 import { hoveredTag } from "../../../../services/tags/builtinTags";
 import { anchorEntityId } from "../../../../store/anchor/anchorEntityId";
+import { pointer, pointerRoot } from "../../../../test/pointer";
 import type { TRect } from "../../../../utils/types/shapes";
+import type { ComponentDispatchEvent } from "../../EventedComponent/EventedComponent";
 import { isWithinComponent, pointerTargetAfter } from "../../EventedComponent/EventedComponent";
 import type { TGraphComponentProps } from "../../GraphComponent";
 import { Anchor } from "../../anchors";
@@ -20,12 +22,10 @@ import { SceneComponent } from "../SceneComponent";
 import { Box, TestLayer, boxSource, frames } from "./utils/sceneTestKit";
 import type { TBoxProps, TBoxSource } from "./utils/sceneTestKit";
 
-const EVENTS = ["click", "mouseenter", "mouseleave", "mouseover", "mouseout"] as const;
+const EVENTS = ["pointerenter", "pointerleave", "pointerover", "pointerout"] as const;
 
 /** Every component event of the current test, as `listener:type:target`, in the order they arrive. */
 let events: string[] = [];
-
-const targetOf = (event: Event): unknown => (event as CustomEvent<{ target?: unknown }>).detail?.target;
 
 type TChipProps = TGraphComponentProps & {
   id: string;
@@ -49,8 +49,9 @@ class ChipBox extends Box {
 
   constructor(props: TBoxProps, parent: Component) {
     super(props, parent);
+    this.on("click", (event) => events.push(`box:click:${nameOf(event.target)}`));
     EVENTS.forEach((type) => {
-      this.addEventListener(type, (event: Event) => events.push(`box:${type}:${nameOf(targetOf(event))}`));
+      this.addEventListener(type, (event) => events.push(`box:${type}:${nameOf(event.target)}`));
     });
   }
 
@@ -68,9 +69,9 @@ class ChipBox extends Box {
     this.performRender();
   }
 
-  protected override onDispatchedEvent(event: Event): void {
+  protected override onDispatchedEvent(event: ComponentDispatchEvent): void {
     super.onDispatchedEvent(event);
-    if (event.type === "mouseenter" || event.type === "mouseleave") {
+    if (event.type === "pointerenter" || event.type === "pointerleave") {
       this.setHoveredTag(isWithinComponent(this, pointerTargetAfter(event)));
     }
   }
@@ -91,11 +92,14 @@ class Chip extends SceneComponent<TChipProps> {
 
   constructor(props: TChipProps, parent: Component) {
     super(props, parent);
+    this.on("click", (event) => {
+      events.push(`${this.props.id}:click:${nameOf(event.target)}`);
+      if (this.props.stop) event.stopPropagation();
+    });
     EVENTS.forEach((type) => {
-      this.addEventListener(type, (event: Event) => {
-        events.push(`${this.props.id}:${type}:${nameOf(targetOf(event))}`);
-        if (type === "click" && this.props.stop) event.stopPropagation();
-        if (type === "mouseenter" || type === "mouseleave") this.setHoveredTag(pointerTargetAfter(event) === this);
+      this.addEventListener(type, (event) => {
+        events.push(`${this.props.id}:${type}:${nameOf(event.target)}`);
+        if (type === "pointerenter" || type === "pointerleave") this.setHoveredTag(pointerTargetAfter(event) === this);
       });
     });
   }
@@ -205,12 +209,12 @@ class SelfHoverBlock extends Block {
 class KeepingBlock extends Block {
   protected override willMount(): void {
     // A hover state of its own, set from its own enter and leave.
-    this.addEventListener("mouseenter", () => undefined);
-    this.addEventListener("mouseleave", () => undefined);
+    this.addEventListener("pointerenter", () => undefined);
+    this.addEventListener("pointerleave", () => undefined);
     super.willMount();
   }
 
-  public override dispatchEvent(event: Event): boolean {
+  public override dispatchEvent(event: ComponentDispatchEvent): boolean {
     if (!this.isInteractive()) return this._dipping(this, event);
     if (this._hasListener(this, event.type)) this._fireEvent(this, event);
     return false;
@@ -219,7 +223,7 @@ class KeepingBlock extends Block {
 
 /** The custom dispatch invokes the hover hook before its own listeners and preserves propagation stopping. */
 class AdaptedKeepingBlock extends KeepingBlock {
-  public override dispatchEvent(event: Event): boolean {
+  public override dispatchEvent(event: ComponentDispatchEvent): boolean {
     if (!this.isInteractive()) return this._dipping(this, event);
     this.onDispatchedEvent(event);
     if (this._hasListener(this, event.type)) this._fireEvent(this, event);
@@ -244,7 +248,7 @@ describe("child scene components", () => {
     chips = children;
     events = [];
     source = boxSource("box");
-    graph = new Graph({}, document.createElement("div"));
+    graph = new Graph({}, pointerRoot());
     graph.start();
     graph.cameraService.set({ x: 0, y: 0, scale: 1 });
     graph.addLayer(TestLayer, {
@@ -265,11 +269,14 @@ describe("child scene components", () => {
   const childIds = (): string[] => graph.scene.store.childrenOf(entityKey("box", "b")).map((element) => element.id);
   const chipKey = (id: string): string => entityKey("chip", id);
   /** A pointer move to a world point (scale 1, camera at the origin: world = client). */
-  const move = (x: number, y: number): void =>
-    graph.getGraphLayer().handleEvent(new MouseEvent("mousemove", { clientX: x, clientY: y }));
+  const move = (x: number, y: number, buttons = 0): void => {
+    pointer(graph, "pointermove", { clientX: x, clientY: y, buttons }, performance.now());
+    jest.advanceTimersByTime(80);
+    frames(1);
+  };
   /** The enter and leave entries so far; the log is cleared. */
   const take = (): string[] => {
-    const taken = events.filter((entry) => /:mouse(enter|leave):/.test(entry));
+    const taken = events.filter((entry) => /:pointer(enter|leave):/.test(entry));
     events = [];
     return taken;
   };
@@ -295,10 +302,16 @@ describe("child scene components", () => {
     mount([chip("c1", 5), chip("stop", 40, { stop: true })]);
     expect(graph.getElementOverPoint({ x: 15, y: 15 })).toBe(kept.c1);
     expect(graph.getElementOverPoint({ x: 60, y: 30 })).toBe(box);
-    kept.c1.dispatchEvent(new CustomEvent("click", { detail: { target: kept.c1 } }));
-    kept.stop.dispatchEvent(new CustomEvent("click", { detail: { target: kept.stop } }));
+    for (const clientX of [15, 50]) {
+      pointer(graph, "pointerdown", { clientX, clientY: 15 });
+      pointer(graph, "pointerup", { clientX, clientY: 15 });
+    }
     // The child's handler runs first, then the parent's through the parent walk; a stopped click stays with the child.
-    expect(events).toEqual(["c1:click:c1", "box:click:c1", "stop:click:stop"]);
+    expect(events.filter((entry) => entry.includes(":click:"))).toEqual([
+      "c1:click:c1",
+      "box:click:c1",
+      "stop:click:stop",
+    ]);
   });
 
   it("nests to any depth: the pre-order, a reorder moves the subtree, a late child lands after its parent's", () => {
@@ -391,29 +404,34 @@ describe("child scene components", () => {
   });
 
   describe("hover events and hoveredTag", () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
     it("bubbles a child's enter and leave to its parent; the box stays tagged over a chip, a chip while target", () => {
       mount([chip("c1", 5), chip("c2", 40)]);
       move(60, 30);
-      expect(take()).toEqual(["box:mouseenter:box"]);
+      expect(take()).toEqual(["box:pointerenter:box"]);
       move(15, 15);
       // The box's own leave (its relatedTarget is c1, inside the box), then c1's enter, bubbling up to the box.
-      expect(take()).toEqual(["box:mouseleave:box", "c1:mouseenter:c1", "box:mouseenter:c1"]);
+      expect(take()).toEqual(["box:pointerleave:box", "c1:pointerenter:c1", "box:pointerenter:c1"]);
       expect([tagged("box", "b"), tagged("chip", "c1")]).toEqual([true, true]);
       move(50, 15);
-      expect(take()).toEqual(["c1:mouseleave:c1", "box:mouseleave:c1", "c2:mouseenter:c2", "box:mouseenter:c2"]);
+      expect(take()).toEqual([
+        "c1:pointerleave:c1",
+        "box:pointerleave:c1",
+        "c2:pointerenter:c2",
+        "box:pointerenter:c2",
+      ]);
       expect([tagged("box", "b"), tagged("chip", "c1"), tagged("chip", "c2")]).toEqual([true, false, true]);
       move(500, 500);
-      expect(take()).toEqual(["c2:mouseleave:c2", "box:mouseleave:c2"]);
+      expect(take()).toEqual(["c2:pointerleave:c2", "box:pointerleave:c2"]);
       expect([tagged("box", "b"), tagged("chip", "c2")]).toEqual([false, false]);
     });
 
     it("gives the related target: the other side of the change, none for the camera", () => {
       mount([chip("c1", 5)]);
       const related: string[] = [];
-      const relatedOf = (event: Event): unknown =>
-        (event as CustomEvent<{ relatedTarget?: unknown }>).detail?.relatedTarget;
-      box?.addEventListener("mouseleave", (event: Event) => related.push(`leave:${nameOf(relatedOf(event))}`));
-      box?.addEventListener("mouseenter", (event: Event) => related.push(`enter:${nameOf(relatedOf(event))}`));
+      box?.addEventListener("pointerleave", (event) => related.push(`leave:${nameOf(event.relatedTarget)}`));
+      box?.addEventListener("pointerenter", (event) => related.push(`enter:${nameOf(event.relatedTarget)}`));
       move(60, 30);
       move(15, 15);
       move(500, 500);
@@ -424,12 +442,12 @@ describe("child scene components", () => {
     it("sends the graph's hover events with both sides of the change, only for the sides that exist", () => {
       mount([chip("c1", 5)]);
       const bus: string[] = [];
-      // `relatedTarget` is typed on the bus's `GraphMouseEvent` (`graphEvents.ts`): typecheck checks these lines.
-      graph.on("mouseenter", (event) => {
-        bus.push(`enter:${nameOf(event.detail.target)}:${nameOf(event.detail.relatedTarget)}`);
+      // The graph and component events carry the same other side of the transition.
+      graph.on("pointerenter", (event) => {
+        bus.push(`enter:${nameOf(event.target)}:${nameOf(event.relatedTarget)}`);
       });
-      graph.on("mouseleave", (event) => {
-        bus.push(`leave:${nameOf(event.detail.target)}:${nameOf(event.detail.relatedTarget)}`);
+      graph.on("pointerleave", (event) => {
+        bus.push(`leave:${nameOf(event.target)}:${nameOf(event.relatedTarget)}`);
       });
       // The first entry has no old side, so no leave.
       move(60, 30);
@@ -437,7 +455,7 @@ describe("child scene components", () => {
       move(15, 15);
       expect(bus.splice(0)).toEqual(["leave:box:c1", "enter:c1:box"]);
       // The root exit has no new side, so no enter.
-      graph.getGraphLayer().handleEvent(new MouseEvent("mouseleave"));
+      pointer(graph, "pointerleave");
       expect(bus.splice(0)).toEqual(["leave:c1:none"]);
     });
 
@@ -447,21 +465,21 @@ describe("child scene components", () => {
       take();
       box?.setChips([chip("c1", 5, { look: false })]);
       frames(3);
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBe(box);
-      expect(take()).toEqual(["c1:mouseleave:c1", "box:mouseleave:c1", "box:mouseenter:box"]);
+      expect(graph.input.$hoveredComponent.value).toBe(box);
+      expect(take()).toEqual(["c1:pointerleave:c1", "box:pointerleave:c1", "box:pointerenter:box"]);
       expect([tagged("box", "b"), tagged("chip", "c1")]).toEqual([true, false]);
 
       // `look: true` explicitly: a reconcile merges the new props into the old ones (`setProps`), so a descriptor
       // without `look` would keep `look: false`.
       box?.setChips([chip("c1", 5, { look: true })]);
       frames(3);
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBe(kept.c1);
+      expect(graph.input.$hoveredComponent.value).toBe(kept.c1);
       take();
       // The look moves away from the pointer: its automatic hit rect changes geometry.
       box?.setChips([chip("c1", 60)]);
       frames(3);
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBe(box);
-      expect(take()).toEqual(["c1:mouseleave:c1", "box:mouseleave:c1", "box:mouseenter:box"]);
+      expect(graph.input.$hoveredComponent.value).toBe(box);
+      expect(take()).toEqual(["c1:pointerleave:c1", "box:pointerleave:c1", "box:pointerenter:box"]);
 
       box?.setChips([chip("c1", 5)]);
       frames(3);
@@ -469,8 +487,8 @@ describe("child scene components", () => {
       box?.setChips([]);
       frames(3);
       // An unmounted child gets no event and takes its own tag off; the box is entered as the new target.
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBe(box);
-      expect(take()).toEqual(["box:mouseenter:box"]);
+      expect(graph.input.$hoveredComponent.value).toBe(box);
+      expect(take()).toEqual(["box:pointerenter:box"]);
       expect([tagged("box", "b"), tagged("chip", "c1")]).toEqual([true, false]);
     });
 
@@ -478,15 +496,15 @@ describe("child scene components", () => {
       // "out" draws at 110-130, right of the box's 100 x 50 hit box.
       mount([chip("c1", 5), chip("out", 110)]);
       move(120, 15);
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBe(kept.out);
+      expect(graph.input.$hoveredComponent.value).toBe(kept.out);
       expect([tagged("box", "b"), tagged("chip", "out")]).toEqual([true, true]);
       take();
       box?.setChips([chip("c1", 5)]);
       frames(3);
       // The pointer is over the camera now. The removed chip gets nothing; the box, the nearest graph component above
-      // it, takes its place as the old side and gets the leave (round 3, finding 3).
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBeUndefined();
-      expect(take()).toEqual(["box:mouseleave:box"]);
+      // it, takes its place as the old side and gets the leave.
+      expect(graph.input.$hoveredComponent.value).toBeUndefined();
+      expect(take()).toEqual(["box:pointerleave:box"]);
       expect([tagged("box", "b"), tagged("chip", "out")]).toEqual([false, false]);
     });
 
@@ -494,99 +512,96 @@ describe("child scene components", () => {
       mount([chip("c1", 5)]);
       move(15, 15);
       take();
-      graph.getGraphLayer().handleEvent(new MouseEvent("mouseleave"));
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBeUndefined();
+      pointer(graph, "pointerleave");
+      expect(graph.input.$hoveredComponent.value).toBeUndefined();
       // The exit has no new side: leaves only.
-      expect(take()).toEqual(["c1:mouseleave:c1", "box:mouseleave:c1"]);
+      expect(take()).toEqual(["c1:pointerleave:c1", "box:pointerleave:c1"]);
       expect([tagged("box", "b"), tagged("chip", "c1")]).toEqual([false, false]);
       // Re-entry sends only an enter to the new target.
       move(15, 15);
-      expect(take()).toEqual(["c1:mouseenter:c1", "box:mouseenter:c1"]);
+      expect(take()).toEqual(["c1:pointerenter:c1", "box:pointerenter:c1"]);
       expect([tagged("box", "b"), tagged("chip", "c1")]).toEqual([true, true]);
     });
 
     it("finds no target after a root exit when the camera moves, also after a capture's release outside", () => {
       mount([chip("c1", 5)]);
-      graph.updateSettings({ emulateMouseEventsOnCameraChange: true });
-      const layer = graph.getGraphLayer();
+      graph.updateSettings({ retargetHoverOnCameraChange: true });
       move(15, 15);
-      layer.handleEvent(new MouseEvent("mouseleave"));
+      pointer(graph, "pointerleave");
       take();
       // c1 stays under the last position (world 16, 15): the emulation must not enter it from outside the root.
       graph.cameraService.set({ x: -1 });
-      expect(layer.$hoveredComponent.value).toBeUndefined();
+      expect(graph.input.$hoveredComponent.value).toBeUndefined();
       expect(take()).toEqual([]);
       // A drag on c1 leaves the root; its release ends the hover outside, and a later camera move finds nothing.
       move(15, 15);
-      layer.handleEvent(new MouseEvent("mousedown", { clientX: 15, clientY: 15 }));
-      layer.captureEvents(kept.c1);
-      layer.handleEvent(new MouseEvent("mouseleave"));
+      graph.on("press", (event) => event.preventDefault(), { once: true });
+      pointer(graph, "pointerdown", { clientX: 15, clientY: 15 });
+      graph.input.hover.captureEvents(kept.c1);
+      pointer(graph, "pointerleave");
       take();
-      layer.handleEvent(new MouseEvent("mouseup", { clientX: 15, clientY: 15 }));
-      layer.releaseCapture();
-      expect(take()).toEqual(["c1:mouseleave:c1", "box:mouseleave:c1"]);
+      pointer(document, "pointerup", { clientX: -5, clientY: 15 });
+      graph.input.hover.releaseCapture();
+      expect(take()).toEqual(["c1:pointerleave:c1", "box:pointerleave:c1"]);
       graph.cameraService.set({ x: -2 });
-      expect(layer.$hoveredComponent.value).toBeUndefined();
+      expect(graph.input.$hoveredComponent.value).toBeUndefined();
       expect(take()).toEqual([]);
       expect([tagged("box", "b"), tagged("chip", "c1")]).toEqual([false, false]);
     });
 
     it("keeps the latest pointer position during a capture and finds the target again at its release", () => {
       mount([chip("c1", 5)]);
-      const layer = graph.getGraphLayer();
       move(15, 15);
-      // A press on the chip, then the drag listener's capture (`dragListener.ts:166`).
-      layer.handleEvent(new MouseEvent("mousedown", { clientX: 15, clientY: 15 }));
-      layer.captureEvents(kept.c1);
+      // A press on the chip, then the drag listener's capture.
+      graph.on("press", (event) => event.preventDefault(), { once: true });
+      pointer(graph, "pointerdown", { clientX: 15, clientY: 15 });
+      graph.input.hover.captureEvents(kept.c1);
       // A drag moves the pointer onto the body: the captured chip stays the target.
-      move(60, 30);
+      move(60, 30, 1);
       frames(2);
-      expect(layer.$hoveredComponent.value).toBe(kept.c1);
+      expect(graph.input.$hoveredComponent.value).toBe(kept.c1);
       take();
-      // The drag listener releases the capture on mouseup (`dragListener.ts:209`), with no mousemove after it.
-      layer.handleEvent(new MouseEvent("mouseup", { clientX: 60, clientY: 30 }));
-      layer.releaseCapture();
+      // Releasing the capture finds the target again without another move.
+      pointer(graph, "pointerup", { clientX: 60, clientY: 30 });
+      graph.input.hover.releaseCapture();
       frames(3);
-      expect(layer.$hoveredComponent.value).toBe(box);
-      expect(take()).toEqual(["c1:mouseleave:c1", "box:mouseleave:c1", "box:mouseenter:box"]);
+      expect(graph.input.$hoveredComponent.value).toBe(box);
+      expect(take()).toEqual(["c1:pointerleave:c1", "box:pointerleave:c1", "box:pointerenter:box"]);
     });
 
     it("finds the target again at a capture's release from the latest position, after a short move off a child", () => {
       // c1 spans x 5..25; a point query reaches 1 world unit around the point, so x 25 hits it and x 27 does not.
       mount([chip("c1", 5)]);
-      const layer = graph.getGraphLayer();
       move(15, 15);
-      layer.handleEvent(new MouseEvent("mousedown", { clientX: 15, clientY: 15 }));
-      layer.captureEvents(kept.c1);
-      move(25, 15);
-      // 2 px: under the 3 px a target query waits for, but the position is the latest one.
-      move(27, 15);
-      layer.handleEvent(new MouseEvent("mouseup", { clientX: 27, clientY: 15 }));
-      layer.releaseCapture();
+      graph.on("press", (event) => event.preventDefault(), { once: true });
+      pointer(graph, "pointerdown", { clientX: 15, clientY: 15 });
+      graph.input.hover.captureEvents(kept.c1);
+      move(25, 15, 1);
+      // A short captured move still supplies the release position.
+      move(27, 15, 1);
+      pointer(graph, "pointerup", { clientX: 27, clientY: 15 });
+      graph.input.hover.releaseCapture();
       frames(3);
-      expect(layer.$hoveredComponent.value).toBe(box);
+      expect(graph.input.$hoveredComponent.value).toBe(box);
     });
 
-    it("reads no canvas rect for moves under the 3 px throttle; a retarget converts the latest one", () => {
+    it("reads no canvas rect between frames and converts the latest move when the scene changes", () => {
       mount([chip("c1", 5)]);
       const layer = graph.getGraphLayer();
       move(15, 15);
-      expect(layer.$hoveredComponent.value).toBe(kept.c1);
+      expect(graph.input.$hoveredComponent.value).toBe(kept.c1);
       const reads = jest.spyOn(layer.getCanvas(), "getBoundingClientRect");
-      // Three short moves (1, 2 and 2 px from the last queried position): no target query, no rect read.
-      move(16, 15);
-      move(17, 15);
-      move(13, 15);
+      for (const clientX of [16, 17, 13]) pointer(graph, "pointermove", { clientX, clientY: 15 });
       expect(reads).not.toHaveBeenCalled();
       // The chip goes from under the still pointer: the retarget converts the latest position once.
       box?.setChips([chip("c1", 60)]);
       frames(3);
-      expect(layer.$hoveredComponent.value).toBe(box);
+      expect(graph.input.$hoveredComponent.value).toBe(box);
       expect(reads).toHaveBeenCalledTimes(1);
     });
 
     it("tags an anchor only while it is the target, not while its child is, and passes hover on to the block", () => {
-      const root = document.createElement("div");
+      const root = pointerRoot();
       Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
       graph = new Graph({ settings: { useBlocksAnchors: true, blockComponents: { Badged: BadgeBlock } } }, root);
       graph.start();
@@ -606,17 +621,17 @@ describe("child scene components", () => {
       // The OUT anchor's point is (300, 188), client (150, 94); its badge covers x 314..322, client x 157..161.
       move(100, 75);
       move(159, 94);
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBeInstanceOf(AnchorBadge);
+      expect(graph.input.$hoveredComponent.value).toBeInstanceOf(AnchorBadge);
       expect([tagged("block", "a"), tagged("anchor", anchorEntityId("a", "out"))]).toEqual([true, false]);
       move(150, 94);
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBeInstanceOf(BadgeAnchor);
+      expect(graph.input.$hoveredComponent.value).toBeInstanceOf(BadgeAnchor);
       expect([tagged("block", "a"), tagged("anchor", anchorEntityId("a", "out"))]).toEqual([true, true]);
       move(159, 94);
       expect([tagged("block", "a"), tagged("anchor", anchorEntityId("a", "out"))]).toEqual([true, false]);
     });
 
     it("tags a non-interactive anchor and its block when it is the target", () => {
-      const root = document.createElement("div");
+      const root = pointerRoot();
       Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
       graph = new Graph({ settings: { useBlocksAnchors: true } }, root);
       graph.start();
@@ -638,14 +653,14 @@ describe("child scene components", () => {
       for (let i = 0; i < 2; i++) globalScheduler.performUpdate();
       move(100, 75);
       move(150, 94);
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBe(anchor);
+      expect(graph.input.$hoveredComponent.value).toBe(anchor);
       expect([tagged("block", "a"), tagged("anchor", anchorEntityId("a", "out"))]).toEqual([true, true]);
       move(100, 75);
       expect([tagged("block", "a"), tagged("anchor", anchorEntityId("a", "out"))]).toEqual([true, false]);
     });
 
     it("keeps a block hovered while the pointer is on its anchor, unless its class decides by target", () => {
-      const root = document.createElement("div");
+      const root = pointerRoot();
       Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
       graph = new Graph({ settings: { useBlocksAnchors: true, blockComponents: { Self: SelfHoverBlock } } }, root);
       graph.start();
@@ -665,7 +680,7 @@ describe("child scene components", () => {
       // At scale 0.5 an OUT anchor's point (x + 200, 188) is at client ((x + 200) / 2, 94); a body at (x / 2 + 50, 75).
       move(100, 75);
       move(150, 94);
-      expect(graph.getGraphLayer().$hoveredComponent.value).toBe(
+      expect(graph.input.$hoveredComponent.value).toBe(
         graph.rootStore.blocksList.getBlockState("a")?.getAnchorById("out")?.getViewComponent()
       );
       expect([tagged("block", "a"), tagged("anchor", anchorEntityId("a", "out"))]).toEqual([true, true]);
@@ -679,7 +694,7 @@ describe("child scene components", () => {
     });
 
     it("finds the target again when an anchor or its block moves through the API under a still pointer", () => {
-      const root = document.createElement("div");
+      const root = pointerRoot();
       Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
       graph = new Graph({ settings: { useBlocksAnchors: true } }, root);
       graph.start();
@@ -691,31 +706,30 @@ describe("child scene components", () => {
         for (let i = 0; i < 4; i++) globalScheduler.performUpdate();
       };
       update();
-      const layer = graph.getGraphLayer();
       const state = graph.rootStore.blocksList.getBlockState("a");
       const o2 = state?.getAnchorById("o2")?.getViewComponent();
       // The second OUT anchor's point is (300, 220): GRID_SIZE * 2 below the first one's (300, 188). Client (150, 110).
       move(150, 110);
-      expect(layer.$hoveredComponent.value).toBe(o2);
+      expect(graph.input.$hoveredComponent.value).toBe(o2);
       // Without o1, o2 is the first OUT anchor, at (300, 188): only its own hit box moves (`onPositionChanged`); the
-      // block's stays. No mousemove and no capture follow (round 3, finding 4).
+      // block's stays. No pointermove or capture follows.
       graph.api.updateBlock({ id: "a", anchors: [out("o2")] });
       update();
       // The same component, keyed by its id: a moved box, not a removal.
       expect(state?.getAnchorById("o2")?.getViewComponent()).toBe(o2);
-      expect(layer.$hoveredComponent.value).toBeUndefined();
+      expect(graph.input.$hoveredComponent.value).toBeUndefined();
       expect([tagged("block", "a"), tagged("anchor", anchorEntityId("a", "o2"))]).toEqual([false, false]);
       // The block moves away from a still pointer on its body through the API: its own hit box moves.
       move(100, 75);
-      expect(layer.$hoveredComponent.value).toBe(state?.getViewComponent());
+      expect(graph.input.$hoveredComponent.value).toBe(state?.getViewComponent());
       graph.api.updateBlock({ id: "a", x: 400 });
       update();
-      expect(layer.$hoveredComponent.value).toBeUndefined();
+      expect(graph.input.$hoveredComponent.value).toBeUndefined();
       expect(tagged("block", "a")).toBe(false);
     });
 
     it("keeps a block's hover consistent when its class keeps its own events, with the migration recipe", () => {
-      const root = document.createElement("div");
+      const root = pointerRoot();
       Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
       const blockComponents = { Keeping: KeepingBlock, Adapted: AdaptedKeepingBlock };
       graph = new Graph({ settings: { useBlocksAnchors: true, blockComponents } }, root);
@@ -736,9 +750,9 @@ describe("child scene components", () => {
       /** The block's tag after each move of body, anchor, body, outside (client points at scale 0.5, as above). */
       const route = (id: string, x: number): boolean[] =>
         [
-          [x / 2 + 50, 75],
+          [x / 2 + 80, 90],
           [(x + 200) / 2, 94],
-          [x / 2 + 50, 75],
+          [x / 2 + 80, 90],
           [x / 2 + 50, 10],
         ].map(([clientX, clientY]) => {
           move(clientX, clientY);
@@ -747,7 +761,7 @@ describe("child scene components", () => {
       // The recipe calls the hook for its own events: hovered over its body and its anchor, not outside.
       expect(route("ad", 500)).toEqual([true, true, true, false]);
       // Without it, its own enter and leave skip the hook and only its anchor's events reach it: not hovered over its
-      // body, and still hovered outside (round 3, finding 6).
+      // body, and still hovered outside.
       expect(route("k", 100)).toEqual([false, true, true, true]);
     });
   });
@@ -757,7 +771,7 @@ describe("an element owner without primitives", () => {
   it("keeps a key, a hit box, events and the usable rect", () => {
     chips = [];
     events = [];
-    const graph = new Graph({}, document.createElement("div"));
+    const graph = new Graph({}, pointerRoot());
     graph.start();
     graph.cameraService.set({ x: 0, y: 0, scale: 1 });
     let frame: Frame | undefined;
@@ -777,8 +791,9 @@ describe("an element owner without primitives", () => {
     expect(frame?.getSceneKey()?.elementId).toBe(entityKey("box", "f"));
     expect(graph.scene.store.get(entityKey("box", "f"))?.primitives).toEqual([]);
     expect(graph.getElementOverPoint({ x: 50, y: 25 })).toBe(frame);
-    frame?.dispatchEvent(new CustomEvent("click", { detail: { target: frame } }));
-    expect(events).toEqual(["box:click:box"]);
+    pointer(graph, "pointerdown", { clientX: 50, clientY: 25 });
+    pointer(graph, "pointerup", { clientX: 50, clientY: 25 });
+    expect(events.filter((entry) => entry.includes(":click:"))).toEqual(["box:click:box"]);
     expect(graph.hitTest.$usableRect.value).toEqual({ x: 0, y: 0, width: 100, height: 50 });
     graph.unmount();
   });

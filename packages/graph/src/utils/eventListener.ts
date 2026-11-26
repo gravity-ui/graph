@@ -31,3 +31,12 @@ export function removeTypedEventListener<E extends Event, Target = EventTarget>(
 ): void {
   target.removeEventListener(type, toDOMListener(listener), options);
 }
+
+/** Match DOM dispatch: report the error and keep delivering to the remaining listeners. */
+export function reportListenerError(error: unknown): void {
+  if (typeof reportError === "function") reportError(error);
+  else
+    queueMicrotask(() => {
+      throw error;
+    });
+}

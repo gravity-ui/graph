@@ -5,6 +5,8 @@ import { Graph } from "../graph";
 import { globalScheduler } from "../lib/Scheduler";
 import { Layer } from "../services/Layer";
 
+import { hoverEvent } from "./pointer";
+
 setFlagsFromString("--expose-gc");
 // The flag exposes `gc` only to contexts created afterwards; the vm result is that native function.
 const collectGarbage = runInNewContext("gc") as () => void;
@@ -40,8 +42,7 @@ function unmountGraphWithHoveredConnection(): IWeakRef<Graph> {
   for (let i = 0; i < 3; i += 1) globalScheduler.performUpdate();
   const view = graph.rootStore.connectionsList.$connections.value[0]?.getViewComponent();
   if (!view) throw new Error("Expected a rendered connection");
-  // handleEvent is the protected hit-test entry point; the cast only reaches it from the test.
-  (view as unknown as { handleEvent(event: MouseEvent): void }).handleEvent(new MouseEvent("mouseenter"));
+  view.dispatchEvent(hoverEvent("pointerenter", view));
   graph.unmount();
   return new WeakRef(graph);
 }

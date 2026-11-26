@@ -1,6 +1,6 @@
-import { Block } from "./components/canvas/blocks/Block";
 import { Graph } from "./graph";
-import { Component } from "./lib/Component";
+import { globalScheduler } from "./lib/Scheduler";
+import { pointer, pointerRoot } from "./test/pointer";
 
 // colors-changed is a representative event for capture, once and abort cleanup.
 // Payload assertions verify that function/object listeners receive the original dispatched event.
@@ -60,69 +60,81 @@ test("unsubscribe snapshots capture and off accepts matching capture options", (
   graph.unmount();
 });
 
-test("graph mouse default action runs after listeners and can be prevented", () => {
+test("a camera proposal and its controls are delivered on one event with the graph as recipient", () => {
   const graph = new Graph({});
-  const handle = jest.spyOn(graph.dragService, "handleMouseDown").mockImplementation(() => {});
-  const sourceEvent = new MouseEvent("mousedown");
-  const remove = graph.on("mousedown", {
-    handleEvent: (event) => {
-      expect(handle).not.toHaveBeenCalled();
-      expect(event.detail.sourceEvent).toBe(sourceEvent);
-      event.preventDefault();
+  const before = graph.$camera.peek();
+  const seen: unknown[] = [];
+  let late: (() => void) | undefined;
+  graph.on(
+    "camera-change",
+    ({ x, target, currentTarget, preventDefault }) => {
+      seen.push(x, target === graph, currentTarget === graph);
+      preventDefault();
     },
+    { once: true }
+  );
+  graph.on("camera-change", (event) => {
+    seen.push(event.defaultPrevented);
+    late = () => {
+      event.preventDefault();
+      seen.push(event.currentTarget, event.defaultPrevented);
+    };
   });
-  graph.emit("mousedown", { sourceEvent });
-  expect(handle).not.toHaveBeenCalled();
-  remove();
-  const emitted = graph.emit("mousedown", { sourceEvent });
-  expect(handle).toHaveBeenCalledWith(emitted);
+  graph.cameraService.move(19, 0);
+  expect(graph.$camera.peek()).toBe(before);
+  graph.cameraService.move(25, 0);
+  expect(graph.$camera.peek().x).toBe(before.x + 25);
+  late?.();
+  expect(seen).toEqual([before.x + 19, true, true, true, false, null, false]);
   graph.unmount();
 });
 
-describe("camera pan on the graph mousedown", () => {
-  function setup(): { graph: Graph; block: Block; press: () => void } {
-    const graph = new Graph({
-      settings: { dragThreshold: 0 },
-      blocks: [{ id: "block", is: "Block", name: "Block", x: 0, y: 0, width: 100, height: 100 }],
-    });
-    // Creates the Camera child that handles the graph mousedown default action.
-    graph.getGraphLayer().iterate();
-    // The default canDrag is NONE, so the camera pans when the block is pressed.
-    const block = new Block({ id: "block" }, graph.getGraphLayer());
-    const press = (): void => {
-      graph.emit("mousedown", { target: block, sourceEvent: new MouseEvent("mousedown") });
-      document.dispatchEvent(new MouseEvent("mousemove", { clientX: 0, clientY: 0 }));
-      document.dispatchEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 30 }));
-      document.dispatchEvent(new MouseEvent("mouseup"));
-    };
-    return { graph, block, press };
-  }
+test("a filtered camera listener uses the committed scale level and keeps once until delivery", () => {
+  const graph = new Graph({});
+  const [, schematic, detailed] = graph.graphConstants.block.SCALES;
+  graph.cameraService.set({ scale: schematic });
+  const proposals: number[] = [];
+  graph.on("camera-change", ({ scale }) => proposals.push(scale), { inScale: ["detailed"], once: true });
+  graph.cameraService.set({ scale: detailed });
+  expect(proposals).toEqual([]);
+  graph.cameraService.set({ scale: schematic });
+  graph.cameraService.set({ scale: detailed });
+  graph.cameraService.move(10, 0);
+  expect(proposals).toEqual([schematic]);
+  graph.unmount();
+});
 
-  test("pans the camera when no listener prevents the press", () => {
-    const { graph, block, press } = setup();
-    const before = { ...graph.cameraService.getCameraState() };
-    press();
-    expect(graph.cameraService.getCameraState()).toMatchObject({ x: before.x + 50, y: before.y + 30 });
-    Component.unmount(block);
-    graph.unmount();
+describe("camera press default", () => {
+  let graph: Graph;
+  beforeEach(() => {
+    graph = new Graph({ settings: { dragThreshold: 0 } }, pointerRoot());
+    graph.start();
+    globalScheduler.performUpdate();
+    graph.cameraService.set({ x: 0, y: 0, scale: 1 });
+  });
+  afterEach(() => graph.unmount());
+
+  const pan = () => {
+    pointer(graph, "pointerdown", { clientX: 100, clientY: 100 });
+    pointer(graph, "pointermove", { clientX: 150, clientY: 130, buttons: 1 });
+    pointer(graph, "pointerup", { clientX: 150, clientY: 130 });
+  };
+
+  it("pans independently of press propagation", () => {
+    graph.on("press", (press) => press.stopPropagation(), { capture: true });
+    const bubble = jest.fn();
+    graph.on("press", bubble);
+    pan();
+    expect(bubble).not.toHaveBeenCalled();
+    expect(graph.cameraService.getCameraState()).toMatchObject({ x: 50, y: 30 });
   });
 
-  // https://github.com/gravity-ui/graph/issues/405: layers subscribe after the camera is created.
-  // A non-capture listener: jsdom runs capture listeners first, so only a plain one reproduced the old order.
-  test("lets a listener added after the camera prevent the pan", () => {
-    const { graph, block, press } = setup();
-    const before = { ...graph.cameraService.getCameraState() };
-    const preventedBefore: boolean[] = [];
-    const listener = jest.fn((event: Event) => {
-      preventedBefore.push(event.defaultPrevented);
-      event.preventDefault();
-    });
-    graph.on("mousedown", listener);
-    press();
-    expect(listener).toHaveBeenCalledTimes(1);
-    expect(preventedBefore).toEqual([false]);
-    expect(graph.cameraService.getCameraState()).toMatchObject({ x: before.x, y: before.y });
-    Component.unmount(block);
-    graph.unmount();
+  it("lets a listener registered after the camera prevent the pan", () => {
+    const remove = graph.on("press", (press) => press.preventDefault());
+    pan();
+    expect(graph.cameraService.getCameraState()).toMatchObject({ x: 0, y: 0 });
+    remove();
+    pan();
+    expect(graph.cameraService.getCameraState()).toMatchObject({ x: 50, y: 30 });
   });
 });

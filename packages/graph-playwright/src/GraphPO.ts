@@ -216,7 +216,10 @@ export class GraphPO {
 
     try {
       await root.hover({ position: fromPosition });
-      const bounds = await root.boundingBox();
+      const [bounds, border] = await Promise.all([
+        root.boundingBox(),
+        root.evaluate((element) => ({ x: element.clientLeft, y: element.clientTop })),
+      ]);
       if (!bounds) {
         throw new Error("Graph root is not visible.");
       }
@@ -224,21 +227,18 @@ export class GraphPO {
       await this.page.mouse.down({ button });
       pointerDown = true;
 
-      const fromViewport = {
-        x: bounds.x + fromPosition.x,
-        y: bounds.y + fromPosition.y,
-      };
+      // Playwright element positions start at the padding edge; boundingBox() includes the border.
+      const origin = { x: bounds.x + border.x, y: bounds.y + border.y };
+      const fromViewport = { x: origin.x + fromPosition.x, y: origin.y + fromPosition.y };
       if (dragThreshold > 0) {
         const activationDistance = dragThreshold + 1;
         const activationDirection = fromPosition.x + activationDistance <= bounds.width ? 1 : -1;
         await this.page.mouse.move(fromViewport.x + activationDirection * activationDistance, fromViewport.y);
       }
-      // The graph starts a drag on a mousemove rather than on mousedown. Move
-      // back to the source point so the drag origin matches `from` even when a
-      // non-zero drag threshold is configured.
+      // Begin the interpolated path at the source after crossing the threshold.
       await this.page.mouse.move(fromViewport.x, fromViewport.y);
       await this.waitForFrames(1);
-      await this.page.mouse.move(bounds.x + toPosition.x, bounds.y + toPosition.y, {
+      await this.page.mouse.move(origin.x + toPosition.x, origin.y + toPosition.y, {
         steps,
       });
       await this.waitForFrames(1);

@@ -2,7 +2,7 @@
 
 The camera routes wheel input by **intent** — pan or zoom — not by inferred device type (trackpad vs mouse). Classification lives in [`src/utils/functions/wheelIntent.ts`](../../src/utils/functions/wheelIntent.ts) and is configured via graph settings (`resolveWheelIntent`).
 
-This design prepares for a future **input event bus**: raw DOM events (`wheel`, `pointerdown`, …) will be normalized into semantic graph events (`camera:pan`, `camera:zoom`, …). Camera already consumes intent today; later it will subscribe to those semantic events instead of calling the resolver from a raw `wheel` listener.
+The camera handles the native `wheel` event through this resolver. The graph input service recognizes pointer gestures such as `press`, `dragstart` and `pinch`. See [Event model](./event-model.md).
 
 ---
 
@@ -13,7 +13,6 @@ The browser exposes a single `WheelEvent` for all scroll input. There is no `eve
 Resolving **intent directly** from gesture shape:
 
 - keeps Camera unaware of hardware;
-- matches the future event-bus contract (`pan` / `zoom`, not `trackpad` / `mouse`);
 - folds `MOUSE_WHEEL_BEHAVIOR` into the input layer where it belongs.
 
 ---
@@ -243,12 +242,12 @@ const intent = settings.wheelIntentFromEvent(event, {
 });
 
 if (intent === EWheelIntent.Pan) {
-  handlePan(event);   // → future: graph event "camera:pan"
+  handlePan(event);
   return;
 }
 
 const acceleration = isPinchZoomGesture(event) ? PINCH_ZOOM_SPEED : 1;
-handleZoom(event, acceleration);  // → future: graph event "camera:zoom"
+handleZoom(event, acceleration);
 ```
 
 ---

@@ -20,8 +20,8 @@ classDiagram
         +props: TComponentProps
         +state: TComponentState
         +context: TComponentContext
-        +addEventListener()
-        +removeEventListener()
+        +on()
+        +off()
     }
     
     class GraphComponent {
@@ -67,8 +67,8 @@ class GraphComponent extends Component<Props> {
 **Behind the scenes:**
 - When you create a component, it automatically gets registered in the graph's spatial index
 - The HitBox maintains a rectangular boundary that represents where this component exists
-- This boundary is used for mouse interaction detection, visibility culling, and spatial queries
-- Without proper HitBox management, your component would be "invisible" to mouse interactions and queries!
+- This boundary is used for pointer hit testing, visibility culling, and spatial queries
+- Without proper HitBox management, your component would be "invisible" to pointer interactions and queries!
 
 **Real-world impact:**
 When a user moves their mouse over the graph, the system uses the R-tree spatial index to efficiently determine which component should respond. Instead of checking every component individually (O(n) complexity), the R-tree allows for logarithmic O(log n) lookups by quickly eliminating large sections of the spatial area that don't contain the point. This is critical for performance when dealing with graphs containing hundreds or thousands of components.
@@ -146,36 +146,34 @@ protected override willIterate(): void {
                          └──────┘
 ```
 
-### 3. Mouse Event Handling
+### 3. Pointer event handling
 
-GraphComponent adds the ability to listen to mouse events on the element, including drag operations:
+GraphComponent adds the ability to listen to pointer gestures on the element, including drag operations:
 
 ```typescript
-// Listen for basic mouse events
-this.addEventListener('click', (event) => {
-  // A click is the browser's MouseEvent: take its world point from the graph.
-  const { world } = this.context.graph.getPointInCameraSpace(event);
+// Scene activation
+this.on('click', (gesture) => {
+  const { world } = gesture.point;
   console.log('Component clicked at:', world.x, world.y);
   this.setState({ selected: true });
 });
 
 // Hover events of the children walk up here too: react only to this component's own.
-this.addEventListener('mouseenter', (event) => {
-  if (getEventTarget(event) !== this) return;
+this.on('pointerenter', (event) => {
+  if (event.target !== this) return;
   this.setState({ hovered: true });
 });
 
-this.addEventListener('mouseleave', (event) => {
-  if (getEventTarget(event) !== this) return;
+this.on('pointerleave', (event) => {
+  if (event.target !== this) return;
   this.setState({ hovered: false });
 });
 
 // Use the specialized drag handling system
 this.onDrag({
   isDraggable: (event) => !this.props.locked && event.button === 0,
-  onDragStart: (event) => {
+  onDragStart: () => {
     this.setState({ dragging: true });
-    this.context.graph.emit('element-drag-start', { element: this });
   },
   onDragUpdate: ({ startCoords, diffX, diffY, deltaX, deltaY }, event) => {
     // diffX/diffY - absolute displacement from drag start position
@@ -187,41 +185,36 @@ this.onDrag({
   },
   onDrop: () => {
     this.setState({ dragging: false });
-    this.context.graph.emit('element-drag-end', { element: this });
   }
 });
 ```
 
-`onDrag()` listens to the component's own `mousedown`, so it starts only for a press that neither a drag nor the
-camera's pan takes. Under a draggable block, the block's drag takes a child's press. A child of a draggable block uses
-`isDraggable()` and the `handleDrag*` methods below, or a graph `mousedown` listener with
-`graph.dragService.startDrag` (see
-[Presses and drags](../system/event-model.md#presses-and-drags)).
+Subscribe to `dragstart` and call `gesture.claim(operation)` to take ownership at the movement threshold. See [Presses and drags](../system/event-model.md#presses-and-drags).
 
 **What makes this powerful:**
-- Hit testing works in world coordinates; `graph.getPointInCameraSpace(event)` gives an event's world point
+- `gesture.point.world` gives the world coordinates at the time of the gesture
 - Event bubbling works through the component hierarchy
-- Proper mouse hit testing via the HitBox system
 - Camera transforms are handled automatically
 - Events that require capture (like drag) are managed for you
 - Event handlers are automatically cleaned up on unmount
 
 **Supported events:**
-- `click`, `dblclick` - Mouse button clicks
-- `mousedown`, `mouseup` - Mouse button press and release
-- `mouseenter`, `mouseleave` - Mouse pointer entering or leaving the component
+- `click`, `dblclick` - Primary activation and double activation
+- `press`, `release` - Pointer press and release
+- `pointerenter`, `pointerleave`, `pointerover`, `pointerout` - Changes of hover target for mouse and pen
+- `longpress`, `pinch` - Touch or pen hold and two-finger navigation
 - Specialized `onDrag` system with precise coordinate handling
 
-**Whose event it is.** GraphLayer dispatches an event at the component under the pointer, and the event walks up the
+**Whose event it is.** PointerInput dispatches an event at the component under the pointer, and the event walks up the
 parent chain until a listener calls `stopPropagation()`. So a component's listeners also hear its children's events,
-`mouseenter` and `mouseleave` included. `getEventTarget(event)` returns the component that was hit, and hover events
-carry `detail.target` and `detail.relatedTarget` (see [Event model](../system/event-model.md)).
+`pointerenter` and `pointerleave` included. `gesture.target` identifies the hit component, and hover events
+carry `event.target` and `event.relatedTarget` (see [Event model](../system/event-model.md)).
 
 #### Transparent components
 
 `static transparentToEvents = true` lets pointer events pass through a component that has a hit box. The pointer's
 target, its hover events, the cursor and `graph.getElementOverPoint()` skip it for the component under it, and
-`GraphLayer.captureEvents()` does not capture it. Its hit box stays: it counts in the usable rect, and
+`graph.input.hover.captureEvents()` does not capture it. Its hit box stays: it counts in the usable rect, and
 `getElementsOverPoint()` and `getElementsOverRect()` return it. Override `isTransparentToEvents()` to decide per
 instance. A component that must stay out of every hit query keeps `onHitBox() { return false; }`.
 
@@ -240,14 +233,14 @@ class Reserver extends GraphComponent {
 onDragUpdate: (diff: {
   startCoords: [number, number];    // Initial position when drag started
   prevCoords: [number, number];     // Position on previous frame
-  currentCoords: [number, number];  // Current mouse position
+  currentCoords: [number, number];  // Current pointer position
   
   diffX: number;    // Absolute X displacement from start (currentCoords.x - startCoords.x)
   diffY: number;    // Absolute Y displacement from start (currentCoords.y - startCoords.y)
   
   deltaX: number;   // Incremental X change since last frame (currentCoords.x - prevCoords.x)
   deltaY: number;   // Incremental Y change since last frame (currentCoords.y - prevCoords.y)
-}, event: MouseEvent) => void;
+}, event: PointerEvent) => void;
 ```
 
 - Use `diffX`/`diffY` when you need to calculate position relative to drag start (e.g., `initialPosition + diffX`)
@@ -339,7 +332,7 @@ class MyDraggableComponent extends GraphComponent<{ locked?: boolean }, TDraggab
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `sourceEvent` | `MouseEvent` | The native mouse event |
+| `sourceEvent` | `PointerEvent` | The native pointer event |
 | `startCoords` | `[number, number]` | World coordinates when drag started |
 | `prevCoords` | `[number, number]` | World coordinates from previous frame |
 | `currentCoords` | `[number, number]` | Current world coordinates |
@@ -432,10 +425,10 @@ sequenceDiagram
         end
     end
     
-    App->>Graph: User mouses over component
+    App->>Graph: Pointer moves over component
     Graph->>HitTest: Query spatial index
     HitTest-->>Graph: Component found at position
-    Graph->>Comp: Mouse event triggered
+    Graph->>Comp: Deliver pointerenter
     
     App->>Graph: User drags component
     Comp->>Comp: onDragUpdate executed
@@ -773,16 +766,15 @@ class AnnotatedConnection extends BaseConnection<AnnotatedConnectionProps> {
       labelText: 'Connection'
     };
     
-    // Listen for mouse events
-    this.addEventListener('mouseover', this.handleMouseOver);
-    this.addEventListener('mouseout', this.handleMouseOut);
+    this.on('pointerover', this.handlePointerOver);
+    this.on('pointerout', this.handlePointerOut);
   }
   
-  private handleMouseOver = () => {
+  private handlePointerOver = () => {
     this.setState({ hovered: true });
   }
   
-  private handleMouseOut = () => {
+  private handlePointerOut = () => {
     this.setState({ hovered: false });
   }
   
@@ -1118,8 +1110,8 @@ class ProcessNode extends GraphComponent {
 class DiagramNode extends GraphComponent {
   constructor(props, parent) {
     super(props, parent);
-    this.addEventListener('click', this.handleClick);
-    this.addEventListener('mouseover', this.handleMouseOver);
+    this.on('click', this.handleClick);
+    this.on('pointerover', this.handlePointerOver);
   }
   
   handleClick = () => {
@@ -1127,7 +1119,7 @@ class DiagramNode extends GraphComponent {
     this.context.uiService.showDetails(this.props.id);
   }
   
-  handleMouseOver = () => {
+  handlePointerOver = () => {
     // Highlight connected elements
     this.context.highlightService.highlightConnected(this.props.id);
   }

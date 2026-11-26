@@ -90,12 +90,12 @@ describe.each(["grouping", "predefined"] as const)("%s group drag", (kind) => {
     const geometry = jest.fn();
     graph.on("blocks-geometry-change", geometry);
     graph.on("block-change", (event) => {
-      const id = String(event.detail.block.id);
+      const id = String(event.block.id);
       events.push(id);
       if (id === "b") {
         // Earlier accepted writes are readable before the next member's event.
         expect(state("a").x).toBe(origin + 40);
-        expect(event.detail.block.x).toBe(origin + 100);
+        expect(event.block.x).toBe(origin + 100);
         event.preventDefault();
       }
       if (id === "c") {
@@ -112,6 +112,6 @@ describe.each(["grouping", "predefined"] as const)("%s group drag", (kind) => {
     expect(state("c")).not.toBe(oldC);
     expect(state("o").x).toBe(800);
     expect(geometry).toHaveBeenCalledTimes(1);
-    expect(geometry.mock.calls[0][0].detail.blocks.map((each: { id: string }) => each.id)).toEqual(["a"]);
+    expect(geometry.mock.calls[0][0].blocks.map((each: { id: string }) => each.id)).toEqual(["a"]);
   });
 });

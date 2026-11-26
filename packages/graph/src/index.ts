@@ -16,10 +16,19 @@ export {
   isWithinComponent,
   pointerTargetAfter,
   type TGraphHoverDetail,
+  type EventedComponentEvents,
+  type ComponentDispatchEvent,
 } from "./components/canvas/EventedComponent/EventedComponent";
-export { getEventTarget } from "./components/canvas/EventedComponent/eventTarget";
 export * from "./components/canvas/connections";
 export * from "./graph";
+export type {
+  GraphPressEvent,
+  GraphPinchEvent,
+  GraphClickEvent,
+  GraphReleaseEvent,
+  GraphDragStartEvent,
+  GraphDragOperation,
+} from "./services/input/press";
 export { layerConfig, type LayerConfig } from "./services/LayerConfig";
 export type {
   GraphComponentConstructor,
@@ -45,11 +54,14 @@ export {
   EWheelIntent,
   WHEEL_INTENT_RULE,
 } from "./utils/functions/wheelIntent";
-export {
-  type UnwrapGraphEventsDetail,
-  type SelectionEvent,
-  type GraphEventsDefinitions,
-  type UnwrapGraphEvents,
+export type {
+  GraphEventContext,
+  GraphEventMap,
+  GraphEventName,
+  GraphEventListener,
+  GraphEventOptions,
+  GraphEventTarget,
+  GraphEventsDefinitions,
 } from "./graphEvents";
 export {
   defaultGetCameraBlockScaleLevel,

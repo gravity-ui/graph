@@ -1,8 +1,29 @@
 import React, { useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 
-import { Graph, GraphState, Layer, layerConfig, type LayerProps, type TBlock } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, GraphLayer, useLayer, GraphPortal, useBlockState, useSyncBlockState, useBlockViewState, useBlockAnchorState, useGraph, useGraphEvent, useGraphEvents, type GraphEvent, type GraphEventDetail } from "@gravity-ui/graph-react";
+import {
+  Graph,
+  GraphState,
+  Layer,
+  layerConfig,
+  type GraphEventMap,
+  type LayerProps,
+  type TBlock,
+} from "@gravity-ui/graph";
+import {
+  GraphBlock,
+  GraphCanvas,
+  GraphLayer,
+  useLayer,
+  GraphPortal,
+  useBlockState,
+  useSyncBlockState,
+  useBlockViewState,
+  useBlockAnchorState,
+  useGraph,
+  useGraphEvent,
+  useGraphEvents,
+} from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
 
@@ -46,6 +67,10 @@ function ReactGraph() {
         root.dataset.state = "ready";
       }
     }
+  });
+
+  useGraphEvent(graph, "press", ({ event, preventDefault }) => {
+    if (event.button === 1) preventDefault();
   });
 
   const renderBlock = (graphObject: Graph, block: TBlock) => (
@@ -103,25 +128,60 @@ void LookupContracts;
 // Deliberately invalid payloads/listeners must be rejected: if inference becomes any, the unused
 // expect-error directives below fail compilation instead of silently accepting the regression.
 function ReactEventTypeContracts({ graph }: { graph: Graph }) {
-  useGraphEvent(graph, "state-change", (data, event) => {
-    const state: GraphState = data.state;
-    const payload: typeof data = event.detail;
-    void state; void payload;
-    // colors belongs to colors-changed. Reading it here must fail to prove state-change inferred its own payload.
-    // @ts-expect-error state-change exposes { state: GraphState }, so data.colors is invalid.
-    data.colors;
+  useGraphEvent(
+    graph,
+    "click",
+    (event) => {
+      const pointer: PointerEvent = event.event;
+      const worldX: number = event.point.world.x;
+      void [pointer, worldX];
+    },
+    { capture: true }
+  );
+  useGraphEvent(graph, "pinch", (event) => {
+    const fingers: readonly [PointerEvent, PointerEvent] = event.pointers;
+    if (event.phase === "start" && event.distance < 20) event.preventDefault();
+    // @ts-expect-error The proposed camera scale belongs to camera-change.
+    event.scale;
+    void fingers;
   });
-  // Positive check: the named callback must infer detail and event separately; GraphEvent denotes the second argument.
-  useGraphEvents(graph, { onStateChanged: (data, event) => {
-    const detail: GraphEventDetail<"onStateChanged"> = data;
-    const typedEvent: GraphEvent<"onStateChanged"> = event;
-    void detail; void typedEvent;
-  } });
-  // @ts-expect-error state-change must reject a callback expecting the colors-changed payload.
-  useGraphEvent(graph, "state-change", (data: { colors: unknown }) => { void data; });
-  // @ts-expect-error onStateChanged must reject a callback expecting colors instead of state.
-  useGraphEvents(graph, { onStateChanged: (data: { colors: unknown }) => { void data; } });
-  return null;
+  useGraphEvents(graph, { onDragStart: (event) => event.claim({ owner: "panel" }) });
+  // @ts-expect-error Only dragstart offers ownership.
+  useGraphEvent(graph, "release", (event) => event.claim({ owner: "panel" }));
+  const onStateChange = (event: GraphEventMap["state-change"]) => {
+    const state: GraphState = event.state;
+    void state;
+    // @ts-expect-error state-change has no colors field.
+    event.colors;
+    // @ts-expect-error Payload fields live directly on the event.
+    event.detail;
+  };
+  graph.on("state-change", onStateChange);
+  useGraphEvent(graph, "state-change", onStateChange);
+  useGraphEvents(graph, { onStateChange });
+  // @ts-expect-error The state callback receives one event, with the payload on that event.
+  useGraphEvent(graph, "state-change", (_state: GraphEventMap["state-change"], _second: Event) => {});
+  useGraphEvents(graph, {
+    // @ts-expect-error Named callbacks require the same event as the core listener.
+    onStateChange: (data: { colors: unknown }) => {
+      void data;
+    },
+  });
+  return (
+    <GraphCanvas
+      graph={graph}
+      onPress={(event) => event.preventDefault()}
+      onStateChange={onStateChange}
+      onClick={(event) => {
+        const pointer: PointerEvent = event.event;
+        void pointer;
+      }}
+      onCameraChange={(event) => {
+        const scale: number = event.scale;
+        void scale;
+      }}
+    />
+  );
 }
 void ReactEventTypeContracts;
 

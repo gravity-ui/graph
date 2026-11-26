@@ -252,7 +252,7 @@ holds the block and the scene is at the detailed level. There:
 - The block and its children are hit, drawn in the scene or not. A declared `static hitLevels` still decides for each
   component, the block included: a class that declares levels without the detailed one is not hit there, HTML or not
   (see [Hit levels](../system/event-model.md#hit-levels)). A stock anchor has no detailed look, yet it is hit.
-  Events on the HTML bubble to the graph's root, and GraphLayer targets the component under the pointer. So a click on
+  Events on the HTML bubble to the graph's root, and PointerInput targets the component under the pointer. So a click on
   an anchor's HTML is the graph's `click` on that anchor.
 - While a holding view asks for `canvasVisible: false` (any view that does), the scene draws nothing of the block: its
   body, parts, anchors and children. Its connections stay drawn.
@@ -296,9 +296,9 @@ block's element, at the block's origin: its primitives are in the block's frame.
 element's bounds, so it is hit where it draws (on the levels below). It is a pointer target of its own, and the cursor
 follows its `cursor`.
 
-Its events walk up to the block, as in the DOM. The block's listeners hear the child's `click`, `mouseenter` and
-`mouseleave` too. In each of them `getEventTarget(event)` returns the child. Hover events also carry
-`detail.target` (the child) and `detail.relatedTarget` (the other side of the target change). A child that stops an
+Its events walk up to the block, as in the DOM. The block's listeners hear the child's `click`, `pointerenter` and
+`pointerleave` too. The click gesture names the child in `gesture.target`. Hover events carry
+`event.target` (the child) and `event.relatedTarget` (the other side of the target change). A child that stops an
 event keeps it from the block. Keep the anchors in the list: return `[...yours, ...super.updateChildren()]` (yours
 under the anchors) or the other way round.
 
@@ -324,10 +324,10 @@ class CloseButton extends SceneComponent<TGraphComponentProps & { blockId: strin
   protected override willMount(): void {
     super.willMount();
     // Hovered while it is the pointer's target: its own choice.
-    const follow = (event: Event): void => this.setHoveredTag(pointerTargetAfter(event) === this);
-    this.addEventListener("mouseenter", follow);
-    this.addEventListener("mouseleave", follow);
-    this.addEventListener("click", (event: Event) => {
+    this.listenEvents(["pointerenter", "pointerleave"], (event) => {
+      this.setHoveredTag(pointerTargetAfter(event) === this);
+    });
+    this.on("click", (event) => {
       event.stopPropagation();
       this.context.graph.api.deleteSelected();
     });
@@ -357,16 +357,16 @@ graph.scene.styles.add([
 
 `graph.api.deleteSelected()` deletes the selection; any action of the application fits there. The button stops its
 click, so the block does not select itself. A block that lets its children's clicks through tells them apart with
-`getEventTarget`:
+`gesture.target`:
 
 ```typescript
-import { CanvasBlock, getEventTarget } from "@gravity-ui/graph";
+import { CanvasBlock } from "@gravity-ui/graph";
 
 class ReportingBlock extends CanvasBlock {
   protected override willMount(): void {
     super.willMount();
-    this.addEventListener("click", (event: Event) => {
-      if (getEventTarget(event) === this) console.log("a click on the block itself");
+    this.on("click", (event) => {
+      if (event.target === this) console.log("a click on the block itself");
     });
   }
 }
@@ -399,19 +399,15 @@ class ReportingBlock extends CanvasBlock {
   `opacity`, applies to everything nested in it. Child keys must differ from the block's anchor ids (an anchor's key
   is its id); development builds report two children with one key.
 - **Presses.** A press on a child that is not draggable drags its nearest draggable ancestor, as in the DOM: a button
-  inside a draggable block drags the block. The camera pans only when nothing in the chain is draggable. A press that
-  the drag or the pan takes reaches no component, so neither the child nor its block gets the `mousedown`; the
-  `mouseup` and the `click` still reach the child. A child with a gesture of its own makes itself draggable
-  (`isDraggable()` and `handleDrag*`, as `Anchor` does), or a graph `mousedown` listener prevents the press and calls
-  `graph.dragService.startDrag`. A child's `onDrag()` never starts under a draggable block. See
+  inside a draggable block drags the block. Every press reaches the child before the graph considers its default action. A child can claim its own drag in `on("dragstart", …)`. See
   [Presses and drags](../system/event-model.md#presses-and-drags).
 
 ## Events
 
-- `click` selects the block (with the meta key, toggles it in the selection) and stops the click. A child's click that
+- `click` selects the block (with the meta key, toggles it in the selection) as its default action. A child's click that
   the child does not stop selects the block too.
-- The block's listeners also hear the events of its anchors and children that they do not stop. `getEventTarget(event)`
-  names the component that was hit. `Anchor` stops its clicks and presses, and passes its hover events on.
+- The block's listeners also hear the events of its anchors and children that they do not stop. `gesture.target`
+  names the component that was hit. An anchor handles its own selection default.
 - `hoveredTag` is on while the pointer's target is the block or one of its descendants (`isHoveredBy`).
 - `block-drag-start`, `block-drag` and `block-drag-end` are emitted while the block is dragged. Preventing
   `block-drag-start` cancels the drag and its raise; preventing `block-drag` keeps the block in place.

@@ -21,8 +21,7 @@ anchor is selected (`selectedTag`). While the anchor is hovered (`hoveredTag`) t
 `Anchor.CANVAS_HOVER_FACTOR` (1.8). Restyle them with rules on `Anchor` (see
 [Default block and anchor parts](../system/tags-and-styles.md#default-block-and-anchor-parts)).
 
-**Hover and events.** An anchor puts `hoveredTag` on itself while it is the pointer's target. It stops its clicks and
-presses: a click toggles its selection and does not reach its block. Its `mouseenter` and `mouseleave` go on to its
+**Hover and events.** An anchor puts `hoveredTag` on itself while it is the pointer's target. A click on the anchor toggles its own selection. The gesture reaches its block's listeners, and the anchor handles the selection default. Its `pointerenter` and `pointerleave` go on to its
 block, which stays hovered while the pointer is on the anchor (see
 [Child components](block-component.md#child-components)).
 
@@ -267,7 +266,7 @@ The entity ID is used by:
   `Anchor.props.id` and `TAnchor.id`).
 
 `graph.api.setAnchorSelection(blockId, anchorId, selected)`, `AnchorState.setSelection()`, `AnchorState.$selected`,
-`BlockState.$selectedAnchors` and the `block-anchor-selection-change` event (its `detail.anchor` is the `TAnchor`, with
+`BlockState.$selectedAnchors` and the `block-anchor-selection-change` event (its `event.anchor` is the `TAnchor`, with
 `blockId` and `id`) take or give the block and anchor IDs as before.
 
 ## Anchor Positioning

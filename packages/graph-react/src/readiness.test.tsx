@@ -116,8 +116,21 @@ test("anchor subscribes when its canvas view mounts after the React anchor", asy
   const view = state?.getViewComponent();
   if (!view || !state) throw new Error("Expected a ready anchor view");
   act(() => {
-    view.handleEvent(new MouseEvent("mouseenter"));
-    graph.getGraphLayer().iterate();
+    // The default canvas anchor is hit at the schematic level.
+    graph.cameraService.set({ x: 0, y: 0, scale: 0.5, width: 800, height: 600 });
+    graph.scheduler.performUpdate();
+    const { x, y } = view.getPosition();
+    const [clientX, clientY] = graph.cameraService.getAbsoluteXY(x, y);
+    graph.getGraphCanvas().dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        pointerId: 1,
+        clientX,
+        clientY,
+      })
+    );
+    graph.scheduler.performUpdate();
   });
   await waitFor(() => expect(element.classList.contains("graph-block-anchor-raised")).toBe(true));
   act(() => state.setSelection(true));

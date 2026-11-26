@@ -5,7 +5,7 @@ The Drag System provides a centralized way to handle drag operations for all gra
 ## Overview
 
 When a user drags components on the graph:
-1. **DragService** intercepts the mouse events
+1. The graph resolves drag claims, then **DragService** starts the default component drag when eligible
 2. Collects all selected draggable components
 3. Manages the drag lifecycle (start → update → end)
 4. Handles autopanning near canvas edges
@@ -46,6 +46,7 @@ graph.dragService.$state.subscribe((state) => {
 | Property | Type | Description |
 |----------|------|-------------|
 | `isDragging` | `boolean` | Whether a drag operation is in progress |
+| `cancelled` | `boolean` | On the transition from dragging to idle, true for cancellation and false for a completed drop. The final geometry batch is available by this transition. |
 | `components` | `GraphComponent[]` | Components participating in the drag |
 | `componentTypes` | `Set<string>` | Set of component type names (constructor names) |
 | `isMultiple` | `boolean` | Whether multiple components are being dragged |
@@ -201,7 +202,7 @@ The `DragContext` object provides additional information about the drag operatio
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `sourceEvent` | `MouseEvent` | The native mouse event |
+| `sourceEvent` | `PointerEvent` | The native pointer event |
 | `startCoords` | `[number, number]` | World coordinates when drag started |
 | `prevCoords` | `[number, number]` | World coordinates from previous frame |
 | `currentCoords` | `[number, number]` | Current world coordinates |
@@ -295,11 +296,11 @@ The built-in `Block` component emits events during drag operations that you can 
 
 ```typescript
 graph.on("block-drag-start", (event) => {
-  console.log("Block drag started:", event.detail.block.id);
+  console.log("Block drag started:", event.block.id);
 });
 
 graph.on("block-drag", (event) => {
-  const { block, x, y } = event.detail;
+  const { block, x, y } = event;
   console.log(`Block ${block.id} moving to (${x}, ${y})`);
   
   // Prevent default to cancel the drag
@@ -307,7 +308,7 @@ graph.on("block-drag", (event) => {
 });
 
 graph.on("block-drag-end", (event) => {
-  console.log("Block drag ended:", event.detail.block.id);
+  console.log("Block drag ended:", event.block.id);
 });
 ```
 
@@ -459,6 +460,7 @@ export class CustomNode extends GraphComponent<NodeProps, NodeState> {
 ```typescript
 type DragState = {
   isDragging: boolean;
+  cancelled: boolean;
   components: GraphComponent[];
   componentTypes: Set<string>;
   isMultiple: boolean;
@@ -470,7 +472,7 @@ type DragState = {
 
 ```typescript
 type DragContext = {
-  sourceEvent: MouseEvent;
+  sourceEvent: PointerEvent;
   startCoords: [number, number];
   prevCoords: [number, number];
   currentCoords: [number, number];
@@ -504,22 +506,23 @@ type DragDiff = {
 
 ### DragService.startDrag()
 
-For custom drag operations such as creating connections or duplicating blocks, use `startDrag`.
+For scene tools such as connection editing or block duplication, claim `dragstart`. A separate surface such as a minimap can consume its native `pointerdown` and pass that sample as `initialEvent` to `startDrag`.
 
 ```typescript
 type DragOperationCallbacks = {
-  onStart?: (event: MouseEvent, coords: [number, number]) => void;
-  onUpdate?: (event: MouseEvent, coords: [number, number]) => void;
-  onEnd?: (event: MouseEvent, coords: [number, number]) => void;
-  onCancel?: (event: MouseEvent, coords: [number, number]) => void;
+  onStart?: (event: PointerEvent, coords: [number, number]) => void;
+  onUpdate?: (event: PointerEvent, coords: [number, number], cause: "pointer" | "scene") => void;
+  onEnd?: (event: PointerEvent, coords: [number, number]) => void;
+  onCancel?: (event: PointerEvent, coords: [number, number]) => void;
 };
 
 type DragOperationOptions = {
+  initialEvent?: PointerEvent;
   document?: Document;               // Defaults to graph canvas document
   cursor?: CursorLayerCursorTypes;   // Cursor during drag
   component?: GraphComponent;       // Captures graph pointer events during the drag
   autopanning?: boolean;             // Enable edge autopanning (default: true)
-  stopOnMouseLeave?: boolean;        // Stop drag on mouse leave
+  stopOnPointerLeave?: boolean;        // Finish when the initiating pointer leaves the document
 };
 
 // Usage

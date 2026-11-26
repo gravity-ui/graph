@@ -30,7 +30,7 @@ test.describe("camera-change event and $camera signal", () => {
 
   test("preventDefault on camera-change skips committed state and $camera update", async ({ page }) => {
     await page.evaluate(() => {
-      window.graph.on("camera-change", (event: Event) => {
+      window.graph.on("camera-change", (event) => {
         event.preventDefault();
       });
     });
@@ -78,16 +78,16 @@ test.describe("camera-change event and $camera signal", () => {
     await page.evaluate(() => {
       const log: Array<{
         phase: "event" | "signal";
-        detailX?: number;
+        proposedX?: number;
         signalX: number;
         serviceX: number;
       }> = [];
       (window as unknown as { __cameraCommitLog: typeof log }).__cameraCommitLog = log;
 
-      window.graph.on("camera-change", (event: CustomEvent<{ x: number }>) => {
+      window.graph.on("camera-change", (event) => {
         log.push({
           phase: "event",
-          detailX: event.detail.x,
+          proposedX: event.x,
           signalX: window.graph.$camera.value.x,
           serviceX: window.graph.cameraService.getCameraState().x,
         });
@@ -113,7 +113,7 @@ test.describe("camera-change event and $camera signal", () => {
       () =>
         (
           window as unknown as {
-            __cameraCommitLog: Array<{ phase: string; detailX?: number; signalX: number; serviceX: number }>;
+            __cameraCommitLog: Array<{ phase: string; proposedX?: number; signalX: number; serviceX: number }>;
           }
         ).__cameraCommitLog
     );
@@ -129,8 +129,8 @@ test.describe("camera-change event and $camera signal", () => {
     const lastEvent = eventEntries[eventEntries.length - 1];
     const lastSignal = signalEntries[signalEntries.length - 1];
 
-    // In the event handler, proposed x is in detail but committed stores are unchanged
-    expect(lastEvent.detailX).not.toBe(before.x);
+    // In the event handler, the proposed x is available before the stores commit
+    expect(lastEvent.proposedX).not.toBe(before.x);
     expect(lastEvent.signalX).toBe(before.x);
     expect(lastEvent.serviceX).toBe(before.x);
 
@@ -139,14 +139,14 @@ test.describe("camera-change event and $camera signal", () => {
     expect(lastSignal.serviceX).toBe(after.x);
   });
 
-  test("event detail collector receives proposed state even when change is prevented", async ({ page }) => {
+  test("the event exposes the proposed state even when change is prevented", async ({ page }) => {
     await page.evaluate(() => {
-      window.graph.on("camera-change", (event: Event) => {
+      window.graph.on("camera-change", (event) => {
         event.preventDefault();
       });
     });
 
-    const readEvents = await graphPO.events.collectDetails<{ scale: number; x: number; y: number }>("camera-change");
+    const readEvents = await graphPO.events.collect("camera-change", (events) => events.map(({ x, y }) => ({ x, y })));
     const n0 = (await readEvents()).length;
 
     const camera = graphPO.camera();

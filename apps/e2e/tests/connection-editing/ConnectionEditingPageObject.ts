@@ -93,22 +93,19 @@ export class ConnectionEditingPageObject {
       const win = window as TLayerWindow;
       win.connectionEvents = [];
       for (const name of eventNames) {
-        window.graph.on(name, (event: CustomEvent) => {
-          const detail = event.detail as Record<string, unknown>;
-          const id = (value: unknown): string | undefined => (value === undefined ? undefined : String(value));
-          const portId = (value: unknown): string | undefined =>
-            value && typeof value === "object" && "id" in value ? String(value.id) : undefined;
+        window.graph.on(name, (event) => {
+          const id = (value: string | number | symbol | undefined) => (value === undefined ? undefined : String(value));
           win.connectionEvents?.push({
-            type: name,
-            sourceBlockId: id(detail.sourceBlockId),
-            sourceAnchorId: id(detail.sourceAnchorId),
-            targetBlockId: id(detail.targetBlockId),
-            targetAnchorId: id(detail.targetAnchorId),
-            blockId: id(detail.blockId),
-            anchorId: id(detail.anchorId),
-            sourcePortId: portId(detail.sourcePort),
-            targetPortId: portId(detail.targetPort),
-            hasPoint: detail.point !== undefined,
+            type: event.type,
+            sourceBlockId: "sourceBlockId" in event ? id(event.sourceBlockId) : undefined,
+            sourceAnchorId: "sourceAnchorId" in event ? id(event.sourceAnchorId) : undefined,
+            targetBlockId: "targetBlockId" in event ? id(event.targetBlockId) : undefined,
+            targetAnchorId: "targetAnchorId" in event ? id(event.targetAnchorId) : undefined,
+            blockId: "blockId" in event ? id(event.blockId) : undefined,
+            anchorId: "anchorId" in event ? id(event.anchorId) : undefined,
+            sourcePortId: id(event.sourcePort?.id),
+            targetPortId: "targetPort" in event ? id(event.targetPort?.id) : undefined,
+            hasPoint: "point" in event,
           });
         });
       }
@@ -126,7 +123,7 @@ export class ConnectionEditingPageObject {
   /** Calls `preventDefault()` on every event with this name. */
   public async preventDefault(eventName: (typeof CONNECTION_EVENTS)[number]): Promise<void> {
     await this.page.evaluate((name) => {
-      window.graph.on(name, (event: CustomEvent) => event.preventDefault());
+      window.graph.on(name, (event) => event.preventDefault());
     }, eventName);
   }
 
@@ -240,13 +237,11 @@ export class ConnectionEditingPageObject {
     await this.graphPO.waitForFrames(2);
   }
 
-  /** Presses at `from`, jumps to `to` with a single mousemove and releases without waiting for a frame. */
+  /** Presses at `from`, jumps to `to` with a single pointer move and releases without waiting for a frame. */
   public async flick(from: GraphPoint, to: GraphPoint): Promise<void> {
     const [start, end] = await Promise.all([this.toViewport(from), this.toViewport(to)]);
     await this.page.mouse.move(start.x, start.y);
     await this.page.mouse.down();
-    // The first move sets the drag threshold origin; the jump starts the drag with no update before mouseup.
-    await this.page.mouse.move(start.x + 1, start.y);
     await this.page.mouse.move(end.x, end.y);
     await this.page.mouse.up();
     await this.graphPO.waitForFrames(2);
@@ -263,7 +258,7 @@ export class ConnectionEditingPageObject {
     await this.graphPO.waitForFrames(2);
   }
 
-  private async toViewport(point: GraphPoint): Promise<GraphPoint> {
+  public async toViewport(point: GraphPoint): Promise<GraphPoint> {
     return this.graphPO.evaluate((graph, worldPoint) => {
       const [x, y] = graph.cameraService.getAbsoluteXY(worldPoint.x, worldPoint.y);
       const rect = graph.layers.$root?.getBoundingClientRect();

@@ -9,11 +9,6 @@ import type { TScenePrimitive } from "../../../lib/scene/types";
 import { ECanDrag } from "../../../store/settings";
 import type { TGraphSettingsPatch } from "../../../store/settings";
 
-/**
- * A press on a child that is not draggable: `DragService.handleMouseDown` drags its nearest
- * draggable ancestor, and `Camera.handleGraphMouseDown` pans only when nothing in the chain is draggable.
- */
-
 type TButtonProps = TGraphComponentProps & { id: string; width: number };
 
 /** The run buttons of the mounted blocks, by block id. */
@@ -67,6 +62,7 @@ const MOVE: TClientPoint = [40, 20];
 
 describe("a press on a child that is not draggable", () => {
   let graph: Graph;
+  let root: HTMLDivElement;
   /** The press events that reached block a's button and block a, as `component:type`. */
   let log: string[];
 
@@ -82,8 +78,9 @@ describe("a press on a child that is not draggable", () => {
   function mount(settings: TGraphSettingsPatch): void {
     log = [];
     buttons.clear();
-    const root = document.createElement("div");
+    root = document.createElement("div");
     Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
+    document.body.append(root);
     graph = new Graph({ settings: { blockComponents: { ButtonBlock }, dragThreshold: 0, ...settings } }, root);
     graph.start();
     graph.cameraService.set({ scale: 0.5, x: 0, y: 0 });
@@ -92,34 +89,20 @@ describe("a press on a child that is not draggable", () => {
     const button = buttons.get("a");
     const block = blockView("a");
     if (!button || !block) throw new Error("block a or its button did not mount");
-    button.addEventListener("mousedown", () => log.push("button:mousedown"));
-    block.addEventListener("mousedown", () => log.push("block:mousedown"));
+    button.on("press", () => log.push("button:press"));
+    block.on("press", () => log.push("block:press"));
+    graph.on("press", () => log.push("graph:press"));
   }
 
-  /** One pointer event at a client point, through GraphLayer as from its root. */
-  const send = (type: string, [x, y]: TClientPoint, init: MouseEventInit = {}): void => {
-    const event = new MouseEvent(type, { clientX: x, clientY: y, bubbles: true, cancelable: true, ...init });
-    graph.getGraphLayer().handleEvent(event);
-  };
-
-  /** One document event at a client point, as the drag listeners get it. */
-  const sendToDocument = (type: string, [x, y]: TClientPoint, init: MouseEventInit = {}): void => {
-    document.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true, ...init }));
-  };
-
-  /**
-   * A press at `point`, then the pointer moves by `MOVE` with the button held, and the release. Returns what
-   * DragService dragged during the move, by name.
-   */
-  function pressAndDrag(point: TClientPoint, init: MouseEventInit = {}): string[] {
-    const end: TClientPoint = [point[0] + MOVE[0], point[1] + MOVE[1]];
-    send("mousemove", point);
-    send("mousedown", point, init);
-    // At threshold 0 the first move starts the drags, the second moves them.
-    sendToDocument("mousemove", point, init);
-    sendToDocument("mousemove", end, init);
+  function pressAndDrag(point: TClientPoint, button = 0): string[] {
+    const init = { pointerId: 1, pointerType: "mouse", bubbles: true, cancelable: true, button };
+    const buttons = button === 1 ? 4 : 1;
+    const clientX = point[0] + MOVE[0];
+    const clientY = point[1] + MOVE[1];
+    root.dispatchEvent(new PointerEvent("pointerdown", { ...init, clientX: point[0], clientY: point[1], buttons }));
+    document.dispatchEvent(new PointerEvent("pointermove", { ...init, clientX, clientY, buttons }));
     const dragged = graph.dragService.$state.value.components.map(nameOf);
-    sendToDocument("mouseup", end, init);
+    document.dispatchEvent(new PointerEvent("pointerup", { ...init, clientX, clientY, buttons: 0 }));
     return dragged;
   }
 
@@ -134,22 +117,20 @@ describe("a press on a child that is not draggable", () => {
   };
 
   afterEach(() => {
-    // Ends a drag listener a failed test left behind.
-    sendToDocument("mouseup", [0, 0]);
     graph.unmount();
+    root.remove();
     jest.restoreAllMocks();
   });
 
   describe("DragService", () => {
     // The camera's drag is off: DragService alone decides about the press.
 
-    it("drags the block for a press on its child in ALL; the press reaches no component", () => {
+    it("delivers press to child and block, then drags only that block in ALL", () => {
       mount({ canDrag: ECanDrag.ALL, canDragCamera: false });
       expect(pressAndDrag(BUTTON_A)).toEqual(["a"]);
       expect(positionOf("a")).toEqual([180, 140]);
       expect(positionOf("b")).toEqual([400, 100]);
-      // A press taken by a drag reaches no component: the drag stopped the graph event's propagation.
-      expect(log).toEqual([]);
+      expect(log).toEqual(["button:press", "block:press", "graph:press"]);
     });
 
     it("drags the selection for a press on a child of a selected block in ONLY_SELECTED", () => {
@@ -159,7 +140,7 @@ describe("a press on a child that is not draggable", () => {
       expect(pressAndDrag(BUTTON_A)).toEqual(["a", "b"]);
       expect(positionOf("a")).toEqual([180, 140]);
       expect(positionOf("b")).toEqual([480, 140]);
-      expect(log).toEqual([]);
+      expect(log).toEqual(["button:press", "block:press", "graph:press"]);
     });
 
     it("drags nothing for a press on a child of an unselected block in ONLY_SELECTED, and stops nothing", () => {
@@ -170,7 +151,7 @@ describe("a press on a child that is not draggable", () => {
       expect(pressAndDrag(BUTTON_A)).toEqual([]);
       expect(positionOf("a")).toEqual([100, 100]);
       expect(positionOf("b")).toEqual([400, 100]);
-      expect(log).toEqual(["button:mousedown", "block:mousedown"]);
+      expect(log).toEqual(["button:press", "block:press", "graph:press"]);
     });
 
     it("starts no drag when the resolved component is not available, and stops nothing", () => {
@@ -180,15 +161,13 @@ describe("a press on a child that is not draggable", () => {
       jest.spyOn(block, "isEntityAvailable").mockReturnValue(false);
       expect(pressAndDrag(BUTTON_A)).toEqual([]);
       expect(positionOf("a")).toEqual([100, 100]);
-      expect(log).toEqual(["button:mousedown", "block:mousedown"]);
+      expect(log).toEqual(["button:press", "block:press", "graph:press"]);
     });
   });
 
   describe("Camera", () => {
-    /** The camera alone: DragService does nothing with the press. */
     function mountCamera(settings: TGraphSettingsPatch): void {
       mount({ canDragCamera: true, ...settings });
-      jest.spyOn(graph.dragService, "handleMouseDown").mockImplementation(() => {});
     }
 
     it("does not pan for a press on a child of a draggable block", () => {
@@ -210,7 +189,7 @@ describe("a press on a child that is not draggable", () => {
     it("pans for a middle-button press on a child of a draggable block", () => {
       // Characterization: the middle button pans whatever is under the pointer.
       mountCamera({ canDrag: ECanDrag.ALL });
-      pressAndDrag(BUTTON_A, { button: 1 });
+      pressAndDrag(BUTTON_A, 1);
       expect(cameraPosition()).toEqual(MOVE);
     });
   });

@@ -38,8 +38,8 @@ The temporary branch and release process is documented separately in
 - Anchors are not drawn or hit at the minimalistic level and are created lazily: guard `AnchorState.getViewComponent()`, read anchor positions from their ports, and expect the `Block` as the owner of an anchor port until its component exists (see [Anchors](#anchors)).
 - Replace `renderAnchor` overrides by `getAnchorClass`; move evented areas to child components; read
   `isRenderDelegated()` instead of `hidden` (see [Blocks in the scene](#blocks-in-the-scene)).
-- Check block listeners of `mouseenter` and `mouseleave`: they now hear their anchors' and children's hover events
-  too. Tell them apart with `getEventTarget(event)` or `detail.relatedTarget` (see
+- Check block listeners of `pointerenter` and `pointerleave`: they now hear their anchors' and children's hover events
+  too. Tell them apart with `event.target` or `event.relatedTarget` (see
   [Events and hover](#events-and-hover)).
 - Take screenshots with `graph.scene.toImage()` to include built-in connections, blocks and anchors.
 - Use `graph.setEntities` for complete snapshots and `graph.updateEntities` for incremental updates. A full snapshot replaces fields even when an ID is reused. See [Public graph API](../system/public_api.md).
@@ -172,7 +172,7 @@ creation, and use the `enabled` prop, `layer.setProps({ enabled })`, `enable()` 
 unrelated settings updates. Remove the key from settings objects: TypeScript reports it as an unknown property.
 
 **Anchor drag.** `Anchor.isDraggable()` no longer reads a setting and always delegates the drag to the block.
-While `ConnectionEditingLayer` is enabled, it prevents the default action of the `mousedown` graph event on anchors,
+While `ConnectionEditingLayer` is enabled, it claims the `dragstart` gesture on anchors,
 so dragging an anchor never moves its block (`captureAnchors: false` restores the block drag). Without the layer,
 or with the layer disabled, dragging an anchor drags its block. Previously `canCreateNewConnections: true` made
 anchors undraggable even when no connection layer was mounted.
@@ -215,11 +215,10 @@ a block's default point port or an anchor port, otherwise `sourcePortId` / `targ
 - When the source disappears mid-drag, the layer emits `connection-create-cancel` instead of
   `connection-create-drop`. Escape and detaching the layer mid-drag also cancel. Listen to both events for cleanup.
 - The default preview line is 3 screen pixels wide (was 2) and honours `style.width` from `drawLine`.
-- The line of a Shift + drag starts at the mousedown point rather than at the point where the drag threshold was
+- The line of a Shift + drag starts at the press point rather than at the point where the drag threshold was
   exceeded.
 - A drop on empty space or on an invalid target clears the source highlight.
-- The layer prevents the `mousedown` graph event with `preventDefault()`, which also calls `preventDefault()` on
-  the native event.
+- The layer claims eligible drags through `dragstart`, leaving the native PointerEvent and other listeners available.
 
 **Behaviour changes for former `PortConnectionLayer` users:**
 
@@ -232,7 +231,7 @@ a block's default point port or an anchor port, otherwise `sourcePortId` / `targ
   connection between an anchor or block point and a custom port is saved with port IDs on both ends instead of
   mixing block and port fields.
 - Previously `canCreateNewConnections: true` made every anchor undraggable. Now only an enabled layer captures
-  anchor presses (`captureAnchors`).
+  anchor drags (`captureAnchors`).
 
 ## ELK package boundary
 
@@ -491,7 +490,8 @@ Resetting selected settings preserves every other setting and publishes one upda
 Pass an empty array to leave settings unchanged. `resetSettings()` affects
 settings only; it does not reset colors, constants or graph entities. The
 `dragThreshold` default is 5 pixels, `canDrag` defaults to `ECanDrag.NONE`, and
-`emulateMouseEventsOnCameraChange` defaults to false.
+`retargetHoverOnCameraChange` defaults to false. Migrate the v1 setting
+`emulateMouseEventsOnCameraChange` to this name to refresh hover after the camera moves beneath a stationary pointer.
 
 Arrays and tuples replace the previous value completely. For example,
 `graph.setConstants({ selectionLayer: { SELECTABLE_ENTITY_TYPES: [] } })`
@@ -602,38 +602,48 @@ attaching any layer.
 
 ## Event callbacks and payloads
 
-Graph event names determine listener and payload types. Remove extra callback or
-payload type arguments from `on`, `off`, `emit`, `executеDefaultEventAction` and
-`UnwrapGraphEvents`/`UnwrapGraphEventsDetail`; these APIs need only the event name
-parameter. `Graph.on` also accepts an object with `handleEvent`.
+Core and React listeners now receive one graph event. Move reads from `event.detail.x` to `event.x`,
+from `event.detail.block` to `event.block`, and from `event.detail.target` to `event.target`.
+Read the originating browser sample of a gesture through `event.event`. A hover transition provides
+`event.sourceEvent` when a pointer sample caused it.
 
 ```ts
 const unsubscribe = graph.on("colors-changed", (event) => {
-  console.log(event.detail.colors.block.background);
-}, { capture: true });
+  console.log(event.colors.block.background);
+});
 unsubscribe();
 ```
 
-Graph mouse events are `CustomEvent` wrappers. Read the native event through
-`event.detail.sourceEvent` and narrow it with `instanceof MouseEvent` when needed.
-Canvas component click/mousedown listeners receive native `MouseEvent` values.
-Component hover listeners may receive either a native `MouseEvent` or a graph
-`CustomEvent`; guard before reading native mouse coordinates. Evented-area
-enter/leave callbacks receive native synthetic `MouseEvent` values.
+The name determines the fields for `on`, `off`, `emit` and `executеDefaultEventAction`.
+Use `GraphEventMap["colors-changed"]` from `@gravity-ui/graph` to annotate a received event.
+Plugins augment `GraphEventsDefinitions` with the fields passed to `graph.emit(name, fields)`,
+which returns the dispatched event. For example, a selection event exposes `event.list` and
+`event.changes`.
 
-Use the cleanup returned by `graph.on`. When using explicit `graph.off`, pass the
-same capture value used for registration: `graph.off(name, listener, true)`.
-`once` listeners run once even during recursive emissions; cancelled drag sessions
-remove pending start/end/leave listeners immediately. A new mousedown finishes an
-active drag before removing its listeners, allowing another drag to start.
+`graph.on` accepts a callback or an object with `handleEvent` and returns its cleanup.
+For explicit `graph.off`, use the same listener and capture value as at registration.
+A `once` subscription is removed before its handler runs, including on nested emissions.
 
-`graph.layers` exposes the typed `update-size` event (`width`, `height`, `dpr`),
-and `graph.hitTest` exposes `update` with the HitTest instance. Unknown names or
-incompatible callback arguments are rejected.
+In React, use `useGraphEvent(graph, name, callback)` for gestures, hover transitions and other graph
+events. Replace a two-argument `(detail, event)` callback with `event => …`. The hook and the
+corresponding `GraphCanvas` prop receive the same event synchronously. For example,
+`onCameraChange={event => updateRuler(event.scale)}` reads the proposed scale. For committed
+camera updates, subscribe to `graph.$camera`. Replace React's `GraphEvent<CallbackName>` and
+`GraphEventDetail<CallbackName>` with the corresponding core event type, such as
+`GraphEventMap["click"]`.
 
-In `@gravity-ui/graph-react`, `GraphEvent<CallbackName>` now describes the actual
-event passed as the second callback argument. Use `GraphEventDetail<CallbackName>`
-for the first argument. React event callbacks infer both arguments from the key.
+Use these names in `GraphCanvas` props and `useGraphEvents`:
+
+| Previous callback | v2 callback |
+| --- | --- |
+| `click` | `onClick` |
+| `dblclick` | `onDoubleClick` |
+| `onBlockSelectionChange` | `onBlocksSelectionChange` |
+| `onStateChanged` | `onStateChange` |
+| `onSceneStateChanged` | `onSceneStateChange` |
+
+`graph.layers` exposes the typed `update-size` event (`width`, `height`, `dpr`).
+`graph.hitTest` exposes `update` with the HitTest instance.
 
 ## Component factories, descriptors and refs
 
@@ -777,9 +787,7 @@ before invoking block/anchor APIs. `connection-create-drop.sourceAnchorId` is al
 port connection action preserves block/anchor endpoints and their deterministic connection
 IDs. Custom component endpoints use actual port IDs; repeating a drag between the same
 custom endpoints updates the existing connection.
-Cancellation can happen before a source or target exists; its port fields preserve
-that absence. The internal `GraphLayer` mouse-event target can be absent, as can the
-public graph mouse-event target.
+Cancellation can happen before a source or target exists. Its port fields preserve that absence. A gesture on the scene background uses the graph as its target.
 
 `ISelectionBucket` exposes the public selection operations rather than inheriting
 protected callback implementation details. String and number buckets can coexist
@@ -1268,7 +1276,7 @@ without a look must declare it. See [Child components](../components/block-compo
 + class Area1 extends SceneComponent<TGraphComponentProps & { blockId: string }> {
 +   public static override entityType = "area1";
 +   public override getEntityId(): string { return this.props.blockId; }
-+   protected override willMount(): void { super.willMount(); this.addEventListener("click", () => onArea1()); }
++   protected override willMount(): void { super.willMount(); this.on("click", () => onArea1()); }
 +   protected override schematic(): readonly TScenePrimitive[] {
 +     return [{ kind: "rect", x: 0, y: 0, width: 50, height: 50, fill: "rgba(0, 120, 255, 0.2)" }];
 +   }
@@ -1289,16 +1297,10 @@ API:
   lets the block select.
 - **Overlaps.** A click went to every area under the pointer. Now it goes to the one topmost child.
 - **Outside the owner.** A child's hit box may lie outside its owner's, and takes events there.
-- **Hover events.** As for every event, `mouseenter` and `mouseleave` walk the parent chain from the target, so a
-  block's listeners hear its children's hover too. Check `getEventTarget(event)`, `detail.target` or the new
-  `detail.relatedTarget` to tell which. `Anchor` no longer stops its hover events, only its clicks and presses.
-- **Presses.** A press on a child that is not draggable drags its nearest draggable ancestor, as in the DOM. So a
-  press-drag on a former area still drags the block, as in v1, and the camera pans only when nothing in the chain is
-  draggable. A press that the drag or the pan takes reaches no component: the child gets no `mousedown`, as the block
-  body gets none. The `mouseup` and the `click` reach the child. A child with a gesture of its own makes itself
-  draggable (`isDraggable()` and `handleDrag*`, as `Anchor` does), or a graph `mousedown` listener prevents the press
-  and calls `graph.dragService.startDrag`. A child's `onDrag()` never starts under a draggable block. See
-  [Presses and drags](../system/event-model.md#presses-and-drags).
+- **Hover events.** As for every event, `pointerenter` and `pointerleave` walk the parent chain from the target, so a
+  block's listeners hear its children's hover too. Check `event.target` or the new
+  `event.relatedTarget` to tell which. Anchor selection takes priority over block selection as the default action.
+- **Presses.** The hit child and its ancestors receive `press` before any default camera or block drag. Once movement reaches the threshold, a child can claim `dragstart`. Otherwise the nearest draggable ancestor can move. The camera may pan on the background. See [Presses and drags](../system/event-model.md#presses-and-drags).
 
 ### Hit levels and transparent components
 
@@ -1330,69 +1332,76 @@ API:
 
 **The model.** The event model is the component tree's. The component under the pointer handles an event and lets it
 go on, or stops it. An event it does not stop reaches its parent, and its parent's parent, and each can check the
-target. Hover events also carry `detail.relatedTarget`, the other side of the target change (none for the camera or
+target. Hover events also carry `event.relatedTarget`, the other side of the target change (none for the camera or
 outside the graph), so a parent can tell whether the pointer stayed inside it.
 
-**The hit target (new).** `getEventTarget(event)` returns the graph component a pointer event hit (a block, an anchor,
-a child component, a connection or a group), the same in every handler of the walk and after the dispatch;
-`getEventTarget(event, Class)` returns it only for that class.
+**Browser requirement.** Graph input requires native [Pointer Events](https://www.w3.org/TR/pointerevents/). The mouse fallback for browsers without Pointer Events has been removed. Browser tests should drive the browser's input or dispatch a matching `pointerdown` and `pointerup` pair.
 
-- `click`, `mousedown`, `mouseup` and `dblclick` stay the browser's `MouseEvent`s. An emulated click is a copy of the
-  browser's event, and its DOM `target` is `null`.
-- Only the hover events (`mouseenter`, `mouseleave`, `mouseover`, `mouseout`) are `CustomEvent`s with
-  `detail.target` and `detail.relatedTarget` (`TGraphHoverDetail`).
-- On the graph's bus, use `detail.target` or `getEventTarget(detail.sourceEvent)`.
+### Migrating pointer input
 
-```typescript
-import { CanvasBlock, getEventTarget } from "@gravity-ui/graph";
+| Old graph or component API | v2 |
+| --- | --- |
+| `mousedown` / `mouseup` | `press` / `release` on either the component or graph |
+| Native scene `click` or `dblclick` handler | `component.on("click", listener)` or `graph.on("dblclick", listener)` |
+| `getEventTarget(event)`, `extractNativeGraphMouseEvent(event)` | `gesture.target`, `gesture.event` |
+| `mouseenter`, `mouseleave`, `mouseover`, `mouseout` | `pointerenter`, `pointerleave`, `pointerover`, `pointerout` |
+| `dragService.startDrag(…, { stopOnMouseLeave: true })` | Use `stopOnPointerLeave` to finish when the initiating pointer leaves the document. |
+| Graph `mousemove` | Observe native `pointermove` for physical samples, or claim `dragstart` for drag updates |
+| `useGraphGesture(graph, "click", cb)` in v2 previews | `useGraphEvent(graph, "click", cb)` |
+| Plugin events sent via `graph.eventEmitter.dispatchEvent(new CustomEvent(type, { detail }))` | Extend `GraphEventsDefinitions`, call `graph.emit(type, fields)` and check the returned event's `defaultPrevented`. Read payload fields directly in `graph.on(type, listener)`. |
 
-class RunButtonAwareBlock extends CanvasBlock {
-  protected override willMount(): void {
-    super.willMount();
-    this.addEventListener("click", (event: Event) => {
-      if (getEventTarget(event) !== this) return; // a child's click that bubbled up
-      // A click on the block itself.
-    });
-  }
-}
+Press, release and activation carry a gesture object. Use its `point` for world coordinates and `event` for native modifiers. Hover notifications carry `event.target`, `event.relatedTarget`, `event.cause`, `event.pointerPressed` and an optional `event.sourceEvent`. HTML controls handle their own native activation, including keyboard clicks. Stop the control's bubbling `pointerdown` to reserve that interaction.
+
+```ts
+graph.on("click", (gesture) => {
+  if (gesture.target instanceof CanvasBlock) showBlock(gesture.target);
+}, { capture: true });
 ```
 
-**The graph's events.** `graph.on` and `useGraphEvent` get the same events with the same targets, with
-`relatedTarget` added on `mouseenter` and `mouseleave` (`GraphMouseEvent.detail.relatedTarget`). Menus and cursors
-that follow the target behave as before.
+**Dragging.** Subscribe to `dragstart` and call `claim({ owner, move, end, cancel })` during delivery. Commit the drop in `end`. Use `cancel` to discard the preview on Escape, pointer cancellation or teardown. Two competing claims suppress the drag. A second finger can start a pinch before the drag threshold. Once the port owns the drag, the original pointer alone moves and finishes it.
+
+Layers that persist built-in component drags can subscribe to `graph.dragService.$state`. On the transition from dragging to idle, the final geometry batch has been flushed. Commit pending changes once when `state.cancelled` is false and discard them when it is true. A document `mouseup` listener runs too late to classify this transition.
+
+If two tools share a modifier, assign them different start targets. For example, a group tool can claim Shift-drag on the body of a block while `ConnectionEditingLayer.canStart` accepts only anchors. Layer registration order does not resolve competing claims.
+
+**Camera.** Use `graph.on("camera-change", ({ scale, preventDefault }) => …)` to intercept a proposed change. Subscribe to `graph.$camera` to update UI from the committed position and scale. React uses the synchronous `useGraphEvent` hook for both input and model events.
+
+**Touch.** The default `touchPolicy: "page"` leaves native scrolling and zoom to the host page. Set `settings: { touchPolicy: "editor" }` before contact in a surface that supports touch dragging and two-finger camera navigation. Both policies support taps and holds. Double-click and double-tap share the configurable `doubleClickInterval` (350 ms) and `doubleClickDistance` (12 CSS pixels). Touch and pen holds use `longPressDuration` (500 ms). [Full event model](../system/event-model.md)
+
+**Single versus double click.** The default `clickPolicy: "immediate"` preserves immediate selection. Use `"exclusive"` for editors where a double-click must run on the original selection. The graph delays single-click handlers and selection together, and delivers a qualifying pair as a single `dblclick`. [Activation](../system/event-model.md#activation)
 
 **Visible changes of the event model**, each with its reason:
 
 - **Only the sides of a change that exist get events.** Entering the graph no longer sends the new target a
-  `mouseleave` first. Reason: that leave named the new target as the old side, a false leave.
+  `pointerleave` first. Reason: that leave named the new target as the old side, a false leave.
 - **Leaving the graph.** When the pointer leaves the graph's root, the target becomes none: the old target gets its
-  `mouseleave`, and a camera move then finds no target. Reason: the target must match what the pointer is on.
+  `pointerleave`, and a camera move then finds no target. Reason: the target must match what the pointer is on.
 - **A removed hovered component** gets no event, as before. The nearest graph component above it gets the
-  `mouseleave` in its place when the pointer is no longer on it, so a block whose hovered child is removed stops
+  `pointerleave` in its place when the pointer is no longer on it, so a block whose hovered child is removed stops
   showing as hovered. Reason: otherwise the block stayed hovered.
 - **A still pointer.** When what it hits changes, the target is found again at the end of the frame (or once the hit
   test has indexed the frame's hit boxes): a component hidden, shown or removed; a hit box that was set before
   moving, resizing, going or coming back (a block or an anchor moved through the API, a child's look); hit levels, an
   HTML hold or the scene level changing. Hover and
-  cursor used to wait for the next pointer move there. The graph's `mouseenter` and `mouseleave` fire then as well,
+  cursor used to wait for the next pointer move there. The graph's `pointerenter` and `pointerleave` fire then as well,
   so menus, tooltips and other listeners that follow the target react without a pointer move. A level change does
-  this even with `emulateMouseEventsOnCameraChange` off. A component that mounts under the pointer is found at the
+  this even with `retargetHoverOnCameraChange` off. A component that mounts under the pointer is found at the
   next move, as before, and so are the anchors a pan creates. Camera moves keep the
-  `emulateMouseEventsOnCameraChange` rule. Reason: hover, cursor and the bus must follow what the pointer hits.
+  `retargetHoverOnCameraChange` rule. Reason: hover, cursor and the bus must follow what the pointer hits.
 - **Hover of a block.** A block stays hovered (`hoveredTag`, React's `graph-tag-hovered`) while the pointer is on its
   anchor or another child; the tag used to go away there. Reason: a block shows as hovered as an element does with
   CSS `:hover`, while the pointer is on it or on any of its descendants.
-- **`Anchor` now lets its `mouseenter` and `mouseleave` reach its block.** A block listener that set a hover state on
-  `mouseenter` and cleared it on `mouseleave` without checking the target now also hears its anchors': the state stays
-  on over the anchor and goes off when the pointer leaves the block. Check `getEventTarget(event)`, or
-  `detail.relatedTarget` on leave, to keep the old behaviour. Reason: a parent hears the events of its
+- **`Anchor` now lets its `pointerenter` and `pointerleave` reach its block.** A block listener that set a hover state on
+  `pointerenter` and cleared it on `pointerleave` without checking the target now also hears its anchors': the state stays
+  on over the anchor and goes off when the pointer leaves the block. Check `event.target`, or
+  `event.relatedTarget` on leave, to keep the old behaviour. Reason: a parent hears the events of its
   children, as in the DOM.
 
 **`hoveredTag`** is written by components on themselves, for styles only. The binding to the pointer's target is
 gone. The library `Block` tags itself while the pointer is on it or on a descendant (`isHoveredBy`); `Anchor`,
 connections and groups while they are the target. A custom component with a `static entityType` that relied on the
-binding tags itself now: call `this.setHoveredTag(pointerTargetAfter(event) === this)` from its `mouseenter` and
-`mouseleave` listeners, or `isWithinComponent(this, pointerTargetAfter(event))` for a CSS-like hover of itself and
+binding tags itself now: call `this.setHoveredTag(pointerTargetAfter(event) === this)` from its `pointerenter` and
+`pointerleave` listeners, or `isWithinComponent(this, pointerTargetAfter(event))` for a CSS-like hover of itself and
 its descendants.
 
 ```typescript
@@ -1408,38 +1417,23 @@ class Pin extends GraphComponent {
   protected override willMount(): void {
     super.willMount();
     // Tagged while it is the pointer's target, as the binding did.
-    const follow = (event: Event): void => this.setHoveredTag(pointerTargetAfter(event) === this);
-    this.addEventListener("mouseenter", follow);
-    this.addEventListener("mouseleave", follow);
+    this.listenEvents(["pointerenter", "pointerleave"], (event) => {
+      this.setHoveredTag(pointerTargetAfter(event) === this);
+    });
   }
 }
 ```
 
 - No library code reads `hoveredTag` to decide behaviour. A rule that gives hovered components a `raise` changes the
   scene order, and so the hit order where components overlap; a `scale` changes the drawing, not the hit box.
-- A graph `mouseleave` handler that calls `preventDefault()` keeps the event from the components, so a block or an
+- A graph `pointerleave` handler that calls `preventDefault()` keeps the event from the components, so a block or an
   anchor that was tagged keeps its `hoveredTag`. Prevent hover events only where that is what you want.
-- A child or a custom anchor that calls `stopPropagation()` on `mouseleave` keeps the event from its block, so the
+- A child or a custom anchor that calls `stopPropagation()` on `pointerleave` keeps the event from its block, so the
   block keeps its `hoveredTag` after the pointer leaves it through that child. Stop hover events only where the parent
   must not hear them.
-- **An overridden `dispatchEvent`.** The hover hook `onDispatchedEvent` runs in the parent walk (`_dipping`). A class
-  that overrides `dispatchEvent` to fire its own listeners without the walk, as a block that keeps its events to
-  itself does, skips its own hook too. The library `Block`'s hover then follows only what bubbles up from its anchors,
-  so it is off over the body and stays on after the pointer leaves the body. Keep the stopping and call the hook
-  first:
-
-  ```diff
-    public override dispatchEvent(event: Event): boolean {
-      if (!this.isInteractive()) return this._dipping(this, event);
-  +   // Its own events reach the hover hook, as the parent walk would do.
-  +   this.onDispatchedEvent(event);
-      if (this._hasListener(this, event.type)) this._fireEvent(this, event);
-      return false;
-    }
-  ```
-
-  Routing through `super.dispatchEvent(event)` instead changes more than the hover: the events then walk on to the
-  block's parents (the camera unsets the selection on a `click` that reaches it) unless a listener stops them.
+- **Custom `dispatchEvent` overrides.** The base implementation runs `onDispatchedEvent` before each component's
+  listeners and sets `event.currentTarget` during delivery. To keep a hover transition within a component, use
+  `this.on("pointerleave", event => event.stopPropagation())`. Its own hover hook and other listeners still run.
 - A connection whose stroke width follows the camera (a width in screen pixels, read again on zoom) calls
   `invalidateLine({ followsCamera: true })` or `ConnectionLine.invalidate({ followsCamera: true })`: the hit box it
   resizes then asks for no retarget, as camera moves keep their rule. The option is new and optional.
@@ -1467,11 +1461,11 @@ class Pin extends GraphComponent {
   graph does not switch it. Reason: the HTML and the scene blocks must switch in one frame.
 - When the level becomes detailed, graph-react's blocks list holds the pointer's retarget until its views have
   mounted (at most three graph frames). A `GraphBlock` rendered outside that list, or a view that mounts later, can
-  move the target once: one extra `mouseleave` and `mouseenter`.
+  move the target once: one extra `pointerleave` and `pointerenter`.
 
 ### Anchors are hit where they are shown
 
-Events come from one source, the graph's bus: GraphLayer listens on the root, where HTML events bubble, and targets the
+Events come from one source, the graph's bus: the input service listens on the root, where HTML events bubble, and targets the
 hit-tested component. A component is hit on the levels where it is shown, by its scene look or by an HTML view. v1 hit
 the stock anchor at the detailed level, where it drew nothing on the canvas. v2 hits it there only while its block is
 shown outside the scene (an HTML view holds it, or `setRenderDelegated(true)`), subject to `static hitLevels`
@@ -1485,7 +1479,7 @@ there.
 | Detailed without HTML, a stock anchor | Point queries no longer return it; the target is the block under it, or another entity, or the camera |
 | A click on such an anchor | The anchor's selection toggle no longer runs; the block's or the background's action may run |
 | Hover | The anchor's enter/leave, raised state, `hoveredTag`, tooltip and cursor do not activate; the new target gets the events |
-| The graph bus and target-based menus | `mousedown`, `click`, `dblclick`, hover events and `getElementOverPoint()` callers get another target |
+| The graph bus and target-based menus | `press`, `click`, `dblclick`, hover events and `getElementOverPoint()` callers get another target |
 | Starting a connection gesture | The anchor-based start goes; where a block start is allowed (Shift) the block gesture remains |
 | Finishing a connection gesture | Without `snappable` meta the fallback picks the block's input port instead of the anchor's; validation and the endpoint change |
 | Explicitly snappable ports | The port search can still reach the anchor port through the block's port map: a separate port path |
@@ -1579,9 +1573,9 @@ the detailed level starts them at the schematic level, or marks anchor ports `sn
 
 | Member | What it is |
 | --- | --- |
-| `getEventTarget(event, Class?)` | The graph component a pointer event hit (a block, an anchor, a child component, a connection or a group), in every handler of its walk |
+| `gesture.target` | The graph component a pointer event hit (a block, an anchor, a child component, a connection or a group), in every handler of its walk |
 | `pointerTargetAfter(event)`, `isWithinComponent(ancestor, target)` | Hover helpers: the target after a hover event; whether a target is a component or its descendant |
-| `TGraphHoverDetail`, `GraphMouseEvent.detail.relatedTarget` | The detail of hover events; the other side of a target change |
+| `TGraphHoverDetail`, `event.relatedTarget` | The hover fields and the component on the other side of a target change |
 | `EventedComponent.onDispatchedEvent(event)` (protected) | A hook for each event that walks through the component, before its listeners |
 | `GraphComponent.transparentToEvents`, `isTransparentToEvents()` | Pointer events pass through the component |
 | `GraphComponent.setHoveredTag(hovered)` (protected) | Writes the component's own `hoveredTag` |
@@ -1598,7 +1592,7 @@ the detailed level starts them at the schematic level, or marks anchor ports `sn
 | `BlockState.unsetViewComponent()`, `Group.subscribeGroupSignal()`, `Group.leaveGroupState()` (protected) | Rebinding to a re-added entity |
 | `BlockConnection.invalidateLine({ followsCamera })`, `ConnectionLine.invalidate({ followsCamera })` | A stroke width that follows the camera asks for no retarget |
 
-`Graph.getComponentsInViewport()`, `GraphLayer.requestRetarget()`, `GraphLayer.holdRetarget()`,
+`Graph.getComponentsInViewport()`, `graph.input.hover.requestRetarget()`, `graph.input.hover.holdRetarget()`,
 `HitTest.hasPendingUpdates()` and `Anchor.creationLevelsOf()` are `@internal`.
 
 ### Text, primitives and ports

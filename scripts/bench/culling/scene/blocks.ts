@@ -316,25 +316,29 @@ export async function setupBlocks(
     return stops;
   };
   const hoverEnters = { count: 0 };
-  graph.on("mouseenter", () => {
+  graph.on("pointerenter", () => {
     hoverEnters.count += 1;
   });
+  const movePointer = (point: TPoint): void => {
+    root.dispatchEvent(new PointerEvent("pointermove", {
+      pointerType: "mouse", pointerId: 1, clientX: point.x, clientY: point.y, bubbles: true,
+    }));
+  };
   const hover = (step: number): void => {
     if (!path) throw new Error("hover: setHoverPath() runs before the first move");
-    const point = path[step % path.length];
-    root.dispatchEvent(new MouseEvent("mousemove", { clientX: point.x, clientY: point.y, bubbles: true }));
+    movePointer(path[step % path.length]);
   };
 
   /**
    * Moves the pointer to a point no graph component is under (found on a grid of the view), so the last target
-   * leaves. A plain `mousemove`, so it works on a library without the root-leave handling.
+   * leaves through the same hit-testing path as every measured move.
    */
   const hoverEnd = (): void => {
     const { width, height } = graph.cameraService.getCameraState();
     for (let y = 2; y < height; y += 40) {
       for (let x = 2; x < width; x += 40) {
         if (graph.getElementOverPoint(toWorld({ x, y })) !== undefined) continue;
-        root.dispatchEvent(new MouseEvent("mousemove", { clientX: x, clientY: y, bubbles: true }));
+        movePointer({ x, y });
         return;
       }
     }

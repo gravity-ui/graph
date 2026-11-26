@@ -114,7 +114,7 @@ export abstract class SceneComponent<
   }
 
   /**
-   * The levels on which the hit test finds components of this class, whatever shows them (spec §9, D4). Without a
+   * The levels on which the hit test finds components of this class, whatever shows them. Without a
    * declaration: an element owner on every level; a sub-component with a look on the levels its primitives are on, and
    * on every level while it or a scene component above it is shown outside the scene; a look-less sub-component on
    * none (declare where the look it stands for is shown). A sub-component of a hidden one takes no hits at all,
@@ -319,13 +319,13 @@ export abstract class SceneComponent<
     );
   }
 
-  /** Whether the hit test finds this component on a level (`static hitLevels`, spec §9, D4). */
+  /** Whether the hit test finds this component on a level (`static hitLevels`). */
   public isHitOnLevel(level: TSceneLevel): boolean {
     const declared = declaredHitMask(this.constructor as typeof SceneComponent);
     // An element owner: every level without a declaration, as every graph component.
     if (!this.writesChild) return declared === undefined || isOnLevel(declared, level);
     // The cheap rejections first, before the walks up the nesting. A look-less sub-component without a declaration is
-    // not hit (settled item 10); a declaration that omits the level is authoritative.
+    // not hit; a declaration that omits the level is authoritative.
     if (declared === undefined ? this.hitMask === 0 : !isOnLevel(declared, level)) return false;
     const showing = this.hitShowing();
     // Hidden itself or above, for a reason other than delegation: no hits in the subtree (user ruling, as in the DOM).
@@ -356,7 +356,7 @@ export abstract class SceneComponent<
   }
 
   /**
-   * Whether something outside the scene shows this component now (D4): it and its sub-components are then hit on
+   * Whether something outside the scene shows this component now: it and its sub-components are then hit on
    * every level, drawn in the scene or not, unless one of them is hidden for another reason (`isHitBarrier`). By
    * default while its drawing is delegated (`setRenderDelegated`); `Block` adds an HTML view's hold.
    */
@@ -365,7 +365,7 @@ export abstract class SceneComponent<
   }
 
   /**
-   * Whether this component is a hit barrier (user ruling on D4, as `display: none` in the DOM): every sub-component
+   * Whether this component is a hit barrier (like `display: none` in the DOM): every sub-component
    * under it, and it too when it is a sub-component, takes no hits, on any level, under an owner shown outside the
    * scene too and whatever they declare. An element owner (a block) is hit, on the levels its `hitLevels` allow, as long
    * as it keeps its hit box: hiding it with `setVisibility(false, { removeHitbox: true })` or a collapsed group removes
@@ -464,7 +464,7 @@ export abstract class SceneComponent<
   }
 
   /**
-   * Notes the hit barrier at a write; a change after the first asks GraphLayer to find the target again. The written
+   * Notes the hit barrier at a write; a change after the first asks the input service to find the target again. The written
    * hidden flag can stay (a delegated component that another input hides), and `isSceneHidden` overrides read inputs
    * of their own, so the barrier itself is compared. The first write asks nothing, as a first hit box.
    */
@@ -497,17 +497,16 @@ export abstract class SceneComponent<
           rect.height === last.height;
     if (same) return;
     this.lastHitRect = rect;
-    // A look that goes, comes back, moves or changes size changes what a still pointer hits (re-review 5):
-    // `setHitBox` and `removeHitBox` ask GraphLayer to find the target again (`GraphComponent.requestRetarget`).
+    // A look that goes, comes back, moves or changes size changes what a still pointer hits:
+    // `setHitBox` and `removeHitBox` ask the input service to find the target again (`GraphComponent.requestRetarget`).
     if (rect) this.setHitBox(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
     else if (last) this.removeHitBox();
   }
 
   /**
-   * Writes a sub-component's hit mask after a write (none written: 0); a later change asks GraphLayer to find the
+   * Writes a sub-component's hit mask after a write (none written: 0); a later change asks the input service to find the
    * target again. The first add only sets it (`initial`): a component that mounts under a still pointer is found at the
-   * next pointer move, and the anchors a camera move creates lazily must not turn that move into a retarget (settled
-   * item 11).
+   * next pointer move, and the anchors a camera move creates lazily must not turn that move into a retarget.
    */
   private syncHitMask(written: TWritten | undefined, initial = false): void {
     const mask = written?.parent === undefined ? 0 : levelMaskOfPrimitives(written.primitives);

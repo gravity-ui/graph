@@ -180,6 +180,7 @@ const CollapsibleGroupsApp = () => {
   const { graph, setEntities, start } = useGraph({
     settings: {
       canDrag: ECanDrag.ALL,
+      clickPolicy: "exclusive",
     },
   });
 
@@ -237,7 +238,7 @@ const meta: Meta = {
           "Group rects are auto-computed from block positions via `withBlockGrouping`. " +
           "**Double-click** a group to collapse it: blocks hide, connections redirect " +
           "to group edges. Outer blocks shift via `group-collapse-change` event handler. " +
-          "Double-click the header to expand.",
+          'Double-click the header to expand. This story uses `clickPolicy: "exclusive"` so toggling a group preserves selection.',
       },
     },
   },

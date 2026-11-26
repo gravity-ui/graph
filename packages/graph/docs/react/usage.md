@@ -56,7 +56,7 @@ import { GraphCanvas } from "@gravity-ui/graph-react";
 - **`className`** (optional): CSS class for the main container
 - **`blockListClassName`** (optional): CSS class applied to the blocks container layer
 - **`reactLayerRef`** (optional): Ref to access the ReactLayer instance directly
-- **Event callbacks**: All graph event callbacks can be passed as props
+- **Event callbacks** such as `onClick`, `onPress` and `onCameraChange` receive graph events. Attach native DOM handlers to the corresponding HTML element. Subscribe to plugin events by name with `useGraphEvent`.
 
 ### GraphBlock
 
@@ -148,14 +148,13 @@ function LoadingBlock({ graph, block }: { graph: Graph; block: TBlock }): React.
 ReactLayer switches its HTML at the end of the graph frame, so zooming out draws the canvas blocks in the frame that
 hides the HTML. A stopped graph does not switch it. While a view holds its block at the detailed level, the block, its
 anchors and its child components are hit there, drawn in the scene or not, unless a class's `static hitLevels` leaves
-the detailed level out (see [Hit levels](../system/event-model.md#hit-levels)). Clicks on the HTML reach the graph's
-events with the component under the pointer as the target: a click on an anchor's HTML is the graph's `click` on that
-anchor (`getEventTarget(detail.sourceEvent)` returns it).
+the detailed level out (see [Hit levels](../system/event-model.md#hit-levels)). Pointer input on the HTML representation reaches the graph's gestures with the component under the pointer as the target: a click on an anchor's HTML is the graph's `click` on that
+anchor (`event.target` identifies it in `useGraphEvent`). Native HTML controls, such as buttons and links, handle their own activation.
 
 When the level becomes detailed, the blocks list holds the pointer's target until its views have mounted (at most
 three graph frames), so an anchor under a still pointer is not dropped and taken back. A `GraphBlock` rendered
 outside `GraphCanvas`'s blocks list, or a view that mounts later than that, can move the target once: one extra
-`mouseleave` and `mouseenter`.
+`pointerleave` and `pointerenter`.
 
 ### GraphBlockAnchor
 
@@ -190,7 +189,7 @@ The library provides a comprehensive set of React hooks for working with the gra
 | Hook | Description |
 |------|-------------|
 | `useGraph` | Create and manage a Graph instance |
-| `useGraphEvent` | Subscribe to a single graph event |
+| `useGraphEvent` | Subscribe during dispatch to a graph event such as `press`, `pointerenter` or `block-change` |
 | `useGraphEvents` | Subscribe to multiple graph events |
 | `useLayer` | Add and manage layers |
 | `useBlockState` | Subscribe to block state changes |
@@ -380,30 +379,18 @@ const config = {
 
 ## Event Handling
 
-The library provides a rich set of events you can listen to:
+`useGraphEvent` and the named `GraphCanvas` props receive the same event object as `graph.on`. Read its payload directly in the callback.
 
 ```tsx
-import { useGraphEvent } from '@gravity-ui/graph-react';
-
-// When a new connection is created (requires ConnectionEditingLayer from @gravity-ui/graph-connection-editing)
-useGraphEvent(graph, "connection-created", 
-  ({ sourceBlockId, targetBlockId }, event) => {
-    // Handle new connection
-    // Use event.preventDefault() to cancel if needed
+useGraphEvent(graph, "blocks-selection-change", ({ list }) => {
+  console.log("Selected block IDs", list);
 });
 
-// When blocks are selected
-useGraphEvent(graph, "blocks-selection-change", 
-  ({ changes }) => {
-    console.log('Added:', changes.add);
-    console.log('Removed:', changes.removed);
-});
-
-// When a block is modified
-useGraphEvent(graph, "block-change", 
-  ({ block }) => {
-    // Handle block changes
-});
+<GraphCanvas
+  graph={graph}
+  onClick={({ target, point }) => console.log(target, point.world)}
+  onCameraChange={(event) => console.log(event.x, event.y, event.scale)}
+/>
 ```
 
 ## Common Patterns
@@ -438,8 +425,8 @@ With `ConnectionEditingLayer` attached, let the layer write valid connections in
 their endpoints. To reject a connection, cancel its creation event.
 
 ```tsx
-useGraphEvent(graph, "connection-created", (connection, event) => {
-  if (!validateConnection(connection)) event.preventDefault();
+useGraphEvent(graph, "connection-created", (event) => {
+  if (!validateConnection(event)) event.preventDefault();
 });
 ```
 

@@ -96,14 +96,7 @@ export const StageCardView = ({ graph, block, onAction }: TStageCardViewProps): 
         </div>
         <div className="scene-stage__footer">
           <span className="scene-stage__rows">{formatRows(block.rowsPerSecond)} rows/s</span>
-          <div
-            onMouseDown={stopGraphEvent}
-            onMouseUp={stopGraphEvent}
-            onClick={stopGraphEvent}
-            onDoubleClick={stopGraphEvent}
-            onTouchStart={stopGraphEvent}
-            onTouchEnd={stopGraphEvent}
-          >
+          <div onPointerDown={stopGraphEvent}>
             <Button
               size="xs"
               view={status === "failed" ? "outlined-danger" : "outlined"}

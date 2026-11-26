@@ -23,20 +23,20 @@ const action =
   };
 
 const callbacks = {
-  mousedown: action("mousedown"),
-  click: action("click"),
-  dblclick: action("dblclick"),
-  mouseenter: action("mouseenter"),
-  mouseleave: action("mouseleave"),
+  onPress: action("press"),
+  onClick: action("click"),
+  onDoubleClick: action("dblclick"),
+  onPointerEnter: action("pointerenter"),
+  onPointerLeave: action("pointerleave"),
   onCameraChange: action("onCameraChange"),
   onBlockDragStart: action("onBlockDragStart"),
   onBlockDrag: action("onBlockDrag"),
   onBlockDragEnd: action("onBlockDragEnd"),
-  onBlockSelectionChange: action("onBlockSelectionChange"),
+  onBlocksSelectionChange: action("onBlocksSelectionChange"),
   onBlockAnchorSelectionChange: action("onBlockAnchorSelectionChange"),
   onBlockChange: action("onBlockChange"),
   onConnectionSelectionChange: action("onConnectionSelectionChange"),
-} as Partial<TGraphEventCallbacks>;
+} satisfies Partial<TGraphEventCallbacks>;
 
 export const GraphComponentStory = ({ config, graphRef, constants, colors, renderBlock }: TGraphComponentProps) => {
   const { graph, setEntities, start } = useGraph({

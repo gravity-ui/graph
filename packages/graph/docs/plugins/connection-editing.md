@@ -32,7 +32,7 @@ A connection starts from the first match under the cursor:
 
 1. **A connection port**: a port within `searchRadius` whose meta has `ConnectionEditingLayer.PortMetaKey` with `snappable: true`. While dragging, the endpoint snaps to the nearest connection port within `searchRadius`; the per-port `snapCondition` can reject it.
 2. **An anchor**, when the `useBlocksAnchors` setting is on. It connects to an anchor of another block. Anchors are hit from the schematic level on: at the minimalistic level the block under the cursor is hit instead (see [Anchors](../components/anchors.md#drawing-and-lazy-creation)).
-3. **A block**, while Shift is held. It connects to another block; the preview line starts at the mousedown point.
+3. **A block**, while Shift is held. It connects to another block; the preview line starts at the press point.
 
 Connection ports are also valid targets for anchor and block sources. Anchor connections are created in the OUT → IN direction, whichever end the drag started from. Use `canStart` to restrict sources, for example to connection ports only:
 
@@ -45,7 +45,7 @@ graph.addLayer(ConnectionEditingLayer, {
 });
 ```
 
-Escape cancels the drag. While the layer is enabled, pressing an anchor never moves its block, even when no connection starts from it; pass `captureAnchors: false` to let such anchors drag their block.
+An unhandled Escape cancels the drag. An HTML control can consume Escape with `preventDefault()` and leave the connection preview active. While the layer is enabled, pressing an anchor never moves its block, even when no connection starts from it; pass `captureAnchors: false` to let such anchors drag their block.
 
 ### Port metadata
 
@@ -92,18 +92,18 @@ A connection is written in one of two `TConnection` addressing modes, never mixe
 
 `connection-created` and the `connection-create-drop` that follows it use the same rule: in port mode their block and anchor IDs are `undefined`; use `sourcePort.id` / `targetPort.id`. In the other events (start, hover, a drop that creates nothing), the block and anchor IDs of an end are `undefined` when that end has no block address.
 
-| Event | Detail | `preventDefault()` |
+| Event | Event fields | `preventDefault()` |
 |---|---|---|
 | `connection-create-start` | `blockId`, `anchorId`, `sourcePort` | Skips the source highlight. |
 | `connection-create-hover` | source/target block and anchor IDs, `sourcePort`, `targetPort?` (`undefined` when the endpoint leaves a target) | Skips the target highlight. |
 | `connection-created` | source/target block and anchor IDs, `sourcePort`, `targetPort` | Does not add the connection to the store. |
-| `connection-create-drop` | source/target IDs, `point`, `sourcePort`, `targetPort?`; fired on mouse release, with or without a connection | — |
-| `connection-create-cancel` | `sourcePort`, `targetPort`; fired on Escape, when the source disappears, or when the layer is detached mid-drag | — |
+| `connection-create-drop` | source/target IDs, `point`, `sourcePort`, `targetPort?`; fired when the initiating pointer is released, with or without a connection | — |
+| `connection-create-cancel` | `sourcePort`, `targetPort`; fired on an unhandled Escape, when the source disappears, or when the layer is detached mid-drag | — |
 
 ```typescript
 graph.on("connection-created", (event) => {
   event.preventDefault();
-  const { sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId, sourcePort, targetPort } = event.detail;
+  const { sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId, sourcePort, targetPort } = event;
   if (sourceBlockId !== undefined && targetBlockId !== undefined) {
     // Block mode
     myModel.connect({ sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId });
@@ -113,9 +113,9 @@ graph.on("connection-created", (event) => {
   }
 });
 
-graph.on("connection-create-drop", ({ detail }) => {
-  if (!detail.targetPort) {
-    // Dropped on empty space: for example, create a block at detail.point.
+graph.on("connection-create-drop", ({ targetPort, point }) => {
+  if (!targetPort) {
+    // Dropped on empty space: for example, create a block at point.
   }
 });
 ```

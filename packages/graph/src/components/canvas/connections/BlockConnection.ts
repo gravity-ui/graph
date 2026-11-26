@@ -5,6 +5,7 @@ import type { TPathGap, TPathInteraction, TScenePrimitive, TSceneStroke, TSceneS
 import { resolveSceneSize } from "../../../lib/scene/utils/size";
 import { largestSize } from "../../../lib/scene/webgl/order/levelBounds";
 import { HitBoxData } from "../../../services/HitTest";
+import type { GraphClickEvent } from "../../../services/input/press";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import type { TStyleParts } from "../../../services/styles/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
@@ -194,7 +195,6 @@ export class BlockConnection<T extends TConnection = TConnection>
    */
   constructor(props: TConnectionProps, parent: BlockConnections) {
     super(props, parent);
-    this.addEventListener("click", this);
     if (HAS_NODE_ENV && process.env.NODE_ENV !== "production")
       warnRemovedConnectionMethods(this.constructor, BlockConnection);
 
@@ -284,7 +284,7 @@ export class BlockConnection<T extends TConnection = TConnection>
       if (this.isRenderAllowed() && this.shape) this.updateHitBox();
     }
     if (previous?.raise !== style.raise || previous?.base !== style.base || previous?.parts !== style.parts) {
-      this.context.graph.getGraphLayer().requestRetarget();
+      this.context.graph.input.hover.requestRetarget();
     }
   }
 
@@ -430,7 +430,7 @@ export class BlockConnection<T extends TConnection = TConnection>
    *
    * A stroke whose width follows the camera (a width in screen pixels, read again on zoom) passes
    * `{ followsCamera: true }`: the hit box it resizes then asks GraphLayer for no new pointer target, as camera moves
-   * keep today's rule (settled item 11). A width that follows data asks, so hover follows it under a still pointer.
+   * keep today's rule. A width that follows data asks, so hover follows it under a still pointer.
    */
   public invalidateLine(options?: { readonly followsCamera?: boolean }): void {
     // An unmounted connection has left the batch and the label pass.
@@ -499,8 +499,7 @@ export class BlockConnection<T extends TConnection = TConnection>
           this.updateCullingBounds();
           this.updateDrawing();
         };
-        // A zoom that changed the font size resizes the box without a retarget (settled item 11: camera moves keep
-        // today's rule); a change of the graph constants (the label's threshold) asks for one.
+        // A zoom that changed the font size resizes the box without a retarget; a change of the graph constants (the label's threshold) asks for one.
         if (this.context.isLabelFontSizeFromCamera?.()) this.withCameraDerivedHitBox(updateBounds);
         else updateBounds();
       });
@@ -745,21 +744,14 @@ export class BlockConnection<T extends TConnection = TConnection>
     }
   }
 
-  protected override handleEvent(event: MouseEvent) {
-    event.stopPropagation();
-    super.handleEvent(event);
-
-    switch (event.type) {
-      case "click": {
-        this.context.graph.api.selectConnections(
-          [this.props.id],
-          !isMetaKeyEvent(event) ? true : !this.state.selected,
-          !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
-        );
-
-        break;
-      }
-    }
+  public override applyClickDefault(event: GraphClickEvent): boolean {
+    const isMeta = isMetaKeyEvent(event.event);
+    this.context.graph.api.selectConnections(
+      [this.props.id],
+      isMeta ? !this.state.selected : true,
+      isMeta ? ESelectionStrategy.APPEND : ESelectionStrategy.REPLACE
+    );
+    return true;
   }
 
   /** The line's hit test at the world center of the hit box (`THRESHOLD_LINE_HIT` in world units), then the label. */

@@ -186,10 +186,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
   }
 
   public getParent(): CoreComponent | undefined {
-    /*
-     * Override parent to delegate click events to camera.
-     * This allows camera movement when mouse button is held down.
-     */
+    // Group components share the camera ancestor with the graph layer's scene content.
     return this.props.graph.getGraphLayer().$.camera;
   }
 

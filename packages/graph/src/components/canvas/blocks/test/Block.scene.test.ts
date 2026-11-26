@@ -155,7 +155,7 @@ describe("Block in the scene", () => {
 
   it("raises a block on an accepted drag start, not on a prevented one", () => {
     const context = {
-      sourceEvent: new MouseEvent("mousedown"),
+      sourceEvent: new PointerEvent("pointerdown"),
       startCoords: [0, 0],
       prevCoords: [0, 0],
       currentCoords: [0, 0],
@@ -164,12 +164,11 @@ describe("Block in the scene", () => {
     const before = order("a");
     graph.scene.batchRaises(() => view("a").handleDragStart(context));
     expect(order("a")).toBeGreaterThan(before);
-    const prevent = (event: Event): void => event.preventDefault();
-    graph.on("block-drag-start", prevent);
+    const off = graph.on("block-drag-start", (event) => event.preventDefault());
     const raised = order("b");
     view("b").handleDragStart(context);
     expect(order("b")).toBe(raised);
-    graph.off("block-drag-start", prevent);
+    off();
   });
 
   it("gives blocks shown in HTML a React z-index by their scene order, ranked per frame", () => {

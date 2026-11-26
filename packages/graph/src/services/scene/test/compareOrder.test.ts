@@ -3,6 +3,7 @@ import type { TGraphComponentProps } from "../../../components/canvas/GraphCompo
 import { Box, TestLayer, boxSource, frames } from "../../../components/canvas/scene/test/utils/sceneTestKit";
 import { Graph } from "../../../graph";
 import { Component } from "../../../lib/Component";
+import { pointer } from "../../../test/pointer";
 
 type TMarkerProps = TGraphComponentProps & { id: string; z: number };
 
@@ -117,15 +118,16 @@ describe("scene order of components", () => {
   });
 
   it("forgets an unmounted component as the pointer target", () => {
-    graph.getGraphLayer().handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 25 }));
-    const pointer = graph.getGraphLayer() as unknown as { targetComponent?: object };
-    expect(pointer.targetComponent).toBe(boxes.b);
+    pointer(graph, "pointermove", { clientX: 50, clientY: 25 });
+    graph.scheduler.performUpdate();
+    const hover = graph.input.hover;
+    expect(hover.target).toBe(boxes.b);
     layer.setProps({ children: [] });
     frames();
     // The removed box is forgotten, and the target is found again under the still pointer at the frame's end
     // Nothing is there now, so the camera becomes the target.
-    expect(pointer.targetComponent).not.toBe(boxes.b);
-    expect(pointer.targetComponent).toBe(graph.getGraphLayer().$.camera);
-    expect(graph.getGraphLayer().$hoveredComponent.value).toBeUndefined();
+    expect(hover.target).not.toBe(boxes.b);
+    expect(hover.target).toBe(graph.getGraphLayer().$.camera);
+    expect(graph.input.$hoveredComponent.value).toBeUndefined();
   });
 });

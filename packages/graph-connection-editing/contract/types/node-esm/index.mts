@@ -5,7 +5,7 @@ import {
   type LayerPublicProps,
   type PortState,
   type TPoint,
-  type UnwrapGraphEventsDetail,
+  type GraphEventMap,
 } from "@gravity-ui/graph";
 import {
   ConnectionEditingLayer,
@@ -32,21 +32,21 @@ void [meta, metaKey];
 
 // Importing the package types the connection creation events on the core graph.
 graph.on("connection-created", (event) => {
-  const detail: TConnectionCreatedDetail = event.detail;
+  const detail: TConnectionCreatedDetail = event;
   const target: PortState = detail.targetPort;
   // Block IDs are optional: custom component ports have no block.
   const blockId: string | number | undefined = detail.sourceBlockId;
   const targetBlockId: string | number | undefined = detail.targetBlockId;
   void [target, blockId, targetBlockId];
 });
-const dropPoint: UnwrapGraphEventsDetail<"connection-create-drop">["point"] = { x: 1, y: 2 } satisfies TPoint;
+const dropPoint: GraphEventMap["connection-create-drop"]["point"] = { x: 1, y: 2 } satisfies TPoint;
 void dropPoint;
-graph.on("connection-create-drop", ({ detail }) => {
-  const anchorId: string | undefined = detail.sourceAnchorId;
+graph.on("connection-create-drop", (event) => {
+  const anchorId: string | undefined = event.sourceAnchorId;
   void anchorId;
 });
 graph.on("connection-create-cancel", (event) => {
-  const source: PortState | undefined = event.detail.sourcePort;
+  const source: PortState | undefined = event.sourcePort;
   void source;
 });
 

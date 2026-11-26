@@ -2,7 +2,7 @@ import { GraphComponent } from "../../../components/canvas/GraphComponent";
 import type { CoreComponent } from "../../../lib/CoreComponent";
 
 /**
- * The component a press on `target` drags (D8, as in the DOM): `target` itself when it is draggable, else its nearest
+ * The component a press on `target` drags: `target` itself when it is draggable, else its nearest
  * draggable ancestor, so a press on a child button inside a block drags the block. Undefined when nothing in the chain
  * is draggable: then the camera pans.
  *
@@ -11,7 +11,7 @@ import type { CoreComponent } from "../../../lib/CoreComponent";
  * returned. Availability (`isEntityAvailable()`) is not part of the walk: the caller checks the component it gets.
  *
  * A component with a gesture of its own makes itself draggable (as `Anchor` does, forwarding the drag to its block) or
- * prevents the graph's `mousedown`.
+ * claims or prevents the graph's drag gesture.
  */
 export function findDragTarget(target: CoreComponent | undefined): GraphComponent | undefined {
   for (let node: CoreComponent | undefined = target; node; node = node.getParent()) {

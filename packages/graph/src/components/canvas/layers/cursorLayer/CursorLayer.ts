@@ -3,7 +3,6 @@ import { ESchedulerPriority } from "../../../../lib";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { debounce } from "../../../../utils/functions";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
-import { GraphComponent } from "../../GraphComponent";
 
 /**
  * All supported CSS cursor types for the CursorLayer.
@@ -110,7 +109,7 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
   private manualCursor?: CursorLayerCursorTypes;
 
   /** Component currently under the mouse cursor */
-  private currentTarget?: GraphComponent;
+  private currentTarget?: EventedComponent;
 
   /** Debounced cursor update function to prevent flickering on large scales */
   private debouncedUpdateCursor: ReturnType<typeof debounce<(target?: EventedComponent) => void>>;
@@ -151,20 +150,18 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
   }
 
   /**
-   * Subscribes to graph mouse events for cursor management.
+   * Subscribes to graph hover transitions for cursor management.
    * Always tracks mouse position to maintain accurate state
    * when switching between manual and auto modes.
    *
    * @private
    */
   private subscribeToGraphEvents(): void {
-    // Subscribe to mouseenter and mouseleave events from the graph
-    // ALWAYS track state to know where the mouse is located
-    this.onGraphEvent("mouseenter", (event) => {
-      const target = event.detail?.target;
+    this.onGraphEvent("pointerenter", (event) => {
+      const target = event.target;
 
       // Always track the current target
-      this.currentTarget = target as GraphComponent;
+      this.currentTarget = target;
 
       // Apply cursor only in automatic mode
       if (this.mode === "auto") {
@@ -173,8 +170,8 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
       }
     });
 
-    this.onGraphEvent("mouseleave", () => {
-      // Cancel any scheduled cursor updates from mouseenter
+    this.onGraphEvent("pointerleave", () => {
+      // Cancel any scheduled cursor updates from pointerenter
       this.debouncedUpdateCursor.cancel();
 
       // Always track that mouse left the element

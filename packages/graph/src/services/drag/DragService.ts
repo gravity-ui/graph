@@ -2,35 +2,24 @@ import { signal } from "@preact/signals-core";
 
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 import type { Graph } from "../../graph";
-import { isGraphEvent } from "../../graphEvents";
-import type { GraphMouseEvent } from "../../graphEvents";
 import { ECanDrag } from "../../store/settings";
-import { getXY } from "../../utils/functions";
-import { DragEmitter, dragListener, stopDragListening } from "../../utils/functions/dragListener";
+import { isMetaKeyEvent } from "../../utils/functions";
 import { EVENTS } from "../../utils/types/events";
+import type { CameraPoint } from "../camera/CameraPoint";
+import type { DragSessionOptions } from "../input/dragSession";
+import { DragEmitter, createDragSession, stopDragListening } from "../input/dragSession";
+import type { GraphDragOperation } from "../input/press";
 
+import { runEach } from "./runEach";
 import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOptions, DragState } from "./types";
 import { findDragTarget } from "./utils/findDragTarget";
-
-/** Complete every cleanup even if a drag callback throws. */
-function runEach<T>(items: Iterable<T>, action: (item: T) => void): void {
-  let failure: { error: unknown } | undefined;
-  for (const item of items) {
-    try {
-      action(item);
-    } catch (error) {
-      failure ??= { error };
-    }
-  }
-  if (failure) throw failure.error;
-}
 
 /**
  * DragService manages drag operations for all draggable GraphComponents.
  *
  * When a user starts dragging a component:
  * 1. Collects all selected draggable components from SelectionService
- * 2. Manages the drag lifecycle (start, update, end) via dragListener
+ * 2. Runs the drag session for the initiating pointer
  * 3. Handles autopanning, cursor locking, and camera-change synchronization
  * 4. Delegates actual movement logic to components via handleDragStart/handleDrag/handleDragEnd
  */
@@ -69,9 +58,10 @@ export class DragService {
   /**
    * Create idle (not dragging) state
    */
-  private createIdleState(): DragState {
+  private createIdleState(cancelled = false): DragState {
     return {
       isDragging: false,
+      cancelled,
       initialEvent: null,
       currentEvent: null,
       components: [],
@@ -86,10 +76,11 @@ export class DragService {
   /**
    * Create active drag state from components
    */
-  private createDragState(event: MouseEvent, components: GraphComponent[], startCoords: [number, number]): DragState {
+  private createDragState(event: PointerEvent, components: GraphComponent[], startCoords: [number, number]): DragState {
     const componentTypes = new Set(components.map((c) => c.constructor.name));
     return {
       isDragging: true,
+      cancelled: false,
       initialEvent: event,
       currentEvent: event,
       components,
@@ -110,9 +101,10 @@ export class DragService {
 
   /**
    * Cancels the component drag and custom operations that are running or awaiting movement.
-   * Started drags receive their cancellation callbacks with the last mouse position.
+   * Started drags receive their cancellation callbacks with the last pointer position.
    */
   public cancel(): void {
+    this.graph.input.suppressPendingDrags();
     this.cancelDrags(true);
   }
 
@@ -122,64 +114,48 @@ export class DragService {
     runEach(emitters, (emitter) => stopDragListening(emitter, fallbackToEnd));
   }
 
-  /**
-   * Handle mousedown on graph - determine if drag should start.
-   *
-   * The press drags its drag target (`findDragTarget`, D8, as in the DOM): the pressed component when it is draggable,
-   * else its nearest draggable ancestor, so a press on a child button inside a block drags the block. Without a drag
-   * target, or when it is not available, nothing happens. Otherwise the drag target goes on to `collectDragComponents`
-   * (the selection rules of `ALL` and `ONLY_SELECTED`). A press that has components to drag is taken: it stops the
-   * graph event's propagation, so GraphLayer gives it to no component, the pressed one and the drag target included.
-   * The release and the click are dispatched separately and still reach the pressed component.
-   */
-  public handleMouseDown = (event: GraphMouseEvent): void => {
-    // Prevent initiating new drag while one is already in progress
-    // Check actual drag state, not just emitter presence (emitter may exist but drag not started yet)
-    if (this.currentDragEmitter && this.$state.value.isDragging) {
-      return;
+  /** @internal The recognizer calls this after the drag threshold and claim arbitration. */
+  public startDefaultDrag(
+    hit: GraphComponent | undefined,
+    down: PointerEvent,
+    move: PointerEvent,
+    start: CameraPoint,
+    signal: AbortSignal
+  ): "camera" | "component" | undefined {
+    if (signal.aborted || this.currentDragEmitter) return undefined;
+    const settings = this.graph.rootStore.settings;
+    const target = findDragTarget(hit);
+    if (down.button === 1 || !target) {
+      if (settings.getConfigFlag("canDragCamera") && !isMetaKeyEvent(down)) {
+        this.graph.getGraphLayer().$.camera?.startPan(hit, down, move, signal);
+        return "camera";
+      }
+      return undefined;
     }
 
-    const canDrag = this.graph.rootStore.settings.$canDrag.value;
+    const canDrag = settings.$canDrag.peek();
+    if (canDrag === ECanDrag.NONE || !target.isEntityAvailable()) return undefined;
+    const components = this.collectDragComponents(target, canDrag);
+    if (!components.length) return undefined;
 
-    // If drag is disabled, don't start drag operation
-    if (canDrag === ECanDrag.NONE) {
-      return;
-    }
-
-    const target = findDragTarget(event.detail.target);
-
-    if (!target || !target.isEntityAvailable()) {
-      return;
-    }
-
-    // Collect all draggable components that should participate
-    const dragComponents = this.collectDragComponents(target, canDrag);
-
-    if (dragComponents.length === 0) {
-      return;
-    }
-
-    if (isGraphEvent(event)) {
-      event.stopGraphEventPropagation();
-    }
-
-    // A synthetic graph press may replace a pending gesture without a native mousedown.
-    if (this.currentDragEmitter) stopDragListening(this.currentDragEmitter);
-    this.dragComponents = dragComponents;
-
-    // Use dragListener for consistent drag behavior
-    const doc = this.graph.getGraphCanvas().ownerDocument;
-    this.currentDragEmitter = dragListener(doc, {
+    this.dragComponents = components;
+    const session = createDragSession(this.graph.getGraphCanvas().ownerDocument, {
       graph: this.graph,
-      dragCursor: "grabbing",
+      initialEvent: down,
+      component: hit,
+      cursor: "grabbing",
       autopanning: true,
-      onSessionEnd: () => this.cleanup(),
-    })
-      .on(EVENTS.DRAG_START, this.handleDragStart)
+      signals: [signal],
+      onSessionEnd: (cancelled) => this.cleanup(cancelled),
+    });
+    this.currentDragEmitter = session
+      .on(EVENTS.DRAG_START, () => this.handleDragStart(down, [start.world.x, start.world.y]))
       .on(EVENTS.DRAG_UPDATE, this.handleDragUpdate)
       .on(EVENTS.DRAG_END, (event) => this.finishComponentDrag(event, false))
       .on(EVENTS.DRAG_CANCEL, (event) => this.finishComponentDrag(event, true));
-  };
+    session.start(move);
+    return "component";
+  }
 
   /**
    * Collect all components that should participate in drag operation.
@@ -211,13 +187,8 @@ export class DragService {
     return [target];
   }
 
-  /**
-   * Handle drag start from dragListener
-   */
-  private handleDragStart = (event: MouseEvent): void => {
+  private handleDragStart = (event: PointerEvent, coords: [number, number]): void => {
     const emitter = this.currentDragEmitter;
-    // Calculate starting coordinates in world space
-    const coords = this.getWorldCoords(event);
     this.startCoords = coords;
     this.prevCoords = coords;
 
@@ -235,7 +206,7 @@ export class DragService {
     };
 
     // Notify all components about drag start
-    // One raise of all the participants, in their scene order (decision 6).
+    // Raise the participants in scene order.
     this.graph.scene.batchRaises(() => {
       for (const component of this.dragComponents) {
         if (this.currentDragEmitter !== emitter) break;
@@ -244,10 +215,7 @@ export class DragService {
     });
   };
 
-  /**
-   * Handle drag update from dragListener
-   */
-  private handleDragUpdate = (event: MouseEvent): void => {
+  private handleDragUpdate = (event: PointerEvent): void => {
     if (!this.startCoords || !this.prevCoords) {
       return;
     }
@@ -291,7 +259,7 @@ export class DragService {
   /**
    * Complete the component gesture and flush the final batched block positions.
    */
-  private finishComponentDrag(event: MouseEvent, cancelled: boolean): void {
+  private finishComponentDrag(event: PointerEvent, cancelled: boolean): void {
     if (!this.startCoords || !this.prevCoords) return;
 
     const context: DragContext = {
@@ -315,28 +283,26 @@ export class DragService {
   /**
    * Convert screen coordinates to world coordinates
    */
-  private getWorldCoords(event: MouseEvent): [number, number] {
-    const canvas = this.graph.getGraphCanvas();
-    const [screenX, screenY] = getXY(canvas, event);
-    return this.graph.cameraService.applyToPoint(screenX, screenY) as [number, number];
+  private getWorldCoords(event: PointerEvent): [number, number] {
+    const { x, y } = this.graph.getPointInCameraSpace(event).world;
+    return [x, y];
   }
 
   /**
    * Cleanup after drag operation ends
    */
-  private cleanup(): void {
+  private cleanup(cancelled: boolean): void {
     // Reset state
     this.currentDragEmitter = null;
     this.dragComponents = [];
     this.startCoords = null;
     this.prevCoords = null;
     // Update reactive state
-    if (this.$state.peek().isDragging) this.$state.value = this.createIdleState();
+    if (this.$state.peek().isDragging) this.$state.value = this.createIdleState(cancelled);
   }
 
   /**
-   * Start a custom drag operation for specialized use cases like creating connections or new blocks.
-   * This provides a unified API for drag operations without exposing dragListener directly.
+   * Start a drag on a separately operated surface, such as a minimap. Scene tools claim `dragstart`.
    *
    * @param callbacks - Lifecycle callbacks (onStart, onUpdate, onEnd, onCancel)
    * @param options - Drag options (document, cursor, autopanning, etc.)
@@ -346,61 +312,76 @@ export class DragService {
    *
    * @example
    * ```typescript
-   * // In a connection creation layer
+   * // In a minimap's native pointerdown handler, after reserving the event for the minimap
    * const handle = graph.dragService.startDrag(
    *   {
-   *     onStart: (event, coords) => this.onStartConnection(event, coords),
-   *     onUpdate: (event, coords) => this.onMoveConnection(event, coords),
-   *     onEnd: (event, coords) => this.onEndConnection(coords),
+   *     onStart: (event, coords) => this.beginNavigation(event, coords),
+   *     onUpdate: (event, coords) => this.updateNavigation(event, coords),
+   *     onEnd: (event, coords) => this.endNavigation(coords),
    *   },
-   *   { cursor: "crosshair", autopanning: true }
+   *   { initialEvent: pointerDown, cursor: "move", autopanning: false }
    * );
    * // On Escape
    * handle.emit("cancel");
    * ```
    */
-  public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}) {
-    const {
-      document: doc,
-      cursor,
-      component,
-      autopanning = true,
-      stopOnMouseLeave,
-      threshold,
-      initialEvent,
-      suppressTextSelection,
-    } = options;
+  public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}): DragEmitter {
+    let origin = options.initialEvent;
+    const threshold = options.threshold ?? this.graph.rootStore.settings.$dragThreshold.peek();
+    return this.createOperation(callbacks, {
+      ...options,
+      startOnMove(event) {
+        origin ??= event;
+        return Math.hypot(event.clientX - origin.clientX, event.clientY - origin.clientY) >= threshold;
+      },
+    });
+  }
+
+  /** @internal The winner receives the threshold-crossing move after every dragstart listener has returned. */
+  public startClaimedDrag(
+    operation: GraphDragOperation,
+    initialEvent: PointerEvent,
+    move: PointerEvent,
+    start: CameraPoint,
+    ...signals: (AbortSignal | undefined)[]
+  ): void {
+    if (signals.some((signal) => signal?.aborted)) return;
+    const session = this.createOperation(
+      { onStart: operation.start, onUpdate: operation.move, onEnd: operation.end, onCancel: operation.cancel },
+      { ...operation, initialEvent, signals },
+      start
+    );
+    session.start(move);
+  }
+
+  private createOperation(
+    callbacks: DragOperationCallbacks,
+    options: DragOperationOptions & Pick<DragSessionOptions, "startOnMove" | "signals">,
+    start?: CameraPoint
+  ) {
+    const { document: doc, initialEvent } = options;
     const { onStart, onUpdate, onEnd, onCancel } = callbacks;
-
-    const targetDocument = doc ?? this.graph.getGraphCanvas().ownerDocument;
-
-    const emitter = dragListener(targetDocument, {
+    const emitter = createDragSession(doc ?? this.graph.getGraphCanvas().ownerDocument, {
+      ...options,
       graph: this.graph,
-      dragCursor: cursor,
-      component,
-      autopanning,
-      stopOnMouseLeave,
-      threshold,
-      suppressTextSelection,
       onSessionEnd: () => this.operationEmitters.delete(emitter),
     });
     this.operationEmitters.add(emitter);
 
-    return emitter
-      .on(EVENTS.DRAG_START, (event: MouseEvent) => {
-        onStart?.(event, initialEvent ? this.getWorldCoords(initialEvent) : this.getWorldCoords(event));
+    emitter
+      .on(EVENTS.DRAG_START, (event) => {
+        onStart?.(event, start ? [start.world.x, start.world.y] : this.getWorldCoords(initialEvent ?? event));
       })
-      .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => {
-        const coords = this.getWorldCoords(event);
-        onUpdate?.(event, coords);
+      .on(EVENTS.DRAG_UPDATE, (event, cause) => {
+        onUpdate?.(event, this.getWorldCoords(event), cause);
       })
-      .on(EVENTS.DRAG_END, (event: MouseEvent) => {
-        const coords = this.getWorldCoords(event);
-        onEnd?.(event, coords);
+      .on(EVENTS.DRAG_END, (event) => {
+        onEnd?.(event, this.getWorldCoords(event));
       })
       .on(EVENTS.DRAG_CANCEL, (event, fallbackToEnd) => {
         const callback = onCancel ?? (fallbackToEnd ? onEnd : undefined);
         return callback?.(event, this.getWorldCoords(event));
       });
+    return emitter;
   }
 }

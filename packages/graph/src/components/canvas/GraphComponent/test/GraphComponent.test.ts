@@ -1,9 +1,12 @@
 import { Graph } from "../../../../graph";
-import { GraphEventsDefinitions, UnwrapGraphEvents } from "../../../../graphEvents";
+import type { GraphEventMap, GraphEventName, GraphEventOptions } from "../../../../graphEvents";
 import { Component } from "../../../../lib/Component";
 import { globalScheduler } from "../../../../lib/Scheduler";
+import type { EventObserver } from "../../../../lib/graphEventDispatch";
+import { createGraphEvent } from "../../../../lib/graphEventDispatch";
 import { HitBox, HitBoxData } from "../../../../services/HitTest";
 import { EAnchorType } from "../../../../store/anchor/Anchor";
+import type { ComponentDispatchEvent } from "../../EventedComponent/EventedComponent";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Anchor } from "../../anchors";
 import { Block, TBlock } from "../../blocks/Block";
@@ -14,10 +17,10 @@ class TestGraphComponent extends GraphComponent {
     return "test-id";
   }
 
-  public subscribeGraphEvent<EventName extends keyof GraphEventsDefinitions>(
+  public subscribeGraphEvent<EventName extends GraphEventName>(
     eventName: EventName,
-    handler: (event: UnwrapGraphEvents<EventName>) => void,
-    options?: AddEventListenerOptions | boolean
+    handler: EventObserver<GraphEventMap[NoInfer<EventName>]>,
+    options?: GraphEventOptions | boolean
   ): () => void {
     return this.onGraphEvent(eventName, handler, options);
   }
@@ -116,7 +119,7 @@ describe("GraphComponent event helpers", () => {
   it("subscribes to graph events via onGraphEvent and cleans up on unmount", () => {
     const { component, graphOn, graphOff } = createTestComponent();
 
-    const handler = jest.fn();
+    const handler = { handleEvent: jest.fn() };
 
     component.subscribeGraphEvent("camera-change", handler);
 
@@ -204,13 +207,13 @@ describe("GraphComponent.onUnmounted", () => {
   }
 
   function dispatchUnmounted(view: Block): void {
-    view.dispatchEvent(new CustomEvent("graph-component-unmounted", { detail: { component: view } }));
+    view.dispatchEvent(createGraphEvent("graph-component-unmounted", view, {}, false));
   }
 
   it("runs registered callbacks exactly once when a mounted component is removed", async () => {
     const { graph, view } = await mountBlock();
     const onUnmounted = jest.fn();
-    const listener = jest.fn<void, [Event]>();
+    const listener = jest.fn<void, [ComponentDispatchEvent]>();
     view.onUnmounted(onUnmounted);
     view.addEventListener("graph-component-unmounted", listener);
 
@@ -220,7 +223,8 @@ describe("GraphComponent.onUnmounted", () => {
     expect(onUnmounted).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledTimes(1);
     // Identity, not toMatchObject: a deep match walks every path through the live graph's signal mesh.
-    expect((listener.mock.calls[0][0] as CustomEvent<{ component: Block }>).detail.component).toBe(view);
+    expect(listener.mock.calls[0][0].target).toBe(view);
+    expect(listener.mock.calls[0][0].cancelable).toBe(false);
 
     dispatchUnmounted(view);
     expect(onUnmounted).toHaveBeenCalledTimes(1);
@@ -308,13 +312,13 @@ describe("GraphComponent.onUnmounted", () => {
     if (!(parent instanceof Component)) throw new Error("Expected a component parent");
     const evented = new EventedComponent({}, parent);
     const child = new TestGraphComponent({}, evented);
-    const ancestorListener = jest.fn<void, [Event]>();
+    const ancestorListener = jest.fn<void, [ComponentDispatchEvent]>();
     evented.addEventListener("graph-component-unmounted", ancestorListener);
 
     Component.unmount(child);
 
     expect(ancestorListener).toHaveBeenCalledTimes(1);
-    expect(ancestorListener.mock.calls[0][0]).toMatchObject({ detail: { component: child } });
+    expect(ancestorListener.mock.calls[0][0].target).toBe(child);
   });
 
   it("clears listeners even when an unmount callback throws", async () => {

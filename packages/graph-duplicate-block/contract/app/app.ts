@@ -23,10 +23,10 @@ if (layer.context.graph !== graph) throw new Error("The duplicate block layer is
 
 // The package augments the core event map, so the payloads are typed without casts.
 graph.on("blocks-duplicate-start", (event) => {
-  root.dataset.duplicateStart = event.detail.blocks.map((block) => block.connectedState.id).join(",");
+  root.dataset.duplicateStart = event.blocks.map((block) => block.connectedState.id).join(",");
 });
 graph.on("blocks-duplicate", (event) => {
-  root.dataset.duplicateItems = String(event.detail.items.length);
+  root.dataset.duplicateItems = String(event.items.length);
 });
 
 root.dataset.duplicateBlockReady = "true";

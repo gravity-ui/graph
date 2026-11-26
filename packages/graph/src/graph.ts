@@ -1,6 +1,7 @@
 import { batch, signal } from "@preact/signals-core";
 
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
+import type { TGraphHoverDetail } from "./components/canvas/EventedComponent/EventedComponent";
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { TBlock } from "./components/canvas/blocks/Block";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
@@ -15,8 +16,16 @@ import {
   resolveGraphColors,
   resolveGraphConstants,
 } from "./graphConfig";
-import { GraphEvent, GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "./graphEvents";
+import type { GraphEventMap, GraphEventName, GraphEventOptions, GraphEventsDefinitions } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
+import type { EventObserver } from "./lib/graphEventDispatch";
+import {
+  clearGraphListeners,
+  createGraphEvent,
+  deliverGraphEvent,
+  listenGraphEvent,
+  removeGraphEvent,
+} from "./lib/graphEventDispatch";
 import { HitTest } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
@@ -26,6 +35,7 @@ import type { CameraPoint } from "./services/camera/CameraPoint";
 import { CameraService, getInitCameraState } from "./services/camera/CameraService";
 import type { TCameraState } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
+import { PointerInput } from "./services/input/PointerInput";
 import { GraphScene } from "./services/scene/GraphScene";
 import { bindSceneRaises } from "./services/scene/sceneRaises";
 import { bindBuiltinTags } from "./services/tags/systems";
@@ -33,7 +43,6 @@ import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
 import { TGraphSettingsConfig, TGraphSettingsPatch } from "./store/settings";
-import { TypedEventListener, addTypedEventListener, removeTypedEventListener } from "./utils/eventListener";
 import { clearColorCache, getXY } from "./utils/functions";
 import { GRAPH_ROOT_CLASS_NAME, clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
@@ -77,7 +86,7 @@ export class Graph {
 
   public readonly api = new PublicGraphApi(this);
 
-  public readonly eventEmitter = new EventTarget();
+  public readonly input = new PointerInput(this);
 
   public readonly rootStore: RootStore = new RootStore(this);
 
@@ -280,7 +289,7 @@ export class Graph {
 
   /**
    * Returns the topmost element at a world-space point that pointer events reach: components transparent to events
-   * (`GraphComponent.transparentToEvents`) are skipped. GraphLayer targets the pointer with it.
+   * (`GraphComponent.transparentToEvents`) are skipped. PointerInput targets the pointer with it.
    */
   public getElementOverPoint<T extends GraphComponentConstructor>(
     point: TPoint | CameraPoint,
@@ -388,77 +397,42 @@ export class Graph {
     });
   }
 
-  public on<EventName extends keyof GraphEventsDefinitions>(
-    type: EventName,
-    cb: TypedEventListener<UnwrapGraphEvents<NoInfer<EventName>>>,
-    options?: AddEventListenerOptions | boolean
-  ) {
-    return addTypedEventListener(this.eventEmitter, type, cb, options);
+  public on<K extends GraphEventName>(
+    type: K,
+    listener: EventObserver<GraphEventMap[NoInfer<K>]>,
+    options?: GraphEventOptions | boolean
+  ): () => void {
+    return listenGraphEvent(this, type, listener, options);
   }
 
-  public off<EventName extends keyof GraphEventsDefinitions>(
-    type: EventName,
-    cb: TypedEventListener<UnwrapGraphEvents<NoInfer<EventName>>>,
+  public off<K extends GraphEventName>(
+    type: K,
+    listener: EventObserver<GraphEventMap[NoInfer<K>]>,
     options?: EventListenerOptions | boolean
-  ) {
-    removeTypedEventListener(this.eventEmitter, type, cb, options);
+  ): void {
+    removeGraphEvent(this, type, listener, options);
   }
 
-  /*
-   * Emit Graph's events
-   */
-  public emit<EventName extends keyof GraphEventsDefinitions>(
-    eventName: EventName,
-    detail: UnwrapGraphEventsDetail<NoInfer<EventName>>
-  ) {
-    const event = new GraphEvent(eventName, {
-      detail,
-      bubbles: false,
-      cancelable: eventName !== "scene-state-change",
-    });
-    this.eventEmitter.dispatchEvent(event);
-
-    /*
-     * !!!IMPORTANT!!!
-     * Users or layers must be able to prevent the default drag action.
-     * Simply subscribing to the "mousedown" event does not allow handling the event at the very end of the chain,
-     * so manual handling of the event is required here.
-     *
-     * Preventing a graph "mousedown" also stops dispatching it to the target component and the camera drag,
-     * so a layer can take over the gesture and start its own operation with `dragService.startDrag`.
-     * The camera drag and DragService run here, after every listener, so the order of subscription does not matter.
-     *
-     * @example
-     * ```typescript
-     * graph.on("mousedown", (event) => {
-     *   event.preventDefault(); // Prevent drag
-     * });
-     * ```
-     * */
-    if (eventName === "mousedown" && !event.isDefaultPrevented()) {
-      // The generic name cannot be narrowed with its indexed payload; this branch fixes it to mousedown.
-      const mouseDownEvent = event as GraphEvent<UnwrapGraphEventsDetail<"mousedown">>;
-      // The camera goes first: it prevents the event when it takes the press (e.g. middle-button pan).
-      this.graphLayer.$.camera?.handleGraphMouseDown(mouseDownEvent);
-      if (!mouseDownEvent.isDefaultPrevented()) {
-        this.dragService.handleMouseDown(mouseDownEvent);
-      }
-    }
+  public emit<K extends keyof GraphEventsDefinitions>(
+    type: K,
+    fields: GraphEventsDefinitions[NoInfer<K>]
+  ): GraphEventMap[K];
+  public emit(type: keyof GraphEventsDefinitions, fields: GraphEventsDefinitions[keyof GraphEventsDefinitions]) {
+    const hover = type === "pointerenter" || type === "pointerleave" || type === "pointerout" || type === "pointerover";
+    const target = hover ? (fields as TGraphHoverDetail).target : this;
+    const event = createGraphEvent(type, target, fields, type !== "scene-state-change");
+    const level = this.scene?.$level.peek();
+    deliverGraphEvent(this, event, true, level);
+    if (!event.propagationStopped) deliverGraphEvent(this, event, false, level);
     return event;
   }
 
-  /*
-   * Emit Graph's event and execute default action if it is not prevented
-   */
-  public executеDefaultEventAction<EventName extends keyof GraphEventsDefinitions>(
-    eventName: EventName,
-    detail: UnwrapGraphEventsDetail<NoInfer<EventName>>,
+  public executеDefaultEventAction<K extends keyof GraphEventsDefinitions>(
+    type: K,
+    fields: GraphEventsDefinitions[NoInfer<K>],
     defaultCb: () => void
-  ) {
-    const event = this.emit(eventName, detail);
-    if (!event.defaultPrevented) {
-      defaultCb();
-    }
+  ): void {
+    if (!this.emit(type, fields).defaultPrevented) defaultCb();
   }
 
   public addLayer<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>>(
@@ -572,6 +546,7 @@ export class Graph {
     }
     this.layers.on("update-size", this.onUpdateSize);
     this.layers.start();
+    if (rootEl) this.input.attach(rootEl);
     // One frame task per started graph, however start() is reached.
     this.removeFrameTask ??= this.scheduler.addScheduler(this.frameTask);
     this.scene.start();
@@ -597,17 +572,22 @@ export class Graph {
 
   public stop(full = false) {
     const root = this.layers.$root;
-    this.layers.detach(full);
-    if (full && root) {
-      clearGraphInstance(root, this);
-      root.classList.remove(GRAPH_ROOT_CLASS_NAME);
+    try {
+      this.dragService.destroy();
+    } finally {
+      this.input.detach();
+      this.layers.detach(full);
+      if (full && root) {
+        clearGraphInstance(root, this);
+        root.classList.remove(GRAPH_ROOT_CLASS_NAME);
+      }
+      clearTextCache();
+      this.startRequested = false;
+      this.removeFrameTask?.();
+      this.removeFrameTask = undefined;
+      this.scene.stop();
+      this.setGraphState(this.layers.$root ? GraphState.ATTACHED : GraphState.INIT);
     }
-    clearTextCache();
-    this.startRequested = false;
-    this.removeFrameTask?.();
-    this.removeFrameTask = undefined;
-    this.scene.stop();
-    this.setGraphState(this.layers.$root ? GraphState.ATTACHED : GraphState.INIT);
   }
 
   protected setGraphState(state: GraphState) {
@@ -629,9 +609,8 @@ export class Graph {
 
   public unmount() {
     try {
-      this.dragService.destroy();
-    } finally {
       this.detach();
+    } finally {
       this.layers.off("update-size", this.onUpdateSize);
       this.setGraphState(GraphState.INIT);
       // Before the layers are unmounted: pending ready waiters must not fire on a graph that is
@@ -646,6 +625,7 @@ export class Graph {
       clearTextCache();
       clearColorCache();
       this.rootStore.reset();
+      clearGraphListeners(this);
     }
   }
 

@@ -12,6 +12,7 @@ import { TBlockId } from "../../../store/block/Block";
 import { PortState } from "../../../store/connection/port/Port";
 import { HAS_NODE_ENV } from "../../../utils/development";
 import type { TPoint, TRect } from "../../../utils/types/shapes";
+import type { ComponentDispatchEvent } from "../EventedComponent/EventedComponent";
 import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import type { GraphComponentContext } from "../GraphComponent";
@@ -57,7 +58,7 @@ const NO_PRIMITIVES: readonly TScenePrimitive[] = Object.freeze([]);
  * it draws right above its block, hides and raises with it, and is hit in its block's scene order. The theme's anchor
  * rules colour it, show its ring while it is selected and scale it while it is hovered.
  *
- * Anchors are hit where they are shown (D4, `SceneComponent.hitLevels`): stock anchors on the schematic level, where
+ * Anchors are hit where they are shown (`SceneComponent.hitLevels`): stock anchors on the schematic level, where
  * their look draws, and on every level while their block is shown outside the scene (an HTML view); elsewhere the
  * block under them is hit. A class that draws on another level is hit there too. An anchor hidden itself, or of a block
  * hidden for a reason other than delegation (its group's `setHiddenBlock`), takes no hits, as in the DOM
@@ -165,10 +166,8 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     this.connectedState = anchorState;
     this.bindAnchorState();
 
-    this.addEventListener("click", this);
-    this.addEventListener("mouseenter", this);
-    this.addEventListener("mousedown", this);
-    this.addEventListener("mouseleave", this);
+    this.addEventListener("pointerenter", this);
+    this.addEventListener("pointerleave", this);
 
     this.computeRenderSize(this.props.size, this.state.raised);
   }
@@ -257,7 +256,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     this.props.port.setOwner(this);
     this.subscribeAnchorState();
     // The extent first: the port subscription sets the first hit box at once, and it has its final geometry, so the
-    // anchor mounting under a still pointer asks for no retarget (settled item 11: camera moves keep today's rule).
+    // anchor mounting under a still pointer asks for no retarget.
     this.computeShift(this.state, this.props);
     this.subscribeSignal(this.props.port.$point, this.onPositionChanged);
     super.willMount();
@@ -307,7 +306,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
 
   /**
    * Dragging an anchor drags its block. Layers that use anchors for other gestures (for example,
-   * connection creation) prevent the default action of the graph `mousedown` event instead.
+   * connection creation) claim the drag when its threshold is reached.
    */
   public override isDraggable(): boolean {
     return true;
@@ -356,39 +355,22 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     super.unmount();
   }
 
-  /**
-   * The anchor's `hoveredTag`: on while the anchor itself is the pointer's target, not while one of its children is
-   * (D5). From the hook, so it follows the pointer whatever the anchor's interactivity, as the tag always did.
-   */
-  protected override onDispatchedEvent(event: Event): void {
+  /** Hover belongs to the anchor only while the pointer hits the anchor itself, even when interactivity is disabled. */
+  protected override onDispatchedEvent(event: ComponentDispatchEvent): void {
     super.onDispatchedEvent(event);
-    if (event.type === "mouseenter" || event.type === "mouseleave") {
+    if (event.type === "pointerenter" || event.type === "pointerleave") {
       this.setHoveredTag(pointerTargetAfter(event) === this);
     }
   }
 
-  /**
-   * Clicks and presses stay the anchor's own; hover events go on to its block (D5: the anchor handles them and passes
-   * them on, so its block follows the pointer). Its tag is written by `onDispatchedEvent`.
-   */
-  public handleEvent(event: MouseEvent | KeyboardEvent): void {
-    event.preventDefault();
-    if (event.type !== "mouseenter" && event.type !== "mouseleave") event.stopPropagation();
+  public override applyClickDefault(): boolean {
+    this.toggleSelected();
+    return true;
+  }
 
-    switch (event.type) {
-      case "click": {
-        this.toggleSelected();
-        break;
-      }
-      case "mouseenter": {
-        this.setState({ raised: true });
-        break;
-      }
-      case "mouseleave": {
-        this.setState({ raised: false });
-        break;
-      }
-    }
+  public override handleEvent(event: ComponentDispatchEvent): void {
+    if (event.type === "pointerenter") this.setState({ raised: true });
+    if (event.type === "pointerleave") this.setState({ raised: false });
   }
 
   private computeRenderSize(size: number, raised: boolean) {

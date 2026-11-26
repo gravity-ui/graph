@@ -191,7 +191,7 @@ Auto-panning automatically moves the camera when the cursor is near viewport edg
 - `isAutoPanningEnabled()` – check if auto-panning is currently enabled.
 
 **How it works:**
-- When enabled, the camera monitors mouse position relative to viewport edges (respecting `viewportInsets`).
+- When enabled, the camera monitors the dragging pointer’s position relative to viewport edges (respecting `viewportInsets`).
 - If the cursor is within the threshold distance from any edge, the camera pans in the corresponding direction.
 
 **Configuration:**
@@ -236,22 +236,22 @@ graph.cameraService.disableAutoPanning();
 
 Camera updates use the same **preventable default action** pattern as `block-change`:
 
-1. **`camera-change` event** — emitted synchronously **before** commit. `event.detail` is the **proposed** next `TCameraState`. Listeners may call `event.preventDefault()` to cancel the update.
+1. **`camera-change` event** — emitted synchronously **before** commit. The fields of the **proposed** next `TCameraState` are available directly on the event, including `event.x`, `event.y` and `event.scale`. Listeners may call `event.preventDefault()` to cancel the update.
 2. **`graph.$camera` signal** — holds the **committed** camera state. Updated only when the default action was not prevented.
 
 ### Choosing an API
 
 | API | State | Use for |
 |-----|-------|---------|
-| `camera-change` event | **Proposed** (`event.detail`) | Intercept, validate, `preventDefault()`, log intent before commit |
+| `camera-change` event | **Proposed** (`event.x`, `event.y`, `event.scale`, …) | Intercept, validate, `preventDefault()`, log intent before commit |
 | `graph.$camera` | **Committed** | Reactive subscriptions, React hooks, rendering, derived UI |
 | `graph.cameraService` | **Committed** (via `getCameraState()`) | Imperative control: `move`, `zoom`, `set`, `resize`, `setViewportInsets` |
 
-Outside event handlers, `$camera.value` and `cameraService.getCameraState()` refer to the same committed state. During a `camera-change` handler, `event.detail` is proposed; `$camera` and `cameraService` still hold the previous committed state until the default action runs.
+Outside event handlers, `$camera.value` and `cameraService.getCameraState()` refer to the same committed state. Inside a `camera-change` handler, the event carries the proposed state. The signal and service still hold the previous committed state until the default action runs.
 
 ### Why both event and signal?
 
-Event listeners run in registration order **before** commit. If an early handler calls `preventDefault()`, later handlers still see the proposed state in `event.detail` and may incorrectly update their own state unless they re-read committed values.
+Event listeners run in registration order **before** commit. If an early handler calls `preventDefault()`, later handlers still see the proposed camera coordinates on the event and may incorrectly update their own state unless they re-read committed values.
 
 **Prefer `$camera` for rendering and side effects** (layers, React hooks, auto-panning sync). Subscribe via `Layer.onSignal(graph.$camera, …)` or `graph.$camera.subscribe()`.
 

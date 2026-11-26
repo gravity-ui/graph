@@ -7,13 +7,13 @@ import {
   GraphComponent,
   SceneComponent,
   defineTag,
-  getEventTarget,
   hoveredTag,
   pointerTargetAfter,
 } from "@gravity-ui/graph";
 import type {
   ChildDescriptor,
   Graph,
+  GraphClickEvent,
   TAnchor,
   TAnchorClass,
   TBlock,
@@ -34,10 +34,16 @@ import "@gravity-ui/uikit/styles/styles.css";
 
 const runningTag = defineTag("running");
 
+function toggleRunning(graph: Graph, id: string): void {
+  const { tags } = graph.scene;
+  if (tags.peekOf("block", id).has(runningTag)) tags.delete(runningTag, { block: [id] });
+  else tags.add(runningTag, { block: [id] });
+}
+
 /**
  * The run button's rectangle, block-local: a square `BUTTON_SIZE` wide, `BUTTON_INSET` in from the block's top right.
  * The scene look (`RunButton.schematic`) and the HTML button read the same numbers, so a click on either hits the same
- * area (D4).
+ * area.
  */
 const BUTTON_SIZE = 32;
 const BUTTON_INSET = 8;
@@ -61,19 +67,14 @@ class RunButton extends SceneComponent<TRunButtonProps> {
 
   protected override willMount(): void {
     super.willMount();
-    // The button tags itself while it is the pointer's target (D5: a custom child decides; no default does it). Its
-    // block, a library Block, stays tagged over it.
-    const followHover = (event: Event): void => this.setHoveredTag(pointerTargetAfter(event) === this);
-    // Component listeners live as long as the component: they are removed on unmount (`EventedComponent.unmount`).
-    this.addEventListener("mouseenter", followHover);
-    this.addEventListener("mouseleave", followHover);
-    this.addEventListener("click", (event: Event) => {
+    // The button is tagged only while hit directly; its block stays tagged over the child.
+    this.listenEvents(["pointerenter", "pointerleave"], (event) => {
+      this.setHoveredTag(pointerTargetAfter(event) === this);
+    });
+    this.on("click", (event) => {
       // The button's click is its own: it does not select the block.
       event.stopPropagation();
-      const { tags } = this.context.graph.scene;
-      const id = this.props.blockId;
-      if (tags.peekOf("block", id).has(runningTag)) tags.delete(runningTag, { block: [id] });
-      else tags.add(runningTag, { block: [id] });
+      toggleRunning(this.context.graph, this.props.blockId);
     });
   }
 
@@ -136,12 +137,12 @@ class StageBlock extends CanvasBlock {
   }
 }
 
-/** What the last click on the graph hit, read from the graph bus with `getEventTarget` (D4, D5). */
-function describeTarget(target: GraphComponent | undefined): string {
+/** The hit component at any level, including a child that handles its own click. */
+function describeTarget(target: GraphClickEvent["target"]): string {
   if (target instanceof RunButton) return `the run button of ${target.getEntityId()}`;
   if (target instanceof StageBlock) return `block ${target.getEntityId()}`;
   if (target instanceof Anchor) return `anchor ${target.getEntityId()}`;
-  return target ? "another component" : "no component (the camera)";
+  return target instanceof GraphComponent ? "another component" : "background";
 }
 
 const blocks: TBlock[] = Array.from({ length: 6 }, (_, i) => ({
@@ -172,7 +173,7 @@ const LEVEL_SCALES: readonly { level: TSceneLevel; scale: number }[] = [
 
 /**
  * The HTML view takes the block only once its data is "ready": until then the scene keeps drawing it. Its run button
- * has no handler: a click on it bubbles to the graph root, where GraphLayer targets the block's RunButton (D4). Its
+ * handles both pointer and keyboard activation with the same action as the scene button. Its
  * border reads the block's computed `border` colour, which `GraphBlock` passes as `--graph-block-border-color`
  * (`useEntityStyle`): the `running` rule turns it green here as on the canvas.
  */
@@ -195,7 +196,11 @@ function StageHtml({ graph, block }: { graph: Graph; block: TBlock }): React.JSX
         }}
       >
         {ready ? `${block.name} (HTML)` : "Loading…"}
-        <div
+        <button
+          type="button"
+          aria-label={`Toggle ${block.name}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => toggleRunning(graph, String(block.id))}
           style={{
             position: "absolute",
             // Offsets start inside the wrapper's border: this rectangle is the scene button's, block-local.
@@ -224,9 +229,8 @@ const SceneInteractionApp = ({ renderer, html, minimap }: SceneInteractionArgs):
   const level = useSignal(graph.scene.$level);
   const rendererState = useSignal(graph.scene.$renderer);
   const [lastClick, setLastClick] = useState("none yet");
-  // The bus's click carries the native event; `getEventTarget` names the graph component it hit, also when that
-  // component stopped the click (the run button does) and when the click came from the HTML button.
-  useGraphEvent(graph, "click", (detail) => setLastClick(describeTarget(getEventTarget(detail.sourceEvent))));
+  // Capture observes the scene button before it stops propagation.
+  useGraphEvent(graph, "click", ({ target }) => setLastClick(describeTarget(target)), { capture: true });
   useLayer(minimap ? graph : null, MiniMapLayer, { location: "bottomRight", width: 200, height: 160 });
 
   useEffect(() => {
@@ -267,7 +271,7 @@ const SceneInteractionApp = ({ renderer, html, minimap }: SceneInteractionArgs):
             ))}
           </Flex>
           <Text variant="body-1" color="secondary">
-            graph.scene.$renderer: <b>{rendererState}</b> · graph.scene.$level: <b>{level}</b> · last click:{" "}
+            graph.scene.$renderer: <b>{rendererState}</b> · graph.scene.$level: <b>{level}</b> · last scene click:{" "}
             <b>{lastClick}</b>
           </Text>
         </Flex>

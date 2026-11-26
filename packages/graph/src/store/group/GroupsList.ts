@@ -5,6 +5,7 @@ import { Group } from "../../components/canvas/groups";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
+import type { TSelectionDiff } from "../../services/selection/types";
 import type { BlockState } from "../block/Block";
 import { RootStore } from "../index";
 
@@ -12,7 +13,7 @@ import { GroupState, TGroup, TGroupId } from "./Group";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
-    "groups-selection-change": (event: SelectionEvent<TGroupId>) => void;
+    "groups-selection-change": TSelectionDiff<TGroupId>;
   }
 }
 

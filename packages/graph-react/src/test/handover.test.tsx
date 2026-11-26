@@ -178,7 +178,7 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     props: { autoHideCanvas?: boolean; canvasVisible?: boolean },
     scale: number,
     options: {
-      settings?: { emulateMouseEventsOnCameraChange?: boolean };
+      settings?: { retargetHoverOnCameraChange?: boolean };
       /** Wraps GraphCanvas in Suspense; while `current` is true, the block views suspend. */
       suspendViews?: { current: boolean };
       /** Blocks besides "a". */
@@ -227,11 +227,11 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
       return target === state?.getViewComponent() ? "block" : "other";
     };
     const log: string[] = [];
-    graph.on("mouseenter", (event) => {
-      log.push(`enter:${nameOf(event.detail.target)}`);
+    graph.on("pointerenter", (event) => {
+      log.push(`enter:${nameOf(event.target)}`);
     });
-    graph.on("mouseleave", (event) => {
-      log.push(`leave:${nameOf(event.detail.target)}`);
+    graph.on("pointerleave", (event) => {
+      log.push(`leave:${nameOf(event.target)}`);
     });
     return {
       graph,
@@ -249,18 +249,40 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
 
   const pointAtAnchor = (graph: Graph): void =>
     act(() => {
-      graph.getGraphLayer().handleEvent(new MouseEvent("mousemove", { clientX: POINTER.x, clientY: POINTER.y }));
+      graph.getGraphCanvas().dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          pointerType: "mouse",
+          pointerId: 1,
+          clientX: POINTER.x,
+          clientY: POINTER.y,
+        })
+      );
+      graph.scheduler.performUpdate();
     });
 
   const clickTargets = (graph: Graph): unknown[] => {
     const targets: unknown[] = [];
-    const off = graph.on("click", (event) => {
-      targets.push(event.detail.target);
-    });
+    const off = graph.on(
+      "click",
+      (event) => {
+        targets.push(event.target);
+      },
+      { capture: true }
+    );
     act(() => {
       const canvas = graph.getGraphLayer().getCanvas();
-      for (const type of ["mousedown", "mouseup", "click"]) {
-        canvas.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: POINTER.x, clientY: POINTER.y }));
+      for (const type of ["pointerdown", "pointerup"]) {
+        canvas.dispatchEvent(
+          new PointerEvent(type, {
+            pointerType: "mouse",
+            pointerId: 1,
+            buttons: type === "pointerdown" ? 1 : 0,
+            bubbles: true,
+            clientX: POINTER.x,
+            clientY: POINTER.y,
+          })
+        );
       }
     });
     off();
@@ -293,7 +315,7 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     ["", false],
     [" (camera emulation on)", true],
   ])("entering detailed under a still pointer keeps the anchor: no leave and enter on the bus%s", (_name, emulate) => {
-    const mounted = mount({}, 0.5, { settings: { emulateMouseEventsOnCameraChange: emulate } });
+    const mounted = mount({}, 0.5, { settings: { retargetHoverOnCameraChange: emulate } });
     const { graph, log } = mounted;
     pointAtAnchor(graph);
     expect(log).toEqual(["enter:anchor"]);
@@ -301,14 +323,14 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     mounted.at(1);
     mounted.frames(6);
     expect(graph.rootStore.blocksList.getBlockState("a")?.getViewComponent()?.isHeldByHtml()).toBe(true);
-    expect(mounted.nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("anchor");
+    expect(mounted.nameOf(graph.input.$hoveredComponent.value)).toBe("anchor");
     expect(log).toEqual([]);
     mounted.unmount();
   });
 
   it("entering detailed in a batch with a settings write keeps the anchor, with the camera emulation on", () => {
-    // The batch notifies GraphLayer's camera effect before BlocksList's level effect takes its hold.
-    const mounted = mount({}, 0.5, { settings: { emulateMouseEventsOnCameraChange: true } });
+    // The batch notifies the input service's camera effect before BlocksList's level effect takes its hold.
+    const mounted = mount({}, 0.5, { settings: { retargetHoverOnCameraChange: true } });
     const { graph, log } = mounted;
     pointAtAnchor(graph);
     log.splice(0);
@@ -320,7 +342,7 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     );
     mounted.frames(6);
     expect(graph.rootStore.blocksList.getBlockState("a")?.getViewComponent()?.isHeldByHtml()).toBe(true);
-    expect(mounted.nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("anchor");
+    expect(mounted.nameOf(graph.input.$hoveredComponent.value)).toBe("anchor");
     expect(log).toEqual([]);
     mounted.unmount();
   });
@@ -330,7 +352,7 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
 
   it("entering detailed in a batch after a strategy-only change away from it keeps the anchor (emulation on)", () => {
     // The level left detailed by the strategy alone, with no camera change.
-    const mounted = mount({}, 1, { settings: { emulateMouseEventsOnCameraChange: true } });
+    const mounted = mount({}, 1, { settings: { retargetHoverOnCameraChange: true } });
     const { graph, log } = mounted;
     expect(mountedViews()).toBe(1);
     act(() => graph.updateSettings({ getCameraBlockScaleLevel: () => ECameraScaleLevel.Schematic }));
@@ -347,14 +369,14 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     );
     mounted.frames(6);
     expect(graph.rootStore.blocksList.getBlockState("a")?.getViewComponent()?.isHeldByHtml()).toBe(true);
-    expect(mounted.nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("anchor");
+    expect(mounted.nameOf(graph.input.$hoveredComponent.value)).toBe("anchor");
     expect(log).toEqual([]);
     mounted.unmount();
   });
 
-  it("emulates a pan within detailed at once after a strategy-only change into detailed (emulation on)", () => {
+  it("emulates a settled pan within detailed after a strategy-only change into detailed (emulation on)", () => {
     // The level entered detailed by the strategy alone.
-    const mounted = mount({}, 0.5, { settings: { emulateMouseEventsOnCameraChange: true } });
+    const mounted = mount({}, 0.5, { settings: { retargetHoverOnCameraChange: true } });
     const { graph, log } = mounted;
     act(() => graph.updateSettings({ getCameraBlockScaleLevel: () => ECameraScaleLevel.Detailed }));
     mounted.frames(6);
@@ -364,8 +386,8 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     log.splice(0);
     // Scale 0.5: the camera at x 100 puts the anchor (world x 200) under the pointer; at x 150 the block's body is.
     act(() => graph.cameraService.set({ x: 150 }));
-    // At once, without a graph frame: a move within one level emulates as before.
-    expect(mounted.nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("block");
+    mounted.frames(2);
+    expect(mounted.nameOf(graph.input.$hoveredComponent.value)).toBe("block");
     expect(log).toEqual(["leave:anchor", "enter:block"]);
     mounted.unmount();
   });
@@ -382,19 +404,19 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     mounted.at(1);
     // The frame asks React for the views inside a transition: their render suspends and nothing commits.
     act(() => startTransition(() => graph.scheduler.performUpdate()));
-    expect(mounted.nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("anchor");
+    expect(mounted.nameOf(graph.input.$hoveredComponent.value)).toBe("anchor");
     mounted.frames(20);
     errors.mockRestore();
     expect(graph.rootStore.blocksList.getBlockState("a")?.getViewComponent()?.isHeldByHtml()).toBe(false);
     // The bound released the hold and the frame's end served the level's retarget: detailed without a view hits the
     // block (В5), once, with no flicker back.
     expect(mounted.nameOf(graph.getElementOverPoint(ANCHOR))).toBe("block");
-    expect(mounted.nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("block");
+    expect(mounted.nameOf(graph.input.$hoveredComponent.value)).toBe("block");
     expect(log).toEqual(["leave:anchor", "enter:block"]);
     // Nothing is held any more: a move under the still pointer is followed at the next frame's end.
     act(() => graph.api.updateBlock({ id: "a", x: -100 }));
     mounted.frames(1);
-    expect(graph.getGraphLayer().$hoveredComponent.value).toBeUndefined();
+    expect(graph.input.$hoveredComponent.value).toBeUndefined();
     mounted.unmount();
   });
 
@@ -408,11 +430,11 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     const suspendViews = { current: false };
     const mounted = mount({}, 0.5, { suspendViews, blocks: [far] });
     const { graph } = mounted;
-    const layer = graph.getGraphLayer();
-    const holdRetarget = layer.holdRetarget.bind(layer);
+    const hover = graph.input.hover;
+    const holdRetarget = hover.holdRetarget.bind(hover);
     const releases: jest.Mock[] = [];
     const expired = jest.fn();
-    const spy = jest.spyOn(layer, "holdRetarget").mockImplementation((onExpire) => {
+    const spy = jest.spyOn(hover, "holdRetarget").mockImplementation((onExpire) => {
       const release = jest.fn(
         holdRetarget(() => {
           expired();
@@ -457,9 +479,9 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     mounted.at(0.5);
     mounted.at(1);
     mounted.frames(1);
-    expect(nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("anchor");
+    expect(nameOf(graph.input.$hoveredComponent.value)).toBe("anchor");
     mounted.frames(4);
-    expect(nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("block");
+    expect(nameOf(graph.input.$hoveredComponent.value)).toBe("block");
     mounted.unmount();
   });
 
@@ -478,7 +500,7 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
       graph.scheduler.performUpdate();
     });
     mounted.frames(6);
-    expect(mounted.nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe("anchor");
+    expect(mounted.nameOf(graph.input.$hoveredComponent.value)).toBe("anchor");
     expect(log).toEqual([]);
     mounted.unmount();
   });
@@ -500,7 +522,7 @@ describe("the handover through GraphCanvas, with a pointer on an anchor", () => 
     const view = graph.rootStore.blocksList.getBlockState("a")?.getViewComponent();
     expect([view?.isHeldByHtml(), view?.isShownOutsideScene()]).toEqual([false, false]);
     expect(mounted.nameOf(graph.getElementOverPoint(ANCHOR))).toBe(target);
-    expect(mounted.nameOf(graph.getGraphLayer().$hoveredComponent.value)).toBe(target);
+    expect(mounted.nameOf(graph.input.$hoveredComponent.value)).toBe(target);
     expect(log).toEqual(events);
     mounted.frames(4);
     expect(log).toEqual(events);

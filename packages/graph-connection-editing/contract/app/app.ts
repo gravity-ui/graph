@@ -47,7 +47,7 @@ if (layer.context.graph !== graph) throw new Error("ConnectionEditingLayer is co
 
 const created: string[] = [];
 graph.on("connection-created", (event) => {
-  created.push(`${String(event.detail.sourcePort.id)}->${String(event.detail.targetPort.id)}`);
+  created.push(`${String(event.sourcePort.id)}->${String(event.targetPort.id)}`);
   root.dataset.created = created.join(",");
 });
 
