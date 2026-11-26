@@ -133,8 +133,9 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     return levelMaskOf(klass.CREATION_LEVELS);
   }
 
-  public override isEntityAvailable(): boolean {
-    return super.isEntityAvailable() && this.connectedState.isAttached();
+  /** @internal */
+  public override getEntityBinding() {
+    return this.connectedState;
   }
 
   /**

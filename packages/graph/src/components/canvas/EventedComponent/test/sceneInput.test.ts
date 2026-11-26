@@ -143,6 +143,20 @@ describe("scene input delivery", () => {
     expect(log).toEqual(["start", "cancel"]);
   });
 
+  it("cancels a child's drop when its block is replaced during release before reconciliation", () => {
+    graph.on("dragstart", ({ claim }) =>
+      claim({ owner: "button", end: () => log.push("end"), cancel: () => log.push("cancel") })
+    );
+    graph.on("release", () => {
+      graph.blocks.deleteBlocks(["a"]);
+      graph.api.addBlock({ ...blockData });
+    });
+    send("pointerdown", BUTTON);
+    send("pointermove", [BUTTON[0] + 12, BUTTON[1]], { buttons: 1 });
+    send("pointerup", BUTTON);
+    expect(log).toEqual(["cancel"]);
+  });
+
   it("routes a pinch spanning a child and its block from their common ancestor", () => {
     graph.updateSettings({ touchPolicy: "editor" });
     const first = { pointerType: "touch", pointerId: 5 };

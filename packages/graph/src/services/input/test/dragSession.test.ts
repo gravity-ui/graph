@@ -11,12 +11,16 @@ function pointer(type: string, init: PointerEventInit = {}): PointerEvent {
   return new PointerEvent(type, { pointerType: "mouse", pointerId: 1, buttons: type === "pointerup" ? 0 : 1, ...init });
 }
 
+function firstMove(event: PointerEvent) {
+  return { crossing: event, event };
+}
+
 function startBlockDrag(graph: Graph, block: Block, clientX: number): void {
   const down = pointer("pointerdown");
   graph.dragService.startDefaultDrag(
     block,
     down,
-    pointer("pointermove", { clientX }),
+    firstMove(pointer("pointermove", { clientX })),
     graph.getPointInCameraSpace(down),
     new AbortController().signal
   );
@@ -261,7 +265,13 @@ test.each(["touch", "pen"])("a claimed %s drag ignores every event from a second
   const crossing = pointer("pointermove", { ...owner, clientX: 6 });
   const operation = { owner: "test", start: jest.fn(), move: jest.fn(), end: jest.fn(), cancel: jest.fn() };
   const signal = new AbortController();
-  graph.dragService.startClaimedDrag(operation, down, crossing, graph.getPointInCameraSpace(down), signal.signal);
+  graph.dragService.startClaimedDrag(
+    operation,
+    down,
+    firstMove(crossing),
+    graph.getPointInCameraSpace(down),
+    signal.signal
+  );
 
   for (const type of ["pointerdown", "pointermove", "pointercancel", "lostpointercapture", "pointerup"]) {
     document.dispatchEvent(pointer(type, { pointerType: "touch", pointerId: 20, clientX: 80 }));
@@ -322,7 +332,7 @@ test.each(["cursor", "camera"])("cancelling while the %s is acquired prevents dr
   graph.dragService.startClaimedDrag(
     { owner: "cancel on acquire", cursor: "grabbing", start, move },
     down,
-    pointer("pointermove"),
+    firstMove(pointer("pointermove")),
     graph.getPointInCameraSpace(down),
     owner.signal
   );
@@ -354,7 +364,7 @@ test("auto-pan follows a stationary touch drag without a hover sample", () => {
     graph.dragService.startClaimedDrag(
       { owner: "touch", move },
       down,
-      event,
+      firstMove(event),
       graph.getPointInCameraSpace(down),
       signal.signal
     );

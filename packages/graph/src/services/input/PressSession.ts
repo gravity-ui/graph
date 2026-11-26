@@ -1,5 +1,5 @@
 import type { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
-import type { GraphComponent } from "../../components/canvas/GraphComponent";
+import { GraphComponent } from "../../components/canvas/GraphComponent";
 import type { CameraPoint } from "../camera/CameraPoint";
 import type { TSceneLevel } from "../scene/types";
 
@@ -16,6 +16,8 @@ export class PressSession {
   public owner?: Offer;
   public defaultDrag?: "camera" | "component";
   public latest: PointerEvent;
+  /** A keyed scene view can survive its backing model, including when the pressed child has no model of its own. */
+  public readonly hasLiveTarget: () => boolean;
   private holdTimer?: ReturnType<typeof setTimeout>;
   private readonly offers: Offer[] = [];
 
@@ -30,6 +32,13 @@ export class PressSession {
     public readonly touchPolicy: "page" | "editor"
   ) {
     this.latest = down;
+    const bindings = path
+      .filter((node): node is GraphComponent => node instanceof GraphComponent)
+      .map((node) => ({ node, entity: node.getEntityBinding() }));
+    this.hasLiveTarget = () =>
+      bindings.every(
+        ({ node, entity }) => node.isMounted() && node.getEntityBinding() === entity && node.isEntityAvailable()
+      );
   }
 
   public waitForHold(duration: number, notify: () => void): void {

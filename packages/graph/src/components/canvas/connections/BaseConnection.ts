@@ -231,8 +231,9 @@ export class BaseConnection<
     return changed;
   }
 
-  public override isEntityAvailable(): boolean {
-    return super.isEntityAvailable() && this.connectedState.isAttached();
+  /** @internal */
+  public override getEntityBinding() {
+    return this.connectedState;
   }
 
   protected hasGeometry(): boolean {

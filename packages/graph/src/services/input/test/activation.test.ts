@@ -1,5 +1,6 @@
 import { Graph } from "../../../graph";
 import { globalScheduler } from "../../../lib/Scheduler";
+import { ECanDrag } from "../../../store/settings";
 
 describe("pointer activation", () => {
   let graph: Graph;
@@ -59,6 +60,14 @@ describe("pointer activation", () => {
     send("pointerup", x, init);
   }
 
+  function replaceBlockKeepingView() {
+    const first = graph.blocks.getBlockState("a")?.getViewComponent();
+    graph.blocks.deleteBlocks(["a"]);
+    graph.api.addBlock({ id: "a", is: "Block", name: "New", x: 10, y: 10, width: 100, height: 80 });
+    for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
+    expect(graph.blocks.getBlockState("a")?.getViewComponent()).toBe(first);
+  }
+
   it.each([
     [700, 8, true],
     [701, 8, false],
@@ -69,6 +78,40 @@ describe("pointer activation", () => {
     jest.advanceTimersByTime(interval);
     click(50 + distance);
     expect(events).toEqual(matches ? ["click", "click", "dblclick"] : ["click", "click"]);
+  });
+
+  it.each(["open", "closed"] as const)("activates only releases owned by the graph in %s shadow mode", (mode) => {
+    const host = document.body.appendChild(document.createElement("div"));
+    const shadow = host.attachShadow({ mode });
+    shadow.appendChild(root);
+    const nested = root.appendChild(document.createElement("div"));
+    nested.className = "graph-root";
+    const sibling = shadow.appendChild(document.createElement("div"));
+    const sample = (target: Element, type: "pointerdown" | "pointerup") => {
+      // jsdom handles shadow retargeting but does not lay out elements for elementFromPoint.
+      Object.defineProperty(shadow, "elementFromPoint", { configurable: true, value: () => target });
+      target.dispatchEvent(
+        new PointerEvent(type, {
+          pointerType: "mouse",
+          pointerId: 1,
+          button: 0,
+          buttons: type === "pointerdown" ? 1 : 0,
+          clientX: 50,
+          clientY: 50,
+          bubbles: true,
+          composed: true,
+        })
+      );
+    };
+    try {
+      for (const target of [nested, sibling, document.body, root]) {
+        sample(root, "pointerdown");
+        sample(target, "pointerup");
+        expect(events).toEqual(target === root ? ["click"] : []);
+      }
+    } finally {
+      host.remove();
+    }
   });
 
   it("uses the physical interval when a busy main thread delivers two clicks together", () => {
@@ -162,7 +205,6 @@ describe("pointer activation", () => {
     it("drops delayed work when the target is removed or the graph is detached", () => {
       click(50);
       graph.blocks.deleteBlocks(["a"]);
-      for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
       jest.advanceTimersByTime(701);
       expect(events).toEqual([]);
       click(400);
@@ -170,6 +212,39 @@ describe("pointer activation", () => {
       jest.advanceTimersByTime(701);
       expect(events).toEqual([]);
     });
+
+    it("does not deliver to a view rebound to another block with the same id", () => {
+      click(50);
+      replaceBlockKeepingView();
+      click(50);
+      jest.advanceTimersByTime(701);
+      expect(events).toEqual(["click"]);
+    });
+  });
+
+  it.each(["longpress", "dragstart"] as const)("skips %s for a rebound press target", (gesture) => {
+    graph.updateSettings({ touchPolicy: "editor" });
+    const listener = jest.fn();
+    graph.on(gesture, listener);
+    const touch = { pointerType: "touch", pointerId: 3 };
+    send("pointerdown", 50, touch);
+    replaceBlockKeepingView();
+    if (gesture === "longpress") jest.advanceTimersByTime(501);
+    else send("pointermove", 65, touch);
+    send("pointerup", 65, touch);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("discards a claim when a dragstart handler removes the press target", () => {
+    const start = jest.fn();
+    graph.on("dragstart", ({ claim }) => {
+      claim({ owner: "tool", start });
+      graph.blocks.deleteBlocks(["a"]);
+    });
+    send("pointerdown", 50);
+    send("pointermove", 65);
+    send("pointerup", 65);
+    expect(start).not.toHaveBeenCalled();
   });
 
   it("requires the same live component, even for adjacent blocks", () => {
@@ -210,6 +285,32 @@ describe("pointer activation", () => {
     expect(root.style.touchAction).toBe("pan-x");
   });
 
+  it.each(["", "true", "plaintext-only"])("leaves pointer input to a nested editable with value %j", (value) => {
+    const editable = root.appendChild(document.createElement("div"));
+    editable.setAttribute("contenteditable", value);
+    const text = editable.appendChild(document.createElement("span"));
+    graph.on("press", ({ type }) => events.push(type));
+    graph.on("dragstart", ({ type }) => events.push(type));
+    for (const [type, x] of [
+      ["pointerdown", 50],
+      ["pointermove", 75],
+      ["pointerup", 75],
+    ] as const) {
+      text.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          button: 0,
+          buttons: type === "pointerup" ? 0 : 1,
+          pointerId: 1,
+          pointerType: "mouse",
+          clientX: x,
+          clientY: 50,
+        })
+      );
+    }
+    expect(events).toEqual([]);
+  });
+
   it("interrupts a pending hold when a second touch lands on a native control", () => {
     graph.on("longpress", ({ type }) => events.push(type));
     const finger = { pointerType: "touch", pointerId: 3 };
@@ -241,6 +342,58 @@ describe("pointer activation", () => {
     jest.advanceTimersByTime(500);
     send("pointerup", 50, { ...pen, buttons: 0 });
     expect(events).toEqual(drags ? ["drag at 65"] : []);
+  });
+
+  describe("coalesced drag start", () => {
+    function drag(from: number, through: number, to: number) {
+      const pen = { pointerType: "pen", pointerId: 3, clientY: 50 };
+      send("pointerdown", from, pen);
+      const crossing = new PointerEvent("pointermove", { ...pen, buttons: 1, clientX: through, cancelable: true });
+      const event = new PointerEvent("pointermove", {
+        ...pen,
+        buttons: 1,
+        clientX: to,
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(event, "getCoalescedEvents", { value: () => [crossing] });
+      root.dispatchEvent(event);
+      send("pointerup", to, pen);
+      return event;
+    }
+
+    it.each([
+      [50, [75, 50]],
+      [75, [75]],
+    ] as const)("passes the crossing and final position %i to the owner once each", (to, expected) => {
+      const start = jest.fn();
+      const move = jest.fn();
+      const recognized = jest.fn();
+      graph.on("dragstart", ({ event, claim }) => {
+        recognized(event);
+        claim({ owner: "ink", start, move });
+      });
+
+      const event = drag(50, 75, to);
+      expect(recognized.mock.calls.map(([e]) => e.clientX)).toEqual([75]);
+      expect(start.mock.calls.map(([e]) => e.clientX)).toEqual([75]);
+      expect(move.mock.calls.map(([e]) => e.clientX)).toEqual(expected);
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it("moves the block through the threshold crossing before returning", () => {
+      graph.updateSettings({ canDrag: ECanDrag.ALL });
+      const block = graph.blocks.getBlockState("a")!.getViewComponent()!;
+      const handleDrag = jest.spyOn(block, "handleDrag");
+      drag(50, 75, 50);
+      expect(handleDrag.mock.calls.map(([, context]) => context.currentCoords[0])).toEqual([75, 50]);
+    });
+
+    it("pans the camera through the threshold crossing before returning", () => {
+      const pan = jest.spyOn(graph.cameraService, "move");
+      drag(300, 325, 300);
+      expect(pan.mock.calls.map(([x]) => x)).toEqual([25, -25]);
+    });
   });
 
   it("checks the entire press excursion, including a return before release", () => {
@@ -279,10 +432,7 @@ describe("pointer activation", () => {
     const end = jest.fn();
     const cancel = jest.fn();
     graph.on("dragstart", ({ claim }) => claim({ owner: "port", end, cancel }));
-    graph.on("release", () => {
-      graph.setEntities({ blocks: [], connections: [] });
-      for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
-    });
+    graph.on("release", () => graph.blocks.deleteBlocks(["a"]));
     send("pointerdown", 50);
     send("pointermove", 65);
     send("pointerup", 65);

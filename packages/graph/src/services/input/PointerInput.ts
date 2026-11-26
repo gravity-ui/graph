@@ -19,6 +19,19 @@ function belongsToGraph(target: EventTarget | null, root: HTMLElement): target i
   return target instanceof Element && target.closest(`.${GRAPH_ROOT_CLASS_NAME}`) === root;
 }
 
+function releasedInGraph(event: PointerEvent, root: HTMLElement): boolean {
+  const path = event.composedPath();
+  const tree = root.getRootNode();
+  if (tree instanceof ShadowRoot && !path.includes(tree)) {
+    // A closed shadow ancestor hides the true release target from document capture.
+    for (let shadow: Node = tree; shadow instanceof ShadowRoot; shadow = shadow.host.getRootNode()) {
+      if (path.includes(shadow.host)) return belongsToGraph(tree.elementFromPoint(event.clientX, event.clientY), root);
+    }
+    return false;
+  }
+  return path.find((node) => node instanceof Element && node.classList.contains(GRAPH_ROOT_CLASS_NAME)) === root;
+}
+
 function hasHover(event: PointerEvent): boolean {
   return event.pointerType === "mouse" || event.pointerType === "pen";
 }
@@ -31,6 +44,7 @@ export class PointerInput {
   private unhandledDown = false;
   private lastClick?: {
     target?: EventedComponent;
+    hasLiveTarget: () => boolean;
     type: string;
     x: number;
     y: number;
@@ -145,8 +159,8 @@ export class PointerInput {
     const root = this.graph.layers.$root;
     if (!root || event.defaultPrevented || !belongsToGraph(event.target, root)) return;
     if (event.button !== 0 && event.button !== 1) return;
-    const control = event.target.closest("button,input,select,textarea,a[href],[contenteditable=true]");
-    if (control && root.contains(control)) return;
+    const control = event.target.closest("button,input,select,textarea,a[href]");
+    if ((control && root.contains(control)) || event.target.matches(":read-write")) return;
     const first = this.activePresses.values().next().value;
     if (first && !this.canPair(first, event)) {
       this.ignoredContacts.add(event.pointerId);
@@ -200,6 +214,7 @@ export class PointerInput {
     )
       return;
     session.waitForHold(this.graph.rootStore.settings.getConfigFlag("longPressDuration"), () => {
+      if (!this.live(session)) return;
       this.lastClick = undefined;
       dispatchGesture(this.graph, path, down, start, level, "longpress");
     });
@@ -254,7 +269,7 @@ export class PointerInput {
     }
     session.latest = event;
     const crossing = session.advance(event);
-    if (!crossing) return;
+    if (!crossing || !this.live(session)) return;
     this.lastClick = undefined;
     if (!session.allowDefaults || (event.pointerType === "touch" && session.touchPolicy === "page")) return;
     const point = this.graph.getPointInCameraSpace(crossing);
@@ -263,14 +278,14 @@ export class PointerInput {
       pressEvent: session.down,
       claim: session.claim,
     });
-    if (!this.current(session) || session.phase !== "dragging" || !session.allowDefaults || !session.chooseOwner())
-      return;
+    if (!this.live(session) || session.phase !== "dragging" || !session.allowDefaults || !session.chooseOwner()) return;
     const { down, owner, start } = session;
+    const move = { event, crossing };
     if (owner) {
       this.graph.dragService.startClaimedDrag(
         owner.operation,
         down,
-        event,
+        move,
         start,
         session.lifetime.signal,
         ...owner.signals
@@ -279,7 +294,7 @@ export class PointerInput {
       session.defaultDrag = this.graph.dragService.startDefaultDrag(
         session.hit,
         down,
-        event,
+        move,
         start,
         session.lifetime.signal
       );
@@ -304,11 +319,13 @@ export class PointerInput {
     }
     if (hasHover(event)) this.hover.releaseAt(event);
     const point = this.graph.getPointInCameraSpace(event);
-    const eligible = session.acceptsClick(event) && belongsToGraph(event.target, root);
+    const eligible = session.acceptsClick(event) && releasedInGraph(event, root);
     session.phase = "released";
     this.activePresses.delete(event.pointerId);
-    const release = dispatchGesture(this.graph, session.path, event, point, session.level, "release");
-    if (session.hit && !session.hit.isMounted()) {
+    const release = session.hasLiveTarget()
+      ? dispatchGesture(this.graph, session.path, event, point, session.level, "release")
+      : undefined;
+    if (!release || !session.hasLiveTarget()) {
       // A release listener may remove the source before the drag executor receives this sample.
       session.lifetime.abort();
       this.lastClick = undefined;
@@ -335,14 +352,23 @@ export class PointerInput {
       previous &&
       previous.policy === clickPolicy &&
       previous.target === hit &&
+      previous.hasLiveTarget() &&
       previous.type === event.pointerType &&
       time - previous.time <= doubleClickInterval &&
       Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= doubleClickDistance;
     this.lastClick = twice
       ? undefined
-      : { target: hit, type: event.pointerType, x: event.clientX, y: event.clientY, time, policy: clickPolicy };
+      : {
+          target: hit,
+          hasLiveTarget: session.hasLiveTarget,
+          type: event.pointerType,
+          x: event.clientX,
+          y: event.clientY,
+          time,
+          policy: clickPolicy,
+        };
     const lifetime = this.controller;
-    const isLive = () => this.controller === lifetime && (!hit || hit.isMounted());
+    const isLive = () => this.controller === lifetime && session.hasLiveTarget();
     const single = () => {
       if (isLive()) this.deliverClick(session, event, point, isLive);
     };
@@ -406,6 +432,13 @@ export class PointerInput {
 
   private current(session: PressSession): boolean {
     return this.activePresses.get(session.down.pointerId) === session;
+  }
+
+  private live(session: PressSession): boolean {
+    if (!this.current(session)) return false;
+    if (session.hasLiveTarget()) return true;
+    this.cancel(session);
+    return false;
   }
 
   private cancel(session: PressSession, event = session.latest): void {

@@ -16,6 +16,9 @@ export type DragEvents = {
 };
 export type DragEmitter = Emitter<DragEvents>;
 
+/** The dispatched move owns pointer capture and browser defaults. Its first threshold crossing can be coalesced. */
+export type DragStartMove = { event: PointerEvent; crossing: PointerEvent };
+
 export type DragSessionOptions = {
   stopOnPointerLeave?: boolean;
   graph?: Graph;
@@ -178,14 +181,15 @@ export function createDragSession(surface: Document | HTMLDivElement | HTMLCanva
     }
   }
 
-  function start(event: PointerEvent): void {
+  function start({ event, crossing }: DragStartMove): void {
     if (finished || lastEvent) return;
     try {
       acquireResources(event);
       if (!finished) {
-        lastEvent = event;
-        emitter.emit(EVENTS.DRAG_START, event);
-        update(event);
+        lastEvent = crossing;
+        emitter.emit(EVENTS.DRAG_START, crossing);
+        update(crossing);
+        if (crossing.clientX !== event.clientX || crossing.clientY !== event.clientY) update(event);
       }
     } catch (error) {
       cancel();
@@ -202,7 +206,7 @@ export function createDragSession(surface: Document | HTMLDivElement | HTMLCanva
     }
     pointerId ??= event.pointerId;
     if (lastEvent) update(event);
-    else if (options.startOnMove?.(event)) start(event);
+    else if (options.startOnMove?.(event)) start({ event, crossing: event });
   }
 
   watchPointers(

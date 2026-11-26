@@ -291,9 +291,14 @@ export class GraphComponent<
     });
   }
 
+  /** @internal Store identity for pointer routes whose views may be rebound between frames. */
+  public getEntityBinding(): { isAttached(): boolean } | undefined {
+    return undefined;
+  }
+
   /** Whether delayed interactions may still use this component. */
   public isEntityAvailable(): boolean {
-    return !this.hitBox.destroyed;
+    return !this.hitBox.destroyed && (this.getEntityBinding()?.isAttached() ?? true);
   }
 
   public isMounted() {

@@ -6,7 +6,7 @@ import { ECanDrag } from "../../store/settings";
 import { isMetaKeyEvent } from "../../utils/functions";
 import { EVENTS } from "../../utils/types/events";
 import type { CameraPoint } from "../camera/CameraPoint";
-import type { DragSessionOptions } from "../input/dragSession";
+import type { DragSessionOptions, DragStartMove } from "../input/dragSession";
 import { DragEmitter, createDragSession, stopDragListening } from "../input/dragSession";
 import type { GraphDragOperation } from "../input/press";
 
@@ -118,7 +118,7 @@ export class DragService {
   public startDefaultDrag(
     hit: GraphComponent | undefined,
     down: PointerEvent,
-    move: PointerEvent,
+    move: DragStartMove,
     start: CameraPoint,
     signal: AbortSignal
   ): "camera" | "component" | undefined {
@@ -341,7 +341,7 @@ export class DragService {
   public startClaimedDrag(
     operation: GraphDragOperation,
     initialEvent: PointerEvent,
-    move: PointerEvent,
+    move: DragStartMove,
     start: CameraPoint,
     ...signals: (AbortSignal | undefined)[]
   ): void {

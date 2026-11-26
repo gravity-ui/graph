@@ -8,7 +8,7 @@ import { clamp } from "../../utils/functions/clamp";
 import { EWheelIntent, isPinchZoomGesture } from "../../utils/functions/wheelIntent";
 import { EVENTS } from "../../utils/types/events";
 import { schedule } from "../../utils/utils/schedule";
-import type { DragEmitter } from "../input/dragSession";
+import type { DragEmitter, DragStartMove } from "../input/dragSession";
 import { createDragSession, stopDragListening } from "../input/dragSession";
 
 import { ICamera, TCameraState } from "./CameraService";
@@ -173,7 +173,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   public startPan(
     hit: EventedComponent | undefined,
     down: PointerEvent,
-    move: PointerEvent,
+    move: DragStartMove,
     signal: AbortSignal
   ): void {
     if (this.dragEmitter) stopDragListening(this.dragEmitter);

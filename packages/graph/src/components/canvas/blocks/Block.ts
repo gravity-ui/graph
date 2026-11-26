@@ -292,8 +292,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.subscribe(props.id);
   }
 
-  public override isEntityAvailable(): boolean {
-    return super.isEntityAvailable() && this.connectedState.isAttached();
+  /** @internal */
+  public override getEntityBinding() {
+    return this.connectedState;
   }
 
   public getEntityId(): TBlockId {

@@ -297,8 +297,9 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     };
   }
 
-  public override isEntityAvailable(): boolean {
-    return super.isEntityAvailable() && this.groupState.isAttached();
+  /** @internal */
+  public override getEntityBinding() {
+    return this.groupState;
   }
 
   protected override propsChanged(nextProps: TGroupProps): void {
