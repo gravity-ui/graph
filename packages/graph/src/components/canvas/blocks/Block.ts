@@ -888,8 +888,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   /**
    * Check if block can be dragged based on canDrag setting
    */
-  public override isDraggable(): boolean {
-    const canDrag = this.context.graph.rootStore.settings.$canDrag.value;
+  public override isDraggable(pointerType?: string): boolean {
+    const canDrag = this.context.graph.rootStore.settings.getCanDrag(pointerType);
     return isAllowDrag(canDrag, this.connectedState.$selected.value);
   }
 

@@ -94,8 +94,8 @@ describe("a press on a child that is not draggable", () => {
     graph.on("press", () => log.push("graph:press"));
   }
 
-  function pressAndDrag(point: TClientPoint, button = 0): string[] {
-    const init = { pointerId: 1, pointerType: "mouse", bubbles: true, cancelable: true, button };
+  function pressAndDrag(point: TClientPoint, button = 0, pointerType = "mouse"): string[] {
+    const init = { pointerId: 1, pointerType, bubbles: true, cancelable: true, button };
     const buttons = button === 1 ? 4 : 1;
     const clientX = point[0] + MOVE[0];
     const clientY = point[1] + MOVE[1];
@@ -163,6 +163,15 @@ describe("a press on a child that is not draggable", () => {
       expect(positionOf("a")).toEqual([100, 100]);
       expect(log).toEqual(["button:press", "block:press", "graph:press"]);
     });
+
+    it("drags the selected blocks through their child with a pen override", () => {
+      mount({ canDrag: { default: ECanDrag.NONE, pen: ECanDrag.ONLY_SELECTED } });
+      graph.api.selectBlocks(["a", "b"], true);
+      frames(2);
+      expect(pressAndDrag(BUTTON_A, 0, "pen")).toEqual(["a", "b"]);
+      expect(cameraPosition()).toEqual([0, 0]);
+      expect(positionOf("b")).toEqual([480, 140]);
+    });
   });
 
   describe("Camera", () => {
@@ -174,6 +183,14 @@ describe("a press on a child that is not draggable", () => {
       mountCamera({ canDrag: ECanDrag.ALL });
       pressAndDrag(BUTTON_A);
       expect(cameraPosition()).toEqual([0, 0]);
+    });
+
+    it("keeps a touch on an unselected child with the camera if selection changes before the threshold", () => {
+      mountCamera({ canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED } });
+      graph.on("press", () => graph.api.selectBlocks(["a"], true));
+      expect(pressAndDrag(BUTTON_A, 0, "touch")).toEqual([]);
+      expect(cameraPosition()).toEqual(MOVE);
+      expect(positionOf("a")).toEqual([100, 100]);
     });
 
     it.each([

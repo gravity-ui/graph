@@ -2,6 +2,7 @@
 
 ## Unreleased (v2)
 
+- Configure `settings.canDrag` per pointer type to pan over unselected blocks on touch and drag them directly with a mouse or pen. [Drag settings](./docs/system/graph-settings.md#dragging-selected-blocks-on-touch)
 - Set `settings.clickPolicy` to `"exclusive"` when single and double clicks trigger separate actions. The default remains `"immediate"`. [Activation](./docs/system/event-model.md#activation)
 - Graph input requires native Pointer Events. Subscribe to `press` and `release` for button transitions and `click` or `dblclick` for activation. Hover events use `pointerenter`, `pointerleave`, `pointerover` and `pointerout`.
 - A tool claims `dragstart`, commits its drop in `end` and discards its preview in `cancel`. The camera applies its default action after event handlers. Observe `graph.$camera` for committed changes.

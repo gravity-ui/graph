@@ -78,7 +78,7 @@ const config: HookGraphParams = {
   settings: {
     canDragCamera: true,
     canZoomCamera: true,
-    canDrag: ECanDrag.ALL,
+    canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
     showConnectionArrows: false,
     scaleFontSize: 1,
     useBezierConnections: true,

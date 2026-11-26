@@ -79,7 +79,7 @@ To make a custom `GraphComponent` draggable, override the drag lifecycle methods
 
 ### Step 1: Enable Dragging
 
-Override `isDraggable()` to return `true` when the component should be draggable:
+Override `isDraggable(pointerType?)` to decide whether a component can start a drag. The graph passes the initiating pointer type when it checks the target and the other selected components. See [pointer-specific drag settings](./graph-settings.md#dragging-selected-blocks-on-touch).
 
 ```typescript
 import { GraphComponent } from "@gravity-ui/graph";
@@ -498,7 +498,7 @@ type DragDiff = {
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `isDraggable()` | `() => boolean` | Override to enable drag (default: `false`) |
+| `isDraggable(pointerType?)` | `(pointerType?: string) => boolean` | Override to enable drag (default: `false`) |
 | `handleDragStart()` | `(context: DragContext) => void` | Called when drag starts |
 | `handleDrag()` | `(diff: DragDiff, context: DragContext) => void` | Called on each drag frame |
 | `handleDragEnd()` | `(context: DragContext) => void` | Called when drag ends |

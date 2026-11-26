@@ -5,6 +5,7 @@ import type { TGraphHoverDetail } from "../../components/canvas/EventedComponent
 import type { Graph } from "../../graph";
 import type { GraphHoverEvents } from "../../graphEvents";
 import type { CoreComponent } from "../../lib/CoreComponent";
+import { ECanDrag } from "../../store/settings";
 import type { TGraphSettingsConfig } from "../../store/settings";
 import { GRAPH_ROOT_CLASS_NAME } from "../../utils/graphInstance";
 import type { CameraPoint } from "../camera/CameraPoint";
@@ -193,7 +194,10 @@ export class PointerInput {
       this.graph.scene.$level.peek(),
       settings.dragThreshold,
       settings.clickTolerance,
-      touchPolicy ?? settings.touchPolicy
+      touchPolicy ?? settings.touchPolicy,
+      hit && this.graph.rootStore.settings.getCanDrag(event.pointerType) === ECanDrag.ONLY_SELECTED
+        ? this.graph.selectionService.$selectedComponents.peek()
+        : undefined
     );
     this.activePresses.set(event.pointerId, session);
     if (hasHover(event)) this.hover.press(event, hit);
@@ -296,7 +300,8 @@ export class PointerInput {
         down,
         move,
         start,
-        session.lifetime.signal
+        session.lifetime.signal,
+        session.selectedAtPress
       );
     }
   }

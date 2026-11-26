@@ -77,7 +77,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `retargetHoverOnCameraChange` | boolean | `false` | Recheck the hover target after the camera moves beneath a stationary mouse or pen. A target change emits hover events with `cause: "scene"`. |
 | `canDragCamera` | boolean | `true` | Controls whether the camera can be dragged (panned) |
 | `canZoomCamera` | boolean | `true` | Controls whether the camera can be zoomed in/out |
-| `canDrag` | ECanDrag | `'none'` | Determines which blocks can be resized or moved. Options: `'all'`, `'onlySelected'`, `'none'` |
+| `canDrag` | `ECanDrag` or an object with pointer overrides | `ECanDrag.NONE` | Controls built-in component dragging. An object requires `default` and accepts optional `mouse`, `pen` and `touch` rules. |
 | `scaleFontSize` | number | `1` | Scale factor for font sizes throughout the graph |
 | `showConnectionArrows` | boolean | `true` | Controls visibility of arrows at the end of connections |
 | `useBezierConnections` | boolean | `true` | Use bezier curves for connections instead of straight lines |
@@ -93,6 +93,20 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `yieldBeforeSceneLoad` | boolean | `false` | Give the browser a paint for a loading overlay before scene startup, a full replacement or a renderer switch. See [Scene readiness](./scene.md#scene-readiness-and-loading-overlays). |
 | `webglBackend` | () => Promise<ISceneBackendModule> | built-in dynamic import | Loader of the WebGL backend module, used when `renderer` is `'webgl'` |
 | `cameraAwareText` | boolean | `true` | Whether scene texts may follow the camera. `cameraAware` texts keep a fixed screen size and re-fit their box as the camera zooms; `false` makes every scene text world-sized, whatever its primitive and the styles say. It is the switch for weak devices, which an app may hand to its users. A change redraws the scene (WebGL lays its camera-aware texts out again); no block rebuilds its look. `graph.scene.$cameraAwareText` is the setting as a signal, and `graph.scene.explain()` reports `cameraAwareText: "forced-off"` while it is off. See [Text primitives](./scene.md#text-primitives) |
+
+### Dragging selected blocks on touch
+
+To pan across unselected blocks with a finger and drag blocks directly with a mouse or pen, configure the editor as follows.
+
+```ts
+graph.updateSettings({
+  canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
+});
+```
+
+In editor touch mode, swiping the body of an unselected block pans the camera when `canDragCamera` is enabled. Tap the block to select it, then drag it with the next touch. The graph checks which components were selected when that touch began. With `clickPolicy: "exclusive"`, wait for selection to appear before starting the drag. A layer can still claim a drag on a port to create a connection.
+
+A single `ECanDrag` value applies to every pointer. In the object form, omitted and unrecognized pointer types use `default`.
 
 ## Graph Colors
 

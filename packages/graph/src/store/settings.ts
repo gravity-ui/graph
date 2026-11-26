@@ -38,8 +38,8 @@ export enum ECanDrag {
 export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
-  /** Controls which components can be dragged */
-  canDrag: ECanDrag;
+  /** One rule for all pointers, or a default with overrides for individual pointer types. */
+  canDrag: ECanDrag | { default: ECanDrag; mouse?: ECanDrag; pen?: ECanDrag; touch?: ECanDrag };
   /**
    * Minimum distance in CSS pixels the pointer must move before a drag operation starts.
    * Helps prevent accidental drags during clicks. Default: 5
@@ -232,6 +232,15 @@ export class GraphEditorSettings {
   });
 
   public $canDrag = computed(() => this.$settings.value.canDrag);
+
+  public getCanDrag(pointerType?: string): ECanDrag {
+    const rule = this.$canDrag.value;
+    if (typeof rule === "string") return rule;
+    if (pointerType === "mouse" || pointerType === "pen" || pointerType === "touch") {
+      return rule[pointerType] ?? rule.default;
+    }
+    return rule.default;
+  }
 
   public $useBlocksAnchors = computed(() => this.$settings.value.useBlocksAnchors);
 

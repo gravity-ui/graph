@@ -65,7 +65,7 @@ const graph = new Graph(
     blocks,
     connections,
     settings: {
-      canDrag: ECanDrag.ALL,
+      canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
       useBezierConnections: false,
     },
   },

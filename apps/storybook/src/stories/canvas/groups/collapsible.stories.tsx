@@ -179,7 +179,7 @@ const CollapsibleBlockGroups = BlockGroups.withBlockGrouping<BlockGroupsProps, B
 const CollapsibleGroupsApp = () => {
   const { graph, setEntities, start } = useGraph({
     settings: {
-      canDrag: ECanDrag.ALL,
+      canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
       clickPolicy: "exclusive",
     },
   });

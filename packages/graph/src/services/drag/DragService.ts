@@ -120,11 +120,17 @@ export class DragService {
     down: PointerEvent,
     move: DragStartMove,
     start: CameraPoint,
-    signal: AbortSignal
+    signal: AbortSignal,
+    selectedAtPress?: readonly GraphComponent[]
   ): "camera" | "component" | undefined {
     if (signal.aborted || this.currentDragEmitter) return undefined;
     const settings = this.graph.rootStore.settings;
-    const target = findDragTarget(hit);
+    const canDrag = settings.getCanDrag(down.pointerType);
+    const target = findDragTarget(
+      hit,
+      down.pointerType,
+      canDrag === ECanDrag.ONLY_SELECTED ? selectedAtPress : undefined
+    );
     if (down.button === 1 || !target) {
       if (settings.getConfigFlag("canDragCamera") && !isMetaKeyEvent(down)) {
         this.graph.getGraphLayer().$.camera?.startPan(hit, down, move, signal);
@@ -133,9 +139,8 @@ export class DragService {
       return undefined;
     }
 
-    const canDrag = settings.$canDrag.peek();
     if (canDrag === ECanDrag.NONE || !target.isEntityAvailable()) return undefined;
-    const components = this.collectDragComponents(target, canDrag);
+    const components = this.collectDragComponents(target, canDrag, down.pointerType);
     if (!components.length) return undefined;
 
     this.dragComponents = components;
@@ -163,28 +168,16 @@ export class DragService {
    * - ALL: If target is in selection, drag all selected draggable components. Otherwise drag only target.
    * - ONLY_SELECTED: Only selected components can be dragged. If target is not selected, returns empty array.
    */
-  private collectDragComponents(target: GraphComponent, canDrag: ECanDrag): GraphComponent[] {
+  private collectDragComponents(target: GraphComponent, canDrag: ECanDrag, pointerType: string): GraphComponent[] {
     const selectedComponents = this.graph.selectionService.$selectedComponents.value;
 
     // Check if target is among selected components
     const targetInSelection = selectedComponents.some((c) => c === target);
 
-    if (canDrag === ECanDrag.ONLY_SELECTED) {
-      // In ONLY_SELECTED mode, target must be in selection to start drag
-      if (!targetInSelection) {
-        return [];
-      }
-      // Drag all selected draggable components
-      return selectedComponents.filter((c) => c.isEntityAvailable() && c.isDraggable());
+    if (targetInSelection) {
+      return selectedComponents.filter((c) => c.isEntityAvailable() && c.isDraggable(pointerType));
     }
-
-    // ALL mode: if target is in selection, drag all selected draggable components
-    if (targetInSelection && selectedComponents.length > 0) {
-      return selectedComponents.filter((c) => c.isEntityAvailable() && c.isDraggable());
-    }
-
-    // Target is not in selection - drag only target
-    return [target];
+    return canDrag === ECanDrag.ALL ? [target] : [];
   }
 
   private handleDragStart = (event: PointerEvent, coords: [number, number]): void => {

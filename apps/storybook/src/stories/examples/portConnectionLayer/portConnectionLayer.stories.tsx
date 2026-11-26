@@ -252,7 +252,7 @@ const drawLine = (start: TPoint, end: TPoint) => {
 const GraphApp = () => {
   const { graph, setEntities, start, zoomTo } = useGraph({
     settings: {
-      canDrag: ECanDrag.ALL,
+      canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
       useBlocksAnchors: true,
       blockComponents: {
         "port-based-block": PortBasedBlock,
@@ -287,6 +287,12 @@ const meta: Meta = {
   component: GraphApp,
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        story:
+          "On touch, swipe an unselected block to pan. Tap it, then drag to move it. Drag a port to connect blocks.",
+      },
+    },
   },
 };
 

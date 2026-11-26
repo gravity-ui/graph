@@ -29,7 +29,9 @@ export class PressSession {
     public readonly level: TSceneLevel,
     private readonly threshold: number,
     private readonly clickTolerance: number,
-    public readonly touchPolicy: "page" | "editor"
+    public readonly touchPolicy: "page" | "editor",
+    /** A delayed click may select the block between this press and its first movement. */
+    public readonly selectedAtPress?: readonly GraphComponent[]
   ) {
     this.latest = down;
     const bindings = path

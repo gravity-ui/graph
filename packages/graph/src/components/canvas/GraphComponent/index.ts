@@ -90,7 +90,7 @@ export class GraphComponent<
    *
    * @returns true if the component is draggable, false otherwise
    */
-  public isDraggable(): boolean {
+  public isDraggable(_pointerType?: string): boolean {
     return false;
   }
 

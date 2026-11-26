@@ -43,7 +43,7 @@ async function editor(page: Page, touchPolicy: "editor" | "page" | "default" = "
       ...(touchPolicy === "default" ? {} : { touchPolicy }),
       useBlocksAnchors: true,
       dragThreshold: 5,
-      canDrag: "all",
+      canDrag: { default: "all", touch: "onlySelected" },
     },
   });
   await graph.evaluate((g) => g.cameraService.set({ x: 150, y: 280, scale: 0.5 }));
@@ -93,6 +93,42 @@ async function editor(page: Page, touchPolicy: "editor" | "page" | "default" = "
   });
   return { graph, layer, source, target, cdp, trace };
 }
+
+test("touch pans over an unselected block and drags it after a tap while a mouse drags directly", async ({ page }) => {
+  const { graph, layer, cdp } = await editor(page);
+  const block = () =>
+    graph.evaluate((g) => {
+      const state = g.blocks.getBlockState("source")!;
+      return { x: state.x, y: state.y, selected: state.selected };
+    });
+  const swipe = async (from: Point) => {
+    const to = { x: from.x + 30, y: from.y + 10 };
+    await touch(cdp, "touchStart", 1, from);
+    await touch(cdp, "touchMove", 1, to);
+    await touch(cdp, "touchEnd", 1, to);
+  };
+  const center = () => layer.toViewport({ x: 100, y: 50 });
+  const initial = await graph.camera().getState();
+  await swipe(await center());
+  const panned = await graph.camera().getState();
+  expect(panned).toMatchObject({ x: initial.x + 30, y: initial.y + 10, scale: initial.scale });
+  expect(await block()).toEqual({ x: 0, y: 0, selected: false });
+
+  const at = await center();
+  await page.touchscreen.tap(at.x, at.y);
+  expect(await block()).toMatchObject({ selected: true });
+  await swipe(at);
+  expect(await block()).toEqual({ x: 60, y: 20, selected: true });
+  expect(await graph.camera().getState()).toEqual(panned);
+
+  const other = await layer.toViewport({ x: 580, y: 50 });
+  await page.mouse.move(other.x, other.y);
+  await page.mouse.down();
+  await page.mouse.move(other.x + 30, other.y + 10);
+  await page.mouse.up();
+  expect(await graph.evaluate((g) => g.blocks.getBlock("target"))).toMatchObject({ x: 540, y: 20 });
+  expect(await graph.camera().getState()).toEqual(panned);
+});
 
 for (const liftFirst of [1, 2]) {
   test(`a second touch before the port drag starts pinches, then finger ${3 - liftFirst} pans without a jump`, async ({

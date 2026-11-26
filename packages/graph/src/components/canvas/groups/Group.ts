@@ -204,8 +204,8 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   /**
    * Check if group can be dragged based on props.draggable and canDrag setting
    */
-  public override isDraggable(): boolean {
-    const canDrag = this.context.graph.rootStore.settings.$canDrag.value;
+  public override isDraggable(pointerType?: string): boolean {
+    const canDrag = this.context.graph.rootStore.settings.getCanDrag(pointerType);
     return Boolean(this.props.draggable) && isAllowDrag(canDrag, Boolean(this.state.selected));
   }
 
