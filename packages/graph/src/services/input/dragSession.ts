@@ -164,7 +164,7 @@ export function createDragSession(surface: Document | HTMLDivElement | HTMLCanva
     }
     if (component) {
       acquire(
-        () => graph.input.hover.captureEvents(component),
+        () => graph.input.hover.captureEvents(component, event),
         () => graph.input.hover.releaseCapture()
       );
     }

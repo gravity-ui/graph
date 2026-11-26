@@ -101,8 +101,6 @@ test("startDrag captures its component and cancel stops active and pending opera
   });
   const layer = graph.getGraphLayer();
   const block = new Block({ id: "block" }, layer);
-  const capture = jest.spyOn(graph.input.hover, "captureEvents");
-  const release = jest.spyOn(graph.input.hover, "releaseCapture");
   const onCancel = jest.fn();
   const onEnd = jest.fn();
   graph.dragService.startDrag(
@@ -114,14 +112,14 @@ test("startDrag captures its component and cancel stops active and pending opera
   );
   document.dispatchEvent(pointer("pointermove", { clientX: 10 }));
 
+  expect(graph.input.$hoveredComponent.peek()).toBe(block);
   const pending = jest.fn();
   graph.dragService.startDrag({ onStart: pending }, { threshold: 0 });
   graph.dragService.cancel();
   document.dispatchEvent(pointer("pointermove", { clientX: 20 }));
   document.dispatchEvent(pointer("pointerup"));
 
-  expect(capture).toHaveBeenCalledWith(block);
-  expect(release).toHaveBeenCalledTimes(1);
+  expect(graph.input.$hoveredComponent.peek()).toBeUndefined();
   expect(onCancel).toHaveBeenCalledTimes(1);
   expect(onEnd).not.toHaveBeenCalled();
   expect(pending).not.toHaveBeenCalled();

@@ -20,6 +20,10 @@ const FAST_PATH_PX = 32;
 const JUMP_PX = 48;
 const SETTLE_MS = 60;
 
+export function hasHover(event: PointerEvent): boolean {
+  return event.pointerType === "mouse" || event.pointerType === "pen";
+}
+
 /** One `holdRetarget()`: the frame ends it may still wait through, and what to call when its bound releases it. */
 type TRetargetHold = { framesLeft: number; readonly onExpire?: () => void };
 
@@ -119,11 +123,12 @@ export class SceneHover {
    * A graph component transparent to pointer events (`GraphComponent.transparentToEvents`) is not captured: the
    * pointer keeps its normal target.
    * @param component - element to capture
+   * @param event - the drag sample, which can cross the threshold after pointerleave cleared the last hover position
    */
-  public captureEvents(component: EventedComponent) {
+  public captureEvents(component: EventedComponent, event = this.lastPointer) {
     if (component instanceof GraphComponent && component.isTransparentToEvents()) return;
     this.capturedTargetComponent = component;
-    if (this.lastPointer) this.changeTargetTo(component, this.lastPointer);
+    if (event && hasHover(event)) this.changeTargetTo(component, event);
   }
 
   public releaseCapture(): void {

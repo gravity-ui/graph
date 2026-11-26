@@ -12,7 +12,7 @@ import type { CameraPoint } from "../camera/CameraPoint";
 
 import { PinchSession } from "./PinchSession";
 import { PressSession } from "./PressSession";
-import { SceneHover } from "./SceneHover";
+import { SceneHover, hasHover } from "./SceneHover";
 import { holdsMouseButton, watchPointers } from "./pointerStream";
 import { dispatchGesture } from "./press";
 
@@ -44,10 +44,6 @@ function releasedInGraph(event: PointerEvent, root: HTMLElement): boolean {
     return false;
   }
   return path.find((node) => node instanceof Element && node.classList.contains(GRAPH_ROOT_CLASS_NAME)) === root;
-}
-
-function hasHover(event: PointerEvent): boolean {
-  return event.pointerType === "mouse" || event.pointerType === "pen";
 }
 
 export class PointerInput {
