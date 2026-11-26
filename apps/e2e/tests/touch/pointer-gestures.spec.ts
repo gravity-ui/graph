@@ -344,6 +344,95 @@ test("a common block can veto the default camera and still receive the entire pi
   expect(await layer.getEventTypes()).toEqual([]);
 });
 
+async function addMinimap(page: Page, graph: GraphPageObject): Promise<Point> {
+  await graph.evaluate((g) => {
+    g.addLayer(window.GraphModule.MiniMapLayer, { location: "topLeft", width: 200, height: 150 });
+  });
+  await graph.waitForFrames(3);
+  const rect = await page.locator("canvas.graph-minimap").boundingBox();
+  if (!rect) throw new Error("Missing minimap");
+  return { x: rect.x + 40, y: rect.y + 65 };
+}
+
+for (const first of ["scene", "minimap"] as const) {
+  test(`the ${first} keeps the gesture when a second pointer presses the other surface`, async ({ page }) => {
+    const { graph, layer, cdp } = await editor(page);
+    const map = await addMinimap(page, graph);
+    const block = graph.block("source");
+    const scene = await layer.toViewport(await block.getCenter());
+    const initialCamera = await graph.camera().getState();
+    const pen = (type: "mousePressed" | "mouseMoved" | "mouseReleased", dx: number) =>
+      cdp.send("Input.dispatchMouseEvent", {
+        type,
+        x: scene.x + dx,
+        y: scene.y,
+        pointerType: "pen",
+        button: type === "mouseMoved" ? "none" : "left",
+        buttons: type === "mouseReleased" ? 0 : 1,
+      });
+    if (first === "scene") {
+      await pen("mousePressed", 0);
+      await pen("mouseMoved", 15);
+      const moved = await block.getGeometry();
+      expect(moved.x).toBe(30);
+      await touch(cdp, "touchStart", 1, map);
+      await touch(cdp, "touchMove", 1, { ...map, x: map.x + 12 });
+      await touch(cdp, "touchEnd", 1, map);
+      expect(await graph.camera().getState()).toEqual(initialCamera);
+      await pen("mouseMoved", 25);
+      await pen("mouseReleased", 25);
+      expect((await block.getGeometry()).x).toBe(50);
+      await touch(cdp, "touchStart", 1, map);
+      await touch(cdp, "touchEnd", 1, map);
+      expect(await graph.camera().getState()).not.toEqual(initialCamera);
+    } else {
+      await touch(cdp, "touchStart", 1, map);
+      const mapped = await graph.camera().getState();
+      expect(mapped).not.toEqual(initialCamera);
+      await pen("mousePressed", 0);
+      await pen("mouseMoved", 15);
+      await pen("mouseReleased", 15);
+      expect(await graph.camera().getState()).toEqual(mapped);
+      expect((await block.getGeometry()).x).toBe(0);
+      await touch(cdp, "touchMove", 1, { ...map, x: map.x + 12 });
+      await touch(cdp, "touchEnd", 1, { ...map, x: map.x + 12 });
+      expect(await graph.camera().getState()).not.toEqual(mapped);
+    }
+  });
+}
+
+test("a page-mode minimap tap survives a second pointer on the minimap", async ({ page }) => {
+  const { graph, cdp } = await editor(page, "page");
+  const map = await addMinimap(page, graph);
+  const before = await graph.camera().getState();
+  await touch(cdp, "touchStart", 1, map);
+  await page.mouse.click(map.x + 15, map.y);
+  expect(await graph.camera().getState()).toEqual(before);
+  await touch(cdp, "touchEnd", 1, map);
+  expect(await graph.camera().getState()).not.toEqual(before);
+});
+
+for (const end of ["button chord", "return with no pressed button"] as const) {
+  test(`a minimap mouse press releases the scene after ${end}`, async ({ page }) => {
+    const { graph, cdp, trace } = await editor(page);
+    const map = await addMinimap(page, graph);
+    await page.mouse.move(map.x, map.y);
+    await page.mouse.down();
+    if (end === "button chord") {
+      await page.mouse.down({ button: "right" });
+      await page.mouse.up();
+    } else {
+      await page.mouse.move(-5, -5);
+      // Re-entry after an off-window release can arrive with no preceding pointerup in this document.
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 300, y: 200, buttons: 0 });
+    }
+    const scene = { x: 350, y: 300 };
+    await touch(cdp, "touchStart", 1, scene);
+    await touch(cdp, "touchEnd", 1, scene);
+    expect((await trace.jsonValue()).clicks).toBe(1);
+  });
+}
+
 for (const policy of ["default", "page", "editor"] as const) {
   test(`a vertical swipe in ${policy} mode moves its owner`, async ({ page }) => {
     const { graph, layer, source, cdp } = await editor(page, policy);

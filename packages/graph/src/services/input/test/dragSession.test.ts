@@ -270,6 +270,7 @@ test.each(["touch", "pen"])("a claimed %s drag ignores every event from a second
     down,
     firstMove(crossing),
     graph.getPointInCameraSpace(down),
+    undefined,
     signal.signal
   );
 
@@ -334,6 +335,7 @@ test.each(["cursor", "camera"])("cancelling while the %s is acquired prevents dr
     down,
     firstMove(pointer("pointermove")),
     graph.getPointInCameraSpace(down),
+    undefined,
     owner.signal
   );
 
@@ -366,6 +368,7 @@ test("auto-pan follows a stationary touch drag without a hover sample", () => {
       down,
       firstMove(event),
       graph.getPointInCameraSpace(down),
+      undefined,
       signal.signal
     );
     frames(3);

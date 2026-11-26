@@ -103,6 +103,59 @@ test.describe("Block Click Selection", () => {
     await activations.dispose();
   });
 
+  for (const control of ["label", "shadow checkbox", "shadow disclosure"] as const) {
+    test(`a ${control} over a block keeps activation inside the HTML control`, async ({ page }) => {
+      const center = await graphPO.block("block-1").getCenter();
+      const seen = await page.evaluateHandle(
+        ({ control, center }) => {
+          const [x, y] = window.graph.cameraService.getAbsoluteXY(center.x, center.y);
+          const root = window.graph.layers.$root!;
+          const host = document.createElement("div");
+          Object.assign(host.style, { position: "absolute", left: x + "px", top: y + "px", zIndex: "100" });
+          root.appendChild(host);
+          const surface = control === "label" ? host : host.attachShadow({ mode: "open" });
+          if (control === "shadow disclosure") {
+            const details = document.createElement("details");
+            details.innerHTML = "<summary>Options</summary><span>Enabled</span>";
+            surface.appendChild(details);
+          } else {
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.id = "embedded-toggle";
+            surface.appendChild(input);
+            if (control === "label") {
+              const label = document.createElement("label");
+              label.htmlFor = input.id;
+              const span = document.createElement("span");
+              span.textContent = "Enable";
+              label.appendChild(span);
+              surface.prepend(label);
+            }
+          }
+          const sequence: string[] = [];
+          for (const name of ["press", "click"] as const) window.graph.on(name, () => sequence.push(name));
+          return sequence;
+        },
+        { control, center }
+      );
+      if (control === "shadow disclosure") {
+        await page.getByText("Options", { exact: true }).click();
+        await expect(page.getByText("Enabled", { exact: true })).toBeVisible();
+      } else {
+        const checkbox = page.getByRole("checkbox");
+        await (control === "label" ? page.getByText("Enable", { exact: true }) : checkbox).click();
+        await expect(checkbox).toBeChecked();
+      }
+      expect(await seen.jsonValue()).toEqual([]);
+      expect(await graphPO.getSelectedBlockIds()).toEqual([]);
+      if (control === "label") {
+        await page.locator("label[for='embedded-toggle']").evaluate((label) => label.removeAttribute("for"));
+        await page.getByText("Enable", { exact: true }).click();
+        expect(await graphPO.getSelectedBlockIds()).toEqual(["block-1"]);
+      }
+    });
+  }
+
   test("two slow activations on the same block use the configured double-click interval", async ({ page }) => {
     const activations = await page.evaluateHandle(() => {
       const events: string[] = [];

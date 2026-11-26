@@ -321,13 +321,21 @@ export class DragService {
   public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}): DragEmitter {
     let origin = options.initialEvent;
     const threshold = options.threshold ?? this.graph.rootStore.settings.$dragThreshold.peek();
-    return this.createOperation(callbacks, {
+    const session = this.createOperation(callbacks, {
       ...options,
       startOnMove(event) {
         origin ??= event;
         return Math.hypot(event.clientX - origin.clientX, event.clientY - origin.clientY) >= threshold;
       },
     });
+    // Only startDrag supports the historical end callback on explicit service-wide cancellation.
+    if (!callbacks.onCancel && callbacks.onEnd) {
+      const end = callbacks.onEnd;
+      session.on(EVENTS.DRAG_CANCEL, (event, fallbackToEnd) => {
+        if (fallbackToEnd) end(event, this.getWorldCoords(event));
+      });
+    }
+    return session;
   }
 
   /** @internal The winner receives the threshold-crossing move after every dragstart listener has returned. */
@@ -336,12 +344,18 @@ export class DragService {
     initialEvent: PointerEvent,
     move: DragStartMove,
     start: CameraPoint,
+    hit: GraphComponent | undefined,
     ...signals: (AbortSignal | undefined)[]
   ): void {
     if (signals.some((signal) => signal?.aborted)) return;
     const session = this.createOperation(
       { onStart: operation.start, onUpdate: operation.move, onEnd: operation.end, onCancel: operation.cancel },
-      { ...operation, initialEvent, signals },
+      {
+        ...operation,
+        component: operation.component ?? hit ?? this.graph.getGraphLayer().$.camera,
+        initialEvent,
+        signals,
+      },
       start
     );
     session.start(move);
@@ -349,7 +363,7 @@ export class DragService {
 
   private createOperation(
     callbacks: DragOperationCallbacks,
-    options: DragOperationOptions & Pick<DragSessionOptions, "startOnMove" | "signals">,
+    options: DragSessionOptions & Pick<DragOperationOptions, "document">,
     start?: CameraPoint
   ) {
     const { document: doc, initialEvent } = options;
@@ -371,9 +385,8 @@ export class DragService {
       .on(EVENTS.DRAG_END, (event) => {
         onEnd?.(event, this.getWorldCoords(event));
       })
-      .on(EVENTS.DRAG_CANCEL, (event, fallbackToEnd) => {
-        const callback = onCancel ?? (fallbackToEnd ? onEnd : undefined);
-        return callback?.(event, this.getWorldCoords(event));
+      .on(EVENTS.DRAG_CANCEL, (event) => {
+        onCancel?.(event, this.getWorldCoords(event));
       });
     return emitter;
   }

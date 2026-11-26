@@ -123,6 +123,7 @@ export class SceneHover {
   public captureEvents(component: EventedComponent) {
     if (component instanceof GraphComponent && component.isTransparentToEvents()) return;
     this.capturedTargetComponent = component;
+    if (this.lastPointer) this.changeTargetTo(component, this.lastPointer);
   }
 
   public releaseCapture(): void {

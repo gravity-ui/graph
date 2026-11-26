@@ -30,9 +30,21 @@ block.on("dragstart", (gesture) => {
 
 A move that reaches `dragThreshold` triggers arbitration. A single claim receives the press position, the crossing move, subsequent updates and a terminal end or cancellation. Competing claims suppress the drag. With no claimant, the graph can drag the nearest draggable component or pan the camera. Release after a recognised drag produces no activation. During a captured drag the start target remains hovered. Release schedules a hit test at the last physical position.
 
+A component can show pressed feedback until the physical press ends. Its `signal` aborts on release, pointer cancellation, Escape, or teardown, including when an in-flight drag is cancelled by detaching the graph.
+
+```ts
+block.on("press", ({ signal }) => {
+  if (signal.aborted) return;
+  setPressed(true);
+  signal.addEventListener("abort", () => setPressed(false), { once: true });
+});
+```
+
+A claimed drag commits through `end` on normal completion. Cancelling it through the returned handle, the layer lifetime, or `graph.dragService.cancel()` calls its optional `cancel` callback. The scene retains the initial hover target for the duration of a claim. A connection tool can still look up its drop port independently.
+
 ### Activation
 
-A primary-button release on the press target within `clickTolerance` qualifies as an activation. Two activations of the same pointer type on the same target can form a pair within `doubleClickInterval` and `doubleClickDistance`. Each event carries its releasing PointerEvent. A native HTML `click` without a pointer sequence, including Enter and Space on a button, belongs entirely to the control.
+A primary-button release on the press target within `clickTolerance` qualifies as an activation. Two activations of the same pointer type on the same target can form a pair within `doubleClickInterval` and `doubleClickDistance`. Each event carries its releasing PointerEvent. A native HTML `click` without a pointer sequence, including Enter and Space on a button, belongs entirely to the control. Pointer presses on an associated HTML label or a control inside an open shadow root also stay with that control. A closed-shadow widget can stop its own `pointerdown` before it reaches the graph.
 
 | Graph setting | Single activation | Qualifying pair |
 | --- | --- | --- |

@@ -14,6 +14,8 @@ interface GraphInputEvent extends GraphEventContext<string> {
 
 export interface GraphPressEvent extends GraphInputEvent {
   readonly type: "press";
+  /** Ends on release or cancellation of this physical press, including graph detachment. */
+  readonly signal: AbortSignal;
 }
 
 type PointerDragCallback = (event: PointerEvent, world: [number, number]) => void;
@@ -72,7 +74,8 @@ type DragStart = {
 };
 
 type RecognizedInput =
-  | Exclude<GestureName, "pinch" | "dragstart">
+  | Exclude<GestureName, "pinch" | "dragstart" | "press">
+  | Pick<GraphPressEvent, "type" | "signal">
   | DragStart
   | Pick<GraphPinchEvent, "type" | "phase" | "distance" | "pointers">;
 
@@ -83,6 +86,7 @@ function createInputEvent(
   kind: RecognizedInput
 ): GestureEvents[GestureName] {
   if (typeof kind === "string") return createGraphEvent(kind, target, { event, point, pointers: [event] });
+  if ("signal" in kind) return createGraphEvent("press", target, { event, point, pointers: [event], ...kind });
   if ("phase" in kind) return createGraphEvent("pinch", target, { event, point, ...kind });
 
   const drag = createGraphEvent("dragstart", target, {

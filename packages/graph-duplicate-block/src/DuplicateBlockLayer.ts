@@ -104,7 +104,6 @@ export class DuplicateBlockLayer extends Layer<
 
     this.cancelClaim = gesture.claim({
       owner: "DuplicateBlockLayer",
-      component: target,
       cursor: "copy",
       start: (_event, coords) => this.onStartDuplicate(target, { x: coords[0], y: coords[1] }),
       move: (_event, coords) => this.onMoveDuplicate({ x: coords[0], y: coords[1] }),

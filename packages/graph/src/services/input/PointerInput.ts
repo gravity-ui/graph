@@ -20,6 +20,19 @@ function belongsToGraph(target: EventTarget | null, root: HTMLElement): target i
   return target instanceof Element && target.closest(`.${GRAPH_ROOT_CLASS_NAME}`) === root;
 }
 
+function isScenePress(event: PointerEvent, root: HTMLElement): boolean {
+  for (const node of event.composedPath()) {
+    if (!(node instanceof Element)) continue;
+    if (
+      node.matches("button,input,select,textarea,a[href],details > summary:first-of-type,:read-write") ||
+      (node instanceof HTMLLabelElement && node.control)
+    )
+      return false;
+    if (node.classList.contains(GRAPH_ROOT_CLASS_NAME)) return node === root;
+  }
+  return false;
+}
+
 function releasedInGraph(event: PointerEvent, root: HTMLElement): boolean {
   const path = event.composedPath();
   const tree = root.getRootNode();
@@ -41,6 +54,7 @@ export class PointerInput {
   private controller?: AbortController;
   private readonly activePresses = new Map<number, PressSession>();
   private readonly ignoredContacts = new Set<number>();
+  private cancelSurfacePress?: () => void;
   private pinch?: PinchSession;
   private unhandledDown = false;
   private lastClick?: {
@@ -89,6 +103,37 @@ export class PointerInput {
     this.hover.forgetComponent(component);
   }
 
+  /** Reserve a native layer surface until the initiating pointer leaves, ends, or is cancelled. */
+  public reserveSurfacePress(down: PointerEvent, layer: AbortSignal, onCancel: () => void): boolean {
+    const doc = this.graph.layers.$root?.ownerDocument;
+    if (!doc || !this.controller || layer.aborted) return false;
+    if (this.cancelSurfacePress || this.activePresses.size) {
+      this.ignoredContacts.add(down.pointerId);
+      return false;
+    }
+    const lifetime = new AbortController();
+    const finish = (cancelled: boolean) => {
+      this.cancelSurfacePress = undefined;
+      lifetime.abort();
+      if (cancelled) onCancel();
+    };
+    const cancel = () => finish(true);
+    this.cancelSurfacePress = cancel;
+    layer.addEventListener("abort", cancel, { signal: lifetime.signal });
+    watchPointers(
+      doc,
+      (sample, event) => {
+        if (event?.pointerId !== down.pointerId) return;
+        if (sample === "up") finish(false);
+        else if (sample === "move") {
+          if (!holdsMouseButton(event, down.button)) finish(event.button !== down.button);
+        } else if (sample !== "leave" || event.target === doc || event.target === doc.documentElement) cancel();
+      },
+      lifetime.signal
+    );
+    return true;
+  }
+
   public attach(root: HTMLElement): void {
     this.detach();
     this.controller = new AbortController();
@@ -112,6 +157,7 @@ export class PointerInput {
       { once: true }
     );
     const acceptsHover = (event: PointerEvent) =>
+      !this.cancelSurfacePress &&
       hasHover(event) &&
       !this.ignoredContacts.has(event.pointerId) &&
       (!this.activePresses.size || this.activePresses.has(event.pointerId));
@@ -158,12 +204,10 @@ export class PointerInput {
 
   private press = (event: PointerEvent): void => {
     const root = this.graph.layers.$root;
-    if (!root || event.defaultPrevented || !belongsToGraph(event.target, root)) return;
+    if (!root || event.defaultPrevented || !isScenePress(event, root)) return;
     if (event.button !== 0 && event.button !== 1) return;
-    const control = event.target.closest("button,input,select,textarea,a[href]");
-    if ((control && root.contains(control)) || event.target.matches(":read-write")) return;
     const first = this.activePresses.values().next().value;
-    if (first && !this.canPair(first, event)) {
+    if (this.cancelSurfacePress || (first && !this.canPair(first, event))) {
       this.ignoredContacts.add(event.pointerId);
       return;
     }
@@ -203,7 +247,10 @@ export class PointerInput {
     if (hasHover(event)) this.hover.press(event, hit);
     else this.hover.leave();
     if (!this.current(session)) return session;
-    const press = dispatchGesture(this.graph, path, event, point, session.level, "press");
+    const press = dispatchGesture(this.graph, path, event, point, session.level, {
+      type: "press",
+      signal: session.pressLifetime.signal,
+    });
     session.allowDefaults &&= !press.defaultPrevented && !event.defaultPrevented;
     if (session.allowDefaults && settings.canDragCamera && event.button === 1) event.preventDefault();
     return session;
@@ -239,7 +286,7 @@ export class PointerInput {
   private startPinch(first: PressSession, second: PressSession): void {
     if (first.defaultDrag === "camera") {
       first.defaultDrag = undefined;
-      first.lifetime.abort();
+      first.dragLifetime.abort();
       // Keep the first finger's implicit capture when the one-finger pan gives it up.
       const target = first.down.target;
       if (first.down.isTrusted && target instanceof Element && target.isConnected)
@@ -291,7 +338,8 @@ export class PointerInput {
         down,
         move,
         start,
-        session.lifetime.signal,
+        session.hit,
+        session.dragLifetime.signal,
         ...owner.signals
       );
     } else if (!result.defaultPrevented && !(down.button === 0 && down.altKey && down.shiftKey)) {
@@ -300,7 +348,7 @@ export class PointerInput {
         down,
         move,
         start,
-        session.lifetime.signal,
+        session.dragLifetime.signal,
         session.selectedAtPress
       );
     }
@@ -330,9 +378,10 @@ export class PointerInput {
     const release = session.hasLiveTarget()
       ? dispatchGesture(this.graph, session.path, event, point, session.level, "release")
       : undefined;
+    session.pressLifetime.abort();
     if (!release || !session.hasLiveTarget()) {
       // A release listener may remove the source before the drag executor receives this sample.
-      session.lifetime.abort();
+      session.dragLifetime.abort();
       this.lastClick = undefined;
       return;
     }
@@ -432,6 +481,7 @@ export class PointerInput {
 
   /** A caller may cancel during press or dragstart before the selected operation exists. */
   public suppressPendingDrags(): void {
+    this.cancelSurfacePress?.();
     for (const session of this.activePresses.values()) session.allowDefaults = false;
   }
 
@@ -458,11 +508,13 @@ export class PointerInput {
     session.clearHold();
     this.activePresses.delete(session.down.pointerId);
     session.phase = "cancelled";
-    session.lifetime.abort();
+    session.dragLifetime.abort();
+    session.pressLifetime.abort();
     this.lastClick = undefined;
   }
 
   private cancelAll(): void {
+    this.cancelSurfacePress?.();
     this.takePendingClick();
     for (const session of this.activePresses.values()) this.cancel(session);
     this.lastClick = undefined;

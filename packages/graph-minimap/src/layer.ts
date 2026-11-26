@@ -511,26 +511,26 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     const { signal } = this.eventAbortController;
     let drag: ReturnType<typeof graph.dragService.startDrag> | undefined;
     let tap: PointerEvent | undefined;
-    signal.addEventListener("abort", () => drag?.emit("cancel"), { once: true });
+    const cancel = () => {
+      tap = undefined;
+      drag?.emit("cancel");
+      drag = undefined;
+    };
 
     this.onCanvasEvent("pointerdown", (event) => {
       event.stopPropagation();
-      tap = undefined;
-      if (!event.isPrimary) return;
+      if (!event.isPrimary || !graph.input.reserveSurfacePress(event, signal, cancel)) return;
       if (event.pointerType === "touch" && graph.rootStore.settings.$settings.peek().touchPolicy === "page") {
         // The browser may still take this contact for scrolling and send pointercancel.
         tap = event;
         return;
       }
 
-      drag?.emit("cancel");
+      drag = graph.dragService.startDrag(
+        { onUpdate: (move) => this.onCameraDrag(move) },
+        { stopOnPointerLeave: true, autopanning: false, cursor: "move", initialEvent: event }
+      );
       this.onCameraDrag(event);
-      if (!signal.aborted) {
-        drag = graph.dragService.startDrag(
-          { onUpdate: (move) => this.onCameraDrag(move) },
-          { stopOnPointerLeave: true, autopanning: false, cursor: "move", initialEvent: event }
-        );
-      }
     });
 
     const movedPastTap = (event: PointerEvent) =>
@@ -539,9 +539,6 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
         graph.rootStore.settings.$settings.peek().clickTolerance;
     this.onCanvasEvent("pointermove", (event) => {
       if (tap?.pointerId === event.pointerId && movedPastTap(event)) tap = undefined;
-    });
-    this.onCanvasEvent("pointercancel", () => {
-      tap = undefined;
     });
     this.onCanvasEvent("pointerup", (event) => {
       if (tap?.pointerId !== event.pointerId) return;

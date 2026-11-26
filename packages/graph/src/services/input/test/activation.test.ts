@@ -430,6 +430,75 @@ describe("pointer activation", () => {
     expect(events).toEqual([]);
   });
 
+  it.each(["pointerup", "pointercancel", "Escape", "detach"] as const)(
+    "ends a component's press signal once on %s",
+    (reason) => {
+      const block = graph.blocks.getBlockState("a")?.getViewComponent();
+      if (!block) throw new Error("Missing block a");
+      const finished = jest.fn();
+      const release = jest.fn();
+      block.on("press", ({ signal }) => signal.addEventListener("abort", finished));
+      graph.on("release", release);
+      send("pointerdown", 50);
+      expect(finished).not.toHaveBeenCalled();
+      if (reason === "Escape") document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      else if (reason === "detach") graph.detach();
+      else send(reason, 50);
+      send("pointerup", 50);
+      expect(finished).toHaveBeenCalledTimes(1);
+      expect(release).toHaveBeenCalledTimes(reason === "pointerup" ? 1 : 0);
+      expect(events).toEqual(reason === "pointerup" ? ["click"] : []);
+    }
+  );
+
+  it.each([50, 250])("keeps the press target at %i for a claim without a hover override", (startX) => {
+    graph.on("dragstart", ({ claim }) => claim({ owner: "external", autopanning: false }));
+    send("pointerdown", startX);
+    const initial = graph.input.$hoveredComponent.peek();
+    send("pointermove", startX + 10);
+    const hits = jest.spyOn(graph, "getElementOverPoint");
+    send("pointermove", 155);
+    jest.advanceTimersByTime(100);
+    globalScheduler.performUpdate();
+    expect(hits).not.toHaveBeenCalled();
+    expect(graph.input.$hoveredComponent.peek()).toBe(initial);
+    send("pointerup", 155);
+    send("pointermove", 156, { buttons: 0 });
+    jest.advanceTimersByTime(100);
+    globalScheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.peek()).toBe(graph.blocks.getBlockState("b")?.getViewComponent());
+  });
+
+  it("restores the pressed block before the first claimed drag callback", () => {
+    const target = graph.blocks.getBlockState("a")?.getViewComponent();
+    const observed = jest.fn();
+    graph.on("dragstart", ({ claim }) =>
+      claim({ owner: "external", start: () => observed(graph.input.$hoveredComponent.peek() === target) })
+    );
+    send("pointerdown", 105);
+    expect(graph.input.$hoveredComponent.peek() === target).toBe(true);
+    send("pointermove", 112);
+    globalScheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.peek()).toBe(graph.blocks.getBlockState("b")?.getViewComponent());
+    send("pointermove", 125);
+    expect(observed).toHaveBeenCalledWith(true);
+  });
+
+  it("commits an end-only claim on release and never on programmatic cancellation", () => {
+    const end = jest.fn();
+    graph.on("dragstart", ({ claim }) => claim({ owner: "external", end }));
+    send("pointerdown", 50);
+    send("pointermove", 65);
+    graph.dragService.cancel();
+    send("pointerup", 65);
+    expect(end).not.toHaveBeenCalled();
+
+    send("pointerdown", 50);
+    send("pointermove", 65);
+    send("pointerup", 65);
+    expect(end).toHaveBeenCalledTimes(1);
+  });
+
   it("cancels the owner's drop if a release handler removes its source", () => {
     const end = jest.fn();
     const cancel = jest.fn();
@@ -556,13 +625,23 @@ describe("pointer activation", () => {
     send("pointercancel", 150, { ...finger, pointerId: 8 });
   });
 
-  it("keeps an ignored pen out of hit testing until its own release", () => {
+  it.each(["scene", "layer"])("keeps a pen ignored by the %s out of hit testing until its own release", (surface) => {
     graph.updateSettings({ touchPolicy: "editor" });
     const finger = { pointerType: "touch", pointerId: 5 };
     const pen = { pointerType: "pen", pointerId: 8 };
     graph.on("dragstart", ({ claim }) => claim({ owner: "port" }));
     send("pointerdown", 50, finger);
     send("pointermove", 65, finger);
+    if (surface === "layer") {
+      root.addEventListener(
+        "pointerdown",
+        (event) => {
+          graph.input.reserveSurfacePress(event, new AbortController().signal, () => {});
+          event.stopImmediatePropagation();
+        },
+        { capture: true, once: true }
+      );
+    }
     send("pointerdown", 110, pen);
     send("pointerup", 65, finger);
     const hit = jest.spyOn(graph, "getElementOverPoint");

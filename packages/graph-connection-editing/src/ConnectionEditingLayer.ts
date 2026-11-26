@@ -241,7 +241,6 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     const { port, kind } = source;
     this.cancelClaim = gesture.claim({
       owner: "ConnectionEditingLayer",
-      component: target,
       cursor: "crosshair",
       start: (_event, coords) => this.onStartConnection(port, kind, { x: coords[0], y: coords[1] }),
       move: (_event, coords) => this.onMoveNewConnection({ x: coords[0], y: coords[1] }),

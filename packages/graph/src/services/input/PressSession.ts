@@ -10,7 +10,9 @@ type Offer = { operation: GraphDragOperation; signals: readonly AbortSignal[] };
 /** One physical press, including the target and scene level at which the gesture began. */
 export class PressSession {
   public phase: "pressed" | "held" | "navigation" | "dragging" | "released" | "cancelled" = "pressed";
-  public readonly lifetime = new AbortController();
+  public readonly pressLifetime = new AbortController();
+  // Camera pan can hand off to pinch while the physical press remains active.
+  public readonly dragLifetime = new AbortController();
   public allowDefaults = true;
   public clickEligible = true;
   public owner?: Offer;

@@ -506,7 +506,7 @@ type DragDiff = {
 
 ### DragService.startDrag()
 
-For scene tools such as connection editing or block duplication, claim `dragstart`. A separate surface such as a minimap can consume its native `pointerdown` and pass that sample as `initialEvent` to `startDrag`.
+For scene tools such as connection editing or block duplication, claim `dragstart`. A separate surface such as a minimap stops its native `pointerdown` from bubbling to the scene. Before changing the camera or calling `startDrag`, it calls `graph.input.reserveSurfacePress(event, layerSignal, cancel)`. A successful reservation lasts through the initiating contact and excludes gestures on other surfaces of the same graph. The document stream releases the reservation on pointerup and calls `cancel` on interruption or layer removal. Pass the initiating event as `initialEvent` to `startDrag`.
 
 ```typescript
 type DragOperationCallbacks = {
@@ -531,6 +531,6 @@ graph.dragService.startDrag(callbacks, options);
 
 Window blur, a hidden page, or a new press after a lost release cancels the gesture. You can also
 call `graph.dragService.cancel()` to cancel component drags and custom operations, including presses
-that have yet to cross the drag threshold. Started custom operations use `onCancel` or fall back to
+that have yet to cross the drag threshold. Operations created by `startDrag` use `onCancel` or fall back to
 `onEnd` with the last drag position. The handle returned by `startDrag()` can cancel that operation
 with `handle.emit("cancel")`, which calls `onCancel` only when supplied.
