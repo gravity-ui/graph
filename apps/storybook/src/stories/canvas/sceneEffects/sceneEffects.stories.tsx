@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-import { BlockGroups, ECanDrag, Group } from "@gravity-ui/graph";
+import { BlockGroups, Group } from "@gravity-ui/graph";
 import type { BlockState, Graph, TBlock, TSceneRenderer } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import { GraphCanvas, useGraph, useLayer, useSignal } from "@gravity-ui/graph-react";
@@ -8,6 +8,7 @@ import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import { signal } from "@preact/signals-core";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
+import { PointerDragPanel } from "./PointerDragPanel";
 import { StageCardView } from "./StageCardView";
 import { PlainView, viewConfiguration } from "./blockView";
 import { glow } from "./effectPaths";
@@ -157,7 +158,8 @@ const EtlAtScaleApp = ({
   levelTransitions,
   selectionGlow,
   effectMinScale,
-}: TEtlAtScaleArgs): React.JSX.Element => {
+  pointerDebug = false,
+}: TEtlAtScaleArgs & { pointerDebug?: boolean }): React.JSX.Element => {
   const { graph, setEntities, start, zoomTo } = useGraph({ viewConfiguration, settings: etlSettings });
   const constants = graph.graphConstants;
   const data = useMemo(
@@ -190,7 +192,6 @@ const EtlAtScaleApp = ({
     graph.updateSettings({
       connection: components.connection,
       blockComponents: { [STAGE_IS]: components.stage },
-      canDrag: ECanDrag.ALL,
       showConnectionLabels: false,
       useBezierConnections: true,
       showConnectionArrows: true,
@@ -204,6 +205,11 @@ const EtlAtScaleApp = ({
   }, [graph, data, simulation, components, setEntities, start]);
 
   useEffect(() => {
+    if (pointerDebug) {
+      return graph.hitTest.waitUsableRectUpdate(() => {
+        zoomTo(["p01/orders", "p01/ingest"], { padding: 56, transition: 0 });
+      });
+    }
     if (view === "fit") {
       return graph.hitTest.waitUsableRectUpdate((rect) => {
         zoomTo(rect, { padding: FIT_PADDING });
@@ -212,7 +218,7 @@ const EtlAtScaleApp = ({
     if (view === "pipeline") zoomTo(pipelineRect(data, data.pipelines[0]), { padding: 80 });
     else graph.zoom({ scale: Number(view) });
     return undefined;
-  }, [data, graph, view, zoomTo]);
+  }, [data, graph, pointerDebug, view, zoomTo]);
 
   useEffect(() => {
     if (cameraMotion === "manual") return undefined;
@@ -268,6 +274,21 @@ const EtlAtScaleApp = ({
     [act]
   );
 
+  const canvas = (
+    <div style={{ flex: 1, minHeight: pointerDebug ? 0 : 400, position: "relative" }}>
+      <GraphCanvas graph={graph} className="graph-canvas" renderBlock={html ? renderStage : undefined} />
+      <SceneLoadingOverlay graph={graph} />
+    </div>
+  );
+
+  if (pointerDebug) {
+    return (
+      <ThemeProvider theme="light">
+        <PointerDragPanel graph={graph}>{canvas}</PointerDragPanel>
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider theme="light">
       <Flex direction="column" style={{ height: "100vh" }}>
@@ -294,10 +315,7 @@ const EtlAtScaleApp = ({
             </Flex>
           ))}
         </Flex>
-        <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
-          <GraphCanvas graph={graph} className="graph-canvas" renderBlock={html ? renderStage : undefined} />
-          <SceneLoadingOverlay graph={graph} />
-        </div>
+        {canvas}
       </Flex>
     </ThemeProvider>
   );
@@ -388,3 +406,8 @@ EtlAtScale.parameters = {
     },
   },
 };
+
+export const PointerDrag: StoryFn = () => (
+  <EtlAtScaleApp {...etlDefaults} blockCount={100} connectionCount={100} pointerDebug />
+);
+PointerDrag.storyName = "Pointer drag on ETL";
