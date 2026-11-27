@@ -727,6 +727,29 @@ test.describe("ConnectionEditingLayer – ports and snapping", () => {
     });
   }
 
+  for (const target of ["custom port", "anchor"] as const) {
+    test(`a hidden block's ${target} stops accepting drops during a drag`, async () => {
+      await layerPO.addLayer();
+      await layerPO.recordEvents();
+      await layerPO.makeAnchorPortsSnappable(SNAPPABLE);
+      const from = await layerPO.getAnchorPoint("block-a", "out-a");
+      const to = target === "anchor" ? await layerPO.getAnchorPoint("block-b", "in-b") : { x: 550, y: 70 };
+      const portId = target === "anchor" ? await layerPO.anchorPortId("block-b", "in-b") : "custom";
+      if (target === "custom port") await layerPO.addCustomPort({ blockId: "block-b" }, portId, to);
+      await layerPO.pressAndMove(from, to);
+      expect((await layerPO.getEvents()).at(-1)).toMatchObject({
+        type: "connection-create-hover",
+        targetPortId: portId,
+      });
+
+      await graphPO.evaluate((graph) => graph.blocks.getBlockState("block-b")!.requestHidden(true));
+      await graphPO.waitForFrames(2);
+      await layerPO.release();
+      expect(await layerPO.getEventTypes()).not.toContain("connection-created");
+      expect(await graphPO.getConnections()).toEqual([]);
+    });
+  }
+
   test("ports enabled mid-drag snap to the nearest allowed target even outside its owner", async () => {
     await layerPO.addLayer();
     await layerPO.recordEvents();

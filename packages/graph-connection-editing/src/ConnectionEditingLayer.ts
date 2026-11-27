@@ -11,6 +11,7 @@ import {
   getEntityAddress,
 } from "@gravity-ui/graph";
 import type {
+  CoreComponent,
   Graph,
   GraphEventsDefinitions,
   LayerContext,
@@ -241,6 +242,14 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     else if (this.targetPort && !this.isPortAvailable(this.targetPort)) this.setHighlight(connectionTargetTag);
   };
 
+  private isTargetAvailable(port: PortState): boolean {
+    if (!this.isPortAvailable(port)) return false;
+    for (let owner: CoreComponent | undefined = port.owner; owner; owner = owner.getParent()) {
+      if (owner instanceof GraphComponent && owner.isHiddenForOtherReason()) return false;
+    }
+    return true;
+  }
+
   private isSnappablePort(port: PortState): boolean {
     const meta = this.getConnectionMeta(port);
     return Boolean(meta?.snappable);
@@ -461,7 +470,7 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     );
     if (!owner || owner === sourcePort.owner || !owner.isEntityAvailable()) return {};
     const port = owner instanceof CanvasBlock ? owner.getInputPort() : owner.getPorts()[0];
-    if (!port || !this.isPortAvailable(port)) return {};
+    if (!port || !this.isTargetAvailable(port)) return {};
     const distance = Math.hypot(port.x - point.x, port.y - point.y);
     const blockDrop = this.sourceKind === "block" && owner instanceof CanvasBlock;
     if (!blockDrop && this.isSnappablePort(port) && distance > this.searchRadius) return {};
@@ -490,9 +499,9 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     let nearestDistance = Infinity;
     let directVeto = false;
     for (const port of candidates) {
-      if (port === sourcePort || !this.isSnappablePort(port) || !this.isPortAvailable(port)) continue;
+      if (port === sourcePort || !this.isSnappablePort(port)) continue;
       const distance = Math.hypot(port.x - point.x, port.y - point.y);
-      if (distance > radius || distance >= nearestDistance) continue;
+      if (distance > radius || distance >= nearestDistance || !this.isTargetAvailable(port)) continue;
       if (this.acceptsTarget(sourcePort, port, point, distance)) {
         nearest = port;
         nearestDistance = distance;

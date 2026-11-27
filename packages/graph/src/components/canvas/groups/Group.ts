@@ -304,6 +304,22 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     return super.isEntityAvailable() && this.groupState.isAttached();
   }
 
+  protected override willMount(): void {
+    super.willMount();
+    this.subscribeToConnectionPreview();
+  }
+
+  private subscribeToConnectionPreview(): void {
+    const address = getEntityAddress(this);
+    if (!address) return;
+    this.subscribeGroupSignal(this.context.graph.scene.tags.$of(address.type, address.id), (tags) => {
+      const preview = tags.has(connectionSourceTag) || tags.has(connectionTargetTag);
+      if (this.connectionPreview === preview) return;
+      this.connectionPreview = preview;
+      this.performRender();
+    });
+  }
+
   protected override propsChanged(nextProps: TGroupProps): void {
     // Its layer reconciles it with every change of the group list, a re-add of the group included.
     const registered = this.context.graph.rootStore.groupsList.getGroupState<T>(nextProps.id);
@@ -329,6 +345,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
       this.__data.nextState = undefined;
       this.state = Object.assign({} as TGroupState<T>, next.$state.peek(), { selected: next.$selected.peek() });
       this.subscribeToGroup();
+      if (this.isMounted()) this.subscribeToConnectionPreview();
     });
   }
 
@@ -366,15 +383,6 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     if (!state) throw new Error(`Cannot bind Group to missing group ${this.props.id}`);
     // Custom group authors declare the stored data shape.
     this.groupState = state;
-    const address = getEntityAddress(this);
-    if (address) {
-      this.subscribeGroupSignal(this.context.graph.scene.tags.$of(address.type, address.id), (tags) => {
-        const preview = tags.has(connectionSourceTag) || tags.has(connectionTargetTag);
-        if (this.connectionPreview === preview) return;
-        this.connectionPreview = preview;
-        this.performRender();
-      });
-    }
     this.subscribeGroupSignal(this.groupState.$selected, (selected) => {
       this.setState({
         selected,
