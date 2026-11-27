@@ -4,6 +4,8 @@ import type { ReadonlySignal } from "@preact/signals-core";
 import { TComponentState } from "../../../lib/Component";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { ESelectionStrategy } from "../../../services/selection/types";
+import { connectionSourceTag, connectionTargetTag } from "../../../services/tags/builtinTags";
+import { getEntityAddress } from "../../../services/tags/entity";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
 import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
@@ -107,6 +109,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
   /** Whether the group is highlighted (block is being dragged over it) */
   protected highlighted = false;
+  protected connectionPreview = false;
 
   /** Whether the group is currently being dragged */
   protected isDragging = false;
@@ -363,6 +366,15 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     if (!state) throw new Error(`Cannot bind Group to missing group ${this.props.id}`);
     // Custom group authors declare the stored data shape.
     this.groupState = state;
+    const address = getEntityAddress(this);
+    if (address) {
+      this.subscribeGroupSignal(this.context.graph.scene.tags.$of(address.type, address.id), (tags) => {
+        const preview = tags.has(connectionSourceTag) || tags.has(connectionTargetTag);
+        if (this.connectionPreview === preview) return;
+        this.connectionPreview = preview;
+        this.performRender();
+      });
+    }
     this.subscribeGroupSignal(this.groupState.$selected, (selected) => {
       this.setState({
         selected,
@@ -420,7 +432,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     if (this.highlighted) {
       ctx.strokeStyle = this.style.highlightedBorder;
       ctx.fillStyle = this.style.highlightedBackground;
-    } else if (this.state.selected) {
+    } else if (this.state.selected || this.connectionPreview) {
       ctx.strokeStyle = this.style.selectedBorder;
       ctx.fillStyle = this.style.selectedBackground;
     } else {

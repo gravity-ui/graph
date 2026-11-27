@@ -135,6 +135,11 @@ export class TagStore {
     this.apply(tag, new Map());
   }
 
+  /** Whether a signal currently owns writes to this tag. */
+  public isBound(tag: TTag<unknown>): boolean {
+    return this.bound.has(tag);
+  }
+
   /** Derives a tag from a signal. The tag rejects direct writes until the returned function unbinds it. */
   public bind<V>(tag: TTag<V>, source: ReadonlySignal<TTagMembers<V>>): () => void {
     if (this.bound.has(tag)) throw new Error(`Tag "${tag.name}" is already bound`);

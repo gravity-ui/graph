@@ -8,27 +8,9 @@ class TestLayer extends ConnectionEditingLayer {
   public connect(source: PortState, target: PortState): void {
     this.createConnection(source, target);
   }
-  public select(port: PortState, selected: boolean): void {
-    this.selectPort(port, selected);
-  }
 }
 
 const block = { is: "Block", name: "Block", x: 0, y: 0, width: 100, height: 100 };
-
-test("stale port selection does not select or deselect a replacement block", () => {
-  const graph = new Graph({ blocks: [{ ...block, id: "b" }] });
-  const view = new CanvasBlock({ id: "b" }, graph.getGraphLayer());
-  const port = view.getPort("p");
-  const layer = new TestLayer({ graph, camera: graph.cameraService });
-  graph.blocks.deleteBlocks(["b"]);
-  graph.api.addBlock({ ...block, id: "b" });
-  layer.select(port, true);
-  expect(graph.blocks.blockSelectionBucket.isSelected("b")).toBe(false);
-  graph.api.selectBlocks(["b"], true);
-  layer.select(port, false);
-  expect(graph.blocks.blockSelectionBucket.isSelected("b")).toBe(true);
-  graph.unmount();
-});
 
 test("repeated block port connections keep block IDs and allow endpoint updates", () => {
   const graph = new Graph({

@@ -127,7 +127,7 @@ or a `Set` encodes as `{}` and a function as nothing, so different values of the
 | `hoveredTag` | each component on itself (`GraphComponent.setHoveredTag`), from the pointer events it gets; see below |
 | `draggingTag` | `DragService`: the participants of the current drag |
 | `dropTargetTag` | the groups transfer layer: a group that accepts the dragged blocks |
-| `connectionSourceTag`, `connectionTargetTag` | available for applications to set while creating a connection |
+| `connectionSourceTag`, `connectionTargetTag` | the connection editing layer marks the owners of the source and hovered target ports during a drag |
 
 `hoveredTag`:
 

@@ -73,6 +73,17 @@ async function isAnchorSelected(blockId: string, anchorId: string): Promise<bool
   );
 }
 
+async function hasAnchorHighlight(blockId: string, anchorId: string, role: "source" | "target"): Promise<boolean> {
+  return graphPO.evaluate(
+    (graph, ids) => {
+      const { anchorEntityId, connectionSourceTag, connectionTargetTag } = window.GraphModule;
+      const tags = graph.scene.tags.peekOf("anchor", anchorEntityId(ids.blockId, ids.anchorId));
+      return tags.has(ids.role === "source" ? connectionSourceTag : connectionTargetTag);
+    },
+    { blockId, anchorId, role }
+  );
+}
+
 /** The connection's endpoint fields that are set, to assert one addressing mode and the absence of the other. */
 function endpointFields(connection: TConnection | undefined): Partial<TConnection> {
   const fields: Partial<TConnection> = {};
@@ -87,10 +98,6 @@ function endpointFields(connection: TConnection | undefined): Partial<TConnectio
     if (connection?.[key] !== undefined) Object.assign(fields, { [key]: connection[key] });
   }
   return fields;
-}
-
-async function isBlockSelected(blockId: string): Promise<boolean> {
-  return (await graphPO.getSelectedBlockIds()).includes(blockId);
 }
 
 test.describe("ConnectionEditingLayer – anchors", () => {
@@ -133,8 +140,8 @@ test.describe("ConnectionEditingLayer – anchors", () => {
       hasPoint: true,
     });
     // Source and target highlights are cleared after the drop.
-    expect(await isAnchorSelected("block-a", "out-a")).toBe(false);
-    expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+    expect(await hasAnchorHighlight("block-a", "out-a", "source")).toBe(false);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(false);
   });
 
   test("dragging from an IN anchor to an OUT anchor creates an OUT -> IN connection", async () => {
@@ -174,10 +181,16 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     const to = await layerPO.getAnchorPoint("block-b", "in-b");
 
     await layerPO.pressAndMove(from, { x: 300, y: 200 });
-    expect(await isAnchorSelected("block-a", "out-a")).toBe(true);
-    // Anchors use single selection: the hovered target replaces the source highlight.
+    expect(await hasAnchorHighlight("block-a", "out-a", "source")).toBe(true);
     await layerPO.moveTo(to);
-    expect(await isAnchorSelected("block-b", "in-b")).toBe(true);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(true);
+    expect(await hasAnchorHighlight("block-a", "out-a", "source")).toBe(true);
+    expect(await isAnchorSelected("block-a", "out-a")).toBe(false);
+    expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+    const target = await graphPO.evaluate((graph) =>
+      graph.scene.explain("anchor", window.GraphModule.anchorEntityId("block-b", "in-b"))
+    );
+    expect(target.style?.parts?.border?.visible).toBe(true);
     await layerPO.release();
   });
 
@@ -187,7 +200,7 @@ test.describe("ConnectionEditingLayer – anchors", () => {
 
     await layerPO.pressAndMove(from, to);
     await layerPO.moveTo({ x: 300, y: 200 });
-    expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(false);
     await layerPO.release();
 
     const hovers = (await layerPO.getEvents()).filter((event) => event.type === "connection-create-hover");
@@ -204,7 +217,7 @@ test.describe("ConnectionEditingLayer – anchors", () => {
 
     expect(await graphPO.getConnections()).toHaveLength(1);
     expect((await layerPO.getEventTypes()).at(-1)).toBe("connection-create-drop");
-    expect(await isAnchorSelected("block-a", "out-a")).toBe(false);
+    expect(await hasAnchorHighlight("block-a", "out-a", "source")).toBe(false);
   });
 
   test("clicking an anchor without dragging emits nothing, even on Escape or layer removal", async ({ page }) => {
@@ -226,7 +239,7 @@ test.describe("ConnectionEditingLayer – anchors", () => {
 
     expect(await layerPO.getEventTypes()).toEqual([]);
     expect(await graphPO.getConnections()).toEqual([]);
-    expect(await isAnchorSelected("block-a", "out-a")).toBe(false);
+    expect(await hasAnchorHighlight("block-a", "out-a", "source")).toBe(false);
   });
 
   test("Escape before the drag threshold drops the pending drag", async ({ page }) => {
@@ -254,7 +267,7 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     const types = await layerPO.getEventTypes();
     expect(types.filter((type) => type === "connection-create-cancel")).toHaveLength(1);
     expect(types).not.toContain("connection-create-drop");
-    expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(false);
   });
 
   test("preventDefault on connection-create-start skips the source highlight", async () => {
@@ -263,7 +276,7 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     const to = await layerPO.getAnchorPoint("block-b", "in-b");
 
     await layerPO.pressAndMove(from, { x: from.x + 100, y: from.y + 150 });
-    expect(await isAnchorSelected("block-a", "out-a")).toBe(false);
+    expect(await hasAnchorHighlight("block-a", "out-a", "source")).toBe(false);
     await layerPO.moveTo(to);
     await layerPO.release();
     // Start only controls the highlight: the connection is still created.
@@ -276,7 +289,7 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     const to = await layerPO.getAnchorPoint("block-b", "in-b");
 
     await layerPO.pressAndMove(from, to);
-    expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(false);
     await layerPO.release();
     // Hover only controls the highlight: the connection is still created.
     expect(await graphPO.getConnections()).toHaveLength(1);
@@ -317,8 +330,8 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     expect(types.filter((type) => type === "connection-create-cancel")).toHaveLength(1);
     expect(types).not.toContain("connection-created");
     expect(types).not.toContain("connection-create-drop");
-    expect(await isAnchorSelected("block-a", "out-a")).toBe(false);
-    expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+    expect(await hasAnchorHighlight("block-a", "out-a", "source")).toBe(false);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(false);
   });
 
   for (const preview of ["default", "prevented"] as const) {
@@ -401,6 +414,32 @@ test.describe("ConnectionEditingLayer – blocks", () => {
     await layerPO.recordEvents();
   });
 
+  test("Backspace during Shift-drag from A to B deletes only the selected block C", async ({ page }) => {
+    await graphPO.evaluate((graph) => {
+      document.body.addEventListener("keydown", (event) => {
+        if (event.code === "Backspace") graph.api.deleteSelected();
+      });
+    });
+    await graphPO.clickAt(await graphPO.block("block-c").getCenter());
+    expect(await graphPO.getSelectedBlockIds()).toEqual(["block-c"]);
+
+    await page.keyboard.down("Shift");
+    await layerPO.pressAndMove(await graphPO.block("block-a").getCenter(), await graphPO.block("block-b").getCenter());
+    expect(await layerPO.getEvents()).toContainEqual(
+      expect.objectContaining({ type: "connection-create-hover", targetBlockId: "block-b" })
+    );
+    await page.keyboard.press("Backspace");
+    expect(await graphPO.evaluate((graph) => graph.blocks.$blocks.value.map((block) => block.id))).toEqual([
+      "block-a",
+      "block-b",
+    ]);
+    await layerPO.release();
+    await page.keyboard.up("Shift");
+    expect(await graphPO.getConnections()).toEqual([
+      expect.objectContaining({ sourceBlockId: "block-a", targetBlockId: "block-b" }),
+    ]);
+  });
+
   test("Shift + drag from a block to another block creates a block connection", async ({ page }) => {
     const from = await graphPO.block("block-a").getCenter();
     const to = await graphPO.block("block-c").getCenter();
@@ -424,6 +463,30 @@ test.describe("ConnectionEditingLayer – blocks", () => {
     expect(created?.sourceAnchorId).toBeUndefined();
     expect(created?.targetAnchorId).toBeUndefined();
   });
+
+  for (const allowed of [true, false]) {
+    test(`Shift-drag to the block body outside its default input's radius (allowed: ${allowed})`, async ({ page }) => {
+      await graphPO.evaluate((graph, allowed) => {
+        const input = graph.blocks.getBlockState("block-b")!.getViewComponent()!.getInputPort();
+        input.updatePort({
+          meta: {
+            [window.GraphModule.ConnectionEditingLayer.PortMetaKey]: {
+              snappable: true,
+              snapCondition: allowed ? undefined : () => false,
+            },
+          },
+        });
+      }, allowed);
+      await page.keyboard.down("Shift");
+      await graphPO.drag(await graphPO.block("block-a").getCenter(), await graphPO.block("block-b").getCenter());
+      await page.keyboard.up("Shift");
+
+      const connections = await graphPO.getConnections();
+      expect(connections.map(endpointFields)).toEqual(
+        allowed ? [{ sourceBlockId: "block-a", targetBlockId: "block-b" }] : []
+      );
+    });
+  }
 
   test("a block to anchor drop does not create a connection", async ({ page }) => {
     const from = await graphPO.block("block-c").getCenter();
@@ -536,7 +599,22 @@ test.describe("ConnectionEditingLayer – port addressing mode", () => {
     await layerPO.addCustomPort({ groupId: "group-dst" }, "group-dst-in", { x: 540, y: 210 });
     await layerPO.recordEvents();
 
-    await graphPO.drag({ x: 160, y: 210 }, { x: 540, y: 210 });
+    const targetOpacity = () =>
+      graphPO.evaluate((graph) => {
+        const layer = graph.layers.getLayers().find((item) => item instanceof window.GraphModule.BlockGroups)!;
+        const ctx = layer.getCanvas()!.getContext("2d")!;
+        const [x, y] = graph.cameraService.getAbsoluteXY(600, 190);
+        const dpr = layer.getDRP();
+        return ctx.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data[3];
+      });
+    const idle = await targetOpacity();
+    await layerPO.pressAndMove({ x: 160, y: 210 }, { x: 540, y: 210 });
+    await expect.poll(targetOpacity).toBeGreaterThan(idle);
+    expect(
+      await graphPO.evaluate((graph) => graph.rootStore.groupsList.getGroupState("group-dst")?.$selected.value)
+    ).toBe(false);
+    await layerPO.release();
+    await expect.poll(targetOpacity).toBe(idle);
 
     await expectPortModeCreated("group-src-out", "group-dst-in");
   });
@@ -648,6 +726,42 @@ test.describe("ConnectionEditingLayer – ports and snapping", () => {
       expect(await graphPO.getConnections()).toEqual([]);
     });
   }
+
+  test("ports enabled mid-drag snap to the nearest allowed target even outside its owner", async () => {
+    await layerPO.addLayer();
+    await layerPO.recordEvents();
+    await layerPO.addCustomPort({ blockId: "block-a" }, "source", { x: 100, y: 50 });
+    const point = { x: 550, y: 70 };
+    await graphPO.evaluate((graph, point) => {
+      const block = graph.blocks.getBlockState("block-b")!.getViewComponent()!;
+      block.getPort("veto").setPoint(point.x, point.y);
+      block.getPort("far").updatePort({
+        x: point.x + 15,
+        y: point.y,
+        meta: { [window.GraphModule.ConnectionEditingLayer.PortMetaKey]: { snappable: true } },
+      });
+      block.getPort("near").setPoint(point.x + 8, point.y);
+    }, point);
+    await layerPO.pressAndMove({ x: 100, y: 50 }, { x: 300, y: 100 });
+    await graphPO.evaluate((graph) => {
+      const key = window.GraphModule.ConnectionEditingLayer.PortMetaKey;
+      graph.connections
+        .getPort("veto")!
+        .updatePort({ meta: { [key]: { snappable: true, snapCondition: () => false } } });
+      graph.connections.getPort("near")!.updatePort({ meta: { [key]: { snappable: true } } });
+    });
+    await layerPO.moveTo(point);
+    expect(
+      (await layerPO.getEvents()).filter((event) => event.type === "connection-create-hover").at(-1)?.targetPortId
+    ).toBe("near");
+
+    await graphPO.evaluate((graph) => graph.connections.getPort("near")!.setPoint(450, 70));
+    await layerPO.moveTo({ x: 446, y: 70 });
+    await layerPO.release();
+    expect((await graphPO.getConnections()).map(endpointFields)).toEqual([
+      { sourcePortId: "source", targetPortId: "near" },
+    ]);
+  });
 
   test("isConnectionAllowed rejects a snapping target", async () => {
     await layerPO.addLayer({ rejectTargetPortIds: [await layerPO.anchorPortId("block-b", "in-b")] });
@@ -799,7 +913,7 @@ test.describe("ConnectionEditingLayer – entity replacement during the drag", (
     const to = await layerPO.getAnchorPoint("block-b", "in-b");
 
     await layerPO.pressAndMove(from, to);
-    expect(await isAnchorSelected("block-b", "in-b")).toBe(true);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(true);
     await graphPO.evaluate((graph) => graph.blocks.deleteBlocks(["block-a"]));
     await layerPO.pressAndMove(to, { x: to.x + 5, y: to.y + 5 });
     await layerPO.release();
@@ -808,7 +922,7 @@ test.describe("ConnectionEditingLayer – entity replacement during the drag", (
     const types = await layerPO.getEventTypes();
     expect(types.filter((type) => type === "connection-create-cancel")).toHaveLength(1);
     expect(types).not.toContain("connection-created");
-    expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(false);
   });
 
   test("removing the highlighted target leaves the selected source available after Escape", async ({ page }) => {
@@ -816,12 +930,46 @@ test.describe("ConnectionEditingLayer – entity replacement during the drag", (
     const to = await layerPO.getAnchorPoint("block-b", "in-b");
     await graphPO.clickAt(from);
     await layerPO.pressAndMove(from, to);
-    expect(await isAnchorSelected("block-b", "in-b")).toBe(true);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(true);
 
     await graphPO.evaluate((graph) => graph.blocks.deleteBlocks(["block-b"]));
     await page.keyboard.press("Escape");
     await layerPO.release();
     expect(await isAnchorSelected("block-a", "out-a")).toBe(true);
+    expect(await graphPO.getConnections()).toEqual([]);
+  });
+
+  test("Escape after the application clears selection and removes the target preserves the empty selection", async ({
+    page,
+  }) => {
+    const source = await layerPO.getAnchorPoint("block-a", "out-a");
+    await graphPO.clickAt(source);
+    await layerPO.pressAndMove(source, await layerPO.getAnchorPoint("block-b", "in-b"));
+    await graphPO.evaluate((graph) => {
+      graph.blocks.anchorSelectionBucket.reset();
+      graph.blocks.deleteBlocks(["block-b"]);
+    });
+    await page.keyboard.press("Escape");
+    await layerPO.release();
+
+    expect(await isAnchorSelected("block-a", "out-a")).toBe(false);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(false);
+  });
+
+  test("a replacement block cannot inherit an active source highlight while the pointer stays still", async () => {
+    const source = await layerPO.getAnchorPoint("block-a", "out-a");
+    await layerPO.pressAndMove(source, await layerPO.getAnchorPoint("block-b", "in-b"));
+    expect(await hasAnchorHighlight("block-a", "out-a", "source")).toBe(true);
+    await graphPO.evaluate((graph) => {
+      const original = graph.blocks.getBlock("block-a")!;
+      graph.blocks.deleteBlocks(["block-a"]);
+      graph.api.addBlock(original);
+    });
+    await graphPO.waitForFrames(3);
+    expect(await hasAnchorHighlight("block-a", "out-a", "source")).toBe(false);
+    expect(await hasAnchorHighlight("block-b", "in-b", "target")).toBe(false);
+    expect(await layerPO.getEventTypes()).toContain("connection-create-cancel");
+    await layerPO.release();
     expect(await graphPO.getConnections()).toEqual([]);
   });
 
@@ -842,9 +990,7 @@ test.describe("ConnectionEditingLayer – entity replacement during the drag", (
     expect(await graphPO.getConnections()).toEqual([]);
   });
 
-  test("a connection-create-start handler that replaces the source block does not select the replacement", async ({
-    page,
-  }) => {
+  test("a replacement source block receives no highlight during connection-create-start", async ({ page }) => {
     await graphPO.evaluate((graph) => {
       graph.on("connection-create-start", () => {
         const block = graph.blocks.getBlock("block-c");
@@ -857,7 +1003,11 @@ test.describe("ConnectionEditingLayer – entity replacement during the drag", (
 
     await page.keyboard.down("Shift");
     await layerPO.pressAndMove(from, { x: from.x + 100, y: from.y + 100 });
-    expect(await isBlockSelected("block-c")).toBe(false);
+    expect(
+      await graphPO.evaluate((graph) =>
+        graph.scene.tags.peekOf("block", "block-c").has(window.GraphModule.connectionSourceTag)
+      )
+    ).toBe(false);
     await layerPO.release();
     await page.keyboard.up("Shift");
   });

@@ -2,14 +2,15 @@ import {
   Anchor,
   CanvasBlock,
   EAnchorType,
-  ESelectionStrategy,
   GraphComponent,
   Layer,
+  connectionSourceTag,
+  connectionTargetTag,
   createAnchorPortId,
   createBlockPointPortId,
+  getEntityAddress,
 } from "@gravity-ui/graph";
 import type {
-  AnchorState,
   Graph,
   GraphEventsDefinitions,
   LayerContext,
@@ -18,7 +19,9 @@ import type {
   TBlockId,
   TCameraState,
   TConnection,
+  TEntityAddress,
   TPoint,
+  TTag,
   UnwrapGraphEvents,
   UnwrapGraphEventsDetail,
 } from "@gravity-ui/graph";
@@ -123,10 +126,10 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
   private sourcePort?: PortState;
   private sourceKind?: TSourceKind;
   private targetPort?: PortState;
-  // An anchor highlight can temporarily displace the single selected anchor.
-  private readonly highlights = new Map<PortState, AnchorState | undefined>();
+  private readonly highlights = new Map<TTag, TEntityAddress>();
 
-  private snappingPortsTree: RBush<TSnappingPortBox> | null = null;
+  private readonly snappingPortsTree = new RBush<TSnappingPortBox>(9);
+  private readonly pointSubscriptions: (() => void)[] = [];
   private isSnappingTreeOutdated = true;
 
   protected currentListener: TDragHandle | null = null;
@@ -151,8 +154,12 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
   protected afterInit(): void {
     this.onGraphEvent("mousedown", this.handleMouseDown, { capture: true });
 
-    this.onSignal(this.context.graph.connections.ports.$ports, () => {
+    const graph = this.context.graph;
+    this.onSignal(graph.blocks.$blocksMap, this.checkEndpoints);
+    this.onSignal(graph.rootStore.groupsList.$groupsMap, this.checkEndpoints);
+    this.onSignal(graph.connections.ports.$ports, () => {
       this.isSnappingTreeOutdated = true;
+      this.checkEndpoints();
     });
 
     this.context.graph.keyboardService.onPress(
@@ -228,6 +235,11 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
       (!(port.owner instanceof GraphComponent) || port.owner.isEntityAvailable())
     );
   }
+
+  private checkEndpoints = (): void => {
+    if (this.sourcePort && !this.isPortAvailable(this.sourcePort)) this.cancelNewConnection();
+    else if (this.targetPort && !this.isPortAvailable(this.targetPort)) this.setHighlight(connectionTargetTag);
+  };
 
   private isSnappablePort(port: PortState): boolean {
     const meta = this.getConnectionMeta(port);
@@ -388,7 +400,7 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
         sourcePort: port,
       },
       () => {
-        this.selectPort(port, true);
+        if (this.sourcePort === port) this.setHighlight(connectionSourceTag, port);
       }
     );
 
@@ -405,16 +417,18 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
       return;
     }
 
-    const { port: newTargetPort, snapPoint } = this.findTarget(point, this.sourcePort);
+    const sourcePort = this.sourcePort;
+    const { port: newTargetPort, snapPoint } = this.findTarget(point, sourcePort);
+    if (this.sourcePort !== sourcePort) return;
 
     this.endState = snapPoint ? { x: snapPoint.x, y: snapPoint.y } : { x: point.x, y: point.y };
     this.performRender();
 
     // Handle target port change
     if (newTargetPort !== this.targetPort) {
-      this.selectPort(this.targetPort, false);
-
       this.targetPort = newTargetPort;
+      this.setHighlight(connectionTargetTag);
+      if (!this.sourcePort) return;
 
       const sourceParams = this.getEventParams(this.sourcePort, "source");
       const targetParams = this.getEventParams(newTargetPort, "target");
@@ -430,107 +444,92 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
           targetPort: newTargetPort,
         },
         () => {
-          if (this.targetPort) {
-            this.selectPort(this.targetPort, true);
-          }
+          if (newTargetPort && this.targetPort === newTargetPort) this.setHighlight(connectionTargetTag, newTargetPort);
         }
       );
     }
   }
 
-  /**
-   * Finds the target for the current cursor position:
-   * 1. the nearest snappable port within the search radius (the endpoint snaps to it);
-   * 2. a snappable port under the cursor;
-   * 3. for anchor/block sources, the anchor or block under the cursor.
-   */
   private findTarget(point: TPoint, sourcePort: PortState): { port?: PortState; snapPoint?: TPoint } {
-    let rejected: Set<PortState> | undefined;
-    const canSnap = (port: PortState, distance = Math.hypot(port.x - point.x, port.y - point.y)): boolean => {
-      if (port === sourcePort || rejected?.has(port) || !this.isPortAvailable(port)) return false;
-      const meta = this.getConnectionMeta(port);
-      if (!meta?.snappable || distance > this.searchRadius) return false;
-      if (
-        (meta.snapCondition?.({ sourcePort, targetPort: port, cursorPosition: point, distance }) ?? true) &&
-        this.isTargetAllowed(sourcePort, port)
-      ) {
-        return true;
-      }
-      // A direct hit can return the same port as the spatial index.
-      (rejected ??= new Set()).add(port);
-      return false;
-    };
-    const nearest = this.findNearestSnappingPort(point, canSnap);
-    if (nearest) {
-      return { port: nearest, snapPoint: { x: nearest.x, y: nearest.y } };
-    }
+    const hits = this.context.graph.getElementsOverPoint(point, [GraphComponent]);
+    const { nearest, directVeto } = this.findSnappingTarget(point, sourcePort, hits[0]?.getPorts() ?? []);
+    if (nearest) return { port: nearest, snapPoint: { x: nearest.x, y: nearest.y } };
+    if (directVeto || this.sourceKind === "port") return {};
 
-    const direct = this.context.graph.connections.ports.findPortAtPoint(
-      point,
-      this.searchRadius,
-      (candidate) => candidate !== sourcePort && this.isPortAvailable(candidate) && this.isSnappablePort(candidate)
+    const owner = hits.find(
+      (hit) => (hit instanceof CanvasBlock || hit instanceof Anchor) && !hit.isTransparentToEvents()
     );
-    if (direct) return canSnap(direct) ? { port: direct } : {};
-    if (this.sourceKind === "port") return {};
-    const port = this.findComponentTargetPort(point, sourcePort);
-    if (!port) return {};
-    const allowed = this.isSnappablePort(port) ? canSnap(port) : this.isTargetAllowed(sourcePort, port);
-    return allowed ? { port } : {};
+    if (!owner || owner === sourcePort.owner || !owner.isEntityAvailable()) return {};
+    const port = owner instanceof CanvasBlock ? owner.getInputPort() : owner.getPorts()[0];
+    if (!port || !this.isPortAvailable(port)) return {};
+    const distance = Math.hypot(port.x - point.x, port.y - point.y);
+    const blockDrop = this.sourceKind === "block" && owner instanceof CanvasBlock;
+    if (!blockDrop && this.isSnappablePort(port) && distance > this.searchRadius) return {};
+    return this.acceptsTarget(sourcePort, port, point, distance) ? { port } : {};
   }
 
-  private findComponentTargetPort(point: TPoint, sourcePort: PortState): PortState | undefined {
-    const component = this.context.graph.getElementOverPoint(point, [CanvasBlock, Anchor]);
-    if (!component || !component.isEntityAvailable() || component === sourcePort.owner) {
-      return undefined;
+  private findSnappingTarget(
+    point: TPoint,
+    sourcePort: PortState,
+    directPorts: PortState[]
+  ): { nearest?: PortState; directVeto: boolean } {
+    const direct = new Set(directPorts);
+    this.rebuildSnappingTree();
+    const radius = this.searchRadius;
+    const candidates = new Set(direct);
+    for (const { port } of this.snappingPortsTree.search({
+      minX: point.x - radius,
+      minY: point.y - radius,
+      maxX: point.x + radius,
+      maxY: point.y + radius,
+    })) {
+      candidates.add(port);
     }
-    if (component instanceof Anchor) {
-      return component.getPorts()[0];
-    }
-    if (component instanceof CanvasBlock) {
-      if (this.sourceKind === "block" && sourcePort.owner === component) {
-        return undefined;
+
+    let nearest: PortState | undefined;
+    let nearestDistance = Infinity;
+    let directVeto = false;
+    for (const port of candidates) {
+      if (port === sourcePort || !this.isSnappablePort(port) || !this.isPortAvailable(port)) continue;
+      const distance = Math.hypot(port.x - point.x, port.y - point.y);
+      if (distance > radius || distance >= nearestDistance) continue;
+      if (this.acceptsTarget(sourcePort, port, point, distance)) {
+        nearest = port;
+        nearestDistance = distance;
+      } else if (direct.has(port)) {
+        directVeto = true;
       }
-      return component.getInputPort();
     }
-    return undefined;
+    return { nearest, directVeto };
   }
 
-  private isTargetAllowed(sourcePort: PortState, targetPort: PortState): boolean {
-    if (!this.props.isConnectionAllowed) {
-      return true;
-    }
-    return this.props.isConnectionAllowed({ sourcePort, targetPort });
+  private acceptsTarget(sourcePort: PortState, port: PortState, point: TPoint, distance: number): boolean {
+    const meta = this.getConnectionMeta(port);
+    if (
+      meta?.snappable &&
+      meta.snapCondition &&
+      !meta.snapCondition({ sourcePort, targetPort: port, cursorPosition: point, distance })
+    )
+      return false;
+    return this.props.isConnectionAllowed?.({ sourcePort, targetPort: port }) ?? true;
   }
 
-  protected selectPort(port: PortState | undefined, select: boolean): void {
-    if (!port) return;
-    const { blocks, selectionService } = this.context.graph;
-    const anchors = blocks.anchorSelectionBucket;
-    const previousAnchor = this.highlights.get(port);
-    if (!select && !this.highlights.delete(port)) return;
-    if (!this.isPortAvailable(port)) {
-      if (!select && previousAnchor?.isAttached() && anchors.$selectedEntities.value.length === 0) {
-        anchors.select([previousAnchor.entityId], ESelectionStrategy.APPEND);
-      }
+  private setHighlight(tag: TTag, port?: PortState): void {
+    const tags = this.context.graph.scene.tags;
+    if (tags.isBound(tag)) {
+      this.highlights.delete(tag);
       return;
     }
-    const component = port.owner;
-    if (!(component instanceof GraphComponent)) return;
-    const bucket = component instanceof Anchor ? anchors : selectionService.getBucketByElement(component);
-    if (!bucket) return;
-    const id = component.getEntityId();
-    if (select) {
-      if (bucket.isSelected(id)) return;
-      const displaced = component instanceof Anchor ? anchors.$selectedEntities.value[0] : undefined;
-      bucket.select([id], ESelectionStrategy.APPEND);
-      if (bucket.isSelected(id)) this.highlights.set(port, displaced);
-    } else if (bucket.isSelected(id)) {
-      if (previousAnchor?.isAttached()) {
-        anchors.select([previousAnchor.entityId], ESelectionStrategy.APPEND);
-      } else {
-        bucket.deselect([id]);
-      }
+    const previous = this.highlights.get(tag);
+    if (previous) {
+      this.highlights.delete(tag);
+      tags.delete(tag, { [previous.type]: [previous.id] });
     }
+    if (!port?.owner || !this.isPortAvailable(port)) return;
+    const address = getEntityAddress(port.owner);
+    if (!address || tags.peekOf(address.type, address.id).has(tag)) return;
+    this.highlights.set(tag, address);
+    tags.add(tag, { [address.type]: [address.id] });
   }
 
   protected cancelNewConnection(): void {
@@ -546,13 +545,14 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
   }
 
   private resetState(): void {
-    this.selectPort(this.targetPort, false);
-    this.selectPort(this.sourcePort, false);
     this.sourcePort = undefined;
     this.sourceKind = undefined;
     this.targetPort = undefined;
     this.startState = null;
     this.endState = null;
+    this.clearSnappingTree();
+    this.setHighlight(connectionTargetTag);
+    this.setHighlight(connectionSourceTag);
     this.performRender();
   }
 
@@ -572,6 +572,7 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     }
 
     const { port: targetPort } = this.findTarget(point, sourcePort);
+    if (this.sourcePort !== sourcePort) return;
 
     this.resetState();
 
@@ -681,72 +682,38 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     store.addConnection(connection);
   }
 
-  private findNearestSnappingPort(
-    point: TPoint,
-    canSnap: (port: PortState, distance: number) => boolean
-  ): PortState | undefined {
-    this.rebuildSnappingTree();
-
-    if (!this.snappingPortsTree) {
-      return undefined;
-    }
-
-    const searchRadius = this.searchRadius;
-    const candidates = this.snappingPortsTree.search({
-      minX: point.x - searchRadius,
-      minY: point.y - searchRadius,
-      maxX: point.x + searchRadius,
-      maxY: point.y + searchRadius,
-    });
-
-    let nearestPort: PortState | undefined;
-    let nearestDistance = Infinity;
-
-    for (const { port } of candidates) {
-      const distance = Math.hypot(port.x - point.x, port.y - point.y);
-      if (distance < nearestDistance && canSnap(port, distance)) {
-        nearestDistance = distance;
-        nearestPort = port;
-      }
-    }
-
-    return nearestPort;
+  private clearSnappingTree(): void {
+    for (const unsubscribe of this.pointSubscriptions) unsubscribe();
+    this.pointSubscriptions.length = 0;
+    this.snappingPortsTree.clear();
+    this.isSnappingTreeOutdated = true;
   }
 
-  /**
-   * Rebuild the RBush spatial index for snapping ports
-   * Optimization: Only includes ports from components visible in viewport + padding
-   */
   private rebuildSnappingTree(): void {
-    if (!this.isSnappingTreeOutdated) {
-      return;
+    if (!this.isSnappingTreeOutdated) return;
+    this.clearSnappingTree();
+    const ports = new Set<PortState>();
+    for (const owner of this.context.graph.getElementsInViewport([GraphComponent])) {
+      for (const port of owner.getPorts()) ports.add(port);
     }
 
-    const snappingBoxes: TSnappingPortBox[] = [];
-    const searchRadius = this.searchRadius;
-
-    for (const component of this.context.graph.getElementsInViewport([GraphComponent])) {
-      for (const port of component.getPorts()) {
-        // Skip ports in lookup state (no valid coordinates)
-        if (port.lookup) continue;
-
-        if (this.isSnappablePort(port)) {
-          snappingBoxes.push({
-            minX: port.x - searchRadius,
-            minY: port.y - searchRadius,
-            maxX: port.x + searchRadius,
-            maxY: port.y + searchRadius,
-            port,
-          });
-        }
-      }
+    // Index geometry only. Eligibility can change between hover and release.
+    const boxes: TSnappingPortBox[] = [];
+    for (const port of ports) {
+      const { x, y } = port.$point.peek();
+      const box = { port, minX: x, minY: y, maxX: x, maxY: y };
+      boxes.push(box);
+      this.pointSubscriptions.push(
+        port.$point.subscribe((point) => {
+          if (point.x === box.minX && point.y === box.minY) return;
+          this.snappingPortsTree.remove(box);
+          box.minX = box.maxX = point.x;
+          box.minY = box.maxY = point.y;
+          this.snappingPortsTree.insert(box);
+        })
+      );
     }
-
-    this.snappingPortsTree = new RBush<TSnappingPortBox>(9);
-    if (snappingBoxes.length > 0) {
-      this.snappingPortsTree.load(snappingBoxes);
-    }
-
+    this.snappingPortsTree.load(boxes);
     this.isSnappingTreeOutdated = false;
   }
 
@@ -808,10 +775,13 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
   }
 
   public override unmount(): void {
+    super.unmount();
+  }
+
+  protected override unmountLayer(): void {
     if (this.isCreating()) this.cancelNewConnection();
     else this.currentListener?.emit("cancel");
     this.currentListener = null;
-    this.snappingPortsTree = null;
-    super.unmount();
+    super.unmountLayer();
   }
 }

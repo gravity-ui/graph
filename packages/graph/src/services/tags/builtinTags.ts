@@ -8,7 +8,7 @@ export const hoveredTag = defineTag("hovered");
 export const draggingTag = defineTag("dragging");
 /** A group that accepts the dragged blocks; written by the groups transfer layer. */
 export const dropTargetTag = defineTag("dropTarget");
-/** The port a new connection starts from; written by the connection editing layer (step 2). */
+/** The scene entity that owns the source port during connection creation. */
 export const connectionSourceTag = defineTag("connectionSource");
-/** The port a new connection would end at; written by the connection editing layer (step 2). */
+/** The scene entity that owns the hovered target port during connection creation. */
 export const connectionTargetTag = defineTag("connectionTarget");

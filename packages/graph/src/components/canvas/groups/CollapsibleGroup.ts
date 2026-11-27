@@ -744,7 +744,7 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
     if (this.isHighlighted()) {
       ctx.strokeStyle = this.style.highlightedBorder;
       ctx.fillStyle = this.style.highlightedBackground;
-    } else if (this.state.selected) {
+    } else if (this.state.selected || this.connectionPreview) {
       ctx.strokeStyle = this.style.selectedBorder;
       ctx.fillStyle = this.style.selectedBackground;
     } else {

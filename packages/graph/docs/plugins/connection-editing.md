@@ -62,7 +62,7 @@ const meta: IPortConnectionMeta = {
 this.updatePort(portId, { meta: { [ConnectionEditingLayer.PortMetaKey]: meta } });
 ```
 
-`snapCondition` applies during preview and on release, including when the cursor is exactly on the port. A rejected port is skipped when looking for the nearest eligible target.
+`snapCondition` applies during preview and on release, including when the cursor is exactly on the port. The nearest eligible port wins, including ports moved or enabled during the drag. A Shift-drag onto another block’s body can use its default input at any distance. Both `snapCondition` on a marked input and `isConnectionAllowed` can veto that drop.
 
 `ConnectionEditingLayer.PortMetaKey` is `Symbol.for("PortConnectionLayer.PortMeta")`, the key used by the former `PortConnectionLayer`.
 
@@ -87,7 +87,7 @@ this.updatePort(portId, { meta: { [ConnectionEditingLayer.PortMetaKey]: meta } }
 
 The events are typed on `graph.on` once the package is imported.
 
-The source and hovered target receive temporary selection highlights. Dropping or cancelling the connection clears those highlights and preserves a previously selected anchor. An application that handles highlighting itself can call `preventDefault()` on both start and hover.
+The layer adds `connectionSourceTag` and `connectionTargetTag` to the scene entities that own the source and hovered ports. Drop and cancel clear the preview. Selection remains under application control throughout the drag, including for keyboard commands such as Delete. Call `preventDefault()` on start or hover to supply your own highlight for that endpoint. A preview tag bound with `graph.scene.tags.bind` stays under the control of its signal. Subclasses that previously overrode `selectPort` can use these two events to customize the preview.
 
 A connection is written in one of two `TConnection` addressing modes, never mixed:
 

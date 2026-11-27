@@ -2,7 +2,7 @@ import { Anchor } from "../../components/canvas/anchors";
 import { Block } from "../../components/canvas/blocks/Block";
 import { BlockConnection } from "../../components/canvas/connections/BlockConnection";
 import type { TGraphColors } from "../../graphConfig";
-import { draggingTag, hoveredTag, selectedTag } from "../tags/builtinTags";
+import { connectionSourceTag, connectionTargetTag, draggingTag, hoveredTag, selectedTag } from "../tags/builtinTags";
 
 import type { TStyleRule } from "./types";
 
@@ -63,9 +63,13 @@ export function createThemeRules(colors: TGraphColors): TStyleRule[] {
   return [
     blockBase,
     blockSelected,
+    { ...blockSelected, tags: [connectionSourceTag] },
+    { ...blockSelected, tags: [connectionTargetTag] },
     blockDragging,
     anchorBase,
     anchorSelected,
+    { ...anchorSelected, tags: [connectionSourceTag] },
+    { ...anchorSelected, tags: [connectionTargetTag] },
     anchorHovered,
     connectionSelected,
     connectionHovered,
