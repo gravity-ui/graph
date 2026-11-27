@@ -8,6 +8,7 @@ import { hoveredTag, selectedTag } from "../../../../services/tags/builtinTags";
 import { defineTag } from "../../../../services/tags/defineTag";
 import { getEntityAddress } from "../../../../services/tags/entity";
 import { anchorEntityId } from "../../../../store/anchor/anchorEntityId";
+import { hoverEvent } from "../../../../test/pointer";
 import { Block } from "../../blocks/Block";
 import type { TBlock } from "../../blocks/Block";
 import { Anchor } from "../index";
@@ -81,7 +82,7 @@ describe("anchors as child elements of their block", () => {
     const start = [blocks.value, anchors.value];
     const blockRow = graph.scene.store.get(entityKey("block", "lower"))?.styleId;
     const hovered = anchor("lower", "out");
-    hovered.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: hovered } }));
+    hovered.dispatchEvent(hoverEvent("pointerenter", hovered));
     frames();
     // The block tags itself too; the theme has no hover rule for blocks, so its new row looks the same.
     expect(graph.scene.tags.$of("block", "lower").value.has(hoveredTag)).toBe(true);
@@ -127,7 +128,7 @@ describe("anchors as child elements of their block", () => {
       expect(anchorElement("lower", "out")?.styleId).toBe(plain);
       // The anchor's own hover event, as GraphLayer sends it to a target: the anchor tags itself.
       const hovered = anchor("lower", "out");
-      hovered.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: hovered } }));
+      hovered.dispatchEvent(hoverEvent("pointerenter", hovered));
       frames();
       expect(graph.scene.tags.$of("anchor", anchorEntityId("lower", "out")).value.has(hoveredTag)).toBe(true);
       expect(graph.scene.tags.$of("anchor", anchorEntityId("upper", "out")).value.has(hoveredTag)).toBe(false);
@@ -177,11 +178,11 @@ describe("anchors as child elements of their block", () => {
     const found = (): boolean => graph.scene.query(edge).some((element) => element.id === id);
     const bounds = anchorElement("lower", "out")?.bounds;
     expect(found()).toBe(false);
-    view.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: view } }));
+    view.dispatchEvent(hoverEvent("pointerenter", view));
     frames();
     expect(found()).toBe(true);
     expect(anchorElement("lower", "out")?.bounds).toEqual(bounds);
-    view.dispatchEvent(new CustomEvent("mouseleave", { detail: { target: view, relatedTarget: undefined } }));
+    view.dispatchEvent(hoverEvent("pointerleave", view));
     frames();
     expect(found()).toBe(false);
   });
@@ -209,7 +210,7 @@ describe("anchors as child elements of their block", () => {
     // hovered 18.7.
     expect(drawnFrom(313)).toEqual([]);
     const view = anchor("lower", "out");
-    view.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: view } }));
+    view.dispatchEvent(hoverEvent("pointerenter", view));
     frames();
     expect(dots()).toContain(16.2);
   });

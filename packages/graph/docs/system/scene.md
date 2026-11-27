@@ -8,7 +8,7 @@ The graph frame task updates it right after all layers (`layers.update()`, then 
 
 Blocks, anchors, child components and built-in connections draw in the scene. Each `CanvasBlock` owns a scene element
 with its anchors and child components nested in it. Each built-in connection owns a scene element for its shaft,
-arrow and label. `GraphLayer` keeps the component tree, events, hit-testing, drags and the camera. See
+arrow and label. `GraphLayer` hosts the component tree and renders its canvas. The graph input service routes pointer events using the hit-test index. See
 [Block component](../components/block-component.md), [Anchors](../components/anchors.md) and
 [Connections](../connections/webgl-connections.md).
 
@@ -58,7 +58,7 @@ own hit rectangle in **world** coordinates. This makes the marker a pointer targ
 decorative standalone component, omit `getHitRect()` so the pointer reaches the graph underneath.
 
 ```ts
-import { Layer, SceneComponent, getEventTarget } from "@gravity-ui/graph";
+import { Layer, SceneComponent } from "@gravity-ui/graph";
 import type { Graph, LayerProps, TGraphComponentProps, TScenePrimitive } from "@gravity-ui/graph";
 
 type MarkerData = { id: string; x: number; y: number; color: string };
@@ -119,8 +119,7 @@ function mountMarker(graph: Graph) {
     layer.setProps({ marker });
   }
 
-  const offClick = graph.on("click", (event) => {
-    const target = getEventTarget(event.detail.sourceEvent);
+  const offClick = graph.on("click", ({ target }) => {
     if (target instanceof Marker && target.getEntityId() === marker.id) {
       update({ color: "#c25013" });
     }
@@ -280,7 +279,7 @@ graph.start();
 // unsubscribe();
 ```
 
-In React, `useGraphEvent` and the `onSceneStateChanged` prop of `GraphCanvas` receive the same event.
+In React, `useGraphEvent` and the `onSceneStateChange` prop of `GraphCanvas` receive the same event.
 The [ETL at scale example](https://preview.gravity-ui.com/graph/v2/?path=/story/canvas-sceneeffects--etl-at-scale)
 shows an overlay during startup and renderer switches. The paint opportunity applies to scene preparation.
 `setEntities` still updates the data synchronously. If your application computes a large layout before passing
@@ -408,7 +407,7 @@ draws. Every call with one type returns the same signal.
 
 `onFrameEnd(listener)` calls the listener at the end of every graph frame, after every layer and the scene updated.
 It returns the function that removes the listener. A listener registered during notification starts on the next
-frame. Removing a listener before its turn skips it in the current frame. GraphLayer finds the pointer's target again
+frame. Removing a listener before its turn skips it in the current frame. The input service finds the pointer's target again
 there, and ReactLayer switches its HTML there, so the frame that hides the HTML draws the scene blocks that go with it.
 
 `graph.scene.store` is `@internal`: it is the write side used by the library components and the benches.

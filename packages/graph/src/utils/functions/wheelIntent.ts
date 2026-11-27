@@ -3,15 +3,6 @@ export type TMouseWheelBehavior = "zoom" | "scroll";
 /** Explicit wheel input device; `"auto"` uses gesture-shape heuristics. */
 export type TWheelInputDevice = "auto" | "mouse" | "trackpad";
 
-/**
- * Wheel input classification for camera routing.
- *
- * The library resolves **intent** (pan vs zoom), not device type. This boundary prepares
- * for a future input event bus where raw DOM events (`wheel`, `pointerdown`, …) are
- * normalized into semantic graph events (`camera:pan`, `camera:zoom`, …) before Camera
- * handles them.
- */
-
 /** Wheel input intent for camera routing (pan vs zoom). */
 export enum EWheelIntent {
   Pan = "pan",

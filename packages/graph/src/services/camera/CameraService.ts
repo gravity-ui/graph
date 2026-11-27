@@ -44,6 +44,19 @@ export type TCameraState = {
 
 export type { TGetCameraBlockScaleLevel } from "./defaultGetCameraBlockScaleLevel";
 
+type CameraTransform = Pick<TCameraState, "x" | "y" | "scale">;
+
+type PinchCameraBaseline = {
+  center: TPoint;
+  distance: number;
+  camera: CameraTransform;
+};
+
+function anchoredTransform(camera: CameraTransform, anchor: TPoint, target: TPoint, scale: number): CameraTransform {
+  const ratio = scale / camera.scale;
+  return { x: target.x - (anchor.x - camera.x) * ratio, y: target.y - (anchor.y - camera.y) * ratio, scale };
+}
+
 export const getInitCameraState = (): TCameraState => {
   return {
     /**
@@ -268,22 +281,28 @@ export class CameraService extends Emitter {
    * @returns {void}
    */
   public zoom(x: number, y: number, scale: number) {
-    const normalizedScale = clamp(scale, this.state.scaleMin, this.state.scaleMax);
+    const center = Point(x, y);
+    this.set(anchoredTransform(this.state, center, center, clamp(scale, this.state.scaleMin, this.state.scaleMax)));
+  }
 
-    const dx = this.getRelative(x - this.state.x);
-    const dy = this.getRelative(y - this.state.y);
+  /** @internal Returns false when the next sample should start from the current committed camera. */
+  public applyPinch(baseline: PinchCameraBaseline, center: TPoint, distance: number): boolean {
+    const settings = this.graph.rootStore.settings;
+    const pan = settings.getConfigFlag("canDragCamera");
+    const zoom = settings.getConfigFlag("canZoomCamera");
+    if (!pan && !zoom) return false;
 
-    const dxInNextScale = this.getRelative(x - this.state.x, normalizedScale);
-    const dyInNextScale = this.getRelative(y - this.state.y, normalizedScale);
-
-    const nextX = this.state.x + (dxInNextScale - dx) * normalizedScale;
-    const nextY = this.state.y + (dyInNextScale - dy) * normalizedScale;
-
-    this.set({
-      scale: normalizedScale,
-      x: nextX,
-      y: nextY,
-    });
+    // Subpixel separations have no stable scale ratio. The midpoint can still pan the camera.
+    const stable = baseline.distance >= 1 && distance >= 1;
+    const scale =
+      zoom && stable
+        ? clamp((baseline.camera.scale * distance) / baseline.distance, this.state.scaleMin, this.state.scaleMax)
+        : this.state.scale;
+    const transform = anchoredTransform(baseline.camera, baseline.center, pan ? center : baseline.center, scale);
+    if (transform.x !== this.state.x || transform.y !== this.state.y || scale !== this.state.scale) {
+      this.set(transform);
+    }
+    return stable && transform.x === this.state.x && transform.y === this.state.y && scale === this.state.scale;
   }
 
   public getScaleRelativeDimensionsBySide(

@@ -57,11 +57,11 @@ test.describe("The handover under a still pointer on an anchor", () => {
           if (target !== undefined && target === state?.getAnchorById("out")?.getViewComponent()) return "anchor";
           return target !== undefined && target === state?.getViewComponent() ? "block" : "other";
         };
-        graph.on("mouseenter", (event) => {
-          log.push(`enter:${nameOf(event.detail.target)}`);
+        graph.on("pointerenter", (event) => {
+          log.push(`enter:${nameOf(event.target)}`);
         });
-        graph.on("mouseleave", (event) => {
-          log.push(`leave:${nameOf(event.detail.target)}`);
+        graph.on("pointerleave", (event) => {
+          log.push(`leave:${nameOf(event.target)}`);
         });
         const handover: THandoverWindow = {
           lookAt: (scale) => {
@@ -88,14 +88,12 @@ test.describe("The handover under a still pointer on an anchor", () => {
     });
     await graphPO.page.mouse.move(rect.left + SCREEN.x - 20, rect.top + SCREEN.y - 20);
     await graphPO.page.mouse.move(rect.left + SCREEN.x, rect.top + SCREEN.y);
-    await graphPO.waitForFrames(3);
-    const hovered = await graphPO.page.evaluate(() => {
+    await expect.poll(() => graphPO.page.evaluate(() => {
       const handover = (window as unknown as { handover: THandoverWindow }).handover;
-      const log = handover.takeLog();
-      return { log, target: handover.nameOf(window.graph.getGraphLayer().$hoveredComponent.value) };
-    });
-    expect(hovered.target).toBe("anchor");
-    expect(hovered.log).toContain("enter:anchor");
+      return handover.nameOf(window.graph.input.$hoveredComponent.value);
+    })).toBe("anchor");
+    const log = await graphPO.page.evaluate(() => (window as unknown as { handover: THandoverWindow }).handover.takeLog());
+    expect(log).toContain("enter:anchor");
   }
 
   test("entering detailed keeps the anchor the target: no leave and enter while the HTML views mount", async () => {
@@ -108,7 +106,7 @@ test.describe("The handover under a still pointer on an anchor", () => {
       const view = window.graph.rootStore.blocksList.getBlockState("block-1")?.getViewComponent();
       return {
         held: view?.isHeldByHtml(),
-        target: handover.nameOf(window.graph.getGraphLayer().$hoveredComponent.value),
+        target: handover.nameOf(window.graph.input.$hoveredComponent.value),
         log: handover.takeLog(),
       };
     });
@@ -132,7 +130,7 @@ test.describe("The handover under a still pointer on an anchor", () => {
         return {
           htmlHidden: html === null || html.closest(".layer-hidden") !== null,
           hit: handover.nameOf(graph.getElementOverPoint(handover.anchorPoint())),
-          target: handover.nameOf(graph.getGraphLayer().$hoveredComponent.value),
+          target: handover.nameOf(graph.input.$hoveredComponent.value),
         };
       }, scale);
       expect(frame).toEqual({ htmlHidden: true, hit: target, target });
@@ -141,7 +139,7 @@ test.describe("The handover under a still pointer on an anchor", () => {
       const later = await graphPO.page.evaluate(() => {
         const handover = (window as unknown as { handover: THandoverWindow }).handover;
         return {
-          target: handover.nameOf(window.graph.getGraphLayer().$hoveredComponent.value),
+          target: handover.nameOf(window.graph.input.$hoveredComponent.value),
           log: handover.takeLog(),
         };
       });

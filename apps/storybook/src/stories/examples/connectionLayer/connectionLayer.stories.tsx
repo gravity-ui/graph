@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 
-import { Graph, TBlock, TPoint } from "@gravity-ui/graph";
+import { ECanDrag, Graph, TBlock, TPoint } from "@gravity-ui/graph";
 import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
@@ -47,7 +47,7 @@ const drawLine = (start: TPoint, end: TPoint) => {
 };
 
 const GraphApp = () => {
-  const { graph, setEntities, start, zoomTo } = useGraph({});
+  const { graph, setEntities, start, zoomTo } = useGraph({ settings: { canDrag: ECanDrag.ALL } });
 
   useEffect(() => {
     setEntities(generatePrettyBlocks({ layersCount: 3, connectionsPerLayer: 5, dashedLine: false }));
@@ -59,21 +59,21 @@ const GraphApp = () => {
 
   useLayer(graph, ConnectionEditingLayer, { enabled, createIcon, point: pointIcon, drawLine });
 
-  useGraphEvent(graph, "connection-created", (detail) => {
-    console.log("Connection created:", detail);
+  useGraphEvent(graph, "connection-created", (event) => {
+    console.log("Connection created:", event);
   });
 
-  useGraphEvent(graph, "connection-create-start", (detail) => {
-    console.log("Connection creation started:", detail);
+  useGraphEvent(graph, "connection-create-start", (event) => {
+    console.log("Connection creation started:", event);
   });
 
-  useGraphEvent(graph, "connection-create-hover", (detail) => {
-    console.log("Hover during connection creation:", detail);
+  useGraphEvent(graph, "connection-create-hover", (event) => {
+    console.log("Hover during connection creation:", event);
   });
 
   // Dropping on empty space creates a block connected to the source.
-  useGraphEvent(graph, "connection-create-drop", (detail) => {
-    const { sourceBlockId, sourceAnchorId, targetPort, point } = detail;
+  useGraphEvent(graph, "connection-create-drop", (event) => {
+    const { sourceBlockId, sourceAnchorId, targetPort, point } = event;
     if (!targetPort && sourceBlockId !== undefined) {
       const source = graph.blocks.getBlock(sourceBlockId);
       if (source) {
@@ -84,7 +84,7 @@ const GraphApp = () => {
           y: point.y,
           width: source.width,
           height: source.height,
-          is: "block",
+          is: source.is,
           anchors: [],
         });
         graph.api.addConnection({
@@ -92,11 +92,10 @@ const GraphApp = () => {
           sourceBlockId,
           sourceAnchorId,
           targetBlockId: block,
-          targetAnchorId: "bottom",
         });
       }
     }
-    console.log("Connection creation completed:", detail);
+    console.log("Connection creation completed:", event);
   });
 
   const renderBlock = (graphInstance: Graph, block: TBlock) => {

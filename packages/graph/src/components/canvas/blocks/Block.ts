@@ -11,6 +11,7 @@ import type { TTileRect } from "../../../lib/culling/TileIndex";
 import { isOnLevel, unionLevelMasks } from "../../../lib/scene/levels";
 import type { TScenePrimitive } from "../../../lib/scene/types";
 import { DragContext, DragDiff } from "../../../services/drag";
+import type { GraphClickEvent } from "../../../services/input/press";
 import type { TSceneLevel } from "../../../services/scene/types";
 import { ESelectionStrategy } from "../../../services/selection";
 import type { TStyleParts } from "../../../services/styles/types";
@@ -23,7 +24,7 @@ import { HAS_NODE_ENV } from "../../../utils/development";
 import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
 import { TPoint, TRect } from "../../../utils/types/shapes";
 import { isWithinComponent, pointerTargetAfter } from "../EventedComponent/EventedComponent";
-import type { EventedComponent } from "../EventedComponent/EventedComponent";
+import type { ComponentDispatchEvent, EventedComponent } from "../EventedComponent/EventedComponent";
 import { TGraphComponentProps } from "../GraphComponent";
 import { Anchor } from "../anchors";
 import type { TAnchor, TAnchorClass } from "../anchors";
@@ -69,28 +70,22 @@ export type TBlockProps = TGraphComponentProps & {
 
 declare module "../../../graphEvents" {
   interface GraphEventsDefinitions {
-    "block-drag-start": (
-      event: CustomEvent<{
-        nativeEvent: MouseEvent;
-        block: TBlock;
-      }>
-    ) => void;
+    "block-drag-start": {
+      nativeEvent: PointerEvent;
+      block: TBlock;
+    };
 
-    "block-drag": (
-      event: CustomEvent<{
-        nativeEvent: MouseEvent;
-        block: TBlock;
-        x: number;
-        y: number;
-      }>
-    ) => void;
+    "block-drag": {
+      nativeEvent: PointerEvent;
+      block: TBlock;
+      x: number;
+      y: number;
+    };
 
-    "block-drag-end": (
-      event: CustomEvent<{
-        nativeEvent: MouseEvent;
-        block: TBlock;
-      }>
-    ) => void;
+    "block-drag-end": {
+      nativeEvent: PointerEvent;
+      block: TBlock;
+    };
   }
 }
 
@@ -223,7 +218,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   private connectedStateUnsubscribers: (() => void)[] = [];
 
-  protected lastDragEvent?: MouseEvent;
+  protected lastDragEvent?: PointerEvent;
 
   protected startDragCoords: number[] = [];
 
@@ -297,8 +292,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.subscribe(props.id);
   }
 
-  public override isEntityAvailable(): boolean {
-    return super.isEntityAvailable() && this.connectedState.isAttached();
+  /** @internal */
+  public override getEntityBinding() {
+    return this.connectedState;
   }
 
   public getEntityId(): TBlockId {
@@ -465,7 +461,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       look = next.look;
       this.invalidate();
     });
-    this.addEventListener("click", this.handleClick);
     let anchorsSetting = true;
     this.subscribeSignal(this.context.graph.rootStore.settings.$useBlocksAnchors, (enabled) => {
       if (anchorsSetting) {
@@ -772,7 +767,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   /**
    * The handover to HTML (spec §10). An HTML view of this block (graph-react's `GraphBlock`) calls it once its HTML
    * has mounted, and calls the returned function when it unmounts or its request changes. A hold counts at the detailed
-   * level only (`isHeldByHtml()`): there the block and its children are hit, drawn in the scene or not (D4), and while
+   * level only (`isHeldByHtml()`): there the block and its children are hit, drawn in the scene or not, and while
    * a holding view asks for `canvasVisible: false` the scene draws nothing of the block: its body, parts, anchors and
    * children. Its hit box and tags stay current; its connections stay drawn. On the other levels a hold
    * changes nothing: zooming out of the detailed level draws the block in the frame that hides the HTML.
@@ -829,7 +824,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   /**
-   * Shown outside the scene (D4: it and its children are hit, drawn in the scene or not): after
+   * Shown outside the scene, including its children: after
    * `setRenderDelegated(true)`, on every level, or while an HTML view holds it, at the detailed level.
    */
   public override isShownOutsideScene(): boolean {
@@ -893,8 +888,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   /**
    * Check if block can be dragged based on canDrag setting
    */
-  public override isDraggable(): boolean {
-    const canDrag = this.context.graph.rootStore.settings.$canDrag.value;
+  public override isDraggable(pointerType?: string): boolean {
+    const canDrag = this.context.graph.rootStore.settings.getCanDrag(pointerType);
     return isAllowDrag(canDrag, this.connectedState.$selected.value);
   }
 
@@ -917,16 +912,12 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     );
   }
 
-  /**
-   * Handle click event
-   */
-  protected handleClick = (event: MouseEvent): void => {
-    event.stopPropagation();
-    /* Handle selection change */
-    this.handleSelectionChange(event);
-  };
+  public override applyClickDefault(event: GraphClickEvent): boolean {
+    this.handleSelectionChange(event.event);
+    return true;
+  }
 
-  protected handleSelectionChange = (event: MouseEvent): void => {
+  protected handleSelectionChange = (event: PointerEvent): void => {
     this.connectedState.setSelection(
       !isMetaKeyEvent(event) ? true : !this.connectedState.selected,
       !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
@@ -1095,7 +1086,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   public setHiddenBlock(hidden: boolean): void {
     const wasBlockHidden = this.blockHidden;
     this.blockHidden = hidden;
-    // What a still pointer hits changes (settled item 11). A block hidden from its mount never set a hit box, so
+    // What a still pointer hits changes. A block hidden from its mount never set a hit box, so
     // showing it sets its first one, which asks nothing by itself.
     this.requestRetarget();
     if (hidden) {
@@ -1115,17 +1106,17 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   /**
    * Whether the block shows as hovered (`hoveredTag`) while `target` is the pointer's target: by default while the
-   * target is the block or one of its descendants (its anchors, its children), as CSS `:hover` (В1, D5). Override to
+   * target is the block or one of its descendants (its anchors, its children), as CSS `:hover`. Override to
    * decide by target, for example a block that is not hovered over its anchors: `return target === this;`.
    */
   protected isHoveredBy(target: EventedComponent | undefined): boolean {
     return isWithinComponent(this, target);
   }
 
-  /** The block's hover: its own `mouseenter`/`mouseleave` and those bubbling up from its descendants (D5). */
-  protected override onDispatchedEvent(event: Event): void {
+  /** The block's hover: its own `pointerenter`/`pointerleave` and those bubbling up from its descendants. */
+  protected override onDispatchedEvent(event: ComponentDispatchEvent): void {
     super.onDispatchedEvent(event);
-    if (event.type === "mouseenter" || event.type === "mouseleave") {
+    if (event.type === "pointerenter" || event.type === "pointerleave") {
       this.setHoveredTag(this.isHoveredBy(pointerTargetAfter(event)));
     }
   }

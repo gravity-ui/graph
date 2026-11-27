@@ -6,6 +6,7 @@ import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { SingleSelectionBucket } from "../../services/selection/SingleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
+import type { TSelectionDiff } from "../../services/selection/types";
 import { generateRandomId } from "../../utils/functions/generateRandomId";
 import { AnchorState } from "../anchor/Anchor";
 import { parseAnchorEntityId } from "../anchor/anchorEntityId";
@@ -30,44 +31,38 @@ declare module "../../graphEvents" {
      * Preventing the event will prevent selection change.
      *
      */
-    "blocks-selection-change": (event: SelectionEvent<TBlockId>) => void;
+    "blocks-selection-change": TSelectionDiff<TBlockId>;
 
     /**
      * Emitted when selection of block's anchor changes.
      * Preventing the event will prevent selection change.
      *
      */
-    "block-anchor-selection-change": (
-      event: CustomEvent<{
-        /** Block anchor */
-        anchor: TAnchor;
-        /** Is anchor selected */
-        selected: boolean;
-      }>
-    ) => void;
+    "block-anchor-selection-change": {
+      /** Block anchor */
+      anchor: TAnchor;
+      /** Is anchor selected */
+      selected: boolean;
+    };
 
     /**
      * Emitted when block position is about to update via {@link BlockListStore.updatePosition}.
      *
-     * `detail.block` is a shallow snapshot (see {@link BlockState.asTBlockShallow}); do not mutate nested fields.
+     * `event.block` is a shallow snapshot (see {@link BlockState.asTBlockShallow}); do not mutate nested fields.
      * Preventing the event skips the store update and excludes the block from the next `blocks-geometry-change` batch.
      */
-    "block-change": (
-      event: CustomEvent<{
-        /** Shallow snapshot; nested fields are shared with the store — read-only. */
-        block: Readonly<TBlock>;
-      }>
-    ) => void;
+    "block-change": {
+      /** Shallow snapshot; nested fields are shared with the store — read-only. */
+      block: Readonly<TBlock>;
+    };
 
     /**
      * Coalesced geometry updates after {@link BlockListStore.updatePosition} (at most once per animation frame).
      * Payload is `{ id, x, y, width, height }` per block only.
      */
-    "blocks-geometry-change": (
-      event: CustomEvent<{
-        blocks: TBlockGeometrySnapshot[];
-      }>
-    ) => void;
+    "blocks-geometry-change": {
+      blocks: TBlockGeometrySnapshot[];
+    };
   }
 }
 

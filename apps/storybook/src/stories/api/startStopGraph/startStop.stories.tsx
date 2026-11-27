@@ -79,7 +79,7 @@ const GraphApp = () => {
           className="graph"
           graph={graph}
           renderBlock={renderBlockFn}
-          onStateChanged={({ state }) => {
+          onStateChange={({ state }) => {
             setStarted(state === GraphState.READY);
             if (state === GraphState.READY && !initialized) {
               zoomTo("center", { padding: 200 });

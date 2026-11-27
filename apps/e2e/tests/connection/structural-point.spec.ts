@@ -46,7 +46,7 @@ for (const deviceScaleFactor of [1, 2]) {
           const [canvasX, canvasY] = instance.cameraService.getAbsoluteXY(280, 161);
           const rect = instance.getGraphCanvas().getBoundingClientRect();
           const mousePoint = instance.getPointInCameraSpace(
-            new MouseEvent("mousemove", { clientX: rect.left + canvasX, clientY: rect.top + canvasY })
+            new PointerEvent("pointermove", { clientX: rect.left + canvasX, clientY: rect.top + canvasY })
           );
           return {
             top: instance.getElementOverPoint(point)?.getEntityId(),

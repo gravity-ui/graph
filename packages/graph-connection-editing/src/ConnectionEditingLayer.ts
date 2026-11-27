@@ -9,7 +9,7 @@ import {
   createBlockPointPortId,
 } from "@gravity-ui/graph";
 import type {
-  Graph,
+  GraphDragStartEvent,
   GraphEventsDefinitions,
   LayerContext,
   LayerProps,
@@ -18,8 +18,6 @@ import type {
   TCameraState,
   TConnection,
   TPoint,
-  UnwrapGraphEvents,
-  UnwrapGraphEventsDetail,
 } from "@gravity-ui/graph";
 import RBush from "rbush";
 
@@ -42,7 +40,7 @@ export type TConnectionEditingLayerProps = LayerProps & {
   /** Turns connection creation on or off. Default: `true`. */
   enabled?: boolean;
   /**
-   * While enabled, a mousedown on an anchor never starts the default drag (moving the block),
+   * While enabled, a drag from an anchor never starts the default drag (moving the block),
    * even when no connection starts from it. Default: `true`.
    */
   captureAnchors?: boolean;
@@ -93,8 +91,6 @@ type TEndpointParams = {
 /** Role of a port in the connection: a block's default point port differs for sources and targets. */
 type TEndpointRole = "source" | "target";
 
-type TDragHandle = ReturnType<Graph["dragService"]["startDrag"]>;
-
 /**
  * ConnectionEditingLayer creates connections by drag and drop.
  *
@@ -126,7 +122,7 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
   private snappingPortsTree: RBush<TSnappingPortBox> | null = null;
   private isSnappingTreeOutdated = true;
 
-  protected currentListener: TDragHandle | null = null;
+  private cancelClaim?: () => void;
 
   constructor(props: TConnectionEditingLayerProps) {
     super({
@@ -146,14 +142,11 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
   }
 
   protected afterInit(): void {
-    this.onGraphEvent("mousedown", this.handleMouseDown, { capture: true });
+    this.onGraphEvent("dragstart", this.onDragStart);
 
     this.onSignal(this.context.graph.connections.ports.$ports, () => {
       this.isSnappingTreeOutdated = true;
-    });
-
-    this.context.graph.keyboardService.onPress("Escape", () => this.cancelNewConnection(), {
-      signal: this.eventAbortController.signal,
+      if (this.sourcePort && !this.isPortAvailable(this.sourcePort)) this.cancelNewConnection();
     });
 
     super.afterInit();
@@ -192,10 +185,10 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
 
   private emitWithDefault<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
-    detail: UnwrapGraphEventsDetail<EventName>,
+    payload: GraphEventsDefinitions[EventName],
     defaultAction: () => void
   ): void {
-    const event = this.context.graph.emit(eventName, detail);
+    const event = this.context.graph.emit(eventName, payload);
     if (!event.defaultPrevented) {
       defaultAction();
     }
@@ -225,51 +218,43 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     return Boolean(meta?.snappable);
   }
 
-  protected handleMouseDown = (nativeEvent: UnwrapGraphEvents<"mousedown">): void => {
-    if (!this.isEnabled()) {
+  private onDragStart = (gesture: GraphDragStartEvent): void => {
+    const { target, pressEvent, start } = gesture;
+    if (
+      !this.isEnabled() ||
+      pressEvent.button !== 0 ||
+      pressEvent.altKey ||
+      pressEvent.ctrlKey ||
+      pressEvent.metaKey ||
+      !(target instanceof GraphComponent)
+    )
       return;
-    }
-    const initEvent = nativeEvent.detail.sourceEvent;
-    const initialComponent = nativeEvent.detail.target;
-    if (!(initEvent instanceof MouseEvent) || !this.root?.ownerDocument || !initialComponent) {
-      return;
-    }
-    if (initEvent.button !== 0) {
-      return;
-    }
-    if (!(initialComponent instanceof GraphComponent)) {
-      return;
-    }
-
-    const source = this.resolveSource(initialComponent, initEvent);
+    const source = this.resolveSource(target, pressEvent, start.world);
     if (!source) {
-      if (initialComponent instanceof Anchor && this.props.captureAnchors !== false) {
+      if (target instanceof Anchor && this.props.captureAnchors !== false) {
         // Anchors never move their block while connection editing is enabled.
-        nativeEvent.preventDefault();
+        gesture.preventDefault();
       }
       return;
     }
 
-    // Prevents the default drag, camera drag and dispatch to the target component.
-    nativeEvent.preventDefault();
     const { port, kind } = source;
-    // DragService will provide world coordinates in callbacks
-    this.currentListener = this.context.graph.dragService.startDrag(
-      {
-        onStart: (_event, coords) => this.onStartConnection(port, kind, { x: coords[0], y: coords[1] }),
-        onUpdate: (_event, coords) => this.onMoveNewConnection({ x: coords[0], y: coords[1] }),
-        onEnd: (_event, coords) => this.onEndNewConnection({ x: coords[0], y: coords[1] }),
-        onCancel: () => this.onCancelNewConnection(),
-      },
-      { cursor: "crosshair", initialEvent: initEvent }
-    );
+    this.cancelClaim = gesture.claim({
+      owner: "ConnectionEditingLayer",
+      cursor: "crosshair",
+      start: (_event, coords) => this.onStartConnection(port, kind, { x: coords[0], y: coords[1] }),
+      move: (_event, coords) => this.onMoveNewConnection({ x: coords[0], y: coords[1] }),
+      end: (_event, coords) => this.onEndNewConnection({ x: coords[0], y: coords[1] }),
+      cancel: () => this.onCancelNewConnection(),
+    });
   };
 
   private resolveSource(
     component: GraphComponent,
-    event: MouseEvent
+    event: PointerEvent,
+    point: TPoint
   ): { port: PortState; kind: TSourceKind } | undefined {
-    const source = this.findSource(component, event);
+    const source = this.findSource(component, event, point);
     if (!source) {
       return undefined;
     }
@@ -279,9 +264,12 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     return source;
   }
 
-  private findSource(component: GraphComponent, event: MouseEvent): { port: PortState; kind: TSourceKind } | undefined {
+  private findSource(
+    component: GraphComponent,
+    event: PointerEvent,
+    point: TPoint
+  ): { port: PortState; kind: TSourceKind } | undefined {
     if (component.getPorts().length > 0) {
-      const point = this.context.graph.getPointInCameraSpace(event).world;
       const port = this.context.graph.connections.ports.findPortAtPointByComponent(
         component,
         point,
@@ -502,14 +490,14 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
   }
 
   protected cancelNewConnection(): void {
-    const listener = this.currentListener;
-    this.currentListener = null;
-    if (listener) listener.emit("cancel");
+    const cancel = this.cancelClaim;
+    this.cancelClaim = undefined;
+    if (cancel) cancel();
     else this.onCancelNewConnection();
   }
 
   private onCancelNewConnection(): void {
-    this.currentListener = null;
+    this.cancelClaim = undefined;
     if (!this.isCreating()) return;
     const sourcePort = this.sourcePort;
     const targetPort = this.targetPort;
@@ -529,7 +517,7 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
   }
 
   private onEndNewConnection(point: TPoint): void {
-    this.currentListener = null;
+    this.cancelClaim = undefined;
     const sourcePort = this.sourcePort;
     const sourceKind = this.sourceKind;
     // The end point may come without a preceding update (a fast flick): it is still a complete drag.

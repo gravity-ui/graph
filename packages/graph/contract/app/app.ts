@@ -65,7 +65,7 @@ const graph = new Graph(
     blocks,
     connections,
     settings: {
-      canDrag: ECanDrag.ALL,
+      canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
       useBezierConnections: false,
     },
   },
@@ -91,6 +91,9 @@ function checkResolvedConfigurationTypes() {
   const panSpeed: number = resolvedConstants.camera.PAN_SPEED;
   const dragThreshold: number = resolvedSettings.dragThreshold;
   const canZoom: boolean = configuredGraph.rootStore.settings.getConfigFlag("canZoomCamera");
+  configuredGraph.updateSettings({ clickPolicy: "exclusive" });
+  // @ts-expect-error clickPolicy accepts only the graph's two activation policies.
+  configuredGraph.updateSettings({ clickPolicy: "singleOnly" });
   configuredGraph.updateSettings({ dragThreshold: undefined });
   configuredGraph.api.setSetting("dragThreshold", 1);
   configuredGraph.resetSettings(["dragThreshold", "background"]);
@@ -98,8 +101,8 @@ function checkResolvedConfigurationTypes() {
   configuredGraph.resetSettings(["unknownSetting"]);
   configuredGraph.resetSettings();
   // Verify color events expose complete normalized values: nested fields can be read without undefined guards.
-  configuredGraph.on("colors-changed", ({ detail }) => {
-    const color: string = detail.colors.anchor.background;
+  configuredGraph.on("colors-changed", ({ colors }) => {
+    const color: string = colors.anchor.background;
     void color;
   });
   const { background, ...missingBackground } = resolvedSettings;
@@ -221,34 +224,54 @@ void layerResourceContracts;
 // regressions where an event name loses its payload type or inference becomes any.
 function eventTypeContracts(graph: Graph, block: CanvasBlock) {
   graph.on("state-change", (event) => {
-    const state: import("@gravity-ui/graph").GraphState = event.detail.state;
+    const state: import("@gravity-ui/graph").GraphState = event.state;
     void state;
     // colors belongs to colors-changed; this access must fail for the inferred state-change payload.
-    // @ts-expect-error state-change exposes { state: GraphState }, so event.detail.colors is invalid.
-    event.detail.colors;
+    // @ts-expect-error state-change exposes { state: GraphState }, so event.colors is invalid.
+    event.colors;
+    // @ts-expect-error Graph event fields are available directly on the event.
+    event.detail;
   });
   // Positive counterpart: object listeners must infer the complete colors-changed payload without annotating event.
   graph.on("colors-changed", { handleEvent: (event) => {
-    const colors: TGraphColors = event.detail.colors;
+    const colors: TGraphColors = event.colors;
     void colors;
   } });
-  graph.on("mousemove", (event) => { const source: Event = event.detail.sourceEvent; void source; });
-  graph.emit("colors-changed", { colors: graph.graphColors });
+  graph.on("pointerover", (event) => { const source: PointerEvent | undefined = event.sourceEvent; void source; });
+  graph.on("click", (gesture) => { const source: PointerEvent = gesture.event; void source; });
+  graph.on("dragstart", (gesture) => gesture.claim({ owner: "contract" }));
+  // @ts-expect-error Graph has no compatibility mouse events.
+  graph.on("mousedown", () => {});
+  // @ts-expect-error Graph has no compatibility mouse events.
+  graph.on("mouseup", () => {});
+  // @ts-expect-error Graph has no compatibility mouse events.
+  graph.on("mousemove", () => {});
+  // @ts-expect-error Graph has no compatibility mouse events.
+  graph.on("mouseenter", () => {});
+  // @ts-expect-error Graph has no compatibility mouse events.
+  graph.on("mouseleave", () => {});
+  // @ts-expect-error Graph has no compatibility mouse events.
+  graph.on("mouseover", () => {});
+  // @ts-expect-error Graph has no compatibility mouse events.
+  graph.on("mouseout", () => {});
+  const colorsEvent = graph.emit("colors-changed", { colors: graph.graphColors });
+  const emittedColors: TGraphColors = colorsEvent.colors;
+  void emittedColors;
   // @ts-expect-error colors-changed requires { colors: TGraphColors }; a state-change payload is invalid.
   graph.emit("colors-changed", { state: 0 });
-  // @ts-expect-error Native mouse callbacks cannot handle graph CustomEvents.
+  // @ts-expect-error Native mouse callbacks cannot handle scene gestures.
   graph.on("click", (event: MouseEvent) => { void event; });
   // @ts-expect-error state-change must reject an object listener expecting colors-changed.
-  graph.on("state-change", { handleEvent: (event: CustomEvent<{ colors: TGraphColors }>) => { void event; } });
-  // @ts-expect-error off for state-change requires a listener for its CustomEvent, not a native MouseEvent.
+  graph.on("state-change", { handleEvent: (event: { colors: TGraphColors }) => { void event; } });
+  // @ts-expect-error off for state-change rejects native MouseEvent listeners.
   graph.off("state-change", (event: MouseEvent) => { void event; });
-  block.listenEvents(["click", "mousedown"], { handleEvent: (event) => { const x: number = event.clientX; void x; } });
-  // @ts-expect-error A keyboard listener cannot handle these mouse events.
-  block.listenEvents(["click", "mousedown"], (event: KeyboardEvent) => { void event; });
-  block.addEventListener("click", (event) => { const x: number = event.clientX; void x; });
-  block.addEventListener("click", { handleEvent: (event) => { const x: number = event.clientX; void x; } });
-  // @ts-expect-error Component click listeners receive MouseEvent; a KeyboardEvent listener is incompatible.
-  block.addEventListener("click", (event: KeyboardEvent) => { void event; });
+  block.listenEvents(["pointerenter", "pointerleave"], { handleEvent: (event) => { const pressed: boolean = event.pointerPressed; void pressed; } });
+  // @ts-expect-error A keyboard listener cannot handle these hover events.
+  block.listenEvents(["pointerenter", "pointerleave"], (event: KeyboardEvent) => { void event; });
+  block.on("click", (gesture) => { const x: number = gesture.point.world.x; void x; });
+  block.addEventListener("pointerenter", { handleEvent: (event) => { const native: PointerEvent | undefined = event.sourceEvent; void native; } });
+  // @ts-expect-error Component gesture listeners receive a scene gesture.
+  block.on("click", (event: KeyboardEvent) => { void event; });
   graph.layers.on("update-size", (size) => { const dpr: number = size.dpr; void dpr; });
   // @ts-expect-error Typed emitters reject unknown events.
   graph.layers.on("unknown", () => {});
@@ -263,14 +286,14 @@ void eventTypeContracts;
 // Compile-only layer; never instantiated. Check event inference and native function this through protected wrappers.
 class EventContractLayer extends Layer {
   protected afterInit() {
-    this.onGraphEvent("state-change", { handleEvent: (event) => { const state: number = event.detail.state; void state; } });
-    this.onCanvasEvent("click", function(event) { const x: number = event.clientX; this.width = x; });
+    this.onGraphEvent("state-change", { handleEvent: (event) => { const state: number = event.state; void state; } });
+    this.onCanvasEvent("pointerdown", function(event) { const x: number = event.clientX; this.width = x; });
     this.onRootEvent("keydown", { handleEvent: (event) => { const key: string = event.key; void key; } });
     // @ts-expect-error keydown requires a KeyboardEvent object listener, not a MouseEvent listener.
     this.onRootEvent("keydown", { handleEvent: (event: MouseEvent) => { void event; } });
-    // @ts-expect-error Canvas click requires a MouseEvent listener, not a KeyboardEvent listener.
-    this.onCanvasEvent("click", (event: KeyboardEvent) => { void event; });
-    // @ts-expect-error Graph state-change requires its CustomEvent object listener, not a MouseEvent listener.
+    // @ts-expect-error A keyboard listener cannot handle native pointerdown.
+    this.onCanvasEvent("pointerdown", (event: KeyboardEvent) => { void event; });
+    // @ts-expect-error Graph state-change rejects native MouseEvent listeners.
     this.onGraphEvent("state-change", { handleEvent: (event: MouseEvent) => { void event; } });
     super.afterInit();
   }

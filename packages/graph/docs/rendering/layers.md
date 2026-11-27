@@ -44,7 +44,7 @@ Layers follow a specific initialization and attachment lifecycle that's importan
 
 ## Built-in Layers
 
-`GraphLayer` owns the component tree, camera and input handling. Its canvas draws immediate components and
+`GraphLayer` hosts the component tree and camera. The graph input service routes pointer input. The layer's canvas draws immediate components and
 custom Canvas connection painters. Built-in connections, blocks and anchors draw through
 [the scene](../system/scene.md) on a canvas above it. The optional React layer sits above the scene.
 
@@ -73,11 +73,12 @@ For complete React integration documentation, see [React Components API](../reac
 
 ```typescript
 // Key events, declared by the package
-interface GraphEventsDefinitions {
-  "blocks-duplicate-start": (event: CustomEvent<{ blocks: CanvasBlock[] }>) => void;
-  "blocks-duplicate": (
-    event: CustomEvent<{ items: Array<{ block: CanvasBlock; coord: TPoint }>; delta: TPoint }>
-  ) => void;
+declare module "@gravity-ui/graph" {
+  interface GraphEventsDefinitions {
+    "blocks-duplicate-start": TBlocksDuplicateStartDetail;
+    "blocks-duplicate-cancel": TBlocksDuplicateStartDetail;
+    "blocks-duplicate": TBlocksDuplicateDetail;
+  }
 }
 ```
 
@@ -310,7 +311,7 @@ viewport.
 
 The library provides several built-in CSS classes that can be used with layers:
 
-- **no-pointer-events**: Disables pointer events on the layer, making it transparent to mouse interactions. Useful for layers that only render visual elements but shouldn't capture mouse events.
+- **no-pointer-events**: Lets the browser send pointer events through the layer to the element beneath it. Use this for visual overlays.
   
   ```typescript
   canvas: {
@@ -394,7 +395,7 @@ export class MyCustomLayer extends Layer<MyLayerProps> {
   protected afterInit(): void {
     // Option 1: Manual subscription using the layer's AbortController
     // This will be automatically cleaned up when the layer is unmounted
-    this.canvas.addEventListener("mousedown", this.handleMouseDown, {
+    this.canvas.addEventListener("pointerdown", this.handlePointerDown, {
       signal: this.eventAbortController.signal
     });
     
@@ -424,8 +425,8 @@ export class MyCustomLayer extends Layer<MyLayerProps> {
     this.unsubscribeFunctions = [];
   }
   
-  private handleMouseDown = (event: MouseEvent) => {
-    // Handle mouse down event
+  private handlePointerDown = (event: PointerEvent) => {
+    // Handle a press on this layer's canvas.
   };
   
   private performRender = () => {

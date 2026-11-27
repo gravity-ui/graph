@@ -21,8 +21,38 @@ test("installed minimap shares the core layer and moves the consumer camera", as
   await expect(minimap).toHaveCSS("border-top-width", "3px");
   const camera = graph.camera();
   const before = await camera.getState();
+  await graph.evaluate((g) => {
+    g.on("press", () => { document.documentElement.dataset.scenePressed = "true"; });
+  });
   await minimap.click({ position: { x: 160, y: 100 } });
   await expect.poll(async () => (await camera.getState()).x).not.toBe(before.x);
   await expect.poll(async () => (await camera.getState()).y).not.toBe(before.y);
+  expect(await page.locator("html").getAttribute("data-scene-pressed")).toBeNull();
   expect(errors).toEqual([]);
 });
+
+for (const active of [false, true]) {
+  test(`detaching the minimap cancels its ${active ? "active" : "pending"} drag`, async ({ page }) => {
+    await page.goto("/");
+    const graph = new GraphPO(page.locator("#graph-shell"));
+    await graph.waitForReady();
+    const map = page.locator("canvas.graph-minimap");
+    const box = await map.boundingBox();
+    if (!box) throw new Error("Missing minimap");
+    await page.mouse.move(box.x + 20, box.y + 20);
+    await page.mouse.down();
+    if (active) await page.mouse.move(box.x + 50, box.y + 40);
+    const camera = await graph.camera().getState();
+    await graph.evaluate((g) => {
+      const layer = g.layers.getLayers().find((item) => item.getCanvas()?.matches(".graph-minimap"));
+      if (!layer) throw new Error("Missing minimap layer");
+      g.detachLayer(layer);
+      g.attachLayer(layer);
+    });
+    await page.mouse.move(box.x + 110, box.y + 80);
+    await page.mouse.up();
+    expect(await graph.camera().getState()).toEqual(camera);
+    await map.click({ position: { x: 150, y: 90 } });
+    expect(await graph.camera().getState()).not.toEqual(camera);
+  });
+}

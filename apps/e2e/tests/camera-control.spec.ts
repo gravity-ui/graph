@@ -1,6 +1,30 @@
 import { test, expect } from "@playwright/test";
 import { GraphPageObject } from "../page-objects/GraphPageObject";
 
+for (const deviceScaleFactor of [1, 2]) {
+  test.describe(`Fractional pointer pan at DPR ${deviceScaleFactor}`, () => {
+    test.use({ deviceScaleFactor });
+
+    test("preserves all 17 quarter-pixel positions and retraces them without drift", async ({ page }) => {
+      const graph = new GraphPageObject(page);
+      await graph.initialize({ settings: { canDragCamera: true, dragThreshold: 5 } });
+      const initialX = await graph.evaluate((g) => g.$camera.peek().x);
+      await page.mouse.move(150, 100);
+      await page.mouse.down();
+      const forward = Array.from({ length: 17 }, (_, index) => 166 + index / 4);
+      const path = [...forward, ...forward.slice(0, -1).reverse(), 150];
+      const positions: number[] = [];
+      for (const x of path) {
+        await page.mouse.move(x, 100);
+        await graph.waitForFrames(1);
+        positions.push(await graph.evaluate((g) => g.$camera.peek().x));
+      }
+      await page.mouse.up();
+      expect(positions).toEqual(path.map((x) => initialX + (x - 150)));
+    });
+  });
+}
+
 test.describe("Camera Control", () => {
   let graphPO: GraphPageObject;
 

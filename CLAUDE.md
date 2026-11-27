@@ -103,7 +103,7 @@ class MyLayer extends Layer {
   protected afterInit() {
     // Subscribe to events using wrapper methods
     this.onGraphEvent("camera-change", this.handleCameraChange);
-    this.onCanvasEvent("mousedown", this.handleMouseDown);
+    this.onCanvasEvent("pointerdown", this.handlePointerDown);
     super.afterInit(); // Call at end
   }
 }
@@ -200,7 +200,7 @@ protected afterInit() {
   this.onGraphEvent("camera-change", this.handleCameraChange);
 
   // DOM events
-  this.onCanvasEvent("mousedown", this.handleMouseDown);
+  this.onCanvasEvent("pointerdown", this.handlePointerDown);
   this.onHtmlEvent("click", this.handleClick);
   this.onRootEvent("keydown", this.handleKeyDown);
 
@@ -218,8 +218,8 @@ import { useGraphEvent } from '@gravity-ui/graph-react';
 function MyComponent() {
   const { graph } = useGraph(config);
 
-  useGraphEvent(graph, 'block:select', (detail, event) => {
-    console.log('Block selected:', detail.target?.id);
+  useGraphEvent(graph, 'blocks-selection-change', ({ changes }) => {
+    console.log('Selected block IDs:', changes.add);
   });
 
   return <GraphCanvas graph={graph} />;
@@ -307,9 +307,9 @@ function MyComponent() {
 
 **Data Flow**:
 ```
-User Input
+Native Pointer Events
   ↓
-GraphLayer Event Handler
+Graph input service → gesture or hover handlers → graph default action
   ↓
 Store Signal Update (batched)
   ↓
@@ -381,7 +381,7 @@ Live examples: https://preview.gravity-ui.com/graph/
 ### NEVER use `any` type
 
 **Strict Rules:**
-- Use specific types whenever possible (`MouseEvent`, `KeyboardEvent`, `HTMLElement`)
+- Use specific types whenever possible (`PointerEvent`, `KeyboardEvent`, `HTMLElement`)
 - Use `void` for functions that don't return a value
 - Use `unknown` only as a last resort when the type is truly unpredictable
 - Implement appropriate interfaces instead of type casting
@@ -400,7 +400,7 @@ function handleEvent(event: any) {
 }
 
 // ✅ Good
-function handleEvent(event: MouseEvent): void {
+function handleEvent(event: PointerEvent): void {
   event.preventDefault();
 }
 
@@ -722,7 +722,7 @@ class MyLayer extends Layer {
   constructor(props: LayerProps) {
     super(props);
     // ❌ Bad - NO DOM operations here
-    // this.canvas.addEventListener('click', ...);
+    // this.canvas.addEventListener('pointerdown', ...);
   }
 
   protected init(): void {
@@ -732,7 +732,7 @@ class MyLayer extends Layer {
 
   protected afterInit(): void {
     // ✅ Good - DOM operations here
-    this.onCanvasEvent("click", this.handleClick);
+    this.onGraphEvent("click", this.handleClick);
     this.onGraphEvent("camera-change", this.handleCamera);
     
     // Inject styles
@@ -896,7 +896,7 @@ const screenY = worldY * cameraState.scale + cameraState.y;
 protected afterInit(): void {
   // ✅ Good - wrapper methods handle AbortController
   this.onGraphEvent("camera-change", this.handleCameraChange);
-  this.onCanvasEvent("mousedown", this.handleMouseDown);
+  this.onCanvasEvent("pointerdown", this.handlePointerDown);
   
   if (this.html) {
     this.onHtmlEvent("click", this.handleHtmlClick);
@@ -918,17 +918,9 @@ protected afterInit(): void {
 // Handlers are automatically cleaned up on unmount via AbortController
 ```
 
-### Event Propagation to Camera
+### Scene gestures in custom layers
 
-**Problem:** Layers added to root may intercept events intended for camera (pan/zoom).
-
-**Solution:** Override `getParent()` to delegate to camera:
-
-```typescript
-public getParent(): Component | undefined {
-  return this.props.graph.getGraphLayer().$.camera;
-}
-```
+Subscribe with `this.onGraphEvent("dragstart", handler)` in `afterInit()` and claim only drags owned by the layer. The graph input service tries default component dragging or camera pan after the gesture handlers have run. Layers keep their normal component parent. Use native pointer listeners for a layer's own DOM controls or independently operated surfaces such as a minimap.
 
 ## Event System Rules
 
@@ -939,14 +931,13 @@ Use wrapper methods - they handle AbortController automatically.
 
 ```typescript
 protected afterInit(): void {
-  this.onGraphEvent("block:select", this.handleBlockSelect);
-  this.onCanvasEvent("mousemove", this.handleMouseMove);
+  this.onGraphEvent("blocks-selection-change", this.handleBlockSelect);
+  this.onCanvasEvent("pointermove", this.handlePointerMove);
   super.afterInit();
 }
 
-private handleBlockSelect = (event: CustomEvent): void => {
-  const block = event.detail.target;
-  console.log("Block selected:", block?.id);
+private handleBlockSelect = (event: GraphEventMap["blocks-selection-change"]): void => {
+  console.log("Selected block IDs:", event.changes.add);
 };
 ```
 
@@ -959,12 +950,12 @@ import { useGraphEvent } from "@gravity-ui/graph-react";
 function MyComponent() {
   const { graph } = useGraph(config);
 
-  useGraphEvent(graph, "block:select", (detail, event) => {
-    console.log("Block selected:", detail.target?.id);
+  useGraphEvent(graph, "blocks-selection-change", ({ changes }) => {
+    console.log("Selected block IDs:", changes.add);
   });
 
-  useGraphEvent(graph, "camera-change", (detail) => {
-    console.log("Camera state:", detail);
+  useGraphEvent(graph, "camera-change", ({ x, y, scale }) => {
+    console.log("Proposed camera position and zoom:", x, y, scale);
   });
 
   return <GraphCanvas graph={graph} />;
@@ -974,33 +965,25 @@ function MyComponent() {
 **Core API (Manual Cleanup Required):**
 ```typescript
 // ❌ Avoid - manual cleanup
-const unsubscribe = graph.on("event-name", handler);
+const unsubscribe = graph.on("press", handlePress);
 // Must call: unsubscribe();
 
 // ✅ Preferred - AbortController
 const controller = new AbortController();
-graph.on("event-name", handler, { signal: controller.signal });
+graph.on("press", handlePress, { signal: controller.signal });
 // Cleanup: controller.abort();
 ```
 
 ### Event Data Access
 
-**Event structure:**
-- Data in `event.detail`
-- Target component in `event.detail.target` (for interaction events)
-- Source DOM event in `event.detail.sourceEvent`
+Core and React callbacks receive the same event. Read fields such as `event.block`, `event.scale` and `event.target` directly. Pointer gestures also carry camera coordinates in `event.point` and the native PointerEvent in `event.event`.
 
 ```typescript
-useGraphEvent(graph, "block:click", (detail, event) => {
-  const block = detail.target;        // BlockComponent
-  const mouseEvent = detail.sourceEvent; // MouseEvent
-  
-  if (mouseEvent.shiftKey) {
-    // Handle shift+click
+useGraphEvent(graph, "click", (gesture) => {
+  if (gesture.target instanceof CanvasBlock && gesture.event.shiftKey) {
+    showDetails(gesture.target);
+    gesture.preventDefault();
   }
-  
-  // Cancel default behavior
-  event.preventDefault();
 });
 ```
 
@@ -1293,24 +1276,24 @@ export const Interactive = () => {
 
 **Rules:**
 - Keep event handlers lightweight
-- Debounce/throttle frequent events (resize, scroll, mousemove)
+- Debounce/throttle frequent events (resize, scroll, pointermove)
 - Always cleanup on unmount
 
 ```typescript
 import { debounce } from "lodash-es";
 
 class MyLayer extends Layer {
-  private handleMouseMoveDebounced = debounce(
-    this.handleMouseMove.bind(this),
+  private handlePointerMoveDebounced = debounce(
+    this.handlePointerMove.bind(this),
     16 // ~60fps
   );
 
   protected afterInit(): void {
-    this.onCanvasEvent("mousemove", this.handleMouseMoveDebounced);
+    this.onCanvasEvent("pointermove", this.handlePointerMoveDebounced);
     super.afterInit();
   }
 
-  private handleMouseMove(event: MouseEvent): void {
+  private handlePointerMove(event: PointerEvent): void {
     // Heavy logic here
   }
 }
@@ -1329,7 +1312,7 @@ class MyComponent {
   private timerId?: number;
 
   protected afterInit(): void {
-    this.onGraphEvent("block:select", this.handleSelect);
+    this.onGraphEvent("blocks-selection-change", this.handleSelect);
 
     this.timerId = window.setInterval(() => {
       // Periodic task

@@ -1,90 +1,60 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
-import {
-  ESchedulerPriority,
-  Graph,
-  GraphEventsDefinitions,
-  UnwrapGraphEvents,
-  UnwrapGraphEventsDetail,
-  debounce,
-} from "@gravity-ui/graph";
+import type { Graph, GraphEventListener, GraphEventName, GraphEventOptions } from "@gravity-ui/graph";
+import isEqual from "lodash/isEqual";
 
 import { GraphCallbacksMap, TGraphEventCallbacks } from "../events";
-import { useFn } from "../utils/hooks/useFn";
 
-type TDebouncedFn = (() => void) & {
-  cancel?: () => void;
-};
-
-type TEventNameForCallback<K extends keyof TGraphEventCallbacks> = (typeof GraphCallbacksMap)[K];
-type TEventForCallback<K extends keyof TGraphEventCallbacks> = UnwrapGraphEvents<TEventNameForCallback<K>>;
-
-export function useGraphEvent<Event extends keyof GraphEventsDefinitions>(
+/** Runs during core dispatch so propagation, default actions and drag claims are still live. */
+export function useGraphEvent<K extends GraphEventName>(
   graph: Graph | null,
-  event: Event,
-  cb: (data: UnwrapGraphEventsDetail<Event>, event: UnwrapGraphEvents<Event>) => void,
-  debounceParams?: {
-    priority?: ESchedulerPriority;
-    frameInterval?: number;
-    frameTimeout?: number;
-  }
+  name: K,
+  callback: GraphEventListener<NoInfer<K>>,
+  options?: GraphEventOptions
 ): void {
-  const lastEventRef = useRef<UnwrapGraphEvents<Event> | null>(null);
-  const fn = useMemo<TDebouncedFn>(() => {
-    const invoke = () => {
-      const lastEvent = lastEventRef.current;
-      if (!lastEvent) {
-        return;
-      }
-      cb(lastEvent.detail, lastEvent);
-    };
-    if (!debounceParams) {
-      return invoke;
-    }
-    return debounce(invoke, {
-      priority: ESchedulerPriority.MEDIUM,
-      frameInterval: 1,
-      frameTimeout: 0,
-      ...debounceParams,
-    });
-  }, [cb, debounceParams]);
-  const onEvent = useFn((e: UnwrapGraphEvents<Event>) => {
-    lastEventRef.current = e;
-    fn();
-  });
-  useLayoutEffect(() => {
-    if (!graph) return undefined;
-    return graph.on(event, onEvent);
-  }, [graph, event, onEvent]);
+  const latest = useRef(callback);
+  const levels = useRef(options?.inScale);
+  const { capture = false, once = false, signal } = options ?? {};
+  const inScale = isEqual(levels.current, options?.inScale) ? levels.current : options?.inScale;
 
   useLayoutEffect(() => {
-    return () => {
-      fn.cancel?.();
-    };
-  }, [fn]);
+    latest.current = callback;
+    levels.current = inScale;
+  }, [callback, inScale]);
+  useLayoutEffect(
+    () => graph?.on(name, (event) => latest.current(event), { capture, once, signal, inScale }),
+    [graph, name, capture, once, signal, inScale]
+  );
 }
 
-export function useGraphEvents(graph: Graph | null, events: Partial<TGraphEventCallbacks>): void {
-  useLayoutEffect(() => {
-    if (!graph) return undefined;
+type CallbackName = keyof TGraphEventCallbacks;
+const callbackNames = Object.keys(GraphCallbacksMap) as CallbackName[];
 
-    const unsubscribe: Array<() => void> = [];
-    const subscribe = <K extends keyof TGraphEventCallbacks>(key: K, cb: TGraphEventCallbacks[K]): (() => void) => {
-      const eventName = GraphCallbacksMap[key];
-      return graph.on(eventName, (event: TEventForCallback<K>) => {
-        cb(event.detail, event);
-      });
-    };
-    const eventKeys = Object.keys(events) as Array<keyof TGraphEventCallbacks>;
-    eventKeys.forEach(<K extends keyof TGraphEventCallbacks>(key: K) => {
-      const cb = events[key];
-      if (!cb) {
-        return;
-      }
-      unsubscribe.push(subscribe(key, cb));
-    });
+export function useGraphEvents(graph: Graph | null, callbacks: Partial<TGraphEventCallbacks>): void {
+  const latest = useRef(callbacks);
+  const subscriptions = useRef(new Map<CallbackName, () => void>());
+
+  useLayoutEffect(() => {
+    const current = subscriptions.current;
     return () => {
-      unsubscribe.forEach((unsubscribe) => unsubscribe());
+      current.forEach((off) => off());
+      current.clear();
     };
-  }, [graph, events]);
+  }, [graph]);
+
+  useLayoutEffect(() => {
+    latest.current = callbacks;
+    if (!graph) return;
+    const subscribe = <K extends CallbackName>(key: K) =>
+      graph.on(GraphCallbacksMap[key], (event) => latest.current[key]?.(event));
+
+    for (const key of callbackNames) {
+      const off = subscriptions.current.get(key);
+      if (callbacks[key] && !off) subscriptions.current.set(key, subscribe(key));
+      if (!callbacks[key] && off) {
+        off();
+        subscriptions.current.delete(key);
+      }
+    }
+  });
 }

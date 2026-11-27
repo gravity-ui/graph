@@ -1,16 +1,18 @@
 import { Signal } from "@preact/signals-core";
 
 import { Graph } from "../../../graph";
-import { GraphEventsDefinitions, UnwrapGraphEvents } from "../../../graphEvents";
+import type { GraphEventMap, GraphEventName, GraphEventOptions } from "../../../graphEvents";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
+import type { EventObserver } from "../../../lib/graphEventDispatch";
+import { createGraphEvent } from "../../../lib/graphEventDispatch";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { hoveredTag } from "../../../services/tags/builtinTags";
 import { getEntityAddress } from "../../../services/tags/entity";
 import { PortState, TPort, TPortId } from "../../../store/connection/port/Port";
 import { TypedEventListener, addTypedEventListener } from "../../../utils/eventListener";
-import { applyAlpha, getXY } from "../../../utils/functions";
+import { applyAlpha } from "../../../utils/functions";
 import { TRect } from "../../../utils/types/shapes";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { CursorLayerCursorTypes } from "../layers/cursorLayer";
@@ -37,7 +39,7 @@ export class GraphComponent<
   /**
    * Whether pointer events pass through components of this class (spec §5.1): the pointer's target and its hover
    * skip them for the component under them, as does `graph.getElementOverPoint()`; the cursor follows the target, so
-   * it skips them too. `GraphLayer.captureEvents()` does not capture them. Their hit box stays: it counts
+   * it skips them too. `graph.input.hover.captureEvents()` does not capture them. Their hit box stays: it counts
    * in the usable rect, and `getElementsOverPoint()` and `getElementsOverRect()` return them. `onHitBox() => false`
    * instead keeps a component out of every hit query.
    */
@@ -88,7 +90,7 @@ export class GraphComponent<
    *
    * @returns true if the component is draggable, false otherwise
    */
-  public isDraggable(): boolean {
+  public isDraggable(_pointerType?: string): boolean {
     return false;
   }
 
@@ -138,7 +140,7 @@ export class GraphComponent<
 
   /**
    * Whether it is hidden now, derived from its inputs: hidden by `setVisibility` or delegated (`setRenderDelegated`).
-   * Each input has one writer, and no setter overwrites the other's (settled item: derive, don't override).
+   * Each input has one writer, and no setter overwrites the other's.
    */
   protected hidden = false;
 
@@ -226,7 +228,7 @@ export class GraphComponent<
 
   protected checkData() {
     if (super.checkData()) {
-      this.dispatchEvent(new Event("graph-component-change"));
+      this.dispatchEvent(createGraphEvent("graph-component-change", this, {}, false));
       return true;
     }
     return false;
@@ -241,7 +243,7 @@ export class GraphComponent<
     autopanning,
     dragCursor,
   }: {
-    onDragStart?: (_event: MouseEvent) => void | boolean;
+    onDragStart?: (_event: PointerEvent) => void | boolean;
     onDragUpdate?: (
       diff: {
         startCoords: [number, number];
@@ -252,72 +254,51 @@ export class GraphComponent<
         deltaX: number;
         deltaY: number;
       },
-      _event: MouseEvent
+      _event: PointerEvent
     ) => void;
-    onDrop?: (_event: MouseEvent) => void;
+    onDrop?: (_event: PointerEvent) => void;
     /** Called on cancellation with the last drag event. Defaults to onDrop. */
-    onDragCancel?: (_event: MouseEvent) => void;
-    isDraggable?: (event: MouseEvent) => boolean;
+    onDragCancel?: (_event: PointerEvent) => void;
+    isDraggable?: (event: PointerEvent) => boolean;
     autopanning?: boolean;
     dragCursor?: CursorLayerCursorTypes;
   }) {
-    let startCoords: [number, number] | undefined;
-    let prevCoords: [number, number] | undefined;
-    return this.addEventListener("mousedown", (event: MouseEvent) => {
-      if (!isDraggable?.(event)) {
-        return;
-      }
-      event.stopPropagation();
-      this.context.graph.dragService.startDrag(
-        {
-          onStart: (event: MouseEvent) => {
-            if (onDragStart?.(event) === false) {
-              return;
-            }
-            const xy = getXY(this.context.canvas, event);
-            startCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
-            prevCoords = startCoords;
-          },
-          onUpdate: (event: MouseEvent) => {
-            if (!startCoords || !prevCoords) return;
-
-            const [canvasX, canvasY] = getXY(this.context.canvas, event);
-            const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
-
-            // Absolute diff from drag start
-            const diffX = currentCoords[0] - startCoords[0];
-            const diffY = currentCoords[1] - startCoords[1];
-
-            // Incremental diff from previous frame
-            const deltaX = currentCoords[0] - prevCoords[0];
-            const deltaY = currentCoords[1] - prevCoords[1];
-
-            onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, event);
-            prevCoords = currentCoords;
-          },
-          onEnd: (event: MouseEvent) => {
-            startCoords = undefined;
-            prevCoords = undefined;
-            onDrop?.(event);
-          },
-          onCancel: (event: MouseEvent) => {
-            startCoords = undefined;
-            prevCoords = undefined;
-            onDragCancel?.(event);
-          },
+    return this.on("dragstart", (event) => {
+      if (!isDraggable?.(event.pressEvent)) return;
+      let startCoords: [number, number] | undefined;
+      let prevCoords: [number, number] | undefined;
+      event.claim({
+        owner: this.constructor.name,
+        component: this,
+        autopanning: autopanning ?? true,
+        cursor: dragCursor ?? "grabbing",
+        start: (move, coords) => {
+          if (onDragStart?.(move) === false) return;
+          startCoords = prevCoords = coords;
         },
-        {
-          component: this,
-          autopanning: autopanning ?? true,
-          cursor: dragCursor ?? "grabbing",
-        }
-      );
+        move: (move, currentCoords) => {
+          if (!startCoords || !prevCoords) return;
+          const diffX = currentCoords[0] - startCoords[0];
+          const diffY = currentCoords[1] - startCoords[1];
+          const deltaX = currentCoords[0] - prevCoords[0];
+          const deltaY = currentCoords[1] - prevCoords[1];
+          onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, move);
+          prevCoords = currentCoords;
+        },
+        end: onDrop,
+        cancel: onDragCancel,
+      });
     });
+  }
+
+  /** @internal Store identity for pointer routes whose views may be rebound between frames. */
+  public getEntityBinding(): { isAttached(): boolean } | undefined {
+    return undefined;
   }
 
   /** Whether delayed interactions may still use this component. */
   public isEntityAvailable(): boolean {
-    return !this.hitBox.destroyed;
+    return !this.hitBox.destroyed && (this.getEntityBinding()?.isAttached() ?? true);
   }
 
   public isMounted() {
@@ -340,10 +321,10 @@ export class GraphComponent<
    * @param options - Additional AddEventListener options
    * @returns Unsubscribe function
    */
-  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions>(
-    eventName: EventName,
-    handler: TypedEventListener<UnwrapGraphEvents<NoInfer<EventName>>>,
-    options?: AddEventListenerOptions | boolean
+  protected onGraphEvent<K extends GraphEventName>(
+    eventName: K,
+    handler: EventObserver<GraphEventMap[NoInfer<K>]>,
+    options?: GraphEventOptions | boolean
   ): () => void {
     const unsubscribe = this.context.graph.on(eventName, handler, options);
     this.unsubscribe.push(unsubscribe);
@@ -388,15 +369,9 @@ export class GraphComponent<
    */
   public onUnmounted(cb: () => void): () => void {
     return this.addEventListener("graph-component-unmounted", (event) => {
-      if (!this.isOwnUnmountEvent(event)) return;
+      if (event.target !== this) return;
       cb();
     });
-  }
-
-  private isOwnUnmountEvent(event: Event): boolean {
-    if (!(event instanceof CustomEvent)) return false;
-    const detail: unknown = event.detail;
-    return typeof detail === "object" && detail !== null && "component" in detail && detail.component === this;
   }
 
   protected unmount(): void {
@@ -412,13 +387,13 @@ export class GraphComponent<
     // A removed component takes its own tag off, and must not stay the pointer's target under a still pointer.
     // (Graph doubles in unit tests may lack a graph layer.)
     this.setHoveredTag(false);
-    (this.context.graph as Partial<Graph>).getGraphLayer?.()?.forgetComponent(this);
+    (this.context.graph as Partial<Graph>).input?.forgetComponent(this);
     this.destroyHitBox();
     this.mounted = false;
     // Dispatch before super.unmount(): EventedComponent.unmount() drops this component's listeners,
     // so dispatching afterwards would never reach onUnmounted() callbacks.
     try {
-      this.dispatchEvent(new CustomEvent("graph-component-unmounted", { detail: { component: this } }));
+      this.dispatchEvent(createGraphEvent("graph-component-unmounted", this, {}, false));
     } finally {
       this.unmounting = false;
       super.unmount();
@@ -435,7 +410,7 @@ export class GraphComponent<
     }
     const [x, y, width, height] = this.hitBox.getRect();
     const moved = minX !== x || minY !== y || maxX - minX !== width || maxY - minY !== height;
-    // A hit box set again, moved or resized changes what a still pointer hits (settled item 11). The first one asks
+    // A hit box set again, moved or resized changes what a still pointer hits. The first one asks
     // nothing: a component mounts there (a block added through the API, found at the next pointer move as today, or
     // an anchor the camera's lazy search creates: camera moves keep today's rule). Nor does a forced update of the
     // same box (`BlockState.updateBlock` forces one after every update).
@@ -454,7 +429,7 @@ export class GraphComponent<
   /**
    * Runs `update` with the hit box changes it makes counted as following the camera: a label or a stroke whose world
    * size follows the zoom (`BlockConnection`'s label). They ask for no retarget: camera moves keep today's rule
-   * (settled item 11, `emulateMouseEventsOnCameraChange`), so the target changes at the next pointer move. Changes
+   * (`retargetHoverOnCameraChange`), so the target changes at the next pointer move. Changes
    * outside `update`, and those of other components (an API move in the same frame), still ask.
    */
   protected withCameraDerivedHitBox(update: () => void): void {
@@ -595,15 +570,15 @@ export class GraphComponent<
     if (this.cameraDerivedHitBoxes === 0) this.requestRetarget();
   }
 
-  /** Asks GraphLayer to find the pointer's target again at the frame's end (settled item 11). */
+  /** Asks the input service to find the pointer's target again at the frame's end. */
   protected requestRetarget(): void {
-    (this.context.graph as Partial<Graph>).getGraphLayer?.()?.requestRetarget();
+    (this.context.graph as Partial<Graph>).input?.hover.requestRetarget();
   }
 
   /**
-   * Puts `hoveredTag` on this component's own entity, or takes it off (D5). `hoveredTag` is a styling tool: a component
+   * Puts `hoveredTag` on this component's own entity, or takes it off. `hoveredTag` is a styling tool: a component
    * decides itself when it shows as hovered, from the pointer events it gets and those bubbling up from its
-   * descendants (`detail.target`, `detail.relatedTarget`). It writes only its own entity; without an entity address
+   * descendants (`target`, `relatedTarget`). It writes only its own entity; without an entity address
    * (no `static entityType`) there is nothing to write. No library code reads the tag to decide behaviour.
    */
   protected setHoveredTag(hovered: boolean): void {

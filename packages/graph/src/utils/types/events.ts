@@ -1,5 +1,3 @@
-export const MOUSE_ENTER_DELAY_IN_FRAMES = 24;
-
 export const EVENTS = {
   DRAG_START: "drag-start" as const,
   DRAG_UPDATE: "drag-update" as const,
@@ -8,7 +6,6 @@ export const EVENTS = {
   RESIZE_START: "resize-start",
   RESIZE_UPDATE: "resize-update",
   RESIZE_END: "resize-end",
-  RESIZER_MOUSEDOWN: "resizer-mousedown",
   SELECTION_START: "start-area-selection",
   SELECTION_UPDATE: "update-area-selection",
   SELECTION_END: "end-area-selection",

@@ -39,18 +39,18 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
       settings: DRAG_SETTINGS,
     });
 
-    const readBlockChange = await graphPO.events.collectDetails<{ block: { id: string } }>("block-change");
-    const readGeom = await graphPO.events.collectDetails<{ blocks: { id: string }[] }>("blocks-geometry-change");
+    const readBlockChange = await graphPO.events.collect("block-change", (events) => events.length);
+    const readGeom = await graphPO.events.collect("blocks-geometry-change", (events) => events.length);
 
-    const nBlock0 = (await readBlockChange()).length;
-    const nGeom0 = (await readGeom()).length;
+    const nBlock0 = await readBlockChange();
+    const nGeom0 = await readGeom();
 
     const block1 = graphPO.block("block-1");
     await block1.click();
     await block1.dragTo({ x: 420, y: 260 });
 
-    const dBlock = (await readBlockChange()).length - nBlock0;
-    const dGeom = (await readGeom()).length - nGeom0;
+    const dBlock = (await readBlockChange()) - nBlock0;
+    const dGeom = (await readGeom()) - nGeom0;
 
     expect(dBlock).toBeGreaterThan(0);
     expect(dGeom).toBeGreaterThan(0);
@@ -99,12 +99,10 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
       settings: DRAG_SETTINGS,
     });
 
-    const readBlockChange = await graphPO.events.collectDetails("block-change");
-    const readGeom = await graphPO.events.collectDetails<{
-      blocks: { id: string; x: number; y: number; width: number; height: number }[];
-    }>("blocks-geometry-change");
+    const readBlockChange = await graphPO.events.collect("block-change", (events) => events.length);
+    const readGeom = await graphPO.events.collect("blocks-geometry-change", (events) => events.map(({ blocks }) => blocks));
 
-    const nBlock0 = (await readBlockChange()).length;
+    const nBlock0 = await readBlockChange();
     const nGeom0 = (await readGeom()).length;
 
     const block1 = graphPO.block("block-1");
@@ -113,7 +111,7 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
     await block2.click({ modifiers: ["ControlOrMeta"] });
     await block1.dragTo({ x: 500, y: 350 });
 
-    const dBlock = (await readBlockChange()).length - nBlock0;
+    const dBlock = (await readBlockChange()) - nBlock0;
     const geomEvents = await readGeom();
     const newGeom = geomEvents.slice(nGeom0);
 
@@ -122,9 +120,9 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
     expect(newGeom.length).toBeLessThan(dBlock);
 
     const last = newGeom[newGeom.length - 1];
-    expect(last.blocks.map((b) => b.id).sort()).toEqual(["block-1", "block-2"]);
+    expect(last.map((b) => b.id).sort()).toEqual(["block-1", "block-2"]);
 
-    for (const b of last.blocks) {
+    for (const b of last) {
       expect(Object.keys(b).sort()).toEqual(["height", "id", "width", "x", "y"]);
     }
   });
@@ -199,7 +197,7 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
 
     await graphPO.waitForFrames(5);
 
-    const readGeom = await graphPO.events.collectDetails<{ blocks: { id: string }[] }>("blocks-geometry-change");
+    const readGeom = await graphPO.events.collect("blocks-geometry-change", (events) => events.map(({ blocks }) => blocks));
 
     const nGeom0 = (await readGeom()).length;
 
@@ -217,7 +215,7 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
     expect(newGeom.length).toBeGreaterThan(0);
 
     const last = newGeom[newGeom.length - 1];
-    expect(last.blocks.map((b) => b.id).sort()).toEqual(["block-1", "block-2"]);
+    expect(last.map((b) => b.id).sort()).toEqual(["block-1", "block-2"]);
   });
 
   test("block-change preventDefault skips position update and blocks-geometry-change", async ({ page }) => {
@@ -229,13 +227,13 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
     });
 
     await page.evaluate(() => {
-      window.graph.on("block-change", (event: Event) => {
+      window.graph.on("block-change", (event) => {
         event.preventDefault();
       });
     });
 
-    const readGeom = await graphPO.events.collectDetails("blocks-geometry-change");
-    const nGeom0 = (await readGeom()).length;
+    const readGeom = await graphPO.events.collect("blocks-geometry-change", (events) => events.length);
+    const nGeom0 = await readGeom();
 
     const block1 = graphPO.block("block-1");
     const initial = await block1.getGeometry();
@@ -245,6 +243,6 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
     const final = await block1.getGeometry();
     expect(final.x).toBe(initial.x);
     expect(final.y).toBe(initial.y);
-    expect((await readGeom()).length - nGeom0).toBe(0);
+    expect((await readGeom()) - nGeom0).toBe(0);
   });
 });

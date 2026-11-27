@@ -1,5 +1,6 @@
 import { Graph } from "../../../graph";
 import { globalScheduler } from "../../../lib/Scheduler";
+import { pointer } from "../../../test/pointer";
 import { ESelectionStrategy } from "../../selection";
 import { draggingTag, hoveredTag, selectedTag } from "../builtinTags";
 import { getEntityAddress } from "../entity";
@@ -51,44 +52,48 @@ describe("built-in tags", () => {
     expect(graph.scene.tags.$of("block", "a").value.has(draggingTag)).toBe(true);
   });
 
-  it("leaves hoveredTag to the components: GraphLayer's hovered component writes no tag", () => {
+  it("leaves hoveredTag to the component that receives pointerenter", () => {
     const graph = makeGraph();
-    const layer = graph.getGraphLayer();
     const block = graph.rootStore.blocksList.getBlockState("a")?.getViewComponent();
-    layer.setHoveredComponent(block);
+    graph.on("pointerenter", (event) => event.preventDefault(), { once: true });
+    pointer(graph, "pointermove", { clientX: 50, clientY: 25 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(block);
     expect(graph.scene.tags.$of("block", "a").value.has(hoveredTag)).toBe(false);
+    pointer(graph, "pointerleave");
     // A pointer move over the block: the block tags itself (scale 1 at the origin, world = client).
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 25 }));
+    pointer(graph, "pointermove", { clientX: 50, clientY: 25 });
+    graph.scheduler.performUpdate();
     expect(graph.scene.tags.$of("block", "a").value.has(hoveredTag)).toBe(true);
     graph.unmount();
   });
 
   it("drops a block's hoveredTag when the block is removed under a still pointer", () => {
     const graph = makeGraph();
-    const layer = graph.getGraphLayer();
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 25 }));
+    pointer(graph, "pointermove", { clientX: 50, clientY: 25 });
+    graph.scheduler.performUpdate();
     expect(graph.scene.tags.$of("block", "a").value.has(hoveredTag)).toBe(true);
     graph.setEntities({
       blocks: [{ is: "Block", id: "b", name: "B", x: 200, y: 0, width: 100, height: 50, anchors: [] }],
       connections: [],
     });
     for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
-    expect(layer.$hoveredComponent.value).toBeUndefined();
+    expect(graph.input.$hoveredComponent.value).toBeUndefined();
     expect(graph.scene.tags.$of("block", "a").value.has(hoveredTag)).toBe(false);
     graph.unmount();
   });
 
-  it("exposes the hovered component read-only; only GraphLayer and its internal setter write it", () => {
+  it("exposes the hovered component as a read-only signal", () => {
     const graph = makeGraph();
-    const layer = graph.getGraphLayer();
     const clear = (): void => {
       // @ts-expect-error $hoveredComponent is a ReadonlySignal.
-      layer.$hoveredComponent.value = undefined;
+      graph.input.$hoveredComponent.value = undefined;
     };
     expect(clear).toBeInstanceOf(Function);
     const block = graph.rootStore.blocksList.getBlockState("b")?.getViewComponent();
-    layer.setHoveredComponent(block);
-    expect(layer.$hoveredComponent.value).toBe(block);
+    pointer(graph, "pointermove", { clientX: 250, clientY: 25 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(block);
     graph.unmount();
   });
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased (v2)
+
+- The scene and minimap share gesture ownership. A scene drag claim retains the initial hover target, and cancellation discards the claim even when it only has an `end` callback. Use `press.signal` to clear pressed feedback on release or interruption. Associated HTML labels and controls in open shadow roots keep their native input. [Gesture delivery](./docs/system/event-model.md)
+
+- Component dragging is enabled by default. A mouse or pen can drag a block directly. A finger pans over unselected blocks and drags selected ones. Set `settings.canDrag` to `ECanDrag.NONE` for a fixed layout or override individual pointer types. [Drag settings](./docs/system/graph-settings.md#dragging-selected-blocks-on-touch)
+- Set `settings.clickPolicy` to `"exclusive"` when single and double clicks trigger separate actions. The default remains `"immediate"`. [Activation](./docs/system/event-model.md#activation)
+- Graph input requires native Pointer Events. Subscribe to `press` and `release` for button transitions and `click` or `dblclick` for activation. Hover events use `pointerenter`, `pointerleave`, `pointerover` and `pointerout`.
+- A tool claims `dragstart`, commits its drop in `end` and discards its preview in `cancel`. The camera applies its default action after event handlers. Observe `graph.$camera` for committed changes.
+- Touch dragging and pinch use the graph by default. Set `settings.touchPolicy` to `"page"` in embeds where swiping should scroll the surrounding page. [Pointer input migration](./docs/migration-guides/v1-to-v2.md#migrating-pointer-input)
+
 ## [1.11.3](https://github.com/gravity-ui/graph/compare/v1.11.2...v1.11.3) (2026-07-15)
 
 

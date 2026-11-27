@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 
-import { BlockGroups, CollapsibleGroup, ECanDrag, Graph, GraphState, TBlock, TConnection } from "@gravity-ui/graph";
+import { BlockGroups, CollapsibleGroup, Graph, GraphState, TBlock, TConnection } from "@gravity-ui/graph";
 import type { BlockGroupsProps, BlockState, TCollapsibleGroup } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -27,7 +27,7 @@ import { BlockStory } from "../../main/Block";
 // the rect snaps back to the block bounding box.
 //
 // Double-click any group to collapse it. Double-click the collapsed header
-// to expand. Outer blocks shift via the `group-collapse-change` event handler.
+// to expand. The story logs the group's bounds on each change.
 // ---------------------------------------------------------------------------
 
 const BLOCK_W = 200;
@@ -179,7 +179,7 @@ const CollapsibleBlockGroups = BlockGroups.withBlockGrouping<BlockGroupsProps, B
 const CollapsibleGroupsApp = () => {
   const { graph, setEntities, start } = useGraph({
     settings: {
-      canDrag: ECanDrag.ALL,
+      clickPolicy: "exclusive",
     },
   });
 
@@ -212,7 +212,6 @@ const CollapsibleGroupsApp = () => {
     }
   });
 
-  // Shift outer blocks to fill freed space on collapse/expand
   useGraphEvent(graph, "group-collapse-change", ({ groupId, currentRect, nextRect }) => {
     console.log("EMIT: group-collapse-change", { groupId, currentRect, nextRect });
   });
@@ -236,8 +235,8 @@ const meta: Meta = {
           "Two wide `CollapsibleGroup` instances with outer blocks on both sides. " +
           "Group rects are auto-computed from block positions via `withBlockGrouping`. " +
           "**Double-click** a group to collapse it: blocks hide, connections redirect " +
-          "to group edges. Outer blocks shift via `group-collapse-change` event handler. " +
-          "Double-click the header to expand.",
+          "to group edges. The console shows the previous and next group bounds. " +
+          'Double-click the header to expand. This story uses `clickPolicy: "exclusive"` so toggling a group preserves selection.',
       },
     },
   },

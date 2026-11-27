@@ -44,7 +44,7 @@ test("selects a graph block", async ({ page }) => {
 - `graph.block(id)` returns a `GraphBlockPO` for state, geometry, click, hover, double-click, and drag operations.
 - `graph.connection(id)` returns a `GraphConnectionPO` for connection state and curve interactions.
 - `graph.camera()` returns a `GraphCameraPO` for camera state, zoom, pan, and wheel gestures.
-- `graph.clickAt()`, `hoverAt()`, and `drag()` interact with arbitrary world coordinates.
+- `graph.clickAt()`, `doubleClickAt()`, `hoverAt()`, and `drag()` drive browser pointer input at world coordinates. Clicks exercise the graph’s press and release recognizer. For keyboard interaction with embedded controls, use a Playwright locator, for example `page.getByRole("button", { name: "Run" }).press("Enter")`.
 - `graph.hasConnectionBetween(sourceBlockId, targetBlockId, { sourceAnchorId?, targetAnchorId? })`,
   `hasConnectionBetweenPorts(sourcePortId, targetPortId)` and `findConnectionId(endpoints)` find connections by
   block/anchor or port endpoints, including port-only connections created without an id.

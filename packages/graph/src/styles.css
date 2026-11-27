@@ -7,5 +7,15 @@
 @layer gravity-graph {
   :where(.graph-root) {
     position: relative;
+    /* Blank parts of the scene receive presses on the host between pointer-transparent layers. */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  :where(.graph-root :is(input, textarea, :read-write, a[href])) {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
   }
 }

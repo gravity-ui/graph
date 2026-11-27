@@ -1,5 +1,3 @@
-import { ECanDrag } from "@gravity-ui/graph";
-
 export enum EAnchorType {
   IN = "IN",
   OUT = "OUT",
@@ -8,7 +6,6 @@ export enum EAnchorType {
 export const storiesSettings = {
   canDragCamera: true,
   canZoomCamera: true,
-  canDrag: ECanDrag.ALL,
   showConnectionArrows: true,
   scaleFontSize: 1,
   useBezierConnections: true,

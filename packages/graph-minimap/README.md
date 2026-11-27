@@ -21,6 +21,8 @@ graph.addLayer(MiniMapLayer, {
 graph.start();
 ```
 
+A tap on the minimap centers the graph camera. With the default `touchPolicy: "editor"`, dragging the viewport with a finger moves the camera. Set the graph’s `touchPolicy` to `"page"` to let a swipe scroll the host page. Detaching the minimap cancels its pending or active drag.
+
 ## What it draws
 
 The minimap draws the scene's block elements at the minimalistic level, without text, through the Canvas 2D

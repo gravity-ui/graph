@@ -49,27 +49,69 @@ test.describe("Drag and Drop", () => {
     });
   });
 
-  test("startDrag holds the captured target without repeating hover events", async () => {
+  test("a drag claim holds the captured target without repeating hover events", async () => {
     await graphPO.evaluate((graph) => {
-      graph.on("mousedown", (event) => {
+      graph.on("dragstart", (event) => {
         const component = graph.blocks.getBlockState("block-2")?.getViewComponent();
         if (!component) throw new Error("Missing capture target");
-        event.preventDefault();
-        graph.dragService.startDrag({}, { component, autopanning: false });
+        event.claim({ owner: "capture block", component, autopanning: false });
       });
     });
-    const entered = await graphPO.events.listen<{ target?: { props?: { id?: string } } }>("mouseenter");
+    const entered = await graphPO.events.listen("pointerenter");
     const from = await graphPO.block("block-1").getCenter();
     const to = await graphPO.block("block-3").getCenter();
 
     await graphPO.drag(from, to, { steps: 140 });
 
-    const ids = await entered.analyze((events) => events.map((event) => event.detail?.target?.props?.id));
+    const ids = await entered.analyze((events) => events.map((event) => event.target.props.id));
     expect(ids.filter((id) => id === "block-2")).toHaveLength(1);
     await graphPO.block("block-3").hover();
     await graphPO.waitForFrames(2);
-    expect(await entered.analyze((events) => events.at(-1)?.detail?.target?.props?.id)).toBe("block-3");
+    expect(await entered.analyze((events) => events.at(-1)?.target.props.id)).toBe("block-3");
   });
+
+  test("Shift pressed at the end of a rectangle drag adds to the existing selection", async ({ page }) => {
+    await graphPO.evaluate((graph) =>
+      graph.setConstants({ selectionLayer: { SHIFT_STRATEGY: window.GraphModule.ESelectionStrategy.APPEND } })
+    );
+    await graphPO.block("block-3").click();
+    await page.keyboard.down("Control");
+    await graphPO.hoverAt({ x: 275, y: 175 });
+    await page.mouse.down();
+    await graphPO.hoverAt({ x: 525, y: 325 });
+    await page.keyboard.down("Shift");
+    await page.mouse.up();
+    await page.keyboard.up("Shift");
+    await page.keyboard.up("Control");
+    expect((await graphPO.getSelectedBlockIds()).sort()).toEqual(["block-1", "block-3"]);
+  });
+
+  for (const cancel of [true, false]) {
+    test(`a Shift transfer commits only on release (cancel: ${cancel})`, async ({ page }) => {
+      const transfer = await page.evaluateHandle(() => {
+        const calls: string[] = [];
+        const graph = window.graph;
+        const layer = graph.addLayer(window.GraphModule.BlockGroupsTransferLayer, {
+          onTransferStart: () => calls.push("start"),
+          onBlockGroupChange: (changes) => calls.push(...changes.map(({ targetGroup }) => String(targetGroup))),
+          onTransferEnd: () => calls.push("end"),
+        });
+        layer.setGroups([{ id: "destination", rect: { x: 570, y: 275, width: 260, height: 150 } }]);
+        return calls;
+      });
+      await graphPO.waitForFrames(2);
+      await graphPO.block("block-1").hover();
+      await page.mouse.down();
+      await page.keyboard.down("Shift");
+      await graphPO.hoverAt({ x: 700, y: 350 });
+      expect(await transfer.jsonValue()).toEqual(["start"]);
+      if (cancel) await page.keyboard.press("Escape");
+      await page.mouse.up();
+      await page.keyboard.up("Shift");
+      expect(await transfer.jsonValue()).toEqual(cancel ? ["start"] : ["start", "destination", "end"]);
+      await transfer.dispose();
+    });
+  }
 
   test("should drag block to new position", async () => {
     // Get block COM

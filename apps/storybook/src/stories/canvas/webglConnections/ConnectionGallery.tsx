@@ -241,6 +241,7 @@ export function ConnectionGallery({
       renderer,
       connection,
       canDrag: ECanDrag.ALL,
+      touchPolicy: embedded ? "page" : "editor",
       showConnectionArrows: showArrows,
       showConnectionLabels: showLabels,
     },

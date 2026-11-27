@@ -432,10 +432,10 @@ Path2D batch and a `BlockGroups` layer.
   chip drawn on the schematic level (`BenchChip`). The first output line ends with `child-looks N`.
 - `--modes hover` (plan 3b, Task 13): per step the pointer moves through the graph root's DOM listener, as a mouse does:
   body, then an OUT anchor, then body of one block, then the next block, over 30 blocks of the view. The tick is the
-  scheduler work the move causes, `action` the time GraphLayer takes to handle the `mousemove` (hit test, hover
+  scheduler work the move causes, `action` the time the graph takes to handle the `pointermove` (hit test, hover
   dispatch, tag writes); `minimap draws` counts the redraws of the minimap (`drawInterpreted` calls) over the repeats.
   The path is checked (its 30 stops hit their block and anchor components) and a run fails when the graph reports
-  fewer `mouseenter` events than moves. `--hover-path <file>` writes the stops on the first hover run and reads them
+  fewer `pointerenter` events than moves. `--hover-path <file>` writes the stops on the first hover run and reads them
   (and checks them again) on every later one, in either library tree, so two trees move the same path.
 - **Lazy anchors** (Task 17c): anchors have no look at the minimalistic level, and a block creates its `Anchor`
   components only once the camera shows it at the schematic or detailed level. So the mount creates the anchors of the

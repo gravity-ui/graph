@@ -25,6 +25,24 @@ describe("Settings store", () => {
   it.each([ECanDrag.ALL, ECanDrag.ONLY_SELECTED, ECanDrag.NONE])("uses canDrag %s directly", (canDrag) => {
     store.setupSettings({ canDrag });
     expect(store.$canDrag.value).toBe(canDrag);
+    expect(store.getCanDrag("touch")).toBe(canDrag);
+  });
+
+  it("allows a mouse or pen to drag directly and requires selection for touch by default", () => {
+    expect(store.getCanDrag("mouse")).toBe(ECanDrag.ALL);
+    expect(store.getCanDrag("pen")).toBe(ECanDrag.ALL);
+    expect(store.getCanDrag("touch")).toBe(ECanDrag.ONLY_SELECTED);
+  });
+
+  it("resolves pointer overrides and falls back to the current default", () => {
+    store.setupSettings({ canDrag: { default: ECanDrag.ALL, mouse: ECanDrag.NONE, touch: ECanDrag.ONLY_SELECTED } });
+    expect(store.getCanDrag("mouse")).toBe(ECanDrag.NONE);
+    expect(store.getCanDrag("touch")).toBe(ECanDrag.ONLY_SELECTED);
+    expect(store.getCanDrag("pen")).toBe(ECanDrag.ALL);
+    expect(store.getCanDrag("unknown")).toBe(ECanDrag.ALL);
+    store.setupSettings({ canDrag: { default: ECanDrag.NONE, pen: ECanDrag.ALL } });
+    expect(store.getCanDrag("pen")).toBe(ECanDrag.ALL);
+    expect(store.getCanDrag("touch")).toBe(ECanDrag.NONE);
   });
 
   it("should enable tight Bezier bounds by default and allow disabling them", () => {
@@ -88,7 +106,7 @@ describe("Settings store", () => {
     const unsubscribe = store.$settings.subscribe(updates);
     updates.mockClear();
     graph.resetSettings(["canDrag", "dragThreshold", "canDrag"]);
-    expect(store.asConfig.canDrag).toBe(DefaultSettings.canDrag);
+    expect(store.asConfig.canDrag).toEqual(DefaultSettings.canDrag);
     expect(store.asConfig.dragThreshold).toBe(DefaultSettings.dragThreshold);
     expect(store.asConfig.canZoomCamera).toBe(false);
     expect(updates).toHaveBeenCalledTimes(1);

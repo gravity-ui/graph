@@ -226,11 +226,13 @@ test.describe("MiniMap – scene elements", () => {
     await page.evaluate(() => window.graph.cameraService.move(10, 0));
     await graphPO.waitForFrames(4);
     const anchorRevision = await page.evaluate(() => {
-      // The anchor's own hover event, as GraphLayer dispatches it to a target: the anchor and its block tag themselves.
+      // The anchor's own hover event, as PointerInput dispatches it to a target: the anchor and its block tag themselves.
       const start = window.graph.scene.revisionOf("anchor").value;
       const state = window.graph.rootStore.blocksList.getBlockState("block-1");
       const anchor = state?.getAnchorById("out")?.getViewComponent();
-      anchor?.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: anchor, relatedTarget: undefined } }));
+      anchor?.dispatchEvent(
+        window.graph.emit("pointerenter", { target: anchor, relatedTarget: undefined, cause: "scene", pointerPressed: false })
+      );
       return { exists: anchor !== undefined, start };
     });
     await waitForMinimap(page, graphPO);

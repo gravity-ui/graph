@@ -1,6 +1,7 @@
 import { Graph } from "../../../../graph";
 import { entityKey } from "../../../../services/tags/TagStore";
 import { createAnchorPortId } from "../../../../store/connection/port/utils";
+import { pointer } from "../../../../test/pointer";
 import type { TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../anchors";
 import type { TAnchorClass, TAnchorProps } from "../../anchors";
@@ -85,18 +86,18 @@ describe("lazily created anchors", () => {
   });
 
   it("creates the anchors a pan brings under a still pointer without a point query or a target change", () => {
-    // With emulateMouseEventsOnCameraChange off, mounting an anchor under the pointer keeps its target until the next move.
+    // With retargetHoverOnCameraChange off, mounting an anchor under the pointer keeps its target until the next move.
     graph = startAnchoredGraph([anchored("near", 100), anchored("far", 5000)], NEAR);
-    const layer = graph.getGraphLayer();
     // The body of "near" at world (200, 150), client (100, 75).
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 100, clientY: 75 }));
-    expect(layer.$hoveredComponent.value).toBe(view("near"));
+    pointer(graph, "pointermove", { clientX: 100, clientY: 75 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(view("near"));
     const queries = jest.spyOn(graph, "getElementOverPoint");
     // Bring the OUT anchor of "far", world (5200, 188), under the pointer: client = world * 0.5 + camera.
     graph.cameraService.set({ scale: NEAR, x: 100 - 5200 * NEAR, y: 75 - 188 * NEAR });
     frames();
     expect(queries).not.toHaveBeenCalled();
-    expect(layer.$hoveredComponent.value).toBe(view("near"));
+    expect(graph.input.$hoveredComponent.value).toBe(view("near"));
     // The anchor exists under the pointer: the next move finds it.
     const created = anchorOf("far", "out");
     expect(created).toBeInstanceOf(Anchor);

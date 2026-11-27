@@ -123,12 +123,7 @@ export const EtlBlockView = ({ graph, block }: TEtlBlockViewProps): React.JSX.El
           {block.error}
         </Text>
       )}
-      <div
-        className="etl-block__footer"
-        onMouseDown={stopGraphEvent}
-        onClick={stopGraphEvent}
-        onDoubleClick={stopGraphEvent}
-      >
+      <div className="etl-block__footer" onPointerDown={stopGraphEvent}>
         <Button
           size="xs"
           view={block.status === "failed" ? "outlined-danger" : "outlined"}

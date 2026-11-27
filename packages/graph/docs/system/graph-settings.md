@@ -67,9 +67,17 @@ These settings control the interactive behaviors and visual styles of the graph.
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
+| `dragThreshold` | number | `5` | Movement from the press in CSS pixels that starts drag arbitration |
+| `clickTolerance` | number | `3` | Maximum excursion in CSS pixels for an activation on the press target |
+| `clickPolicy` | `"immediate" \| "exclusive"` | `"immediate"` | Deliver each click at release, or distinguish singles from doubles before dispatch and selection. [Activation](./event-model.md#activation) |
+| `doubleClickInterval` | number | `350` | Maximum interval between activations in milliseconds |
+| `doubleClickDistance` | number | `12` | Maximum distance between two activation points in CSS pixels |
+| `touchPolicy` | `"editor"` \| `"page"` | `"editor"` | Enables one-finger dragging and two-finger camera navigation. Choose `"page"` before contact for native scrolling and zoom in an embedded graph. |
+| `longPressDuration` | number | `500` | Hold duration in milliseconds for touch and pen |
+| `retargetHoverOnCameraChange` | boolean | `false` | Recheck the hover target after the camera moves beneath a stationary mouse or pen. A target change emits hover events with `cause: "scene"`. |
 | `canDragCamera` | boolean | `true` | Controls whether the camera can be dragged (panned) |
 | `canZoomCamera` | boolean | `true` | Controls whether the camera can be zoomed in/out |
-| `canDrag` | ECanDrag | `'none'` | Determines which blocks can be resized or moved. Options: `'all'`, `'onlySelected'`, `'none'` |
+| `canDrag` | `ECanDrag` or an object with pointer overrides | `{ default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED }` | Controls built-in component dragging. An object requires `default` and accepts optional `mouse`, `pen` and `touch` rules. |
 | `scaleFontSize` | number | `1` | Scale factor for font sizes throughout the graph |
 | `showConnectionArrows` | boolean | `true` | Controls visibility of arrows at the end of connections |
 | `useBezierConnections` | boolean | `true` | Use bezier curves for connections instead of straight lines |
@@ -85,6 +93,14 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `yieldBeforeSceneLoad` | boolean | `false` | Give the browser a paint for a loading overlay before scene startup, a full replacement or a renderer switch. See [Scene readiness](./scene.md#scene-readiness-and-loading-overlays). |
 | `webglBackend` | () => Promise<ISceneBackendModule> | built-in dynamic import | Loader of the WebGL backend module, used when `renderer` is `'webgl'` |
 | `cameraAwareText` | boolean | `true` | Whether scene texts may follow the camera. `cameraAware` texts keep a fixed screen size and re-fit their box as the camera zooms; `false` makes every scene text world-sized, whatever its primitive and the styles say. It is the switch for weak devices, which an app may hand to its users. A change redraws the scene (WebGL lays its camera-aware texts out again); no block rebuilds its look. `graph.scene.$cameraAwareText` is the setting as a signal, and `graph.scene.explain()` reports `cameraAwareText: "forced-off"` while it is off. See [Text primitives](./scene.md#text-primitives) |
+
+### Dragging selected blocks on touch
+
+By default a mouse or pen can start dragging an unselected block once it has moved 5 CSS pixels from the press. A finger can drag a block that was selected when the touch began.
+
+In editor touch mode, swiping the body of an unselected block pans the camera when `canDragCamera` is enabled. Tap the block to select it, then drag it with the next touch. The graph checks which components were selected when that touch began. With `clickPolicy: "exclusive"`, wait for selection to appear before starting the drag. A layer can still claim a drag on a port to create a connection.
+
+Set `canDrag: ECanDrag.NONE` to keep blocks fixed for all pointers, or `ECanDrag.ALL` to allow direct dragging for all pointers. In the object form, omitted and unrecognized pointer types use `default`.
 
 ## Graph Colors
 
@@ -218,7 +234,6 @@ graph.updateSettings({
 graph.updateSettings({
   canDragCamera: true,
   canZoomCamera: true,
-  canDrag: ECanDrag.ALL,
   showConnectionArrows: true,
   showConnectionLabels: true,
   useBlocksAnchors: true,

@@ -30,7 +30,7 @@ const scenario = {
   interval: "Successive requestAnimationFrame timestamps in ms, rounded to one microsecond; >16.7 ms is late.",
   elapsed: "Successive actual rAF callback entry times in ms.",
   scene: "Synchronous time spent in graph.scene.update during the interval, in ms.",
-  inputs: "Window capture to bubble duration for delivered pressed mousemove events, in ms.",
+  inputs: "Window capture to bubble duration for delivered pressed pointermove events, in ms.",
   select: "The frame receiving select(REPLACE); the following frame is reported separately as selectionPresent.",
 };
 
@@ -42,13 +42,13 @@ function installSampler() {
   let previousMoves = 0;
   window.benchInputs = [];
   window.addEventListener(
-    "mousemove",
+    "pointermove",
     () => {
       window.benchEventStart = performance.now();
     },
     true
   );
-  window.addEventListener("mousemove", (event) => {
+  window.addEventListener("pointermove", (event) => {
     if (event.buttons === 1 && window.benchRecording)
       window.benchInputs.push(performance.now() - window.benchEventStart);
   });
@@ -150,7 +150,7 @@ function setup() {
     return [dx, dy];
   };
   document.addEventListener(
-    "mousemove",
+    "pointermove",
     (e) => {
       if (e.isTrusted && e.buttons & 1) window.benchMoves++;
     },

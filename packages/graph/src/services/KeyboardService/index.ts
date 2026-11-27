@@ -39,9 +39,9 @@ export class KeyboardService {
 
   constructor(private graph: Graph) {
     this.graph.on("state-change", (event) => {
-      if (event.detail.state === GraphState.READY) {
+      if (event.state === GraphState.READY) {
         this.startListening();
-      } else if (event.detail.state === GraphState.INIT) {
+      } else if (event.state === GraphState.INIT) {
         this.stopListening();
       }
     });

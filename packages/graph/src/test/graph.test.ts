@@ -227,9 +227,9 @@ describe("Resolved graph configuration", () => {
     graph.on("constants-changed", constantsChanged);
     graph.setColors({ block: { border: "#abcdef" } });
     graph.setConstants({ camera: { SPEED: 2 } });
-    expect(colorsChanged.mock.calls[0][0].detail.colors).toBe(graph.$graphColors.value);
-    expect(constantsChanged.mock.calls[0][0].detail.constants).toBe(graph.graphConstants);
-    expect(colorsChanged.mock.calls[0][0].detail.colors.anchor.background).toBeDefined();
+    expect(colorsChanged.mock.calls[0][0].colors).toBe(graph.$graphColors.value);
+    expect(constantsChanged.mock.calls[0][0].constants).toBe(graph.graphConstants);
+    expect(colorsChanged.mock.calls[0][0].colors.anchor.background).toBeDefined();
   });
 });
 

@@ -127,10 +127,8 @@ alwaysApply: false
 #### useGraphEvent Hook
 - Use for subscribing to graph events:
 ```tsx
-useGraphEvent(graph, "connection-created", 
-  ({ sourceBlockId, targetBlockId }, event) => {
-    // Handle new connection
-    // Use event.preventDefault() to cancel
+useGraphEvent(graph, "connection-created", (event) => {
+  if (!allowConnection(event.sourcePort, event.targetPort)) event.preventDefault();
 });
 
 useGraphEvent(graph, "blocks-selection-change", 

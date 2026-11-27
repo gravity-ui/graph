@@ -24,7 +24,7 @@ export type TGraphConnectionsContext = TGraphLayerContext & {
   connectionLabelFontSize: ReadonlySignal<number>;
   /**
    * Whether the latest change of `connectionLabelFontSize` came from the camera's scale alone, not from the graph
-   * constants (its threshold): a label box it resizes then asks for no retarget (settled item 11). Unset: false.
+   * constants (its threshold): a label box it resizes then asks for no retarget. Unset: false.
    */
   isLabelFontSizeFromCamera?: () => boolean;
 };
@@ -117,7 +117,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
         const threshold = this.context.graph.$graphConstants.value.connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL;
         return scale < threshold ? 0 : Math.max(14, getFontSize(9, scale));
       }).subscribe((fontSize) => {
-        // What changed since the last change of the font size: the scale alone is a camera change (settled item 11);
+        // What changed since the last change of the font size: the scale alone is a camera change;
         // a threshold change (graph constants) is not. A threshold change that left the font size as it was is seen
         // at the next change, which then counts as not from the camera: one retarget more, never one less.
         const scale = this.context.graph.$camera.peek().scale;

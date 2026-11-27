@@ -66,7 +66,7 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
 
         // dblclick handler for expand/collapse
         graph.on("dblclick", (event: any) => {
-          const target = event.detail?.target;
+          const target = event.target;
           if (target instanceof CollapsibleGroup) {
             target.isCollapsed() ? target.expand() : target.collapse();
           }
@@ -105,7 +105,7 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
     const listener = await graphPO.events.listen("click");
     await graphPO.clickAt({ x: EXPANDED_GROUP_HEADER.x, y: EXPANDED_GROUP_HEADER.y });
     const targets = await listener.analyze((events) =>
-      events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+      events.map((e: any) => e.target?.props?.id).filter(Boolean)
     );
     expect(targets).toContain("group-expanded");
     await listener.stop();
@@ -119,7 +119,7 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
     const listener = await graphPO.events.listen("click");
     await graphPO.clickAt({ x: leftEdge.x, y: leftEdge.y });
     const targets = await listener.analyze((events) =>
-      events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+      events.map((e: any) => e.target?.props?.id).filter(Boolean)
     );
     // The collapsed rect hitbox is active — click at the group's left padding
     // should land on the group component itself.
@@ -148,7 +148,7 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
     const listener = await graphPO.events.listen("click");
     await graphPO.clickAt({ x: leftEdgeBelow.x, y: leftEdgeBelow.y });
     const targets = await listener.analyze((events) =>
-      events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+      events.map((e: any) => e.target?.props?.id).filter(Boolean)
     );
     expect(targets).toContain("group-collapsed");
     await listener.stop();

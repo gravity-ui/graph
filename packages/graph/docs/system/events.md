@@ -1,48 +1,27 @@
-# Event System
+# Event subscriptions
 
-This document describes the event system used in the graph visualization library, based on the DOM [EventTarget API](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget) and [CustomEvent](https://developer.mozilla.org/en-US/docs/Web/API/CustomEvent/CustomEvent).
+Subscribe by event name. A handler receives one event, and TypeScript infers its fields from the name.
 
-> **Note:** This document is part of a series on the system architecture. See also [Component Lifecycle](./component-lifecycle.md) and [Graph Settings](./graph-settings.md).
+```ts
+const unsubscribe = graph.on("press", ({ target, point }) => {
+  showInspector(target, point.world);
+}, { inScale: ["schematic", "detailed"] });
 
-## Overview
-
-The event system allows components to respond to user interactions and system changes through a familiar DOM-like API.
-
-```typescript
-import { Graph } from "@gravity-ui/graph";
-
-const graph = new Graph(...props);
-
-// Using the cleanup function
-const unsubscribe = graph.on("mouseenter", (event) => {
-  console.log("mouseenter", event.detail);
-  console.log('hovered element', event.detail.target);
-  console.log('original event', event.detail.sourceEvent);
-
-  event.preventDefault();
-  event.stopPropagation();
-}, {
-  once: true,
-  capture: true
+block.on("pointerenter", ({ target, relatedTarget }) => {
+  highlightTransition(relatedTarget, target);
 });
 
-// Call the cleanup function when done
 unsubscribe();
-
-// Using AbortController (recommended for multiple event listeners)
-const controller = new AbortController();
-
-graph.on("mouseenter", (event) => {
-  console.log("Mouse entered:", event.detail);
-}, { signal: controller.signal });
-
-graph.on("mouseleave", (event) => {
-  console.log("Mouse left:", event.detail);
-}, { signal: controller.signal });
-
-// Later, to remove all event listeners at once:
-controller.abort();
 ```
+
+- `graph.on(name, handler, options?)` observes graph events. Use `{ capture: true }` to observe input before a child handles it.
+- `component.on(name, handler, options?)` observes scene input routed through that component and its local lifecycle notifications.
+- In a layer, register `this.onGraphEvent(name, handler, options?)` in `afterInit()`. Detaching the layer releases its subscriptions and drag claims.
+- In React, `useGraphEvent(graph, name, handler, options?)` observes the same event as `graph.on`. A `GraphCanvas` callback such as `onPress`, `onDoubleClick` or `onCameraChange` also receives that event. See [React hooks](../react/hooks.md).
+
+`target` identifies the original scene component or graph. `currentTarget` identifies the recipient running the handler and returns to `null` after dispatch. Decision methods such as `preventDefault()` and `dragstart.claim()` work during synchronous delivery. If later work needs the current recipient, save it in the handler.
+
+Use the returned unsubscribe function, `{ once: true }`, or an `AbortSignal` to manage a subscription. An `inScale` filter limits delivery to the specified scene levels. The [event model](./event-model.md) describes how the graph chooses the target and level for each input sequence.
 
 ## Event Types
 
@@ -52,33 +31,62 @@ controller.abort();
 renderers or finishes its first draw. Read `graph.scene.state` for the current snapshot. See
 [Scene readiness and loading overlays](./scene.md#scene-readiness-and-loading-overlays).
 
-### Mouse Events
+### Press
 
-The following mouse events are supported:
+A primary or middle button press delivers one synchronous `press`. The graph resolves the hit once.
+Graph capture listeners run first, followed by the hit component, its interactive ancestors and graph listeners.
+On empty space the graph is the target. The camera and component drag can act after delivery.
 
-| Event | Description | Default Prevention |
-|-------|-------------|-------------------|
-| `mousedown` | Mouse button pressed down | Prevents browser default; stops the camera's pan and the drag |
-| `click` | Mouse button released after press | Prevents browser default |
-| `mouseenter` | The pointer's target changed: `detail.target` is the new target, `detail.relatedTarget` the old one | Keeps it from the components, whose `hoveredTag` then stays as it was |
-| `mouseleave` | The pointer's target changed: `detail.target` is the old target, `detail.relatedTarget` the new one | Keeps it from the components, whose `hoveredTag` then stays as it was |
+```ts
+block.on("press", ({ target, currentTarget, point }) => {
+  // target stays the hit child; currentTarget is the block here.
+  showCoordinates(point.world);
+});
 
-`mouseenter` and `mouseleave` follow the target, the component under the pointer: they fire at every target change,
-not only when the pointer enters or leaves the graph's area. `relatedTarget` is none for the camera (empty space) or
-outside the graph. See [Event model](./event-model.md#the-model-events-walk-up-the-component-tree).
+graph.on("press", ({ preventDefault }) => {
+  if (editor.isEditing) preventDefault();
+}, { inScale: ["schematic", "detailed"] });
+```
 
-These events are `CustomEvent`s. Their `detail` (`UnwrapGraphEventsDetail<"mousedown">`, and the same for the others)
-has these fields:
+`event` is the original PointerEvent. `pointers` contains the active sample. The same press reaches every recipient.
+`preventDefault()` vetoes starting camera pan and drag for this press. `stopPropagation()` stops the remaining
+route and leaves the default action eligible. Layers can subscribe with `this.onGraphEvent("press", handler)`.
+Interactive DOM overlays can stop `pointerdown` before it reaches the graph.
 
-- `target`: the graph component under the pointer, or the camera over empty space.
-- `relatedTarget`: on `mouseenter` and `mouseleave` only, the other side of the target change.
-- `sourceEvent`: the event GraphLayer dispatched. It is the browser's event for a press, a copy of the browser's
-  event for an emulated click (its DOM `target` is `null`), and the hover `CustomEvent` for `mouseenter` and
-  `mouseleave`. `getEventTarget(sourceEvent)` returns the target as a graph
-  component (`undefined` for the camera).
-- `pointerPressed`: whether a mouse button is down.
+### Drag
 
-> **Important:** Preventing these events will block delegation to target components, affecting selection, drag and drop, and other component behaviors.
+A pointer move that reaches `dragThreshold` CSS pixels from the press delivers one `dragstart`.
+It follows the component path and scale level recorded at press time. `pressEvent` is the initiating PointerEvent with its button and modifiers, `start` holds the press coordinates, and `point` is the threshold-crossing position.
+
+```ts
+this.onGraphEvent("dragstart", (gesture) => {
+  if (!canConnect(gesture.target, gesture.pressEvent)) return;
+  gesture.claim({
+    owner: "ConnectionTool",
+    start: (_event, origin) => showPreview(origin),
+    move: (_event, world) => movePreview(world),
+    end: (_event, world) => dropConnection(world),
+    cancel: () => clearPreview(),
+  });
+});
+```
+
+Components and applications can also subscribe with `component.on("dragstart", …)` or `graph.on("dragstart", …)`.
+The graph collects claims synchronously. A sole owner starts after delivery, receives the crossing move
+immediately, and finishes once when the initiating button is released. Callback positions are world coordinates. The third argument of `move(event, world, cause)` is `"pointer"` for a physical move or `"scene"` when autopan changes the world point under the same pointer sample.
+If two owners claim the drag, the graph reports their names and suppresses the drag. With no claims,
+the component or camera can perform its default action. Calling `preventDefault()` suppresses that default.
+The function returned by `claim` withdraws the offer or cancels the running operation. Disposing the originating subscription also cancels its claim. A `once` listener can own the drag until it finishes or its disposer or signal cancels it. An unhandled Escape, a cancelled pointer, unexpected capture loss, source removal, layer detachment and graph stop also cancel it. An HTML control can call `preventDefault()` on its Escape keydown to keep the active graph drag.
+
+### Release and activation
+
+`release` carries the native releasing PointerEvent. `click` identifies a primary activation within `clickTolerance` CSS pixels on the same target. A recognised drag suppresses activation. By default, two activations on the same target within `doubleClickInterval` milliseconds and `doubleClickDistance` CSS pixels emit `dblclick` after the second `click`. The defaults are 3 CSS pixels, 350 ms and 12 CSS pixels respectively. Set `settings.clickPolicy` to `"exclusive"` to receive either a confirmed single `click` or one `dblclick` for a pair. [Activation and default selection](./event-model.md#activation)
+
+Touch and pen holds emit `longpress` (500 ms by default). The default touch policy enables touch dragging and `pinch`. Set `settings.touchPolicy` to `"page"` to let the browser handle touch scrolling and zoom. A `pinch` reports `start`, `update`, `end` or `cancel`, both pointers, their midpoint and their distance in CSS pixels. See [Event model](./event-model.md#two-finger-navigation).
+
+### Pointer hover
+
+`pointerleave` and `pointerout` identify the old target. `pointerenter` and `pointerover` identify the new target. Read the scene `target`, the opposite `relatedTarget`, `pointerPressed` and `cause` directly from the event. `sourceEvent` is the native PointerEvent on a physical transition. Slow movement produces at most one passive hit test per graph frame. During rapid movement or at the minimalistic level, hover resumes after the pointer settles. A stationary pointer can receive a scene-caused transition after a camera or geometry change. Capture and bubbling of gestures, hover propagation, and HTML overlays are described in [Event model](./event-model.md).
 
 ### Block Events
 
@@ -108,15 +116,13 @@ has these fields:
 
 | Source | When it fires | Payload | Use for |
 |--------|---------------|---------|---------|
-| `camera-change` event | Before commit | Proposed `TCameraState` in `event.detail` | Interception, `preventDefault()`, logging intent |
+| `camera-change` event | Before commit | Proposed camera fields, including `event.x`, `event.y` and `event.scale` | Interception, `preventDefault()`, logging intent |
 | `graph.$camera` signal | After successful commit | Committed `TCameraState` | Rendering, transforms, derived state, React subscriptions |
 
 ```typescript
 // Intercept before commit (same pattern as block-change)
-graph.on("camera-change", (event) => {
-  if (shouldCancel(event.detail)) {
-    event.preventDefault();
-  }
+graph.on("camera-change", ({ scale, preventDefault }) => {
+  if (scale > editor.zoomLimit) preventDefault();
 });
 
 // React to applied state — safe even if another listener cancelled an earlier change
@@ -125,195 +131,30 @@ graph.$camera.subscribe((camera) => {
 });
 ```
 
+For a `camera-change` subscription, `inScale` uses the currently committed scene level. The proposed zoom is available as `event.scale`.
+
 In `Layer` subclasses, override `onCameraChange()` for committed camera updates. The base `Layer` subscribes to `$camera` in `afterInit()`. Use `onGraphEvent("camera-change", …)` only to intercept or cancel a change before commit.
 
 See [Camera Service — Choosing an API](./camera.md#choosing-an-api) for when to use `cameraService`, `$camera`, or `camera-change`.
 
-## Event Cleanup with AbortController
+## Plugin events
 
-The Graph library supports the [AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) API for managing event listeners. This is especially useful for components that need to register multiple event listeners and clean them up efficiently.
+Augment the public payload map to add an event. Choose a unique name and data fields distinct from routing fields such as `type`, `target` and `currentTarget`.
 
-```typescript
-import { Graph } from "@gravity-ui/graph";
+```ts
+import type { Graph } from "@gravity-ui/graph";
 
-// Create a controller
-const controller = new AbortController();
-
-// Register multiple event listeners with the same controller
-graph.on("camera-change", handleCameraChange, { signal: controller.signal });
-graph.on("blocks-selection-change", handleSelectionChange, { signal: controller.signal });
-graph.on("mousedown", handleMouseDown, { signal: controller.signal });
-
-// DOM event listeners can also use the same controller
-document.addEventListener("keydown", handleKeyDown, { signal: controller.signal });
-
-// Later, remove all event listeners at once
-controller.abort();
-```
-
-### Benefits of AbortController
-
-1. **Simplified Cleanup**: Remove multiple event listeners with a single call
-2. **Prevents Memory Leaks**: Ensures all event listeners are properly cleaned up
-3. **Consistent API**: Works with both graph events and DOM events
-4. **Automatic Cleanup**: When used in layers, event listeners are automatically removed when the layer is unmounted
-
-### Using AbortController in Layers
-
-The Layer class in the Graph library uses AbortController internally to manage event listeners and provides a convenient `onGraphEvent` method that automatically includes the AbortController signal:
-
-```typescript
-export class MyLayer extends Layer {
-  constructor(props) {
-    super(props);
-    
-    // Initialize properties, but DO NOT register event listeners here
+declare module "@gravity-ui/graph" {
+  interface GraphEventsDefinitions {
+    "inspector-open": { blockId: string };
   }
-  
-  /**
-   * Called after initialization and when the layer is reattached.
-   * This is the proper place to set up event subscriptions using onGraphEvent().
-   */
-  protected afterInit(): void {
-    this.onGraphEvent("blocks-selection-change", this.handleSelectionChange);
-    this.onGraphEvent("mousedown", this.handleMouseDown);
-
-    this.getCanvas()?.addEventListener("mousedown", this.handleMouseDown, {
-      signal: this.eventAbortController.signal,
-    });
-
-    super.afterInit();
-  }
-
-  protected onCameraChange(_camera: TCameraState): void {
-    this.handleCameraChange();
-  }
-  
-  // No need to manually remove event listeners in unmount
-  // They are automatically removed by the AbortController
 }
+
+function installInspector(graph: Graph) {
+  return graph.on("inspector-open", ({ blockId }) => openInspector(blockId));
+}
+
+graph.emit("inspector-open", { blockId: "transform" });
 ```
 
-### The Layer.onGraphEvent Method
-
-The Layer class provides a convenient wrapper method for `graph.on` that automatically includes the AbortController signal:
-
-```typescript
-/**
- * A wrapper for this.props.graph.on that automatically includes the AbortController signal.
- * The method is named onGraphEvent to indicate it's specifically for graph events.
- * This simplifies event subscription and ensures proper cleanup when the layer is unmounted.
- *
- * IMPORTANT: Always use this method in the afterInit() method, NOT in the constructor.
- * This ensures that event subscriptions are properly set up when the layer is reattached.
- * When a layer is unmounted, the AbortController is aborted and a new one is created.
- * When the layer is reattached, afterInit() is called again, which sets up new subscriptions
- * with the new AbortController.
- *
- * @param eventName - The name of the event to subscribe to
- * @param handler - The event handler function
- * @param options - Additional options (optional)
- * @returns The result of graph.on call (an unsubscribe function)
- */
-protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
-  eventName: EventName,
-  handler: Cb,
-  options?: Omit<AddEventListenerOptions, "signal">
-) {
-  return this.props.graph.on(eventName, handler, {
-    ...options,
-    signal: this.eventAbortController.signal,
-  });
-}
-```
-
-This method simplifies event subscription in layers and ensures proper cleanup when layers are unmounted. It takes the same parameters as `graph.on` except for the signal, which it automatically adds.
-
-## React Integration
-
-The GraphCanvas component in React provides two ways to handle events:
-
-1. Using `onEventName` props for common events
-2. Using the `graph` instance (obtained via `useGraph`) and the `on` method for all events
-
-### Common Event Props
-
-The following event callbacks are available as props:
-
-| Prop | Event Type | Description |
-|------|------------|-------------|
-| `onClick` | `CustomEvent<any>` | Mouse click events |
-| `onCameraChange` | `CustomEvent<any>` | Camera state changes |
-| `onBlockDragStart` | `CustomEvent<any>` | Block drag initiation |
-| `onBlockDrag` | `CustomEvent<any>` | Block dragging |
-| `onBlockDragEnd` | `CustomEvent<any>` | Block drag completion |
-| `onBlockSelectionChange` | `CustomEvent<SelectionEvent<TBlockId>>` | Block selection changes |
-| `onBlockAnchorSelectionChange` | `CustomEvent<any>` | Anchor selection changes |
-| `onBlockChange` | `CustomEvent<any>` | Block state changes |
-| `onConnectionSelectionChange` | `CustomEvent<SelectionEvent<TConnection>>` | Connection selection changes |
-
-### Example Usage
-
-```typescript
-const YourPrettyGraphComponent = () => {
-  const onBlockSelectionChange = useCallback(
-    (detail: SelectionEvent<TBlockId>, event: CustomEvent<SelectionEvent<TBlockId>>) => {
-      console.log('Selected blocks:', detail.list);
-      console.log('Recently selected:', detail.changed.add);
-      console.log('Recently unselected:', detail.changed.removed);
-      event.preventDefault();
-    },
-    []
-  );
-
-  return <GraphCanvas onBlockSelectionChange={onBlockSelectionChange} />;
-};
-```
-
-## Custom Events
-
-You can extend the graph's event system with custom events using the `emit` method:
-
-```typescript
-// Define custom event detail
-const customEventDetail = {
-  message: 'Custom event triggered',
-  timestamp: Date.now()
-};
-
-// Emit the custom event
-graph.emit('my-custom-event', customEventDetail);
-```
-
-### Event Type Definitions
-
-For TypeScript users, here are the common event type definitions:
-
-```typescript
-interface SelectionEvent<T> {
-  list: T[];
-  changed: {
-    add: T[];
-    removed: T[];
-  };
-}
-
-interface TCameraState {
-  x: number;
-  y: number;
-  scale: number;
-}
-
-interface TBlock {
-  id: string;
-}
-
-interface TAnchor {
-  id: string;
-}
-
-type TBlockId = string;
-type TConnection = string;
-```
-
-> **Note:** When implementing custom events, follow the existing event naming conventions and structure your event detail objects consistently with the built-in events.
+A plugin event emitted on the graph has the graph as its target. A plugin implementing a vetoable action can check the returned event's `defaultPrevented` before applying the change.

@@ -78,16 +78,16 @@ type DragState = {
 
 const Handle = ({
   cursor,
-  onMouseDown,
+  onPointerDown,
   style,
 }: {
   cursor: string;
-  onMouseDown: (e: React.MouseEvent) => void;
+  onPointerDown: (e: React.PointerEvent) => void;
   style: React.CSSProperties;
 }) => {
   return (
     <div
-      onMouseDown={onMouseDown}
+      onPointerDown={onPointerDown}
       style={{
         position: "absolute",
         width: 10,
@@ -148,7 +148,9 @@ const InsetsOverlay = ({ graph, maintain }: { graph: Graph; maintain: "center" |
   });
 
   const startMove = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+      if (dragRef.current || e.button !== 0) return;
       dragRef.current = {
         type: "move",
         startX: e.clientX,
@@ -156,7 +158,8 @@ const InsetsOverlay = ({ graph, maintain }: { graph: Graph; maintain: "center" |
         startRect: rectRef.current,
       };
 
-      const onMove = (event: MouseEvent) => {
+      const onMove = (event: PointerEvent) => {
+        if (e.pointerId !== event.pointerId) return;
         if (!dragRef.current) return;
         event.preventDefault();
         const { type, startX, startY, startRect } = dragRef.current;
@@ -192,21 +195,25 @@ const InsetsOverlay = ({ graph, maintain }: { graph: Graph; maintain: "center" |
         }
       };
 
-      const onUp = () => {
+      const onUp = (event: PointerEvent) => {
+        if (e.pointerId !== event.pointerId) return;
         dragRef.current = null;
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
       };
 
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
     },
     [graph, maintain]
   );
 
   const beginResize = useCallback(
-    (edge: DragState["edge"]) => (e: React.MouseEvent) => {
+    (edge: DragState["edge"]) => (e: React.PointerEvent) => {
       e.stopPropagation();
+      if (dragRef.current || e.button !== 0) return;
       dragRef.current = {
         type: "resize",
         startX: e.clientX,
@@ -214,7 +221,8 @@ const InsetsOverlay = ({ graph, maintain }: { graph: Graph; maintain: "center" |
         startRect: rectRef.current,
         edge,
       };
-      const onMove = (event: MouseEvent) => {
+      const onMove = (event: PointerEvent) => {
+        if (e.pointerId !== event.pointerId) return;
         event.preventDefault();
         const current = dragRef.current;
         if (!current) {
@@ -279,12 +287,16 @@ const InsetsOverlay = ({ graph, maintain }: { graph: Graph; maintain: "center" |
           graph.cameraService.setViewportInsets(insets);
         }
       };
-      const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
+      const onUp = (event: PointerEvent) => {
+        if (e.pointerId !== event.pointerId) return;
+        dragRef.current = null;
+        window.removeEventListener("pointercancel", onUp);
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
       };
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
     },
     [graph, rect, maintain]
   );
@@ -312,20 +324,25 @@ const InsetsOverlay = ({ graph, maintain }: { graph: Graph; maintain: "center" |
           background: "rgba(31,117,254,0.06)",
           boxSizing: "border-box",
           cursor: "move",
+          touchAction: "none",
           pointerEvents: "auto",
           zIndex: 10,
         }}
-        onMouseDown={startMove}
+        onPointerDown={startMove}
       >
         {/* Resize handles */}
-        <Handle cursor="nwse-resize" onMouseDown={beginResize("nw")} style={{ left: -5, top: -5 }} />
-        <Handle cursor="nesw-resize" onMouseDown={beginResize("ne")} style={{ right: -5, top: -5 }} />
-        <Handle cursor="nesw-resize" onMouseDown={beginResize("sw")} style={{ left: -5, bottom: -5 }} />
-        <Handle cursor="nwse-resize" onMouseDown={beginResize("se")} style={{ right: -5, bottom: -5 }} />
-        <Handle cursor="ew-resize" onMouseDown={beginResize("w")} style={{ left: -5, top: "50%", marginTop: -5 }} />
-        <Handle cursor="ew-resize" onMouseDown={beginResize("e")} style={{ right: -5, top: "50%", marginTop: -5 }} />
-        <Handle cursor="ns-resize" onMouseDown={beginResize("n")} style={{ top: -5, left: "50%", marginLeft: -5 }} />
-        <Handle cursor="ns-resize" onMouseDown={beginResize("s")} style={{ bottom: -5, left: "50%", marginLeft: -5 }} />
+        <Handle cursor="nwse-resize" onPointerDown={beginResize("nw")} style={{ left: -5, top: -5 }} />
+        <Handle cursor="nesw-resize" onPointerDown={beginResize("ne")} style={{ right: -5, top: -5 }} />
+        <Handle cursor="nesw-resize" onPointerDown={beginResize("sw")} style={{ left: -5, bottom: -5 }} />
+        <Handle cursor="nwse-resize" onPointerDown={beginResize("se")} style={{ right: -5, bottom: -5 }} />
+        <Handle cursor="ew-resize" onPointerDown={beginResize("w")} style={{ left: -5, top: "50%", marginTop: -5 }} />
+        <Handle cursor="ew-resize" onPointerDown={beginResize("e")} style={{ right: -5, top: "50%", marginTop: -5 }} />
+        <Handle cursor="ns-resize" onPointerDown={beginResize("n")} style={{ top: -5, left: "50%", marginLeft: -5 }} />
+        <Handle
+          cursor="ns-resize"
+          onPointerDown={beginResize("s")}
+          style={{ bottom: -5, left: "50%", marginLeft: -5 }}
+        />
       </div>
     </div>
   );

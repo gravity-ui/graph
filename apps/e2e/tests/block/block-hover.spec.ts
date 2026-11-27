@@ -66,4 +66,41 @@ test.describe("Block Hover", () => {
 
     expect(afterCursor).toBe("auto");
   });
+
+  test("keeps the source hovered when the mouse crosses the drag threshold outside the graph", async ({ page }) => {
+    await page.addStyleTag({ content: "#root { margin-left: 100px; width: 400px; }" });
+    await graphPO.waitForFrames(2);
+    const callbacks = await page.evaluateHandle(() => {
+      const graph = window.graph;
+      // Put the left edge of block-1 at the left edge of the graph.
+      graph.cameraService.set({ x: -100, y: 0, scale: 1 });
+      const block = graph.blocks.getBlockState("block-1")?.getViewComponent();
+      if (!block) throw new Error("Missing source block");
+      const overSource = () => graph.input.$hoveredComponent.peek() === block;
+      const observed: { start?: boolean; firstMove?: boolean } = {};
+      block.on("dragstart", ({ claim }) =>
+        claim({
+          owner: "test",
+          autopanning: false,
+          start: () => {
+            observed.start = overSource();
+          },
+          move: () => {
+            observed.firstMove ??= overSource();
+          },
+        })
+      );
+      return observed;
+    });
+
+    const left = await page.locator("#root").evaluate((root) => root.getBoundingClientRect().left);
+    await page.mouse.move(left + 4, 150);
+    await page.mouse.down();
+    await page.mouse.move(left - 11, 150);
+    await page.mouse.up();
+
+    expect(await callbacks.jsonValue()).toEqual({ start: true, firstMove: true });
+    expect(await graphPO.evaluate((graph) => graph.input.$hoveredComponent.peek() === undefined)).toBe(true);
+    await callbacks.dispose();
+  });
 });

@@ -132,20 +132,14 @@ test.describe("DuplicateBlockLayer", () => {
     await altDragBlock("block-1");
 
     expect(
-      await start.analyze((events) =>
-        events
-          .map((event) => (event.detail as { blocks: Array<{ connectedState: { id: TBlockId } }> }).blocks)
-          .map((blocks) => blocks.map((source) => source.connectedState.id))
-      )
+      await start.analyze((events) => events.map(({ blocks }) => blocks.map((source) => source.connectedState.id)))
     ).toEqual([["block-1"]]);
     const [detail] = await end.analyze((events) =>
-      events.map((event) => {
-        const { items, delta } = event.detail as {
-          items: Array<{ block: { connectedState: { id: TBlockId } }; coord: { x: number; y: number } }>;
-          delta: { x: number; y: number };
-        };
-        return { ids: items.map((item) => item.block.connectedState.id), coord: items[0].coord, delta };
-      })
+      events.map(({ items, delta }) => ({
+        ids: items.map((item) => item.block.connectedState.id),
+        coord: items[0].coord,
+        delta,
+      }))
     );
     const tolerance = await getTolerance();
     expect(detail.ids).toEqual(["block-1"]);
@@ -173,7 +167,7 @@ test.describe("DuplicateBlockLayer", () => {
     await duplicatePO.addLayer();
     await graphPO.evaluate((graph) => {
       graph.on("blocks-duplicate", (event) => {
-        event.detail.items[0].coord = { x: 1000, y: 1000 };
+        event.items[0].coord = { x: 1000, y: 1000 };
       });
     });
 
@@ -343,8 +337,8 @@ test.describe("DuplicateBlockLayer", () => {
   });
 
   // https://github.com/gravity-ui/graph/issues/405: with non-draggable blocks the camera must not pan
-  // before the layer prevents the graph "mousedown".
-  test("duplicates with the default canDrag setting", async () => {
+  // before the layer claims the duplication drag.
+  test("duplicates when component dragging is disabled", async () => {
     await graphPO.evaluate((graph) => graph.updateSettings({ canDrag: window.GraphModule.ECanDrag.NONE }));
     await duplicatePO.addLayer();
     const cameraBefore = await graphPO.camera().getState();

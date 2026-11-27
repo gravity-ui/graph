@@ -38,13 +38,25 @@ export enum ECanDrag {
 export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
-  /** Controls which components can be dragged */
-  canDrag: ECanDrag;
+  /** One rule for all pointers, or a default with overrides for individual pointer types. */
+  canDrag: ECanDrag | { default: ECanDrag; mouse?: ECanDrag; pen?: ECanDrag; touch?: ECanDrag };
   /**
-   * Minimum distance in pixels the mouse must move before a drag operation starts.
+   * Minimum distance in CSS pixels the pointer must move before a drag operation starts.
    * Helps prevent accidental drags during clicks. Default: 5
    */
   dragThreshold: number;
+  /** Maximum movement during a click, in CSS pixels. */
+  clickTolerance: number;
+  /** "exclusive" waits for the double-click window before delivering a single click and its default action. */
+  clickPolicy: "immediate" | "exclusive";
+  /** Maximum time between two clicks on one target, in milliseconds. */
+  doubleClickInterval: number;
+  /** Maximum distance between two clicks on one target, in CSS pixels. */
+  doubleClickDistance: number;
+  /** Time a stationary touch or pen must be held before longpress, in milliseconds. */
+  longPressDuration: number;
+  /** Defaults to "editor" for touch dragging and pinch. Use "page" to let the host handle scrolling and zoom. */
+  touchPolicy: "page" | "editor";
   scaleFontSize: number;
   showConnectionArrows: boolean;
   useBezierConnections: boolean;
@@ -70,20 +82,15 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   connection: typeof BlockConnection<Connection> | undefined;
   background: typeof Component | undefined;
   /**
-   * When enabled, mouseenter/mouseleave events are re-evaluated after each camera change.
-   * Useful for trackpads where panning does not trigger native mousemove events,
-   * so hovering over elements requires this emulation to work correctly.
+   * Re-evaluate the hover target when the camera moves under a stationary mouse or pen.
+   * A target change sends pointerleave and pointerenter with cause "scene".
    * Default: false
    */
-  emulateMouseEventsOnCameraChange: boolean;
+  retargetHoverOnCameraChange: boolean;
   /**
    * Classifies wheel input as pan or zoom intent so Camera can route without knowing device type.
    * Receives `mouseWheelBehavior` and `wheelInputDevice` from camera constants so wheel policy
    * stays in the input layer, not Camera.
-   *
-   * Transitional: today Camera calls {@link GraphEditorSettings.wheelIntentFromEvent} from a raw
-   * `wheel` listener. A future input layer will normalize DOM events and emit semantic graph events
-   * (`camera:pan`, `camera:zoom`, …); this callback is the classification hook until then.
    *
    * @default {@link createWheelIntentResolver} — gesture-shape heuristics (pan vs zoom intent).
    */
@@ -125,9 +132,15 @@ export type TGraphSettingsPatch<B extends TBlock = TBlock, C extends TConnection
 export const DefaultSettings: TGraphSettingsConfig = {
   canDragCamera: true,
   canZoomCamera: true,
-  canDrag: ECanDrag.NONE,
+  canDrag: { default: ECanDrag.ALL, touch: ECanDrag.ONLY_SELECTED },
   dragThreshold: 5,
-  emulateMouseEventsOnCameraChange: false,
+  clickTolerance: 3,
+  clickPolicy: "immediate",
+  doubleClickInterval: 350,
+  doubleClickDistance: 12,
+  longPressDuration: 500,
+  touchPolicy: "editor",
+  retargetHoverOnCameraChange: false,
   showConnectionArrows: true,
   scaleFontSize: 1,
   useBezierConnections: true,
@@ -219,6 +232,15 @@ export class GraphEditorSettings {
   });
 
   public $canDrag = computed(() => this.$settings.value.canDrag);
+
+  public getCanDrag(pointerType?: string): ECanDrag {
+    const rule = this.$canDrag.value;
+    if (typeof rule === "string") return rule;
+    if (pointerType === "mouse" || pointerType === "pen" || pointerType === "touch") {
+      return rule[pointerType] ?? rule.default;
+    }
+    return rule.default;
+  }
 
   public $useBlocksAnchors = computed(() => this.$settings.value.useBlocksAnchors);
 

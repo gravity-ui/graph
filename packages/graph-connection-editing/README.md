@@ -17,7 +17,7 @@ const layer = graph.addLayer(ConnectionEditingLayer, { searchRadius: 20 });
 
 graph.on("connection-created", (event) => {
   // The connection is added to the store by default; call event.preventDefault() to handle it yourself.
-  console.log(event.detail.sourcePort.id, "->", event.detail.targetPort.id);
+  console.log(event.sourcePort.id, "->", event.targetPort.id);
 });
 
 layer.disable(); // or graph.addLayer(ConnectionEditingLayer, { enabled: false })

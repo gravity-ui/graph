@@ -11,7 +11,7 @@ import type { TSceneElementView } from "@gravity-ui/graph";
 type MiniMapPosition = Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right">;
 
 /**
- * D6: the throttle period of the picture, in ms of the scene clock, for every continuous change of what it shows:
+ * The throttle period of the picture, in ms of the scene clock, for every continuous change of what it shows:
  * block elements (their revisions), the blocks list, block moves and drags, the usable rect. A change when no picture
  * was drawn for this long is drawn in the next frame. A change sooner waits this long from its arrival, and every change
  * that arrives meanwhile is drawn with it: the pictures are at least this far apart, and the last change is drawn in
@@ -59,7 +59,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   /** Scene clock (ms) when the last picture was drawn. */
   private pictureDrawnAt = -Infinity;
 
-  /** A throttled change waits for its period to end (D6). */
+  /** A throttled change waits for its period to end. */
   private picturePending = false;
 
   /** Scene clock (ms) of the first change that waits: its period ends `PICTURE_THROTTLE_MS` later. */
@@ -109,7 +109,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.picture ??= this.minimapCanvas.ownerDocument.createElement("canvas");
     const { graph } = this.props;
     const throttled = (): void => this.requestThrottledPicture();
-    // D6: every continuous change of what the picture shows, pointer drags included. The mapping (scale, relativeX/Y)
+    // Every continuous change of what the picture shows, pointer drags included. The mapping (scale, relativeX/Y)
     // is computed with the picture (`drawPicture`): the picture, the camera frame and the clicks share one mapping.
     this.onChange(graph.hitTest.$usableRect, throttled);
     this.onGraphEvent("block-change", throttled);
@@ -134,7 +134,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.onSignal(graph.rootStore.settings.$blockComponents, () => this.followBlockTypes());
     this.onGraphFrameEnd(() => this.onFrameEnd());
     this.onGraphEvent("colors-changed", () => this.invalidatePicture());
-    this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
+    this.bindNavigation();
     // Attached (or attached again): the mapping before the first render, and a new picture in the next frame, which
     // shows whatever changed while detached.
     this.listChanged = false;
@@ -265,7 +265,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   }
 
   /**
-   * D6: a continuous change of what the picture shows. When no picture was drawn for the period, it is drawn in the
+   * A continuous change of what the picture shows. When no picture was drawn for the period, it is drawn in the
    * next frame (an isolated selection shows at once). Sooner, it waits the period from its arrival, together with every
    * change that arrives meanwhile.
    */
@@ -489,11 +489,16 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.reconcileMetTypes(seen);
   }
 
-  private onCameraDrag(event: MouseEvent): void {
+  private onCameraDrag(event: PointerEvent): void {
     const cameraState = this.props.camera.getCameraState();
 
-    const x = -(this.relativeX + event.offsetX / this.scale) + cameraState.relativeWidth / 2;
-    const y = -(this.relativeY + event.offsetY / this.scale) + cameraState.relativeHeight / 2;
+    const rect = this.minimapCanvas.getBoundingClientRect();
+    const x =
+      -(this.relativeX + (event.clientX - rect.left - this.minimapCanvas.clientLeft) / this.scale) +
+      cameraState.relativeWidth / 2;
+    const y =
+      -(this.relativeY + (event.clientY - rect.top - this.minimapCanvas.clientTop) / this.scale) +
+      cameraState.relativeHeight / 2;
 
     const dx = x * cameraState.scale - cameraState.x;
     const dy = y * cameraState.scale - cameraState.y;
@@ -501,13 +506,45 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.context.camera.move(dx, dy);
   }
 
-  private handleMouseDownEvent = (rootEvent: MouseEvent): void => {
-    rootEvent.stopPropagation();
-    this.onCameraDrag(rootEvent);
+  private bindNavigation(): void {
+    const { graph } = this.props;
+    const { signal } = this.eventAbortController;
+    let drag: ReturnType<typeof graph.dragService.startDrag> | undefined;
+    let tap: PointerEvent | undefined;
+    const cancel = () => {
+      tap = undefined;
+      drag?.emit("cancel");
+      drag = undefined;
+    };
 
-    this.context.graph.dragService.startDrag(
-      { onUpdate: (event: MouseEvent) => this.onCameraDrag(event) },
-      { stopOnMouseLeave: true, autopanning: false, cursor: "move" }
-    );
-  };
+    this.onCanvasEvent("pointerdown", (event) => {
+      event.stopPropagation();
+      if (!event.isPrimary || !graph.input.reserveSurfacePress(event, signal, cancel)) return;
+      if (event.pointerType === "touch" && graph.rootStore.settings.$settings.peek().touchPolicy === "page") {
+        // The browser may still take this contact for scrolling and send pointercancel.
+        tap = event;
+        return;
+      }
+
+      drag = graph.dragService.startDrag(
+        { onUpdate: (move) => this.onCameraDrag(move) },
+        { stopOnPointerLeave: true, autopanning: false, cursor: "move", initialEvent: event }
+      );
+      this.onCameraDrag(event);
+    });
+
+    const movedPastTap = (event: PointerEvent) =>
+      tap &&
+      Math.hypot(event.clientX - tap.clientX, event.clientY - tap.clientY) >
+        graph.rootStore.settings.$settings.peek().clickTolerance;
+    this.onCanvasEvent("pointermove", (event) => {
+      if (tap?.pointerId === event.pointerId && movedPastTap(event)) tap = undefined;
+    });
+    this.onCanvasEvent("pointerup", (event) => {
+      if (tap?.pointerId !== event.pointerId) return;
+      const navigate = !movedPastTap(event);
+      tap = undefined;
+      if (navigate) this.onCameraDrag(event);
+    });
+  }
 }

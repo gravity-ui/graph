@@ -56,15 +56,15 @@ const duplicateLayer = graph.addLayer(DuplicateBlockLayer, {
 
 ## Events
 
-Importing the package adds both events to `GraphEventsDefinitions`, so `graph.on` infers their payloads.
+Importing the package adds the duplication events to `GraphEventsDefinitions`, so `graph.on` infers their payloads.
 
 ### blocks-duplicate-start
 
-Fired when the user starts duplicating blocks. `event.detail.blocks` contains the blocks that will be duplicated. Calling `event.preventDefault()` hides the preview; the duplication still completes on release.
+Fired when the user starts duplicating blocks. `event.blocks` contains the blocks that will be duplicated. Calling `event.preventDefault()` hides the preview; the duplication still completes on release.
 
 ```typescript
 graph.on("blocks-duplicate-start", (event) => {
-  console.log("Duplicating blocks:", event.detail.blocks.length);
+  console.log("Duplicating blocks:", event.blocks.length);
 });
 ```
 
@@ -75,7 +75,7 @@ and the preview is cleared.
 
 ### blocks-duplicate
 
-Fired on release. `event.detail.items` contains each source block with the coordinates of its copy, and `event.detail.delta` contains the offset between the sources and the copies.
+Fired on release. `event.items` contains each source block with the coordinates of its copy, and `event.delta` contains the offset between the sources and the copies.
 
 If the event is not prevented, the layer clears the selection, adds the copies as selected blocks and copies the connections between them. Call `event.preventDefault()` to create the blocks yourself, for example after a backend request.
 
@@ -83,7 +83,7 @@ If the event is not prevented, the layer clears the selection, adds the copies a
 graph.on("blocks-duplicate", (event) => {
   event.preventDefault();
 
-  event.detail.items.forEach(({ block, coord }) => {
+  event.items.forEach(({ block, coord }) => {
     createBlockFromSource(block, coord);
   });
 });

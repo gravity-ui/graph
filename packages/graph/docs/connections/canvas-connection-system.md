@@ -174,11 +174,11 @@ import { BlockConnection } from "@gravity-ui/graph";
 // Select connections and listen to changes
 graph.api.selectConnections(["connection-1"], true);
 graph.on("connection-selection-change", (event) => {
-  console.log("Selected connections:", event.detail.list);
+  console.log("Selected connections:", event.list);
 });
 
 // Handle connection clicks
-graph.on("click", ({ detail: { target } }) => {
+graph.on("click", ({ target }) => {
   if (target instanceof BlockConnection) console.log("Clicked connection:", target.getEntityId());
 });
 ```

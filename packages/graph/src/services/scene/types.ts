@@ -144,7 +144,7 @@ export interface IGraphScene {
   compareOrder(a: CoreComponent, b: CoreComponent): number;
   /**
    * Calls the listener at the end of every graph frame, after every layer and the scene updated (the scene drew).
-   * GraphLayer finds the pointer's target again there, and a layer that switches HTML with the scene (ReactLayer) does
+   * The input service finds the pointer's target again there, and a layer that switches HTML with the scene (ReactLayer) does
    * it there, so the frame that changes the HTML draws the scene that goes with it, whatever the layer order. Returns
    * the function that removes the listener.
    */

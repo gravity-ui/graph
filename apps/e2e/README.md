@@ -111,8 +111,8 @@ Some tests intentionally verify library internals. Keep these capabilities out
 of the published consumer API unless they represent a real consumer use case.
 
 - `graph.events.listen(name)` keeps complete events in the browser for
-  browser-context analysis.
-- `graph.events.collectDetails(name)` collects serializable event details.
+  browser-context analysis. The probe observes capture, including activations handled by a scene child. Read `event.target` for the original target.
+- `graph.events.collect(name, read)` returns a function that projects the recorded events to serializable values, for example `events => events.map(event => event.scale)` for `camera-change`.
 - `graph.camera()` returns the internal camera subclass in this suite, adding
   device emulation and camera-signal assertions to the public camera API.
 - `graph.setEntities(config)` updates the fixture graph.

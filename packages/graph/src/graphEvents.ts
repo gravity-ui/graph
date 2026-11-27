@@ -1,75 +1,42 @@
-import { EventedComponent } from "./components/canvas/EventedComponent/EventedComponent";
-import { GraphState } from "./graph";
-import { TGraphColors, TGraphConstants } from "./graphConfig";
-import { TCameraState } from "./services/camera/CameraService";
-import type { TSceneState } from "./services/scene/types";
-import { TSelectionDiff, TSelectionEntityId } from "./services/selection/types";
+import type { EventedComponent, TGraphHoverDetail } from "./components/canvas/EventedComponent/EventedComponent";
+import type { Graph, GraphState } from "./graph";
+import type { TGraphColors, TGraphConstants } from "./graphConfig";
+import type { TCameraState } from "./services/camera/CameraService";
+import type { GestureEvents } from "./services/input/press";
+import type { TSceneLevel, TSceneState } from "./services/scene/types";
 
-export type GraphMouseEvent<E extends Event = Event> = CustomEvent<{
-  target?: EventedComponent;
-  /** On `mouseenter` and `mouseleave`: the other side of the target change; none for the camera or outside. */
-  relatedTarget?: EventedComponent;
-  sourceEvent: E;
-  pointerPressed?: boolean;
-}>;
-export type GraphEventParams<T extends CustomEvent> = T extends CustomEvent ? T["detail"] : never;
+export type GraphEventTarget = Graph | EventedComponent;
 
-export const extractNativeGraphMouseEvent = (event: GraphMouseEvent) => {
-  return event.detail.sourceEvent instanceof MouseEvent ? event.detail.sourceEvent : null;
+export interface GraphEventContext<K extends string, T extends GraphEventTarget = GraphEventTarget> {
+  readonly type: K;
+  readonly target: T;
+  readonly currentTarget: GraphEventTarget | null;
+  readonly cancelable: boolean;
+  readonly defaultPrevented: boolean;
+  readonly propagationStopped: boolean;
+  preventDefault(): void;
+  stopPropagation(): void;
+}
+
+type HoverName = "pointerenter" | "pointerleave" | "pointerover" | "pointerout";
+
+/** Plugins augment this map with the fields they pass to graph.emit. */
+export interface GraphEventsDefinitions extends Record<HoverName, TGraphHoverDetail> {
+  "camera-change": TCameraState;
+  "constants-changed": { constants: TGraphConstants };
+  "colors-changed": { colors: TGraphColors };
+  "state-change": { state: GraphState };
+  "scene-state-change": { state: TSceneState };
+}
+
+export type GraphEventMap = GestureEvents & {
+  [K in keyof GraphEventsDefinitions]: GraphEventsDefinitions[K] &
+    GraphEventContext<K, K extends HoverName ? EventedComponent : Graph>;
 };
 
-export type GraphMouseEventNames = "mousedown" | "click" | "dblclick" | "mouseenter" | "mousemove" | "mouseleave";
-
-export interface BaseGraphEventDefinition {
-  mousedown: (event: GraphMouseEvent) => void;
-  click: (event: GraphMouseEvent) => void;
-  dblclick: (event: GraphMouseEvent) => void;
-  mouseenter: (event: GraphMouseEvent) => void;
-  mouseleave: (event: GraphMouseEvent) => void;
-  mousemove: (event: GraphMouseEvent) => void;
-}
-
-export type UnwrapBaseGraphEvents<Key extends keyof BaseGraphEventDefinition = keyof BaseGraphEventDefinition> =
-  Parameters<BaseGraphEventDefinition[Key]>[0];
-export type UnwrapBaseGraphEventsDetail<Key extends keyof BaseGraphEventDefinition> =
-  UnwrapBaseGraphEvents<Key>["detail"];
-
-export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
-  "camera-change": (event: CustomEvent<TCameraState>) => void;
-  "constants-changed": (event: CustomEvent<{ constants: TGraphConstants }>) => void;
-  "colors-changed": (event: CustomEvent<{ colors: TGraphColors }>) => void;
-  "state-change": (event: CustomEvent<{ state: GraphState }>) => void;
-  "scene-state-change": (event: CustomEvent<{ state: TSceneState }>) => void;
-}
-const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave"];
-
-export type UnwrapGraphEvents<Key extends keyof GraphEventsDefinitions> = Parameters<GraphEventsDefinitions[Key]>[0];
-export type UnwrapGraphEventsDetail<Key extends keyof GraphEventsDefinitions> = UnwrapGraphEvents<Key>["detail"];
-
-export type SelectionEvent<T extends TSelectionEntityId> = CustomEvent<TSelectionDiff<T>>;
-
-export function isNativeGraphEventName(eventType: string): eventType is GraphMouseEventNames {
-  return graphMouseEvents.includes(eventType);
-}
-export class GraphEvent<T = unknown> extends CustomEvent<T> {
-  public graphEventDefaultPrevented = false;
-  public graphEventPropagationStopped = false;
-
-  public preventGraphEventDefault() {
-    this.graphEventDefaultPrevented = true;
-  }
-
-  public stopGraphEventPropagation() {
-    this.graphEventPropagationStopped = true;
-  }
-
-  public isDefaultPrevented() {
-    return this.graphEventDefaultPrevented || this.defaultPrevented;
-  }
-}
-
-export function isGraphEvent<T = unknown>(event: CustomEvent<T>): event is GraphEvent<T> {
-  return (
-    event instanceof CustomEvent && "graphEventDefaultPrevented" in event && "graphEventPropagationStopped" in event
-  );
-}
+export type GraphHoverEvents = Pick<GraphEventMap, HoverName>;
+export type GraphEventName = keyof GraphEventMap;
+export type GraphEventListener<K extends GraphEventName> = (event: GraphEventMap[K]) => void;
+export type GraphEventOptions = Pick<AddEventListenerOptions, "capture" | "once" | "signal"> & {
+  inScale?: readonly TSceneLevel[];
+};

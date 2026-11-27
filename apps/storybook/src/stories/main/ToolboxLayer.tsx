@@ -11,7 +11,7 @@ function Toolbox(props: { graph: Graph }) {
     [props.graph]
   );
   return (
-    <div onMouseDown={(e) => e.stopPropagation()}>
+    <div onPointerDown={(e) => e.stopPropagation()}>
       <input type="range" onChange={onChange} min={1} max={100} />
     </div>
   );

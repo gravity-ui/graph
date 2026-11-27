@@ -3,6 +3,7 @@ import type { ReadonlySignal } from "@preact/signals-core";
 
 import { TComponentState } from "../../../lib/Component";
 import { DragContext, DragDiff } from "../../../services/drag";
+import type { GraphClickEvent } from "../../../services/input/press";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
@@ -10,6 +11,7 @@ import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { layoutText } from "../../../utils/renderers/text";
 import { TRect } from "../../../utils/types/shapes";
+import type { ComponentDispatchEvent } from "../EventedComponent/EventedComponent";
 import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
 import { GraphComponent } from "../GraphComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -128,18 +130,16 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     };
 
     this.subscribeToGroup();
-
-    this.addEventListener("click", this.handleClick);
   }
 
-  protected handleClick = (event: MouseEvent) => {
-    event.stopPropagation();
-    const isMeta = isMetaKeyEvent(event);
+  public override applyClickDefault(event: GraphClickEvent): boolean {
+    const isMeta = isMetaKeyEvent(event.event);
     this.groupState.setSelection(
       !isMeta ? true : !this.groupState.$selected.value,
       !isMeta ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
     );
-  };
+    return true;
+  }
 
   /**
    * Set the highlighted state of the group
@@ -189,10 +189,10 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     return this.highlighted;
   }
 
-  /** Hovered (`hoveredTag`) while it is the pointer's target (D5): the group writes its own tag. */
-  protected override onDispatchedEvent(event: Event): void {
+  /** Hovered (`hoveredTag`) while it is the pointer's target: the group writes its own tag. */
+  protected override onDispatchedEvent(event: ComponentDispatchEvent): void {
     super.onDispatchedEvent(event);
-    if (event.type === "mouseenter" || event.type === "mouseleave") {
+    if (event.type === "pointerenter" || event.type === "pointerleave") {
       this.setHoveredTag(pointerTargetAfter(event) === this);
     }
   }
@@ -204,8 +204,8 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   /**
    * Check if group can be dragged based on props.draggable and canDrag setting
    */
-  public override isDraggable(): boolean {
-    const canDrag = this.context.graph.rootStore.settings.$canDrag.value;
+  public override isDraggable(pointerType?: string): boolean {
+    const canDrag = this.context.graph.rootStore.settings.getCanDrag(pointerType);
     return Boolean(this.props.draggable) && isAllowDrag(canDrag, Boolean(this.state.selected));
   }
 
@@ -297,8 +297,9 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     };
   }
 
-  public override isEntityAvailable(): boolean {
-    return super.isEntityAvailable() && this.groupState.isAttached();
+  /** @internal */
+  public override getEntityBinding() {
+    return this.groupState;
   }
 
   protected override propsChanged(nextProps: TGroupProps): void {

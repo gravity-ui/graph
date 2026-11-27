@@ -1,10 +1,12 @@
-import type { GraphEventsDefinitions, TCollapsibleGroup } from "@gravity-ui/graph";
+import type { GraphEventMap, TCollapsibleGroup } from "@gravity-ui/graph";
 import { test, expect } from "@playwright/test";
 
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
 import { requireValue } from "../../page-objects/requireValue";
 
-type TGroupCollapseChangeDetail = Parameters<GraphEventsDefinitions["group-collapse-change"]>[0]["detail"];
+function collapseChanges(events: GraphEventMap["group-collapse-change"][]) {
+  return events.map(({ groupId, collapsed, currentRect, nextRect }) => ({ groupId, collapsed, currentRect, nextRect }));
+}
 
 // Note: every group in this suite is created with `component: CollapsibleGroup`, so reading its state via
 // `getGroupState<TCollapsibleGroup>()` (an unchecked library generic) matches the real data shape.
@@ -142,7 +144,7 @@ test.describe("CollapsibleGroup", () => {
 
         // Register dblclick handler (mirrors what users must do now)
         graph.on("dblclick", (event: any) => {
-          const target = event.detail?.target;
+          const target = event.target;
           if (target instanceof CollapsibleGroup) {
             if (target.isCollapsed()) {
               target.expand();
@@ -200,20 +202,20 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
 
       const targets = await listener.analyze((events) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener.stop();
     });
 
-    test("group is a full GraphComponent — receives mouseenter events", async () => {
-      const listener = await graphPO.events.listen("mouseenter");
+    test("group is a full GraphComponent — receives pointerenter events", async () => {
+      const listener = await graphPO.events.listen("pointerenter");
 
       await graphPO.hoverAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
       await graphPO.waitForFrames(2);
 
       const targets = await listener.analyze((events) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e) => e.target.props.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener.stop();
@@ -225,7 +227,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const targets = await listener.analyze((events) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener.stop();
@@ -274,8 +276,8 @@ test.describe("CollapsibleGroup", () => {
       // await expect(graphPO.page).toHaveScreenshot("collapse-after.png", { clip: clipAfter });
     });
 
-    test("emits group-collapse-change event with correct detail", async () => {
-      const getEvents = await graphPO.events.collectDetails<TGroupCollapseChangeDetail>("group-collapse-change");
+    test("emits group-collapse-change event with both rectangles", async () => {
+      const getEvents = await graphPO.events.collect("group-collapse-change", collapseChanges);
 
       await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
@@ -403,7 +405,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       // Set up event collection for the expand
-      const getEvents = await graphPO.events.collectDetails<TGroupCollapseChangeDetail>("group-collapse-change");
+      const getEvents = await graphPO.events.collect("group-collapse-change", collapseChanges);
 
       const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
       await graphPO.doubleClickAt({ x: collapsedCenter.x, y: collapsedCenter.y }, { waitForFrames: 5 });
@@ -449,7 +451,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
 
       const targets = await listener.analyze((events) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener.stop();
@@ -527,7 +529,7 @@ test.describe("CollapsibleGroup", () => {
 
           // Register dblclick handler for toggle
           graph.on("dblclick", (event: any) => {
-            const target = event.detail?.target;
+            const target = event.target;
             if (target instanceof CollapsibleGroup) {
               if (target.isCollapsed()) {
                 target.expand();
@@ -629,7 +631,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.initialize({
         blocks: BLOCKS,
         // No connections: connection geometry can sit above the group and steal hit-tests,
-        // so mousedown would not start a group drag.
+        // so the press cannot start a group drag.
         connections: [],
         settings: {
           canDrag: "all",
@@ -671,7 +673,7 @@ test.describe("CollapsibleGroup", () => {
 
           // Register dblclick handler
           graph.on("dblclick", (event: any) => {
-            const target = event.detail?.target;
+            const target = event.target;
             if (target instanceof CollapsibleGroup) {
               if (target.isCollapsed()) {
                 target.expand();
@@ -750,7 +752,7 @@ test.describe("CollapsibleGroup", () => {
         y: expanded.rect!.y + expanded.rect!.height / 2,
       });
       const targets = await listener.analyze((events: any[]) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener.stop();
@@ -829,7 +831,7 @@ test.describe("CollapsibleGroup", () => {
       const listener = await graphPO.events.listen("click");
       await graphPO.clickAt({ x: belowHeader.x, y: belowHeader.y });
       let targets = await listener.analyze((events: any[]) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       expect(targets).not.toContain("group-1");
       await listener.stop();
@@ -841,7 +843,7 @@ test.describe("CollapsibleGroup", () => {
       const listener2 = await graphPO.events.listen("click");
       await graphPO.clickAt({ x: headerCenter.x, y: headerCenter.y });
       targets = await listener2.analyze((events: any[]) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener2.stop();
@@ -896,7 +898,7 @@ test.describe("CollapsibleGroup", () => {
 
           // Register dblclick handler so expand works in tests that need it
           graph.on("dblclick", (event: any) => {
-            const target = event.detail?.target;
+            const target = event.target;
             if (target instanceof CollapsibleGroup) {
               if (target.isCollapsed()) {
                 target.expand();
@@ -938,7 +940,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.clickAt({ x: collapsedCenter.x, y: collapsedCenter.y });
 
       const targets = await listener.analyze((events) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener.stop();
@@ -954,7 +956,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.clickAt({ x: belowCollapsedHeader.x, y: belowCollapsedHeader.y });
 
       const targets = await listener.analyze((events) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       // Without the fix, the hitbox was the expanded visual rect so this click
       // would incorrectly land on the group.
@@ -1309,7 +1311,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.clickAt({ x: belowCollapsedHeader.x, y: belowCollapsedHeader.y });
 
       const targets = await listener.analyze((events) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       expect(targets).not.toContain("group-1");
       await listener.stop();
@@ -1353,7 +1355,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
 
       const targets = await listener.analyze((events) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener.stop();
@@ -1458,7 +1460,7 @@ test.describe("CollapsibleGroup", () => {
 
           // Register dblclick handler
           graph.on("dblclick", (event: any) => {
-            const target = event.detail?.target;
+            const target = event.target;
             if (target instanceof CollapsibleGroup) {
               if (target.isCollapsed()) {
                 target.expand();
@@ -1650,7 +1652,7 @@ test.describe("CollapsibleGroup", () => {
       const listener = await graphPO.events.listen("click");
       await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
       const targets = await listener.analyze((events) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+        events.map((e: any) => e.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener.stop();
@@ -1725,13 +1727,12 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("groups-selection-change event fires on click", async () => {
-      const getEvents = await graphPO.events.collectDetails("groups-selection-change");
+      const count = await graphPO.events.collect("groups-selection-change", (events) => events.length);
 
       await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
       await graphPO.waitForFrames(3);
 
-      const details = await getEvents();
-      expect(details.length).toBeGreaterThan(0);
+      expect(await count()).toBeGreaterThan(0);
     });
 
     test("collapsed group can be selected by clicking collapsed header", async () => {

@@ -4,6 +4,7 @@ import type { TComponentMode } from "../../../lib/CoreComponent";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
 import { debounce } from "../../../utils/functions";
 import { TPoint, TRect } from "../../../utils/types/shapes";
+import type { ComponentDispatchEvent } from "../EventedComponent/EventedComponent";
 import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
 import type { GraphComponentContext } from "../GraphComponent";
 import { TAnchor } from "../anchors";
@@ -221,7 +222,7 @@ export class BaseConnection<
     mounting = false;
 
     // Enable hover interaction
-    this.listenEvents(["mouseenter", "mouseleave"]);
+    this.listenEvents(["pointerenter", "pointerleave"]);
   }
 
   protected override checkData(): boolean {
@@ -230,8 +231,9 @@ export class BaseConnection<
     return changed;
   }
 
-  public override isEntityAvailable(): boolean {
-    return super.isEntityAvailable() && this.connectedState.isAttached();
+  /** @internal */
+  public override getEntityBinding() {
+    return this.connectedState;
   }
 
   protected hasGeometry(): boolean {
@@ -245,25 +247,25 @@ export class BaseConnection<
   }
 
   /**
-   * The connection's `hoveredTag`: on while it is the pointer's target (D5). From the hook, so it follows the pointer
+   * The connection's `hoveredTag`: on while it is the pointer's target. From the hook, so it follows the pointer
    * whatever the connection's interactivity, as the tag always did.
    */
-  protected override onDispatchedEvent(event: Event): void {
+  protected override onDispatchedEvent(event: ComponentDispatchEvent): void {
     super.onDispatchedEvent(event);
-    if (event.type === "mouseenter" || event.type === "mouseleave") {
+    if (event.type === "pointerenter" || event.type === "pointerleave") {
       this.setHoveredTag(pointerTargetAfter(event) === this);
     }
   }
 
-  protected override handleEvent(event: MouseEvent) {
+  protected override handleEvent(event: ComponentDispatchEvent) {
     event.stopPropagation();
     super.handleEvent(event);
 
     switch (event.type) {
-      case "mouseenter":
+      case "pointerenter":
         this.debounceHover(true);
         break;
-      case "mouseleave":
+      case "pointerleave":
         this.debounceHover(false);
         break;
     }

@@ -3,11 +3,12 @@ import { signal } from "@preact/signals-core";
 
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
-import { GraphEventsDefinitions, UnwrapGraphEvents } from "../graphEvents";
+import type { GraphEventMap, GraphEventName, GraphEventOptions } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
 import { ESchedulerPriority } from "../lib/Scheduler";
 import type { TTreeCullingOptions } from "../lib/culling/TreeCulling";
+import type { EventObserver } from "../lib/graphEventDispatch";
 import { TypedEventListener, addTypedEventListener } from "../utils/eventListener";
 import { alignToPixelGrid } from "../utils/functions";
 import type { GraphClassConstructor } from "../utils/types/classes";
@@ -168,15 +169,12 @@ export class Layer<
    * @param options - Additional options (optional)
    * @returns The result of graph.on call (an unsubscribe function)
    */
-  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions>(
-    eventName: EventName,
-    handler: TypedEventListener<UnwrapGraphEvents<NoInfer<EventName>>>,
-    options?: Omit<AddEventListenerOptions, "signal">
-  ) {
-    return this.props.graph.on(eventName, handler, {
-      ...options,
-      signal: this.eventAbortController.signal,
-    });
+  protected onGraphEvent<K extends GraphEventName>(
+    eventName: K,
+    handler: EventObserver<GraphEventMap[NoInfer<K>]>,
+    options?: Omit<GraphEventOptions, "signal">
+  ): () => void {
+    return this.props.graph.on(eventName, handler, { ...options, signal: this.eventAbortController.signal });
   }
 
   public hide() {
@@ -393,13 +391,13 @@ export class Layer<
     // This ensures that subscriptions are properly set up when the layer is reattached
     this.onGraphEvent("colors-changed", (event) => {
       this.setContext({
-        colors: event.detail.colors,
+        colors: event.colors,
       });
     });
 
     this.onGraphEvent("constants-changed", (event) => {
       this.setContext({
-        constants: event.detail.constants,
+        constants: event.constants,
       });
     });
     this.onSignal(this.props.graph.$camera, (camera) => this.handleCommittedCameraChange(camera));

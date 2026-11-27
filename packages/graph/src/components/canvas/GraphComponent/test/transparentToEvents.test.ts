@@ -1,6 +1,7 @@
 import { Graph } from "../../../../graph";
 import { Component } from "../../../../lib/Component";
 import { hoveredTag } from "../../../../services/tags/builtinTags";
+import { pointer } from "../../../../test/pointer";
 import { pointerTargetAfter } from "../../EventedComponent/EventedComponent";
 import { TestLayer, frames } from "../../scene/test/utils/sceneTestKit";
 import { GraphComponent } from "../index";
@@ -16,8 +17,8 @@ class Pad extends GraphComponent<TPadProps> {
     super(props, parent);
     this.zIndex = props.z;
     // A component writes its own hoveredTag from the pointer events it gets.
-    (["mouseenter", "mouseleave"] as const).forEach((type) => {
-      this.addEventListener(type, (event: Event) => {
+    (["pointerenter", "pointerleave"] as const).forEach((type) => {
+      this.addEventListener(type, (event) => {
         this.setHoveredTag(pointerTargetAfter(event) === this);
       });
     });
@@ -70,16 +71,16 @@ describe("a component that becomes transparent under a still pointer", () => {
       ],
     });
     frames(5);
-    const layer = graph.getGraphLayer();
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 25 }));
-    expect(layer.$hoveredComponent.value === pads.flip).toBe(true);
+    pointer(graph, "pointermove", { clientX: 50, clientY: 25 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value === pads.flip).toBe(true);
     expect(graph.scene.tags.peekOf("pad", "flip").has(hoveredTag)).toBe(true);
 
     (pads.flip as FlipPad).glass = true;
     (pads.flip as FlipPad).widen(120);
     frames(3);
 
-    expect(layer.$hoveredComponent.value === pads.under).toBe(true);
+    expect(graph.input.$hoveredComponent.value === pads.under).toBe(true);
     expect(graph.scene.tags.peekOf("pad", "flip").has(hoveredTag)).toBe(false);
     expect(graph.scene.tags.peekOf("pad", "under").has(hoveredTag)).toBe(true);
     graph.unmount();
@@ -123,8 +124,9 @@ describe("components transparent to events", () => {
   });
 
   it("lets the pointer target, the hover and the hovered tag reach the component under it", () => {
-    graph.getGraphLayer().handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 25 }));
-    expect(graph.getGraphLayer().$hoveredComponent.value === pads.under).toBe(true);
+    pointer(graph, "pointermove", { clientX: 50, clientY: 25 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value === pads.under).toBe(true);
     expect(graph.scene.tags.peekOf("pad", "under").has(hoveredTag)).toBe(true);
     expect(graph.scene.tags.peekOf("pad", "glass").has(hoveredTag)).toBe(false);
   });
@@ -141,14 +143,15 @@ describe("components transparent to events", () => {
   });
 
   it("does not capture a transparent component; an ordinary capture still holds", () => {
-    const layer = graph.getGraphLayer();
-    layer.captureEvents(pads.glass);
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 25 }));
-    expect(layer.$hoveredComponent.value === pads.under).toBe(true);
+    graph.input.hover.captureEvents(pads.glass);
+    pointer(graph, "pointermove", { clientX: 50, clientY: 25 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value === pads.under).toBe(true);
 
-    layer.captureEvents(pads.under);
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 200, clientY: 25 }));
-    expect(layer.$hoveredComponent.value === pads.under).toBe(true);
-    layer.releaseCapture();
+    graph.input.hover.captureEvents(pads.under);
+    pointer(graph, "pointermove", { clientX: 200, clientY: 25 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value === pads.under).toBe(true);
+    graph.input.hover.releaseCapture();
   });
 });

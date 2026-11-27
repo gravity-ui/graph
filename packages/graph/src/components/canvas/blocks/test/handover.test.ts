@@ -1,8 +1,10 @@
 import { Graph } from "../../../../graph";
+import type { GraphHoverEvents } from "../../../../graphEvents";
 import { globalScheduler } from "../../../../lib/Scheduler";
 import { entityKey } from "../../../../services/tags/TagStore";
 import { hoveredTag } from "../../../../services/tags/builtinTags";
 import { anchorEntityId } from "../../../../store/anchor/anchorEntityId";
+import { pointer, pointerRoot } from "../../../../test/pointer";
 import { Block } from "../Block";
 import type { TBlock } from "../Block";
 import { LegacyCanvasBlock } from "../LegacyCanvasBlock";
@@ -36,7 +38,7 @@ describe("the handover to HTML (delegateRender)", () => {
   const at = (scale: number): void => graph.cameraService.set({ x: 0, y: 0, scale });
 
   beforeEach(() => {
-    root = document.createElement("div");
+    root = pointerRoot();
     Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
     graph = new Graph({ settings: { useBlocksAnchors: true, blockComponents: { Legacy: LegacyCanvasBlock } } }, root);
     graph.start();
@@ -147,11 +149,11 @@ describe("the handover to HTML (delegateRender)", () => {
     root.appendChild(html);
     const targets: unknown[] = [];
     const off = graph.on("click", (event) => {
-      targets.push(event.detail.target);
+      targets.push(event.target);
     });
     const click = (): void => {
-      for (const type of ["mousedown", "mouseup", "click"]) {
-        html.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: 300, clientY: 188 }));
+      for (const type of ["pointerdown", "pointerup"]) {
+        pointer(html, type, { clientX: 300, clientY: 188 });
       }
     };
     const anchor = graph.rootStore.blocksList.getBlockState("a")?.getAnchorById("out")?.getViewComponent();
@@ -188,38 +190,38 @@ describe("the handover to HTML (delegateRender)", () => {
     const log: string[] = [];
     const record =
       (who: string) =>
-      (event: Event): void => {
-        log.push(`${who}:${event.type}:${nameOf((event as CustomEvent<{ target?: unknown }>).detail?.target)}`);
+      (event: GraphHoverEvents[keyof GraphHoverEvents]): void => {
+        log.push(`${who}:${event.type}:${nameOf(event.target)}`);
       };
-    anchor.addEventListener("mouseleave", record("anchor"));
-    block.addEventListener("mouseenter", record("block"));
-    block.addEventListener("mouseleave", record("block"));
+    anchor.addEventListener("pointerleave", record("anchor"));
+    block.addEventListener("pointerenter", record("block"));
+    block.addEventListener("pointerleave", record("block"));
     const tagged = (): boolean[] => [
       graph.scene.tags.peekOf("block", "a").has(hoveredTag),
       graph.scene.tags.peekOf("anchor", anchorEntityId("a", "out")).has(hoveredTag),
     ];
-    const layer = graph.getGraphLayer();
     // Scale 1 at the origin: world = client. Entering the anchor straight from outside: its enter bubbles to the block.
     // No leave comes first: the first entry has no old side.
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 300, clientY: 188 }));
-    expect(layer.$hoveredComponent.value).toBe(anchor);
-    expect(log).toEqual(["block:mouseenter:anchor"]);
+    pointer(graph, "pointermove", { clientX: 300, clientY: 188 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(anchor);
+    expect(log).toEqual(["block:pointerenter:anchor"]);
     expect(tagged()).toEqual([true, true]);
     log.splice(0);
-    // A drag holds the capture (`dragListener.ts:166`) while the HTML view lets the block go.
-    layer.handleEvent(new MouseEvent("mousedown", { clientX: 300, clientY: 188 }));
-    layer.captureEvents(anchor);
+    // A drag holds the capture while the HTML view lets the block go.
+    pointer(graph, "pointerdown", { clientX: 300, clientY: 188 });
+    graph.input.hover.captureEvents(anchor);
     release();
     for (let i = 0; i < 3; i++) frame();
-    expect(layer.$hoveredComponent.value).toBe(anchor);
+    expect(graph.input.$hoveredComponent.value).toBe(anchor);
     expect(log).toEqual([]);
-    // The drag ends with no mousemove after it: the release finds the target again (`dragListener.ts:209`).
-    layer.handleEvent(new MouseEvent("mouseup", { clientX: 300, clientY: 188 }));
-    layer.releaseCapture();
+    // Releasing the capture finds the target again without another move.
+    pointer(graph, "pointerup", { clientX: 300, clientY: 188 });
+    graph.input.hover.releaseCapture();
     for (let i = 0; i < 3; i++) frame();
     // Detailed without a view: the anchor is not shown, so not hit. The block stays tagged throughout (В1).
-    expect(layer.$hoveredComponent.value).toBe(block);
-    expect(log).toEqual(["anchor:mouseleave:anchor", "block:mouseleave:anchor", "block:mouseenter:block"]);
+    expect(graph.input.$hoveredComponent.value).toBe(block);
+    expect(log).toEqual(["anchor:pointerleave:anchor", "block:pointerleave:anchor", "block:pointerenter:block"]);
     expect(tagged()).toEqual([true, false]);
   });
 
@@ -227,42 +229,42 @@ describe("the handover to HTML (delegateRender)", () => {
     const release = view("a").delegateRender({ canvasVisible: false });
     frame();
     const anchor = graph.rootStore.blocksList.getBlockState("a")?.getAnchorById("out")?.getViewComponent();
-    const layer = graph.getGraphLayer();
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 300, clientY: 188 }));
-    expect(layer.$hoveredComponent.value).toBe(anchor);
-    const first = layer.holdRetarget();
+    pointer(graph, "pointermove", { clientX: 300, clientY: 188 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(anchor);
+    const first = graph.input.hover.holdRetarget();
     // The view lets the block go: at the detailed level the anchor is no longer shown, but the retarget waits.
     release();
     frame();
     // Taken a frame later, so a release, not its bound, ends it below.
-    const second = layer.holdRetarget();
+    const second = graph.input.hover.holdRetarget();
     frame();
-    expect(layer.$hoveredComponent.value).toBe(anchor);
+    expect(graph.input.$hoveredComponent.value).toBe(anchor);
     first();
     first();
     frame();
-    expect(layer.$hoveredComponent.value).toBe(anchor);
+    expect(graph.input.$hoveredComponent.value).toBe(anchor);
     second();
     frame();
-    expect(layer.$hoveredComponent.value).toBe(view("a"));
+    expect(graph.input.$hoveredComponent.value).toBe(view("a"));
   });
 
   it("bounds a retarget hold that is never released: its last frame's end releases it and serves the request", () => {
     const release = view("a").delegateRender({ canvasVisible: false });
     frame();
     const anchor = graph.rootStore.blocksList.getBlockState("a")?.getAnchorById("out")?.getViewComponent();
-    const layer = graph.getGraphLayer();
-    layer.handleEvent(new MouseEvent("mousemove", { clientX: 300, clientY: 188 }));
-    expect(layer.$hoveredComponent.value).toBe(anchor);
+    pointer(graph, "pointermove", { clientX: 300, clientY: 188 });
+    graph.scheduler.performUpdate();
+    expect(graph.input.$hoveredComponent.value).toBe(anchor);
     const expired = jest.fn();
-    layer.holdRetarget(expired);
+    graph.input.hover.holdRetarget(expired);
     release();
     // RETARGET_HOLD_FRAMES = 3: the first two frame ends wait, the third releases the hold and retargets.
     frame();
     frame();
-    expect([layer.$hoveredComponent.value === anchor, expired.mock.calls.length]).toEqual([true, 0]);
+    expect([graph.input.$hoveredComponent.value === anchor, expired.mock.calls.length]).toEqual([true, 0]);
     frame();
-    expect([layer.$hoveredComponent.value === view("a"), expired.mock.calls.length]).toEqual([true, 1]);
+    expect([graph.input.$hoveredComponent.value === view("a"), expired.mock.calls.length]).toEqual([true, 1]);
     for (let i = 0; i < 3; i++) frame();
     expect(expired).toHaveBeenCalledTimes(1);
   });

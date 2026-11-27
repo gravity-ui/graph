@@ -137,7 +137,7 @@ async function bulk(options: {
     const view = target.rootStore.blocksList.getBlockState(id)?.getViewComponent();
     return view ? [view] : [];
   });
-  const sourceEvent = new MouseEvent("mousedown");
+  const sourceEvent = new PointerEvent("pointerdown", { pointerType: "mouse", pointerId: 1, button: 0, buttons: 1 });
   const context = {
     sourceEvent,
     startCoords: [0, 0],

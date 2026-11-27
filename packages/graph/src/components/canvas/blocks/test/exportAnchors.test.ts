@@ -8,6 +8,7 @@ import type { LayerProps } from "../../../../services/Layer";
 import { entityKey } from "../../../../services/tags/TagStore";
 import type { AnchorState } from "../../../../store/anchor/Anchor";
 import { createAnchorPortId } from "../../../../store/connection/port/utils";
+import { hoverEvent } from "../../../../test/pointer";
 import type { TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../anchors";
 import type { TAnchor, TAnchorClass, TAnchorProps } from "../../anchors";
@@ -621,7 +622,7 @@ describe("toImage with lazily created anchors", () => {
     expect(created).toBeInstanceOf(Anchor);
     const bounds = graph.scene.store.get(created?.getSceneElementId() ?? "")?.bounds;
     // The anchor's own hover event, as GraphLayer sends it to a target: the anchor tags itself.
-    created?.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: created } }));
+    created?.dispatchEvent(hoverEvent("pointerenter", created));
     frames();
     // Hovered, scaled by x1.8 as a style row: its element bounds, which the development check reads, are the same.
     // This says nothing about crop completeness: the scaled look can draw outside these bounds (tracked separately).

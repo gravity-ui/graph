@@ -183,8 +183,7 @@ Listen for the `**group-collapse-change`** event. It fires **before** the rect c
 Payload includes `groupId`, `collapsed`, `currentRect`, and `nextRect` — use the delta between `currentRect` and `nextRect` to update other block positions or run your layout.
 
 ```typescript
-useGraphEvent(graph, "group-collapse-change", (detail, event) => {
-  const { groupId, currentRect, nextRect } = detail;
+useGraphEvent(graph, "group-collapse-change", ({ groupId, currentRect, nextRect }) => {
   // Example: nudge other blocks by (nextRect.height - currentRect.height) on Y
 });
 ```

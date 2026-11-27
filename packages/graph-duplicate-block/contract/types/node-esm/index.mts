@@ -24,14 +24,14 @@ void [asLayer, props, enabled];
 
 // Importing the package adds its events to the core event map.
 graph.on("blocks-duplicate-start", (event) => {
-  const detail: TBlocksDuplicateStartDetail = event.detail;
-  const blocks: CanvasBlock[] = event.detail.blocks;
+  const detail: TBlocksDuplicateStartDetail = event;
+  const blocks: CanvasBlock[] = event.blocks;
   void [detail, blocks];
 });
 graph.on("blocks-duplicate", (event) => {
-  const detail: TBlocksDuplicateDetail = event.detail;
-  const delta: TPoint = event.detail.delta;
-  const coord: TPoint | undefined = event.detail.items[0]?.coord;
+  const detail: TBlocksDuplicateDetail = event;
+  const delta: TPoint = event.delta;
+  const coord: TPoint | undefined = event.items[0]?.coord;
   event.preventDefault();
   void [detail, delta, coord];
 });

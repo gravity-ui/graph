@@ -1,8 +1,8 @@
 import { Graph } from "../../../../graph";
-import { Camera } from "../../../../services/camera/Camera";
-import type { DragOperationCallbacks } from "../../../../services/drag";
+import type { GraphDragOperation } from "../../../../services/input/press";
 
 import { SelectionLayer } from "./SelectionLayer";
+import { selectionDrag } from "./test/selectionDrag";
 
 type TSelectionLayerInternals = {
   context: { ctx: CanvasRenderingContext2D };
@@ -13,7 +13,7 @@ describe("SelectionLayer", () => {
   let graph: Graph;
   let layer: SelectionLayer;
   let ctx: CanvasRenderingContext2D;
-  let callbacks: DragOperationCallbacks;
+  let callbacks: GraphDragOperation;
   let roundRect: jest.Mock;
 
   const renderLayer = (): void => {
@@ -27,15 +27,7 @@ describe("SelectionLayer", () => {
     // jest-canvas-mock does not implement roundRect
     roundRect = jest.fn();
     ctx.roundRect = roundRect;
-    jest.spyOn(graph.dragService, "startDrag").mockImplementation((dragCallbacks) => {
-      callbacks = dragCallbacks;
-      return undefined as unknown as ReturnType<Graph["dragService"]["startDrag"]>;
-    });
-    graph.emit("mousedown", {
-      sourceEvent: new MouseEvent("mousedown", { metaKey: true }),
-      // SelectionLayer starts a selection only when the press lands on the camera (empty space)
-      target: Object.create(Camera.prototype) as Camera,
-    });
+    callbacks = selectionDrag(graph);
   });
 
   afterEach(() => {
@@ -48,10 +40,10 @@ describe("SelectionLayer", () => {
     { name: "zero height", end: [50, 10] },
     { name: "zero width", end: [10, 50] },
   ] as const)("does not draw a selection rect with $name", ({ end }) => {
-    const event = new MouseEvent("mousemove");
+    const event = new PointerEvent("pointermove");
 
-    callbacks.onStart?.(event, [10, 10]);
-    callbacks.onUpdate?.(event, [...end]);
+    callbacks.start?.(event, [10, 10]);
+    callbacks.move?.(event, [...end], "pointer");
     renderLayer();
 
     expect(roundRect).not.toHaveBeenCalled();
@@ -59,11 +51,11 @@ describe("SelectionLayer", () => {
 
   it("does not apply a zero-size selection on drag end", () => {
     const selectRelatedElements = jest.spyOn(graph.rootStore.selectionService, "selectRelatedElements");
-    const event = new MouseEvent("mouseup");
+    const event = new PointerEvent("pointerup");
 
-    callbacks.onStart?.(event, [10, 10]);
-    callbacks.onUpdate?.(event, [50, 10]);
-    callbacks.onEnd?.(event, [50, 10]);
+    callbacks.start?.(event, [10, 10]);
+    callbacks.move?.(event, [50, 10], "pointer");
+    callbacks.end?.(event, [50, 10]);
     renderLayer();
 
     expect(selectRelatedElements).not.toHaveBeenCalled();
@@ -71,10 +63,10 @@ describe("SelectionLayer", () => {
   });
 
   it("draws a selection rect with a non-zero size", () => {
-    const event = new MouseEvent("mousemove");
+    const event = new PointerEvent("pointermove");
 
-    callbacks.onStart?.(event, [10, 10]);
-    callbacks.onUpdate?.(event, [50, 40]);
+    callbacks.start?.(event, [10, 10]);
+    callbacks.move?.(event, [50, 40], "pointer");
     renderLayer();
 
     expect(roundRect).toHaveBeenCalledWith(10, 10, 40, 30, expect.any(Number));
@@ -82,15 +74,15 @@ describe("SelectionLayer", () => {
 
   it("clears the selection rect when dragged back to the start point", () => {
     const clearRect = jest.spyOn(ctx, "clearRect");
-    const event = new MouseEvent("mousemove");
+    const event = new PointerEvent("pointermove");
 
-    callbacks.onStart?.(event, [10, 10]);
-    callbacks.onUpdate?.(event, [50, 40]);
+    callbacks.start?.(event, [10, 10]);
+    callbacks.move?.(event, [50, 40], "pointer");
     renderLayer();
     roundRect.mockClear();
     clearRect.mockClear();
 
-    callbacks.onUpdate?.(event, [10, 10]);
+    callbacks.move?.(event, [10, 10], "pointer");
     renderLayer();
 
     expect(clearRect).toHaveBeenCalled();
@@ -99,11 +91,11 @@ describe("SelectionLayer", () => {
 
   it("applies a non-zero selection on drag end", () => {
     const selectRelatedElements = jest.spyOn(graph.rootStore.selectionService, "selectRelatedElements");
-    const event = new MouseEvent("mouseup");
+    const event = new PointerEvent("pointerup");
 
-    callbacks.onStart?.(event, [10, 10]);
-    callbacks.onUpdate?.(event, [50, 40]);
-    callbacks.onEnd?.(event, [50, 40]);
+    callbacks.start?.(event, [10, 10]);
+    callbacks.move?.(event, [50, 40], "pointer");
+    callbacks.end?.(event, [50, 40]);
 
     expect(selectRelatedElements).toHaveBeenCalledTimes(1);
   });

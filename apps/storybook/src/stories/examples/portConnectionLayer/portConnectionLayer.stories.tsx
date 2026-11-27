@@ -1,15 +1,6 @@
 import React, { useEffect } from "react";
 
-import {
-  Anchor,
-  CanvasBlock,
-  EAnchorType,
-  ECanDrag,
-  Graph,
-  TBlock,
-  TPoint,
-  createAnchorPortId,
-} from "@gravity-ui/graph";
+import { Anchor, CanvasBlock, EAnchorType, Graph, TBlock, TPoint, createAnchorPortId } from "@gravity-ui/graph";
 import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 import type { IPortConnectionMeta } from "@gravity-ui/graph-connection-editing";
 import { GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
@@ -252,7 +243,6 @@ const drawLine = (start: TPoint, end: TPoint) => {
 const GraphApp = () => {
   const { graph, setEntities, start, zoomTo } = useGraph({
     settings: {
-      canDrag: ECanDrag.ALL,
       useBlocksAnchors: true,
       blockComponents: {
         "port-based-block": PortBasedBlock,
@@ -287,6 +277,12 @@ const meta: Meta = {
   component: GraphApp,
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        story:
+          "On touch, swipe an unselected block to pan. Tap it, then drag to move it. Drag a port to connect blocks.",
+      },
+    },
   },
 };
 

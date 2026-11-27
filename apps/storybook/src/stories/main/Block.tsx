@@ -16,7 +16,7 @@ export type TBlockStoryProps = {
 
 export const BlockStory: React.FC<TBlockStoryProps> = ({ graph, block }) => {
   const onClick = useFn((e: MouseEvent) => {
-    console.log("Propagation stopped. Event should not ");
+    console.log("Block footer button clicked");
     e.stopPropagation();
   });
   return (

@@ -1,6 +1,5 @@
-import { GraphMouseEvent, extractNativeGraphMouseEvent, isGraphEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
-import { Camera } from "../../../../services/camera/Camera";
+import type { GraphDragOperation } from "../../../../services/input/press";
 import { isMetaKeyEvent } from "../../../../utils/functions";
 import { render } from "../../../../utils/renderers/render";
 
@@ -37,12 +36,11 @@ export class SelectionLayer extends Layer<
    * after the layer is unmounted and reattached.
    */
   protected afterInit(): void {
-    // Set up event handlers here instead of in constructor
-    this.onGraphEvent("mousedown", this.handleMouseDown, {
-      capture: true,
+    this.onGraphEvent("dragstart", ({ target, pressEvent, claim }) => {
+      if (target === this.context.graph && pressEvent.button === 0 && isMetaKeyEvent(pressEvent)) {
+        claim(this.selectionDrag);
+      }
     });
-
-    // Call parent afterInit to ensure proper initialization
     super.afterInit();
   }
 
@@ -92,43 +90,17 @@ export class SelectionLayer extends Layer<
     });
   }
 
-  private handleMouseDown = (nativeEvent: GraphMouseEvent) => {
-    if (!this.root?.ownerDocument) {
-      return;
-    }
-    const event = extractNativeGraphMouseEvent(nativeEvent);
-    const target = nativeEvent.detail.target;
-    // If target is camera, that means that user is start selection outside any elements
-    if (!(target instanceof Camera)) {
-      return;
-    }
-
-    if (event && isMetaKeyEvent(event)) {
-      // nativeEvent.preventDefault();
-      // nativeEvent.stopPropagation();
-      if (isGraphEvent(nativeEvent)) {
-        nativeEvent.stopGraphEventPropagation();
-      }
-      this.context.graph.dragService.startDrag({
-        onStart: this.startSelectionRender,
-        onUpdate: this.updateSelectionRender,
-        onEnd: this.endSelectionRender,
-        onCancel: this.resetSelectionRender,
-      });
-    }
-  };
-
-  private updateSelectionRender = (event: MouseEvent, [worldX, worldY]: [number, number]) => {
+  private updateSelectionRender = (event: PointerEvent, [worldX, worldY]: [number, number]) => {
     this.selectionEndWorld = { x: worldX, y: worldY };
     this.performRender();
   };
 
-  private startSelectionRender = (_event: MouseEvent, [worldX, worldY]: [number, number]) => {
+  private startSelectionRender = (_event: PointerEvent, [worldX, worldY]: [number, number]) => {
     this.selectionStartWorld = { x: worldX, y: worldY };
     this.selectionEndWorld = { x: worldX, y: worldY };
   };
 
-  private endSelectionRender = (event: MouseEvent) => {
+  private endSelectionRender = (event: PointerEvent) => {
     if (!this.selectionStartWorld || !this.selectionEndWorld) {
       return;
     }
@@ -155,6 +127,14 @@ export class SelectionLayer extends Layer<
     this.selectionStartWorld = null;
     this.selectionEndWorld = null;
     this.performRender();
+  };
+
+  private readonly selectionDrag: GraphDragOperation = {
+    owner: "SelectionLayer",
+    start: this.startSelectionRender,
+    move: this.updateSelectionRender,
+    end: this.endSelectionRender,
+    cancel: this.resetSelectionRender,
   };
 
   private applySelectedArea(x: number, y: number, w: number, h: number, shiftPressed: boolean): void {

@@ -382,7 +382,7 @@ const debouncedScheduler = {
 2. **Avoid Queue Saturation**
    ```typescript
    // ❌ Bad: Creates new task every time
-   function onMouseMove(e) {
+   function onPointerMove(e: PointerEvent) {
      schedule(() => updatePosition(e.x, e.y), { frameInterval: 1 });
    }
    
@@ -391,7 +391,7 @@ const debouncedScheduler = {
      (x, y) => console.log(x, y),
      { frameInterval: 1 }
    );
-   function onMouseMove(e) {
+   function onPointerMove(e: PointerEvent) {
      updatePosition(e.x, e.y);
    }
    ```

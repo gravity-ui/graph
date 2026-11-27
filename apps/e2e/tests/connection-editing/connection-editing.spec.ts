@@ -207,6 +207,86 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     expect(await isAnchorSelected("block-a", "out-a")).toBe(false);
   });
 
+  test("a captured port drops once outside the graph and clears its last snap target", async ({ page }) => {
+    await page.locator("#root").evaluate((root) => {
+      root.style.height = "70vh";
+    });
+    await graphPO.waitForFrames(2);
+    const from = await layerPO.getAnchorPoint("block-a", "out-a");
+    const to = await layerPO.getAnchorPoint("block-b", "in-b");
+    await layerPO.pressAndMove(from, to);
+    expect(await isAnchorSelected("block-b", "in-b")).toBe(true);
+    const outside = await page.locator("#root").evaluate((root) => {
+      const { left, bottom } = root.getBoundingClientRect();
+      return { x: left + 20, y: bottom + 30 };
+    });
+    await page.mouse.move(outside.x, outside.y);
+    await page.mouse.up();
+    await graphPO.waitForFrames(2);
+    expect(await graphPO.evaluate((graph) => graph.input.$hoveredComponent.value?.getEntityId())).toBeUndefined();
+    const drops = (await layerPO.getEvents()).filter((record) => record.type === "connection-create-drop");
+    expect(drops).toHaveLength(1);
+    expect(drops[0].targetBlockId).toBeUndefined();
+    expect(await graphPO.getConnections()).toEqual([]);
+    expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+  });
+
+  for (const reason of ["pointercancel", "lost capture", "graph stop", "window blur"] as const) {
+    test(`${reason} cancels the port owner once and a later release saves nothing`, async ({ page }) => {
+      const mouse = await page.evaluateHandle(() => {
+        const held = { id: 0, element: null as Element | null };
+        window.graph.on(
+          "press",
+          ({ event }) => {
+            held.id = event.pointerId;
+            if (event.target instanceof Element) held.element = event.target;
+          },
+          { once: true }
+        );
+        return held;
+      });
+      const from = await layerPO.getAnchorPoint("block-a", "out-a");
+      const to = await layerPO.getAnchorPoint("block-b", "in-b");
+      await layerPO.pressAndMove(from, to);
+      expect(await isAnchorSelected("block-b", "in-b")).toBe(true);
+      await mouse.evaluate(({ element, id }, action) => {
+        if (!element?.hasPointerCapture(id)) throw new Error("The port drag did not capture its mouse");
+        if (action === "lost capture") element.releasePointerCapture(id);
+        else if (action === "graph stop") window.graph.stop();
+        else if (action === "window blur") window.dispatchEvent(new Event("blur"));
+        else
+          element.dispatchEvent(
+            new PointerEvent("pointercancel", { pointerId: id, pointerType: "mouse", bubbles: true })
+          );
+      }, reason);
+      await layerPO.moveTo(to);
+      await page.mouse.up();
+      await mouse.dispose();
+      const events = await layerPO.getEventTypes();
+      expect(events.filter((type) => type === "connection-create-cancel")).toHaveLength(1);
+      expect(events).not.toContain("connection-create-drop");
+      expect(await graphPO.getConnections()).toEqual([]);
+      expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+      expect(await graphPO.evaluate((graph) => graph.cameraService.getCameraState().autoPanningEnabled)).toBe(false);
+    });
+  }
+
+  test("keeps the port owner through a second mouse button and commits on release of the initiating button", async ({
+    page,
+  }) => {
+    const from = await layerPO.getAnchorPoint("block-a", "out-a");
+    const to = await layerPO.getAnchorPoint("block-b", "in-b");
+    await layerPO.pressAndMove(from, to);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.up({ button: "right" });
+    expect(await graphPO.getConnections()).toEqual([]);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.up({ button: "left" });
+    expect(await graphPO.getConnections()).toHaveLength(1);
+    await page.mouse.up({ button: "right" });
+    expect((await layerPO.getEventTypes()).filter((type) => type === "connection-create-drop")).toHaveLength(1);
+  });
+
   test("clicking an anchor without dragging emits nothing, even on Escape or layer removal", async ({ page }) => {
     await graphPO.clickAt(await layerPO.getAnchorPoint("block-a", "out-a"));
     await page.keyboard.press("Escape");
@@ -318,6 +398,29 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     const drop = (await layerPO.getEvents()).at(-1);
     expect(drop).toMatchObject({ type: "connection-create-drop", sourceAnchorId: "out-a", hasPoint: true });
     expect(drop?.targetBlockId).toBeUndefined();
+  });
+
+  test("an HTML control can consume Escape during a connection drag", async ({ page }) => {
+    const from = await layerPO.getAnchorPoint("block-a", "out-a");
+    const to = await layerPO.getAnchorPoint("block-b", "in-b");
+    await layerPO.pressAndMove(from, to);
+    expect(await layerPO.getEventTypes()).toContain("connection-create-start");
+
+    await page.evaluate(() => {
+      const input = document.body.appendChild(document.createElement("input"));
+      input.setAttribute("aria-label", "Connection options");
+      Object.assign(input.style, { position: "fixed", top: "0", left: "0" });
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") event.preventDefault();
+      });
+      input.focus({ preventScroll: true });
+    });
+    await page.getByRole("textbox", { name: "Connection options" }).press("Escape");
+    expect(await layerPO.getEventTypes()).not.toContain("connection-create-cancel");
+    await layerPO.release();
+
+    expect(await graphPO.getConnections()).toHaveLength(1);
+    expect((await layerPO.getEventTypes()).slice(-2)).toEqual(["connection-created", "connection-create-drop"]);
   });
 
   test("Escape cancels the drag", async ({ page }) => {
@@ -459,6 +562,58 @@ test.describe("ConnectionEditingLayer – the detailed level without HTML (D4)",
   });
 });
 
+for (const duplicateFirst of [false, true]) {
+  test(`unassigned Alt+Shift and conflicting drag claims keep the graph still (duplicate first: ${duplicateFirst})`, async ({
+    page,
+  }) => {
+    await setup(page);
+    const addCopy = () =>
+      graphPO.evaluate((graph) => {
+        graph.addLayer(window.GraphModule.DuplicateBlockLayer, {});
+      });
+    if (duplicateFirst) await addCopy();
+    await layerPO.addLayer();
+    if (!duplicateFirst) await addCopy();
+    await layerPO.recordEvents();
+    const warnings: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "warning") warnings.push(message.text());
+    });
+    const camera = await graphPO.camera().getState();
+    const block = await graphPO.block("block-a").getGeometry();
+    await page.keyboard.down("Alt");
+    await page.keyboard.down("Shift");
+    await graphPO.drag({ x: 100, y: 50 }, { x: 600, y: 50 });
+    await page.keyboard.up("Shift");
+    await page.keyboard.up("Alt");
+    expect(warnings.filter((line) => line.includes("Conflicting graph drag claims"))).toEqual([]);
+    expect(await layerPO.getEventTypes()).toEqual([]);
+    expect(await graphPO.evaluate((graph) => graph.blocks.toJSON().length)).toBe(BLOCKS.length);
+    expect(await graphPO.block("block-a").getGeometry()).toEqual(block);
+    // An application can independently bind the same Shift drag as the connected editing layer.
+    const started = await page.evaluateHandle(() => {
+      const calls: string[] = [];
+      window.graph.on("dragstart", (event) => {
+        if (event.pressEvent.shiftKey) event.claim({ owner: "AppTool", start: () => calls.push("start") });
+      });
+      return calls;
+    });
+    await page.keyboard.down("Shift");
+    await graphPO.drag({ x: 100, y: 50 }, { x: 600, y: 50 });
+    await page.keyboard.up("Shift");
+    expect(await started.jsonValue()).toEqual([]);
+    await started.dispose();
+    expect(await layerPO.getEventTypes()).toEqual([]);
+    expect(await graphPO.getConnections()).toEqual([]);
+    expect(await graphPO.evaluate((graph) => graph.blocks.toJSON().length)).toBe(BLOCKS.length);
+    expect(await graphPO.block("block-a").getGeometry()).toEqual(block);
+    expect(await graphPO.camera().getState()).toEqual(camera);
+    expect(warnings.filter((line) => line.includes("ConnectionEditingLayer") && line.includes("AppTool"))).toHaveLength(
+      1
+    );
+  });
+}
+
 test.describe("ConnectionEditingLayer – port addressing mode", () => {
   test.beforeEach(async ({ page }) => {
     await setup(page);
@@ -493,6 +648,56 @@ test.describe("ConnectionEditingLayer – port addressing mode", () => {
     await graphPO.drag({ x: 160, y: 210 }, { x: 540, y: 210 });
 
     await expectPortModeCreated("group-src-out", "group-dst-in");
+  });
+
+  test("the connection layer owns the mouse port drag at five CSS pixels and releases it once", async ({ page }) => {
+    const from = { x: 150, y: 70 };
+    const to = { x: 550, y: 70 };
+    await layerPO.addCustomPort({ blockId: "block-a" }, "source", from);
+    await layerPO.addCustomPort({ blockId: "block-b" }, "target", to);
+    await graphPO.evaluate((graph) => {
+      graph.updateSettings({ canDragCamera: true, dragThreshold: 5 });
+      // Keep browser-generated Pointer Events; mask compatibility events to prove which transport drives the drag.
+      for (const type of ["mousemove", "mouseup"]) {
+        document.addEventListener(type, (event) => event.stopImmediatePropagation(), { capture: true });
+      }
+    });
+    await layerPO.recordEvents();
+    const block = await graphPO.block("block-a").getGeometry();
+    const camera = await graphPO.camera().getState();
+    const start = await layerPO.toViewport(from);
+    const end = await layerPO.toViewport(to);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 4, start.y);
+    expect(await layerPO.getEventTypes()).toEqual([]);
+    await page.mouse.move(start.x + 5, start.y);
+    expect(await layerPO.getEventTypes()).toEqual(["connection-create-start"]);
+    const hover = await page.evaluateHandle(() => {
+      const graph = window.graph;
+      const result = { passiveQueries: 0 };
+      const hit = graph.getElementOverPoint.bind(graph);
+      graph.getElementOverPoint = (point, filter) => {
+        if (!filter) result.passiveQueries++;
+        return hit(point, filter);
+      };
+      return result;
+    });
+    await page.mouse.move(end.x, end.y, { steps: 12 });
+    expect((await hover.jsonValue()).passiveQueries).toBe(0);
+    expect(await graphPO.evaluate((graph) => graph.input.$hoveredComponent.value?.getEntityId())).toBe("block-a");
+    await hover.dispose();
+    await page.mouse.up();
+    await page.mouse.move(end.x + 20, end.y);
+    expect(await layerPO.getEventTypes()).toEqual([
+      "connection-create-start",
+      "connection-create-hover",
+      "connection-created",
+      "connection-create-drop",
+    ]);
+    await expectPortModeCreated("source", "target");
+    expect(await graphPO.block("block-a").getGeometry()).toEqual(block);
+    expect(await graphPO.camera().getState()).toEqual(camera);
   });
 
   test("a custom port on a block is saved by its port ID, not as the block's default point", async () => {
