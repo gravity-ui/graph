@@ -2,6 +2,7 @@ import { batch } from "@preact/signals-core";
 
 import { Graph } from "../../../../graph";
 import { globalScheduler } from "../../../../lib/Scheduler";
+import { connectionTargetTag } from "../../../../services/tags/builtinTags";
 import type { BlockState } from "../../../../store/block/Block";
 import type { PortState } from "../../../../store/connection/port/Port";
 import { createBlockPointPortId } from "../../../../store/connection/port/utils";
@@ -117,6 +118,28 @@ describe("a kept group rebinds to the new group state of a group added back in t
   });
 
   describe("Group", () => {
+    it("uses the external group's initialized entity id for the connection preview", () => {
+      class ExternalGroup<T extends TGroup = TGroup> extends Group<T> {
+        #entityId = `external-${this.props.id}`;
+
+        public override getEntityId(): string {
+          return this.#entityId;
+        }
+
+        public get preview(): boolean {
+          return this.connectionPreview;
+        }
+      }
+
+      start({ id: "g", rect: RECT, component: ExternalGroup });
+      const group = viewOf();
+      if (!(group instanceof ExternalGroup)) throw new Error("External group did not mount");
+      graph.scene.tags.set(connectionTargetTag, { group: ["external-g"] });
+      expect(group.preview).toBe(true);
+      graph.scene.tags.clear(connectionTargetTag);
+      expect(group.preview).toBe(false);
+    });
+
     it("binds the kept component to the new state, with its data, and unbinds the old one", () => {
       start({ id: "g", rect: RECT });
       const oldState = stateOf();

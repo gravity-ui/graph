@@ -40,6 +40,6 @@ All props are optional: `enabled`, `canStart`, `isConnectionAllowed`, `searchRad
 
 ## Events
 
-Importing the package adds typed graph events: `connection-create-start`, `connection-create-hover`, `connection-created`, `connection-create-drop` and `connection-create-cancel`. Each payload carries `sourcePort` / `targetPort` and, when the endpoint is a block or an anchor, the block and anchor IDs. `preventDefault()` on start and hover skips the selection highlight; on `connection-created` it skips adding the connection.
+Importing the package adds typed graph events: `connection-create-start`, `connection-create-hover`, `connection-created`, `connection-create-drop` and `connection-create-cancel`. Each payload carries `sourcePort` / `targetPort` and, when the endpoint is a block or an anchor, the block and anchor IDs. `preventDefault()` on start and hover skips the corresponding preview tag (`connectionSourceTag` or `connectionTargetTag`); on `connection-created` it skips adding the connection. The drag leaves application selection available for keyboard commands.
 
 Full documentation: [Connection Editing guide](https://github.com/gravity-ui/graph/blob/v2/packages/graph/docs/plugins/connection-editing.md). Migration from `ConnectionLayer`, `PortConnectionLayer` and the `canCreateNewConnections` setting: [v1 to v2 migration guide](https://github.com/gravity-ui/graph/blob/v2/packages/graph/docs/migration-guides/v1-to-v2.md#connection-editing-package-boundary).

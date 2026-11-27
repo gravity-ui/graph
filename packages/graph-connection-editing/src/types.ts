@@ -91,13 +91,13 @@ declare module "@gravity-ui/graph" {
   interface GraphEventsDefinitions {
     /**
      * Fired when a user starts creating a connection from a port, an anchor or a block (Shift + drag).
-     * Preventing this event prevents the selection of the source component.
+     * Preventing this event skips the source preview tag.
      */
     "connection-create-start": (event: CustomEvent<TConnectionCreateStartDetail>) => void;
 
     /**
      * Fired when the dragged endpoint enters or leaves a potential target.
-     * Preventing this event prevents the selection of the target component.
+     * Preventing this event skips the target preview tag.
      */
     "connection-create-hover": (event: CustomEvent<TConnectionCreateHoverDetail>) => void;
 

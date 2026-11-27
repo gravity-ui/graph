@@ -10,7 +10,9 @@
   cursor: pointer;
 }
 
-.graph-block-anchor.graph-block-anchor-selected {
+.graph-block-anchor.graph-block-anchor-selected,
+.graph-block-anchor.graph-tag-connectionsource,
+.graph-block-anchor.graph-tag-connectiontarget {
   border: 2px solid var(--graph-block-anchor-border-selected);
   transform: scale(var(--graph-block-anchor-hover-scale, 1.2));
 }

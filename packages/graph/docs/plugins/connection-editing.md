@@ -62,6 +62,8 @@ const meta: IPortConnectionMeta = {
 this.updatePort(portId, { meta: { [ConnectionEditingLayer.PortMetaKey]: meta } });
 ```
 
+`snapCondition` applies during preview and on release, including when the cursor is exactly on the port. The nearest eligible port wins, including ports moved or enabled during the drag. A Shift-drag onto another block’s body can use its default input at any distance. Both `snapCondition` on a marked input and `isConnectionAllowed` can veto that drop.
+
 `ConnectionEditingLayer.PortMetaKey` is `Symbol.for("PortConnectionLayer.PortMeta")`, the key used by the former `PortConnectionLayer`.
 
 ## Props
@@ -71,7 +73,7 @@ this.updatePort(portId, { meta: { [ConnectionEditingLayer.PortMetaKey]: meta } }
 | `enabled` | `boolean` | `true` | Turns connection creation on or off. `enable()` / `disable()` set it. |
 | `canStart` | `({ sourcePort, sourceComponent, event }) => boolean` | — | Rejects sources. |
 | `isConnectionAllowed` | `({ sourcePort, targetPort }) => boolean` | — | Rejects targets, including snapping candidates. A rejected target is treated as no target. |
-| `searchRadius` | `number` | `20` | Port detection and snapping radius in world pixels. |
+| `searchRadius` | `number` | `20` | Maximum distance to a connection port in world pixels, including the boundary. Use `0` for an exact hit. |
 | `captureAnchors` | `boolean` | `true` | Prevents the block drag on every anchor while enabled. |
 | `createIcon` | `TConnectionEditingIcon` | — | Icon at the cursor while there is no target. |
 | `point` | `TConnectionEditingIcon` | — | Icon at the cursor while a target is hovered. |
@@ -84,6 +86,8 @@ this.updatePort(portId, { meta: { [ConnectionEditingLayer.PortMetaKey]: meta } }
 ## Events
 
 The events are typed on `graph.on` once the package is imported.
+
+The layer adds `connectionSourceTag` and `connectionTargetTag` to the scene entities that own the source and hovered ports. Drop and cancel clear the preview. Selection remains under application control throughout the drag, including for keyboard commands such as Delete. Call `preventDefault()` on start or hover to supply your own highlight for that endpoint. A preview tag bound with `graph.scene.tags.bind` stays under the control of its signal. Subclasses that previously overrode `selectPort` can use these two events to customize the preview.
 
 A connection is written in one of two `TConnection` addressing modes, never mixed:
 

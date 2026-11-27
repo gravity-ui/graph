@@ -188,6 +188,7 @@ describe("TagStore", () => {
       running,
       computed(() => ({ block: ids.value }))
     );
+    expect(tags.isBound(running)).toBe(true);
     expect(tags.$of("block", "1").value.has(running)).toBe(true);
     ids.value = ["2"];
     expect(tags.$of("block", "1").value.has(running)).toBe(false);
@@ -200,6 +201,7 @@ describe("TagStore", () => {
       )
     ).toThrow(/bound/);
     unbind();
+    expect(tags.isBound(running)).toBe(false);
     expect(tags.membersOf(running).size).toBe(0);
     tags.add(running, { block: ["3"] });
     expect(tags.$of("block", "3").value.has(running)).toBe(true);
