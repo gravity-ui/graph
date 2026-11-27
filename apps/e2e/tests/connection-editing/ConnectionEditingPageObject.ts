@@ -20,6 +20,7 @@ export type TRecordedConnectionEvent = {
 export type TLayerOptions = {
   enabled?: boolean;
   captureAnchors?: boolean;
+  searchRadius?: number;
   /** Rejects every target whose port ID is in this list (installs `isConnectionAllowed`). */
   rejectTargetPortIds?: string[];
   /** Starts connections only from ports with connection meta (former `PortConnectionLayer` behaviour). */
@@ -58,6 +59,7 @@ export class ConnectionEditingPageObject {
       win.connectionEditingLayer = window.graph.addLayer(ConnectionEditingLayer, {
         enabled: opts.enabled,
         captureAnchors: opts.captureAnchors,
+        searchRadius: opts.searchRadius,
         isConnectionAllowed: rejected ? ({ targetPort }) => !rejected.includes(String(targetPort.id)) : undefined,
         canStart: opts.portSourcesOnly
           ? ({ sourcePort }) => {

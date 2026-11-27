@@ -62,6 +62,8 @@ const meta: IPortConnectionMeta = {
 this.updatePort(portId, { meta: { [ConnectionEditingLayer.PortMetaKey]: meta } });
 ```
 
+`snapCondition` applies during preview and on release, including when the cursor is exactly on the port. A rejected port is skipped when looking for the nearest eligible target.
+
 `ConnectionEditingLayer.PortMetaKey` is `Symbol.for("PortConnectionLayer.PortMeta")`, the key used by the former `PortConnectionLayer`.
 
 ## Props
@@ -71,7 +73,7 @@ this.updatePort(portId, { meta: { [ConnectionEditingLayer.PortMetaKey]: meta } }
 | `enabled` | `boolean` | `true` | Turns connection creation on or off. `enable()` / `disable()` set it. |
 | `canStart` | `({ sourcePort, sourceComponent, event }) => boolean` | — | Rejects sources. |
 | `isConnectionAllowed` | `({ sourcePort, targetPort }) => boolean` | — | Rejects targets, including snapping candidates. A rejected target is treated as no target. |
-| `searchRadius` | `number` | `20` | Port detection and snapping radius in world pixels. |
+| `searchRadius` | `number` | `20` | Maximum distance to a connection port in world pixels, including the boundary. Use `0` for an exact hit. |
 | `captureAnchors` | `boolean` | `true` | Prevents the block drag on every anchor while enabled. |
 | `createIcon` | `TConnectionEditingIcon` | — | Icon at the cursor while there is no target. |
 | `point` | `TConnectionEditingIcon` | — | Icon at the cursor while a target is hovered. |
@@ -84,6 +86,8 @@ this.updatePort(portId, { meta: { [ConnectionEditingLayer.PortMetaKey]: meta } }
 ## Events
 
 The events are typed on `graph.on` once the package is imported.
+
+The source and hovered target receive temporary selection highlights. Dropping or cancelling the connection clears those highlights and preserves a previously selected anchor. An application that handles highlighting itself can call `preventDefault()` on both start and hover.
 
 A connection is written in one of two `TConnection` addressing modes, never mixed:
 

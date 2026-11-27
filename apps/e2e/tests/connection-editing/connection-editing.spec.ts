@@ -321,6 +321,57 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
   });
 
+  for (const preview of ["default", "prevented"] as const) {
+    test(`Escape preserves the selected anchor for the next Ctrl/Cmd-click (${preview} highlight)`, async ({
+      page,
+    }) => {
+      if (preview === "prevented") {
+        await layerPO.preventDefault("connection-create-start");
+        await layerPO.preventDefault("connection-create-hover");
+      }
+      await graphPO.evaluate((graph) => {
+        graph.on("click", (event) => {
+          const { target, sourceEvent } = event.detail;
+          if (!(target instanceof window.GraphModule.Anchor) || !(sourceEvent instanceof MouseEvent)) return;
+          if (!sourceEvent.ctrlKey && !sourceEvent.metaKey) return;
+          const [source] = graph.blocks.anchorSelectionBucket.$selectedEntities.value;
+          const destination = target.connectedState;
+          if (source && source !== destination) {
+            event.preventDefault();
+            graph.connections.addConnection({
+              sourceBlockId: source.blockId,
+              sourceAnchorId: source.id,
+              targetBlockId: destination.blockId,
+              targetAnchorId: destination.id,
+            });
+          }
+        });
+      });
+      const from = await layerPO.getAnchorPoint("block-a", "out-a");
+      const to = await layerPO.getAnchorPoint("block-b", "in-b");
+      await graphPO.clickAt(from);
+      expect(await isAnchorSelected("block-a", "out-a")).toBe(true);
+
+      await layerPO.pressAndMove(from, to);
+      await page.keyboard.press("Escape");
+      await layerPO.release();
+      expect(await layerPO.getEventTypes()).toContain("connection-create-cancel");
+      expect(await graphPO.getConnections()).toEqual([]);
+      expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+      expect(await isAnchorSelected("block-a", "out-a")).toBe(true);
+
+      await graphPO.clickAt(to, { modifiers: ["ControlOrMeta"] });
+      expect(await graphPO.getConnections()).toEqual([
+        expect.objectContaining({
+          sourceBlockId: "block-a",
+          sourceAnchorId: "out-a",
+          targetBlockId: "block-b",
+          targetAnchorId: "in-b",
+        }),
+      ]);
+    });
+  }
+
   test("repeating the same drag does not duplicate the connection", async () => {
     const from = await layerPO.getAnchorPoint("block-a", "out-a");
     const to = await layerPO.getAnchorPoint("block-b", "in-b");
@@ -329,6 +380,17 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     await graphPO.drag(from, to);
 
     expect(await graphPO.getConnections()).toHaveLength(1);
+  });
+
+  test("a completed drag preserves a previously selected anchor", async () => {
+    const from = await layerPO.getAnchorPoint("block-a", "out-a");
+    const to = await layerPO.getAnchorPoint("block-b", "in-b");
+    await graphPO.clickAt(from);
+    await graphPO.drag(from, to);
+
+    expect(await graphPO.getConnections()).toHaveLength(1);
+    expect(await isAnchorSelected("block-a", "out-a")).toBe(true);
+    expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
   });
 });
 
@@ -529,6 +591,30 @@ test.describe("ConnectionEditingLayer – ports and snapping", () => {
     });
   });
 
+  for (const { radius, dx, dy, accepted } of [
+    { radius: 20, dx: 20, dy: 0, accepted: true },
+    { radius: 20, dx: 32, dy: 0, accepted: false },
+    { radius: 20, dx: 16, dy: 16, accepted: false },
+    { radius: 0, dx: 0, dy: 0, accepted: true },
+    { radius: 0, dx: 8, dy: 0, accepted: false },
+  ]) {
+    test(`snap radius ${radius} at offset (${dx}, ${dy}) ${accepted ? "accepts" : "rejects"} the port`, async () => {
+      await layerPO.addLayer({ searchRadius: radius });
+      await layerPO.makeAnchorPortsSnappable(SNAPPABLE);
+      await layerPO.recordEvents();
+      const from = await layerPO.getAnchorPoint("block-a", "out-a");
+      const to = await layerPO.getAnchorPoint("block-b", "in-b");
+
+      await graphPO.drag(from, { x: to.x - dx, y: to.y + dy });
+
+      const targetPortId = await layerPO.anchorPortId("block-b", "in-b");
+      const drop = (await layerPO.getEvents()).at(-1);
+      expect(drop?.type).toBe("connection-create-drop");
+      expect(drop?.targetPortId).toBe(accepted ? targetPortId : undefined);
+      expect(await graphPO.getConnections()).toHaveLength(accepted ? 1 : 0);
+    });
+  }
+
   test("snapCondition in port meta rejects a target", async () => {
     await layerPO.addLayer();
     await layerPO.makeAnchorPortsSnappable(SNAPPABLE, { rejectAll: true });
@@ -540,6 +626,29 @@ test.describe("ConnectionEditingLayer – ports and snapping", () => {
     expect(await graphPO.getConnections()).toEqual([]);
   });
 
+  for (const source of ["port", "anchor"] as const) {
+    test(`snapCondition rejects a direct hit during hover and drop (source: ${source})`, async () => {
+      await layerPO.addLayer();
+      if (source === "port") await layerPO.makeAnchorPortsSnappable([SNAPPABLE[0]]);
+      await layerPO.makeAnchorPortsSnappable([SNAPPABLE[1]], { rejectAll: true });
+      await layerPO.recordEvents();
+      const from = await layerPO.getAnchorPoint("block-a", "out-a");
+      const to = await layerPO.getAnchorPoint("block-b", "in-b");
+      const targetId = await layerPO.anchorPortId("block-b", "in-b");
+
+      await layerPO.pressAndMove(from, to);
+      await layerPO.release();
+
+      const events = await layerPO.getEvents();
+      expect(
+        events.filter((event) => event.type === "connection-create-hover").map((event) => event.targetPortId)
+      ).not.toContain(targetId);
+      expect(events.at(-1)?.type).toBe("connection-create-drop");
+      expect(events.at(-1)?.targetPortId).toBeUndefined();
+      expect(await graphPO.getConnections()).toEqual([]);
+    });
+  }
+
   test("isConnectionAllowed rejects a snapping target", async () => {
     await layerPO.addLayer({ rejectTargetPortIds: [await layerPO.anchorPortId("block-b", "in-b")] });
     await layerPO.makeAnchorPortsSnappable(SNAPPABLE);
@@ -548,6 +657,20 @@ test.describe("ConnectionEditingLayer – ports and snapping", () => {
 
     await graphPO.drag(from, { x: to.x - 15, y: to.y + 5 });
 
+    expect(await graphPO.getConnections()).toEqual([]);
+  });
+
+  test("a rejected custom port under the cursor prevents a drop on its owning block", async ({ page }) => {
+    const target = { x: 550, y: 70 };
+    await layerPO.addLayer({ rejectTargetPortIds: ["custom-in"] });
+    await layerPO.addCustomPort({ blockId: "block-b" }, "custom-in", target);
+    await layerPO.recordEvents();
+
+    await page.keyboard.down("Shift");
+    await graphPO.drag(await graphPO.block("block-a").getCenter(), target);
+    await page.keyboard.up("Shift");
+
+    expect((await layerPO.getEvents()).at(-1)?.targetPortId).toBeUndefined();
     expect(await graphPO.getConnections()).toEqual([]);
   });
 
@@ -686,6 +809,20 @@ test.describe("ConnectionEditingLayer – entity replacement during the drag", (
     expect(types.filter((type) => type === "connection-create-cancel")).toHaveLength(1);
     expect(types).not.toContain("connection-created");
     expect(await isAnchorSelected("block-b", "in-b")).toBe(false);
+  });
+
+  test("removing the highlighted target leaves the selected source available after Escape", async ({ page }) => {
+    const from = await layerPO.getAnchorPoint("block-a", "out-a");
+    const to = await layerPO.getAnchorPoint("block-b", "in-b");
+    await graphPO.clickAt(from);
+    await layerPO.pressAndMove(from, to);
+    expect(await isAnchorSelected("block-b", "in-b")).toBe(true);
+
+    await graphPO.evaluate((graph) => graph.blocks.deleteBlocks(["block-b"]));
+    await page.keyboard.press("Escape");
+    await layerPO.release();
+    expect(await isAnchorSelected("block-a", "out-a")).toBe(true);
+    expect(await graphPO.getConnections()).toEqual([]);
   });
 
   test("a connection-created handler that replaces the target block prevents the connection", async () => {
